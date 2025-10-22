@@ -1,0 +1,66 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.optionalAuth = exports.authenticate = void 0;
+const models_1 = require("../models");
+const jwt_util_1 = require("../utils/jwt.util");
+const response_util_1 = require("../utils/response.util");
+const asyncHandler_util_1 = require("../utils/asyncHandler.util");
+const constants_1 = require("../config/constants");
+exports.authenticate = (0, asyncHandler_util_1.asyncHandler)(async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.UNAUTHORIZED);
+    }
+    const token = authHeader.substring(7);
+    try {
+        const decoded = (0, jwt_util_1.verifyAccessToken)(token);
+        const user = await models_1.User.findById(decoded.id)
+            .populate('roles')
+            .populate('departments')
+            .select('+password');
+        if (!user) {
+            return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.USER_NOT_FOUND);
+        }
+        if (user.status !== models_1.UserStatus.ACTIVE) {
+            return (0, response_util_1.sendForbidden)(res, 'Account is inactive or suspended');
+        }
+        const { password, ...userWithoutPassword } = user.toObject();
+        req.user = userWithoutPassword;
+        req.clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'];
+        req.userAgent = req.headers['user-agent'];
+        return next();
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            if (error.message === 'Token has expired') {
+                return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.TOKEN_EXPIRED);
+            }
+            else if (error.message === 'Invalid token') {
+                return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.TOKEN_INVALID);
+            }
+        }
+        return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.UNAUTHORIZED);
+    }
+});
+exports.optionalAuth = (0, asyncHandler_util_1.asyncHandler)(async (req, _res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return next();
+    }
+    const token = authHeader.substring(7);
+    try {
+        const decoded = (0, jwt_util_1.verifyAccessToken)(token);
+        const user = await models_1.User.findById(decoded.id)
+            .populate('roles')
+            .populate('departments');
+        if (user && user.status === models_1.UserStatus.ACTIVE) {
+            req.user = user;
+            req.clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'];
+            req.userAgent = req.headers['user-agent'];
+        }
+    }
+    catch (error) {
+    }
+    return next();
+});
+//# sourceMappingURL=auth.middleware.js.map
