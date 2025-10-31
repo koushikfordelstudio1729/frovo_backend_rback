@@ -108,11 +108,9 @@ const roleSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-roleSchema.index({ key: 1 });
 roleSchema.index({ type: 1 });
 roleSchema.index({ status: 1 });
 roleSchema.index({ department: 1 });
-roleSchema.index({ systemRole: 1 });
 roleSchema.index({ createdAt: -1 });
 roleSchema.pre('save', function (next) {
     if (this.isModified('name') && !this.key) {

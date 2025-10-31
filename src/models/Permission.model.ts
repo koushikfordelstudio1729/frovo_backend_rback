@@ -50,8 +50,7 @@ const permissionSchema = new Schema<IPermission>(
   }
 );
 
-// Indexes
-permissionSchema.index({ key: 1 });
+// Indexes (key already has unique index from schema)
 permissionSchema.index({ module: 1 });
 permissionSchema.index({ group: 1 });
 permissionSchema.index({ module: 1, action: 1 });

@@ -27,6 +27,11 @@ router.post('/logout',
   authController.logout
 );
 
+router.post('/logout-all',
+  auditLogout(),
+  authController.logoutFromAllDevices
+);
+
 router.get('/me',
   authController.getCurrentUser
 );

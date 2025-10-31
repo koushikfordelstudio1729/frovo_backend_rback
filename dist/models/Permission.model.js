@@ -70,7 +70,6 @@ const permissionSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-permissionSchema.index({ key: 1 });
 permissionSchema.index({ module: 1 });
 permissionSchema.index({ group: 1 });
 permissionSchema.index({ module: 1, action: 1 });

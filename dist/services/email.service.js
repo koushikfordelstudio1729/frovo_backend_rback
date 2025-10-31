@@ -9,11 +9,24 @@ const logger_util_1 = require("../utils/logger.util");
 class EmailService {
     constructor() {
         this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
-        this.initializeTransporter();
+        try {
+            this.initializeTransporter();
+        }
+        catch (error) {
+            logger_util_1.logger.error('Failed to initialize email transporter:', error);
+            this.transporter = {
+                sendMail: async () => { throw new Error('Email service not configured'); },
+                verify: async () => { throw new Error('Email service not configured'); }
+            };
+        }
     }
     initializeTransporter() {
+        logger_util_1.logger.info('Environment variables:');
+        logger_util_1.logger.info(`  EMAIL_HOST: ${process.env['EMAIL_HOST']}`);
+        logger_util_1.logger.info(`  EMAIL_PORT: ${process.env['EMAIL_PORT']}`);
+        logger_util_1.logger.info(`  EMAIL_USER: ${process.env['EMAIL_USER']}`);
+        logger_util_1.logger.info(`  EMAIL_PASS exists: ${!!process.env['EMAIL_PASS']}`);
         const config = {
-            service: 'gmail',
             host: process.env['EMAIL_HOST'] || 'smtp.gmail.com',
             port: parseInt(process.env['EMAIL_PORT'] || '587'),
             secure: false,
@@ -25,6 +38,11 @@ class EmailService {
                 rejectUnauthorized: false
             }
         };
+        logger_util_1.logger.info('Email configuration:');
+        logger_util_1.logger.info(`  Host: ${config.host}`);
+        logger_util_1.logger.info(`  Port: ${config.port}`);
+        logger_util_1.logger.info(`  User: ${config.auth.user}`);
+        logger_util_1.logger.info(`  Has Password: ${!!config.auth.pass}`);
         this.transporter = nodemailer_1.default.createTransport(config);
     }
     async sendWelcomeEmail(email, name, password) {
@@ -40,6 +58,9 @@ class EmailService {
     }
     async sendEmail(options) {
         try {
+            logger_util_1.logger.info('Verifying SMTP connection...');
+            await this.transporter.verify();
+            logger_util_1.logger.info('✅ SMTP connection verified');
             const mailOptions = {
                 from: this.fromEmail,
                 to: options.to,
@@ -53,8 +74,17 @@ class EmailService {
         }
         catch (error) {
             logger_util_1.logger.error('❌ Error sending email:', error);
-            logger_util_1.logger.error('Error details:', JSON.stringify(error, null, 2));
-            throw new Error(`Failed to send email: ${error}`);
+            if (error instanceof Error) {
+                logger_util_1.logger.error('Error details:', error.message);
+                logger_util_1.logger.error('Error stack:', error.stack);
+                logger_util_1.logger.error('Error code:', error.code);
+                logger_util_1.logger.error('Error response:', error.response);
+            }
+            else {
+                logger_util_1.logger.error('Non-Error object:', typeof error);
+                logger_util_1.logger.error('Error value:', error);
+            }
+            throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     generateWelcomeEmailHTML(name, email, password) {

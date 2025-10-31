@@ -4,7 +4,7 @@ exports.authService = void 0;
 const models_1 = require("../models");
 const jwt_util_1 = require("../utils/jwt.util");
 class AuthService {
-    async register(userData, createdBy) {
+    async register(userData, createdBy, deviceInfo) {
         const existingUserCount = await models_1.User.countDocuments();
         if (existingUserCount > 0) {
             throw new Error('Super Admin already exists. Use regular user creation process.');
@@ -15,14 +15,15 @@ class AuthService {
             status: models_1.UserStatus.ACTIVE
         });
         const tokens = (0, jwt_util_1.generateTokenPair)(user._id);
+        await user.addRefreshToken(tokens.refreshToken, deviceInfo?.deviceInfo, deviceInfo?.ipAddress, deviceInfo?.userAgent);
         const userResponse = user.toObject();
-        const { password, mfaSecret, ...cleanUser } = userResponse;
+        const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
         return {
             user: cleanUser,
             ...tokens
         };
     }
-    async login(credentials) {
+    async login(credentials, deviceInfo) {
         const { email, password: loginPassword } = credentials;
         const user = await models_1.User.findOne({ email })
             .select('+password')
@@ -39,33 +40,58 @@ class AuthService {
             throw new Error('Invalid credentials');
         }
         user.lastLogin = new Date();
-        await user.save();
         const tokens = (0, jwt_util_1.generateTokenPair)(user._id);
+        await user.addRefreshToken(tokens.refreshToken, deviceInfo?.deviceInfo, deviceInfo?.ipAddress, deviceInfo?.userAgent);
         const userResponse = user.toObject();
-        const { password, mfaSecret, ...cleanUser } = userResponse;
+        const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
         return {
             user: cleanUser,
             ...tokens
         };
     }
-    async refreshToken(refreshToken) {
+    async refreshToken(refreshToken, deviceInfo) {
         try {
             const decoded = (0, jwt_util_1.verifyRefreshToken)(refreshToken);
             const user = await models_1.User.findById(decoded.id);
             if (!user || user.status !== models_1.UserStatus.ACTIVE) {
                 throw new Error('Invalid refresh token');
             }
-            return (0, jwt_util_1.generateTokenPair)(user._id);
+            if (!user.isRefreshTokenValid(refreshToken)) {
+                throw new Error('Invalid or expired refresh token');
+            }
+            await user.removeRefreshToken(refreshToken);
+            const newTokens = (0, jwt_util_1.generateTokenPair)(user._id);
+            await user.addRefreshToken(newTokens.refreshToken, deviceInfo?.deviceInfo, deviceInfo?.ipAddress, deviceInfo?.userAgent);
+            return newTokens;
         }
         catch (error) {
             throw new Error('Invalid refresh token');
         }
     }
+    async logout(userId, refreshToken) {
+        const user = await models_1.User.findById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+        if (refreshToken) {
+            await user.removeRefreshToken(refreshToken);
+        }
+        else {
+            await user.clearAllRefreshTokens();
+        }
+    }
+    async logoutFromAllDevices(userId) {
+        const user = await models_1.User.findById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+        await user.clearAllRefreshTokens();
+    }
     async getCurrentUser(userId) {
         const user = await models_1.User.findById(userId)
             .populate('roles')
             .populate('departments')
-            .select('-password -mfaSecret');
+            .select('-password -mfaSecret -refreshTokens');
         return user;
     }
     async updateLastLogin(userId) {

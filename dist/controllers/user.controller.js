@@ -24,11 +24,21 @@ exports.createUser = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
 });
 exports.getUsers = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const result = await user_service_1.userService.getUsers(req.query);
+        const query = {
+            page: parseInt(req.query['page'] || '1', 10),
+            limit: parseInt(req.query['limit'] || '10', 10),
+            search: req.query['search'],
+            role: req.query['role'],
+            department: req.query['department'],
+            status: req.query['status'],
+            sortBy: req.query['sortBy'] || 'createdAt',
+            sortOrder: req.query['sortOrder'] || 'desc'
+        };
+        const result = await user_service_1.userService.getUsers(query);
         (0, response_util_1.sendPaginatedResponse)(res, result.users, result.page, result.limit, result.total, 'Users retrieved successfully');
     }
     catch (error) {
-        (0, response_util_1.sendError)(res, 'Failed to get users', 500);
+        (0, response_util_1.sendError)(res, error instanceof Error ? error.message : 'Failed to get users', 500);
     }
 });
 exports.getUserById = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {

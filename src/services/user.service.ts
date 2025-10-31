@@ -1,5 +1,7 @@
 import { User, IUser, UserStatus, Role, Department } from '../models';
 import { Types } from 'mongoose';
+import { emailService } from './email.service';
+import { logger } from '../utils/logger.util';
 
 export interface CreateUserData {
   name: string;
@@ -69,6 +71,20 @@ class UserService {
       createdBy,
       status: UserStatus.ACTIVE
     });
+    
+    // Send welcome email (if email is configured)
+    const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+    if (emailConfigured) {
+      try {
+        await emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
+        logger.info(`📧 Welcome email sent successfully to ${userData.email}`);
+      } catch (emailError) {
+        logger.warn(`⚠️  Failed to send welcome email to ${userData.email}:`, emailError);
+        // Don't throw error - user creation should succeed even if email fails
+      }
+    } else {
+      logger.info('📧 Email not configured, skipping welcome email');
+    }
     
     return await this.getUserById(user._id.toString());
   }

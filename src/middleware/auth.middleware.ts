@@ -6,14 +6,21 @@ import { asyncHandler } from '../utils/asyncHandler.util';
 import { MESSAGES } from '../config/constants';
 
 export const authenticate = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-  // Get token from Authorization header
+  // Get token from Authorization header or cookies
   const authHeader = req.headers.authorization;
+  let token: string | undefined;
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return sendUnauthorized(res, MESSAGES.UNAUTHORIZED);
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Get token from Authorization header
+    token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  } else {
+    // Get token from cookies
+    token = req.cookies?.['accessToken'];
   }
   
-  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  if (!token) {
+    return sendUnauthorized(res, MESSAGES.UNAUTHORIZED);
+  }
   
   try {
     // Verify token
@@ -22,8 +29,7 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
     // Find user by ID and populate roles and departments
     const user = await User.findById(decoded.id)
       .populate('roles')
-      .populate('departments')
-      .select('+password'); // Include password for user validation
+      .populate('departments'); // Don't include password or refreshTokens for auth
     
     if (!user) {
       return sendUnauthorized(res, MESSAGES.USER_NOT_FOUND);
@@ -34,9 +40,8 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
       return sendForbidden(res, 'Account is inactive or suspended');
     }
     
-    // Attach user to request object (exclude password)
-    const { password, ...userWithoutPassword } = user.toObject();
-    (req as any).user = userWithoutPassword;
+    // Attach user to request object
+    (req as any).user = user;
     
     // Capture client IP and User Agent for audit logging
     (req as any).clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] as string;
@@ -59,12 +64,17 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
 // Optional authentication - doesn't fail if no token
 export const optionalAuth = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
+  let token: string | undefined;
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next();
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    token = req.cookies?.['accessToken'];
   }
   
-  const token = authHeader.substring(7);
+  if (!token) {
+    return next();
+  }
   
   try {
     const decoded = verifyAccessToken(token);

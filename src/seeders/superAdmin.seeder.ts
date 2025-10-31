@@ -18,6 +18,24 @@ export const seedSuperAdmin = async (
       // Find existing super admin
       const existingSuperAdmin = await User.findOne({ roles: { $in: [roleMap[SystemRole.SUPER_ADMIN]] } });
       if (existingSuperAdmin) {
+        // Get Super Admin credentials for email
+        const email = process.env['SUPER_ADMIN_EMAIL'] || 'superadmin@vendingapp.com';
+        const password = process.env['SUPER_ADMIN_PASSWORD'] || 'SuperAdmin@123';
+        const name = process.env['SUPER_ADMIN_NAME'] || 'System Administrator';
+        
+        // Send welcome email if configured and SEND_WELCOME_EMAIL is true
+        const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+        const shouldSendEmail = process.env['SEND_WELCOME_EMAIL'] === 'true';
+        
+        if (emailConfigured && shouldSendEmail) {
+          try {
+            await emailService.sendWelcomeEmail(email, name, password);
+            logger.info('📧 Welcome email sent to existing Super Admin');
+          } catch (emailError) {
+            logger.warn('⚠️  Failed to send welcome email to existing Super Admin:', emailError);
+          }
+        }
+        
         return existingSuperAdmin._id;
       }
       
@@ -60,13 +78,18 @@ export const seedSuperAdmin = async (
     logger.info(`🔑 Password: ${password}`);
     logger.info('⚠️  Please change the default password after first login!');
     
-    // Send welcome email
-    try {
-      await emailService.sendWelcomeEmail(email, name, password);
-      logger.info('📧 Welcome email sent successfully to Super Admin');
-    } catch (emailError) {
-      logger.warn('⚠️  Failed to send welcome email to Super Admin:', emailError);
-      logger.info('Super Admin created successfully but email notification failed');
+    // Send welcome email (only if email is configured)
+    const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+    if (emailConfigured) {
+      try {
+        await emailService.sendWelcomeEmail(email, name, password);
+        logger.info('📧 Welcome email sent successfully to Super Admin');
+      } catch (emailError) {
+        logger.warn('⚠️  Failed to send welcome email to Super Admin:', emailError);
+        logger.info('Super Admin created successfully but email notification failed');
+      }
+    } else {
+      logger.info('📧 Email not configured, skipping welcome email');
     }
     
     return superAdmin._id;

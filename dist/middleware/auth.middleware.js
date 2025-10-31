@@ -8,24 +8,28 @@ const asyncHandler_util_1 = require("../utils/asyncHandler.util");
 const constants_1 = require("../config/constants");
 exports.authenticate = (0, asyncHandler_util_1.asyncHandler)(async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+    }
+    else {
+        token = req.cookies?.['accessToken'];
+    }
+    if (!token) {
         return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.UNAUTHORIZED);
     }
-    const token = authHeader.substring(7);
     try {
         const decoded = (0, jwt_util_1.verifyAccessToken)(token);
         const user = await models_1.User.findById(decoded.id)
             .populate('roles')
-            .populate('departments')
-            .select('+password');
+            .populate('departments');
         if (!user) {
             return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.USER_NOT_FOUND);
         }
         if (user.status !== models_1.UserStatus.ACTIVE) {
             return (0, response_util_1.sendForbidden)(res, 'Account is inactive or suspended');
         }
-        const { password, ...userWithoutPassword } = user.toObject();
-        req.user = userWithoutPassword;
+        req.user = user;
         req.clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'];
         req.userAgent = req.headers['user-agent'];
         return next();
@@ -44,10 +48,16 @@ exports.authenticate = (0, asyncHandler_util_1.asyncHandler)(async (req, res, ne
 });
 exports.optionalAuth = (0, asyncHandler_util_1.asyncHandler)(async (req, _res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+    }
+    else {
+        token = req.cookies?.['accessToken'];
+    }
+    if (!token) {
         return next();
     }
-    const token = authHeader.substring(7);
     try {
         const decoded = (0, jwt_util_1.verifyAccessToken)(token);
         const user = await models_1.User.findById(decoded.id)

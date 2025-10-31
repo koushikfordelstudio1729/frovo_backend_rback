@@ -88,6 +88,29 @@ const userSchema = new mongoose_1.Schema({
     lastLogin: {
         type: Date
     },
+    refreshTokens: [{
+            token: {
+                type: String,
+                required: true
+            },
+            createdAt: {
+                type: Date,
+                default: Date.now
+            },
+            expiresAt: {
+                type: Date,
+                required: true
+            },
+            deviceInfo: {
+                type: String
+            },
+            ipAddress: {
+                type: String
+            },
+            userAgent: {
+                type: String
+            }
+        }],
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'User',
@@ -98,7 +121,6 @@ const userSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-userSchema.index({ email: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ departments: 1 });
 userSchema.index({ roles: 1 });
@@ -128,6 +150,43 @@ userSchema.methods['getPermissions'] = async function () {
         role.permissions.forEach((permission) => permissions.add(permission));
     }
     return Array.from(permissions);
+};
+userSchema.methods['addRefreshToken'] = async function (token, deviceInfo, ipAddress, userAgent) {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    this['refreshTokens'] = this['refreshTokens'].filter((rt) => rt.expiresAt > new Date());
+    if (this['refreshTokens'].length >= 5) {
+        this['refreshTokens'].shift();
+    }
+    this['refreshTokens'].push({
+        token,
+        createdAt: new Date(),
+        expiresAt,
+        deviceInfo,
+        ipAddress,
+        userAgent
+    });
+    await this['save']();
+};
+userSchema.methods['removeRefreshToken'] = async function (token) {
+    this['refreshTokens'] = this['refreshTokens'].filter((rt) => rt.token !== token);
+    await this['save']();
+};
+userSchema.methods['clearAllRefreshTokens'] = async function () {
+    this['refreshTokens'] = [];
+    await this['save']();
+};
+userSchema.methods['isRefreshTokenValid'] = function (token) {
+    const refreshToken = this['refreshTokens'].find((rt) => rt.token === token);
+    if (!refreshToken) {
+        return false;
+    }
+    if (refreshToken.expiresAt < new Date()) {
+        this['refreshTokens'] = this['refreshTokens'].filter((rt) => rt.token !== token);
+        this['save']();
+        return false;
+    }
+    return true;
 };
 userSchema.virtual('id').get(function () {
     return this._id.toHexString();

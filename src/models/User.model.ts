@@ -2,6 +2,15 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { UserStatus } from './enums';
 
+export interface IRefreshToken {
+  token: string;
+  createdAt: Date;
+  expiresAt: Date;
+  deviceInfo?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -14,11 +23,16 @@ export interface IUser extends Document {
   mfaEnabled: boolean;
   mfaSecret?: string;
   lastLogin?: Date;
+  refreshTokens: IRefreshToken[];
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   getPermissions(): Promise<string[]>;
+  addRefreshToken(token: string, deviceInfo?: string, ipAddress?: string, userAgent?: string): Promise<void>;
+  removeRefreshToken(token: string): Promise<void>;
+  clearAllRefreshTokens(): Promise<void>;
+  isRefreshTokenValid(token: string): boolean;
 }
 
 const userSchema = new Schema<IUser>(
@@ -73,6 +87,29 @@ const userSchema = new Schema<IUser>(
     lastLogin: {
       type: Date
     },
+    refreshTokens: [{
+      token: {
+        type: String,
+        required: true
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      },
+      expiresAt: {
+        type: Date,
+        required: true
+      },
+      deviceInfo: {
+        type: String
+      },
+      ipAddress: {
+        type: String
+      },
+      userAgent: {
+        type: String
+      }
+    }],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -86,8 +123,7 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// Indexes
-userSchema.index({ email: 1 });
+// Indexes (email already has unique index from schema)
 userSchema.index({ status: 1 });
 userSchema.index({ departments: 1 });
 userSchema.index({ roles: 1 });
@@ -124,6 +160,68 @@ userSchema.methods['getPermissions'] = async function(): Promise<string[]> {
   }
   
   return Array.from(permissions);
+};
+
+// Method to add refresh token
+userSchema.methods['addRefreshToken'] = async function(
+  token: string, 
+  deviceInfo?: string, 
+  ipAddress?: string, 
+  userAgent?: string
+): Promise<void> {
+  // Calculate expiration date (7 days from now)
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+  
+  // Clean up expired tokens
+  this['refreshTokens'] = this['refreshTokens'].filter((rt: IRefreshToken) => rt.expiresAt > new Date());
+  
+  // Limit to 5 active tokens per user
+  if (this['refreshTokens'].length >= 5) {
+    this['refreshTokens'].shift(); // Remove oldest token
+  }
+  
+  // Add new token
+  this['refreshTokens'].push({
+    token,
+    createdAt: new Date(),
+    expiresAt,
+    deviceInfo,
+    ipAddress,
+    userAgent
+  });
+  
+  await this['save']();
+};
+
+// Method to remove specific refresh token
+userSchema.methods['removeRefreshToken'] = async function(token: string): Promise<void> {
+  this['refreshTokens'] = this['refreshTokens'].filter((rt: IRefreshToken) => rt.token !== token);
+  await this['save']();
+};
+
+// Method to clear all refresh tokens (logout from all devices)
+userSchema.methods['clearAllRefreshTokens'] = async function(): Promise<void> {
+  this['refreshTokens'] = [];
+  await this['save']();
+};
+
+// Method to check if refresh token is valid
+userSchema.methods['isRefreshTokenValid'] = function(token: string): boolean {
+  const refreshToken = this['refreshTokens'].find((rt: IRefreshToken) => rt.token === token);
+  if (!refreshToken) {
+    return false;
+  }
+  
+  // Check if token is expired
+  if (refreshToken.expiresAt < new Date()) {
+    // Remove expired token
+    this['refreshTokens'] = this['refreshTokens'].filter((rt: IRefreshToken) => rt.token !== token);
+    this['save']();
+    return false;
+  }
+  
+  return true;
 };
 
 // Virtual for id

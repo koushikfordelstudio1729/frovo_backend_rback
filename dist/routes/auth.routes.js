@@ -43,6 +43,7 @@ router.post('/login', (0, auditLog_middleware_1.auditLogin)(), authController.lo
 router.post('/refresh-token', authController.refreshToken);
 router.use(auth_middleware_1.authenticate);
 router.post('/logout', (0, auditLog_middleware_1.auditLogout)(), authController.logout);
+router.post('/logout-all', (0, auditLog_middleware_1.auditLogout)(), authController.logoutFromAllDevices);
 router.get('/me', authController.getCurrentUser);
 router.post('/change-password', authController.changePassword);
 router.post('/enable-mfa', authController.enableMFA);

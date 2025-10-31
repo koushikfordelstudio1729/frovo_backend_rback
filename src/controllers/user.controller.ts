@@ -24,7 +24,19 @@ export const createUser = asyncHandler(async (req: Request, res: Response): Prom
 
 export const getUsers = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const result = await userService.getUsers(req.query as any);
+    // Provide default query parameters
+    const query = {
+      page: parseInt((req.query['page'] as string) || '1', 10),
+      limit: parseInt((req.query['limit'] as string) || '10', 10),
+      search: req.query['search'] as string,
+      role: req.query['role'] as string,
+      department: req.query['department'] as string,
+      status: req.query['status'] as any,
+      sortBy: (req.query['sortBy'] as string) || 'createdAt',
+      sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc'
+    };
+    
+    const result = await userService.getUsers(query);
     
     sendPaginatedResponse(
       res,
@@ -35,7 +47,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
       'Users retrieved successfully'
     );
   } catch (error) {
-    sendError(res, 'Failed to get users', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to get users', 500);
   }
 });
 

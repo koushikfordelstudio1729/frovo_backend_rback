@@ -73,17 +73,15 @@ const departmentSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-departmentSchema.index({ name: 1 });
-departmentSchema.index({ systemName: 1 });
 departmentSchema.index({ createdAt: -1 });
 departmentSchema.virtual('id').get(function () {
     return this._id.toHexString();
 });
 departmentSchema.virtual('memberCount').get(function () {
-    return this.members.length;
+    return this.members?.length || 0;
 });
 departmentSchema.virtual('roleCount').get(function () {
-    return this.roles.length;
+    return this.roles?.length || 0;
 });
 departmentSchema.set('toJSON', {
     virtuals: true,

@@ -125,10 +125,38 @@ export declare const assignDepartmentsSchema: z.ZodObject<{
         departmentIds: string[];
     };
 }>;
+export declare const getUsersQueryBaseSchema: z.ZodObject<{
+    page: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string | undefined>, number, string | undefined>;
+    limit: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string | undefined>, number, string | undefined>;
+    search: z.ZodOptional<z.ZodString>;
+    role: z.ZodOptional<z.ZodString>;
+    department: z.ZodOptional<z.ZodString>;
+    status: z.ZodOptional<z.ZodNativeEnum<typeof UserStatus>>;
+    sortBy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["name", "email", "createdAt", "lastLogin"]>>>;
+    sortOrder: z.ZodDefault<z.ZodOptional<z.ZodEnum<["asc", "desc"]>>>;
+}, "strip", z.ZodTypeAny, {
+    limit: number;
+    page: number;
+    sortBy: "name" | "email" | "lastLogin" | "createdAt";
+    sortOrder: "asc" | "desc";
+    status?: UserStatus | undefined;
+    search?: string | undefined;
+    department?: string | undefined;
+    role?: string | undefined;
+}, {
+    status?: UserStatus | undefined;
+    search?: string | undefined;
+    limit?: string | undefined;
+    department?: string | undefined;
+    page?: string | undefined;
+    role?: string | undefined;
+    sortBy?: "name" | "email" | "lastLogin" | "createdAt" | undefined;
+    sortOrder?: "asc" | "desc" | undefined;
+}>;
 export declare const getUsersQuerySchema: z.ZodObject<{
     query: z.ZodObject<{
-        page: z.ZodDefault<z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodString, number, string>, number, string>>>;
-        limit: z.ZodDefault<z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodString, number, string>, number, string>>>;
+        page: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string | undefined>, number, string | undefined>;
+        limit: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string | undefined>, number, string | undefined>;
         search: z.ZodOptional<z.ZodString>;
         role: z.ZodOptional<z.ZodString>;
         department: z.ZodOptional<z.ZodString>;

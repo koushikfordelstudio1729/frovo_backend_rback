@@ -145,8 +145,7 @@ const securityConfigSchema = new Schema<ISecurityConfig>(
   }
 );
 
-// Index
-securityConfigSchema.index({ organizationId: 1 });
+// Index (organizationId already has unique index from schema)
 
 // Pre-save validation
 securityConfigSchema.pre('save', function(next) {

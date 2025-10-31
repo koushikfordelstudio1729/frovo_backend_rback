@@ -40,6 +40,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const database_1 = require("./config/database");
 const routes_1 = __importDefault(require("./routes"));
@@ -62,6 +63,7 @@ const corsOptions = {
 app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+app.use((0, cookie_parser_1.default)());
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000'),
     max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
@@ -101,6 +103,44 @@ app.use('/api', routes_1.default);
 app.use(errorHandler_middleware_1.notFound);
 app.use(errorHandler_middleware_1.errorHandler);
 const PORT = process.env['PORT'] || 3000;
+process.on('uncaughtException', (error) => {
+    try {
+        console.error('💥 Uncaught Exception caught');
+        console.error('💥 Error Type:', typeof error);
+        console.error('💥 Error is null?', error === null);
+        console.error('💥 Error is undefined?', error === undefined);
+        if (error instanceof Error) {
+            console.error('💥 Error Name:', error.name || 'NO_NAME');
+            console.error('💥 Error Message:', error.message || 'NO_MESSAGE');
+            console.error('💥 Error Stack:', error.stack || 'NO_STACK');
+        }
+        else if (error) {
+            console.error('💥 Non-Error Exception:', String(error));
+        }
+        else {
+            console.error('💥 Error is null or undefined');
+        }
+    }
+    catch (logError) {
+        console.error('Failed to log uncaught exception:', logError);
+        console.error('Original error:', error);
+    }
+    process.exit(1);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    try {
+        console.error('💥 Unhandled Rejection at:', promise);
+        console.error('💥 Rejection reason:', reason);
+        console.error('💥 Reason type:', typeof reason);
+        if (reason instanceof Error) {
+            console.error('💥 Rejection stack:', reason.stack);
+        }
+    }
+    catch (logError) {
+        console.error('Failed to log unhandled rejection:', logError);
+    }
+    process.exit(1);
+});
 const startServer = async () => {
     try {
         logger_util_1.logger.info('🔌 Connecting to MongoDB...');
@@ -108,7 +148,9 @@ const startServer = async () => {
         if (process.env['SEED_DATABASE'] === 'true') {
             logger_util_1.logger.info('🌱 Seeding database...');
             await (0, seeders_1.seedDatabase)();
+            logger_util_1.logger.info('✅ Seeding completed, starting server...');
         }
+        logger_util_1.logger.info('🚀 About to start listening on port', PORT);
         const server = app.listen(PORT, () => {
             logger_util_1.logger.info('🚀 Frovo RBAC Backend Server Started');
             logger_util_1.logger.info(`📡 Server running on port ${PORT}`);
@@ -152,14 +194,6 @@ const startServer = async () => {
         };
         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-        process.on('uncaughtException', (error) => {
-            logger_util_1.logger.error('💥 Uncaught Exception:', error);
-            process.exit(1);
-        });
-        process.on('unhandledRejection', (reason, _promise) => {
-            logger_util_1.logger.error('💥 Unhandled Rejection, reason:', reason);
-            process.exit(1);
-        });
     }
     catch (error) {
         logger_util_1.logger.error('❌ Failed to start server:', error);

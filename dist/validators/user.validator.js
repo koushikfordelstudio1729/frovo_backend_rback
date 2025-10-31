@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUserPasswordSchema = exports.getUsersQuerySchema = exports.assignDepartmentsSchema = exports.assignRolesSchema = exports.updateUserStatusSchema = exports.updateUserSchema = exports.createUserSchema = void 0;
+exports.updateUserPasswordSchema = exports.getUsersQuerySchema = exports.getUsersQueryBaseSchema = exports.assignDepartmentsSchema = exports.assignRolesSchema = exports.updateUserStatusSchema = exports.updateUserSchema = exports.createUserSchema = void 0;
 const zod_1 = require("zod");
 const enums_1 = require("../models/enums");
 const objectIdSchema = zod_1.z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
@@ -63,31 +63,32 @@ exports.assignDepartmentsSchema = zod_1.z.object({
             .min(1, 'At least one department ID is required')
     })
 });
+exports.getUsersQueryBaseSchema = zod_1.z.object({
+    page: zod_1.z.string()
+        .optional()
+        .default('1')
+        .transform((val) => parseInt(val, 10))
+        .refine((val) => val > 0, 'Page must be greater than 0'),
+    limit: zod_1.z.string()
+        .optional()
+        .default('10')
+        .transform((val) => parseInt(val, 10))
+        .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
+    search: zod_1.z.string()
+        .trim()
+        .optional(),
+    role: objectIdSchema.optional(),
+    department: objectIdSchema.optional(),
+    status: zod_1.z.nativeEnum(enums_1.UserStatus).optional(),
+    sortBy: zod_1.z.enum(['name', 'email', 'createdAt', 'lastLogin'])
+        .optional()
+        .default('createdAt'),
+    sortOrder: zod_1.z.enum(['asc', 'desc'])
+        .optional()
+        .default('desc')
+});
 exports.getUsersQuerySchema = zod_1.z.object({
-    query: zod_1.z.object({
-        page: zod_1.z.string()
-            .transform((val) => parseInt(val, 10))
-            .refine((val) => val > 0, 'Page must be greater than 0')
-            .optional()
-            .default('1'),
-        limit: zod_1.z.string()
-            .transform((val) => parseInt(val, 10))
-            .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100')
-            .optional()
-            .default('10'),
-        search: zod_1.z.string()
-            .trim()
-            .optional(),
-        role: objectIdSchema.optional(),
-        department: objectIdSchema.optional(),
-        status: zod_1.z.nativeEnum(enums_1.UserStatus).optional(),
-        sortBy: zod_1.z.enum(['name', 'email', 'createdAt', 'lastLogin'])
-            .optional()
-            .default('createdAt'),
-        sortOrder: zod_1.z.enum(['asc', 'desc'])
-            .optional()
-            .default('desc')
-    })
+    query: exports.getUsersQueryBaseSchema
 });
 exports.updateUserPasswordSchema = zod_1.z.object({
     body: zod_1.z.object({

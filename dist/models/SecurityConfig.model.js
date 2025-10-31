@@ -142,7 +142,6 @@ const securityConfigSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-securityConfigSchema.index({ organizationId: 1 });
 securityConfigSchema.pre('save', function (next) {
     if (this.ssoEnabled && !this.ssoConfig) {
         return next(new Error('SSO configuration is required when SSO is enabled'));

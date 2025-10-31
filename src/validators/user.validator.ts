@@ -67,31 +67,33 @@ export const assignDepartmentsSchema = z.object({
   })
 });
 
+export const getUsersQueryBaseSchema = z.object({
+  page: z.string()
+    .optional()
+    .default('1')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'Page must be greater than 0'),
+  limit: z.string()
+    .optional()
+    .default('10')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
+  search: z.string()
+    .trim()
+    .optional(),
+  role: objectIdSchema.optional(),
+  department: objectIdSchema.optional(),
+  status: z.nativeEnum(UserStatus).optional(),
+  sortBy: z.enum(['name', 'email', 'createdAt', 'lastLogin'])
+    .optional()
+    .default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc'])
+    .optional()
+    .default('desc')
+});
+
 export const getUsersQuerySchema = z.object({
-  query: z.object({
-    page: z.string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => val > 0, 'Page must be greater than 0')
-      .optional()
-      .default('1'),
-    limit: z.string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100')
-      .optional()
-      .default('10'),
-    search: z.string()
-      .trim()
-      .optional(),
-    role: objectIdSchema.optional(),
-    department: objectIdSchema.optional(),
-    status: z.nativeEnum(UserStatus).optional(),
-    sortBy: z.enum(['name', 'email', 'createdAt', 'lastLogin'])
-      .optional()
-      .default('createdAt'),
-    sortOrder: z.enum(['asc', 'desc'])
-      .optional()
-      .default('desc')
-  })
+  query: getUsersQueryBaseSchema
 });
 
 export const updateUserPasswordSchema = z.object({

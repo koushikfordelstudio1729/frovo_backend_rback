@@ -8,6 +8,12 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
+export interface DeviceInfo {
+  deviceInfo?: string | undefined;
+  ipAddress?: string | undefined;
+  userAgent?: string | undefined;
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -20,7 +26,7 @@ export interface RegisterData {
 }
 
 class AuthService {
-  async register(userData: RegisterData, createdBy: Types.ObjectId): Promise<AuthResponse> {
+  async register(userData: RegisterData, createdBy: Types.ObjectId, deviceInfo?: DeviceInfo): Promise<AuthResponse> {
     // Check if this is the first user (Super Admin)
     const existingUserCount = await User.countDocuments();
     
@@ -38,9 +44,17 @@ class AuthService {
     // Generate tokens
     const tokens = generateTokenPair(user._id);
     
+    // Store refresh token in database
+    await user.addRefreshToken(
+      tokens.refreshToken,
+      deviceInfo?.deviceInfo,
+      deviceInfo?.ipAddress,
+      deviceInfo?.userAgent
+    );
+    
     // Return user without sensitive data
     const userResponse = user.toObject();
-    const { password, mfaSecret, ...cleanUser } = userResponse;
+    const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
     
     return {
       user: cleanUser,
@@ -48,7 +62,7 @@ class AuthService {
     };
   }
   
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async login(credentials: LoginCredentials, deviceInfo?: DeviceInfo): Promise<AuthResponse> {
     const { email, password: loginPassword } = credentials;
     
     // Find user by email and include password
@@ -74,14 +88,21 @@ class AuthService {
     
     // Update last login
     user.lastLogin = new Date();
-    await user.save();
     
     // Generate tokens
     const tokens = generateTokenPair(user._id);
     
+    // Store refresh token in database
+    await user.addRefreshToken(
+      tokens.refreshToken,
+      deviceInfo?.deviceInfo,
+      deviceInfo?.ipAddress,
+      deviceInfo?.userAgent
+    );
+    
     // Return user without sensitive data
     const userResponse = user.toObject();
-    const { password, mfaSecret, ...cleanUser } = userResponse;
+    const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
     
     return {
       user: cleanUser,
@@ -89,7 +110,7 @@ class AuthService {
     };
   }
   
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async refreshToken(refreshToken: string, deviceInfo?: DeviceInfo): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       // Verify refresh token
       const decoded = verifyRefreshToken(refreshToken);
@@ -100,18 +121,60 @@ class AuthService {
         throw new Error('Invalid refresh token');
       }
       
-      // Generate new token pair
-      return generateTokenPair(user._id);
+      // Check if refresh token exists in database and is valid
+      if (!user.isRefreshTokenValid(refreshToken)) {
+        throw new Error('Invalid or expired refresh token');
+      }
+      
+      // Remove old refresh token
+      await user.removeRefreshToken(refreshToken);
+      
+      // Generate new token pair (token rotation)
+      const newTokens = generateTokenPair(user._id);
+      
+      // Store new refresh token in database
+      await user.addRefreshToken(
+        newTokens.refreshToken,
+        deviceInfo?.deviceInfo,
+        deviceInfo?.ipAddress,
+        deviceInfo?.userAgent
+      );
+      
+      return newTokens;
     } catch (error) {
       throw new Error('Invalid refresh token');
     }
+  }
+  
+  async logout(userId: string, refreshToken?: string): Promise<void> {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    if (refreshToken) {
+      // Logout from specific device
+      await user.removeRefreshToken(refreshToken);
+    } else {
+      // Logout from all devices
+      await user.clearAllRefreshTokens();
+    }
+  }
+  
+  async logoutFromAllDevices(userId: string): Promise<void> {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    await user.clearAllRefreshTokens();
   }
   
   async getCurrentUser(userId: string): Promise<Partial<IUser> | null> {
     const user = await User.findById(userId)
       .populate('roles')
       .populate('departments')
-      .select('-password -mfaSecret');
+      .select('-password -mfaSecret -refreshTokens');
     
     return user;
   }

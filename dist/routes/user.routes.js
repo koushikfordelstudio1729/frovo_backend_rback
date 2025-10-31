@@ -43,7 +43,7 @@ const user_validator_1 = require("../validators/user.validator");
 const constants_1 = require("../config/constants");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authenticate);
-router.get('/', (0, permission_middleware_1.requirePermission)('users:view'), (0, validation_middleware_1.validate)({ query: user_validator_1.getUsersQuerySchema.shape.query }), userController.getUsers);
+router.get('/', (0, permission_middleware_1.requirePermission)('users:view'), userController.getUsers);
 router.get('/search', (0, permission_middleware_1.requirePermission)('users:view'), userController.searchUsers);
 router.get('/:id', (0, permission_middleware_1.requirePermission)('users:view'), (0, validation_middleware_1.validateObjectId)(), userController.getUserById);
 router.get('/:id/permissions', (0, permission_middleware_1.requirePermission)('users:view'), (0, validation_middleware_1.validateObjectId)(), userController.getUserPermissions);

@@ -5,12 +5,54 @@ import { asyncHandler } from '../utils/asyncHandler.util';
 import { sendSuccess, sendCreated, sendError } from '../utils/response.util';
 import { MESSAGES } from '../config/constants';
 
+// Cookie configuration
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env['NODE_ENV'] === 'production',
+  sameSite: 'strict' as const,
+  path: '/'
+};
+
+const ACCESS_TOKEN_COOKIE_NAME = 'accessToken';
+const REFRESH_TOKEN_COOKIE_NAME = 'refreshToken';
+
+// Helper function to set tokens in cookies
+const setCookieTokens = (res: Response, accessToken: string, refreshToken: string) => {
+  // Set access token cookie (expires in 1 day)
+  res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
+  });
+  
+  // Set refresh token cookie (expires in 7 days)
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
+  });
+};
+
+// Helper function to clear cookies
+const clearCookieTokens = (res: Response) => {
+  res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, COOKIE_OPTIONS);
+  res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, COOKIE_OPTIONS);
+};
+
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password } = req.body;
   
   try {
+    // Extract device info
+    const deviceInfo = {
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('User-Agent') || undefined,
+      deviceInfo: req.get('X-Device-Info') || undefined
+    };
+    
     // For Super Admin registration, use a default createdBy (will be set to the user's own ID)
-    const result = await authService.register({ name, email, password }, req.body.createdBy);
+    const result = await authService.register({ name, email, password }, req.body.createdBy, deviceInfo);
+    
+    // Set tokens in cookies
+    setCookieTokens(res, result.accessToken, result.refreshToken);
     
     return sendCreated(res, result, MESSAGES.REGISTER_SUCCESS);
   } catch (error) {
@@ -26,7 +68,17 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
   try {
-    const result = await authService.login({ email, password });
+    // Extract device info
+    const deviceInfo = {
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('User-Agent') || undefined,
+      deviceInfo: req.get('X-Device-Info') || undefined
+    };
+    
+    const result = await authService.login({ email, password }, deviceInfo);
+    
+    // Set tokens in cookies
+    setCookieTokens(res, result.accessToken, result.refreshToken);
     
     return sendSuccess(res, result, MESSAGES.LOGIN_SUCCESS);
   } catch (error) {
@@ -38,10 +90,49 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
-export const logout = asyncHandler(async (_req: Request, res: Response) => {
-  // For JWT-based auth, logout is handled client-side by removing the token
-  // We could implement a token blacklist here if needed
-  return sendSuccess(res, null, MESSAGES.LOGOUT_SUCCESS);
+export const logout = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) {
+    return sendError(res, MESSAGES.UNAUTHORIZED, 401);
+  }
+  
+  try {
+    // Get refresh token from request body or header
+    const refreshToken = req.body.refreshToken || req.get('X-Refresh-Token');
+    
+    await authService.logout(req.user._id.toString(), refreshToken);
+    
+    // Clear cookies
+    clearCookieTokens(res);
+    
+    return sendSuccess(res, null, MESSAGES.LOGOUT_SUCCESS);
+  } catch (error) {
+    if (error instanceof Error) {
+      return sendError(res, error.message, 400);
+    } else {
+      return sendError(res, 'Logout failed', 500);
+    }
+  }
+});
+
+export const logoutFromAllDevices = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) {
+    return sendError(res, MESSAGES.UNAUTHORIZED, 401);
+  }
+  
+  try {
+    await authService.logoutFromAllDevices(req.user._id.toString());
+    
+    // Clear cookies
+    clearCookieTokens(res);
+    
+    return sendSuccess(res, null, 'Logged out from all devices successfully');
+  } catch (error) {
+    if (error instanceof Error) {
+      return sendError(res, error.message, 400);
+    } else {
+      return sendError(res, 'Logout failed', 500);
+    }
+  }
 });
 
 export const getCurrentUser = asyncHandler(async (req: Request, res: Response) => {
@@ -66,7 +157,17 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
   const { refreshToken } = req.body;
   
   try {
-    const tokens = await authService.refreshToken(refreshToken);
+    // Extract device info
+    const deviceInfo = {
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('User-Agent') || undefined,
+      deviceInfo: req.get('X-Device-Info') || undefined
+    };
+    
+    const tokens = await authService.refreshToken(refreshToken, deviceInfo);
+    
+    // Set new tokens in cookies
+    setCookieTokens(res, tokens.accessToken, tokens.refreshToken);
     
     return sendSuccess(res, tokens, 'Token refreshed successfully');
   } catch (error) {

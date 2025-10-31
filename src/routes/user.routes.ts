@@ -9,7 +9,6 @@ import {
   updateUserSchema,
   updateUserStatusSchema,
   assignRolesSchema,
-  getUsersQuerySchema,
   updateUserPasswordSchema
 } from '../validators/user.validator';
 import { MODULES } from '../config/constants';
@@ -22,7 +21,7 @@ router.use(authenticate);
 // Get users with pagination and filtering
 router.get('/',
   requirePermission('users:view'),
-  validate({ query: getUsersQuerySchema.shape.query }),
+  // validate({ query: getUsersQueryBaseSchema }),
   userController.getUsers
 );
 

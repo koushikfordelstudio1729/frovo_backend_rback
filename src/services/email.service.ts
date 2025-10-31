@@ -10,17 +10,44 @@ interface EmailOptions {
 }
 
 class EmailService {
-  private transporter!: nodemailer.Transporter;
-  private fromEmail: string;
+  private transporter: nodemailer.Transporter | null = null;
+  private fromEmail: string | null = null;
+  private initialized = false;
 
   constructor() {
-    this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
-    this.initializeTransporter();
+    // Delay initialization until first use to ensure environment variables are loaded
+  }
+
+  private ensureInitialized(): void {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      this.initializeTransporter();
+      this.initialized = true;
+    } catch (error) {
+      logger.error('Failed to initialize email transporter:', error);
+      // Create a dummy transporter to prevent crashes
+      this.transporter = {
+        sendMail: async () => { throw new Error('Email service not configured'); },
+        verify: async () => { throw new Error('Email service not configured'); }
+      } as any;
+      this.initialized = true;
+    }
   }
 
   private initializeTransporter(): void {
+    // Set fromEmail
+    this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
+    // Debug environment variables
+    logger.info('Environment variables:');
+    logger.info(`  EMAIL_HOST: ${process.env['EMAIL_HOST']}`);
+    logger.info(`  EMAIL_PORT: ${process.env['EMAIL_PORT']}`);
+    logger.info(`  EMAIL_USER: ${process.env['EMAIL_USER']}`);
+    logger.info(`  EMAIL_PASS exists: ${!!process.env['EMAIL_PASS']}`);
+
     const config = {
-      service: 'gmail',
       host: process.env['EMAIL_HOST'] || 'smtp.gmail.com',
       port: parseInt(process.env['EMAIL_PORT'] || '587'),
       secure: false,
@@ -32,6 +59,12 @@ class EmailService {
         rejectUnauthorized: false
       }
     };
+
+    logger.info('Email configuration:');
+    logger.info(`  Host: ${config.host}`);
+    logger.info(`  Port: ${config.port}`);
+    logger.info(`  User: ${config.auth.user}`);
+    logger.info(`  Has Password: ${!!config.auth.pass}`);
 
     this.transporter = nodemailer.createTransport(config);
   }
@@ -51,8 +84,20 @@ class EmailService {
 
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
+      // Ensure service is initialized
+      this.ensureInitialized();
+
+      if (!this.transporter) {
+        throw new Error('Email transporter not initialized');
+      }
+
+      // First verify the connection
+      logger.info('Verifying SMTP connection...');
+      await this.transporter.verify();
+      logger.info('✅ SMTP connection verified');
+
       const mailOptions = {
-        from: this.fromEmail,
+        from: this.fromEmail || 'noreply@example.com',
         to: options.to,
         subject: options.subject,
         html: options.html,
@@ -64,8 +109,16 @@ class EmailService {
       logger.info(`✅ Email sent successfully to ${options.to}. Message ID: ${info.messageId}`);
     } catch (error) {
       logger.error('❌ Error sending email:', error);
-      logger.error('Error details:', JSON.stringify(error, null, 2));
-      throw new Error(`Failed to send email: ${error}`);
+      if (error instanceof Error) {
+        logger.error('Error details:', error.message);
+        logger.error('Error stack:', error.stack);
+        logger.error('Error code:', (error as any).code);
+        logger.error('Error response:', (error as any).response);
+      } else {
+        logger.error('Non-Error object:', typeof error);
+        logger.error('Error value:', error);
+      }
+      throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -145,6 +198,13 @@ This is an automated message from the Frovo RBAC System. Please do not reply to 
 
   async verifyConnection(): Promise<boolean> {
     try {
+      // Ensure service is initialized
+      this.ensureInitialized();
+
+      if (!this.transporter) {
+        throw new Error('Email transporter not initialized');
+      }
+
       await this.transporter.verify();
       logger.info('✅ Email service connection verified successfully');
       return true;

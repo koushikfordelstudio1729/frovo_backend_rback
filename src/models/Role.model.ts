@@ -100,12 +100,10 @@ const roleSchema = new Schema<IRole>(
   }
 );
 
-// Indexes
-roleSchema.index({ key: 1 });
+// Indexes (key already has unique index from schema)
 roleSchema.index({ type: 1 });
 roleSchema.index({ status: 1 });
 roleSchema.index({ department: 1 });
-roleSchema.index({ systemRole: 1 });
 roleSchema.index({ createdAt: -1 });
 
 // Pre-save hook to generate key from name
