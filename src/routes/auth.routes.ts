@@ -10,6 +10,10 @@ router.post('/register',
   authController.register
 );
 
+router.post('/register-customer',
+  authController.registerCustomer
+);
+
 router.post('/login',
   auditLogin(),
   authController.login

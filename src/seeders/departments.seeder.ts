@@ -42,6 +42,11 @@ const departments = [
     name: 'Compliance',
     systemName: DepartmentName.COMPLIANCE,
     description: 'Compliance and audit management'
+  },
+  {
+    name: 'Customer',
+    systemName: DepartmentName.CUSTOMER,
+    description: 'Customer accounts and customer-facing services'
   }
 ];
 

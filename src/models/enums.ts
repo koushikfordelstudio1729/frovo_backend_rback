@@ -36,7 +36,8 @@ export enum SystemRole {
   FINANCE_MANAGER = 'finance_manager',
   SUPPORT_AGENT = 'support_agent',
   WAREHOUSE_MANAGER = 'warehouse_manager',
-  AUDITOR = 'auditor'
+  AUDITOR = 'auditor',
+  CUSTOMER = 'customer'
 }
 
 export enum DepartmentName {
@@ -47,7 +48,8 @@ export enum DepartmentName {
   FINANCE = 'Finance',
   SUPPORT = 'Support',
   WAREHOUSE = 'Warehouse',
-  COMPLIANCE = 'Compliance'
+  COMPLIANCE = 'Compliance',
+  CUSTOMER = 'Customer'
 }
 
 export enum PermissionModule {
