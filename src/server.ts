@@ -164,6 +164,7 @@ const startServer = async () => {
       logger.info('   📝 Access Requests: /api/access-requests');
       logger.info('   📋 Audit Logs: /api/audit-logs');
       logger.info('   🔒 Security: /api/security');
+      logger.info('   🏭 Warehouse: /api/warehouse'); 
       logger.info('');
       logger.info('✅ Ready to accept requests!');
     });

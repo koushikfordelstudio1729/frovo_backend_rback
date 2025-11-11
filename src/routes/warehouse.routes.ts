@@ -11,7 +11,8 @@ import {
   createReturnOrderSchema,
   createExpenseSchema,
   warehouseReportSchema,
-  applyQCTemplateSchema
+  applyQCTemplateSchema,
+  updateQCSchema // Add this import
 } from '../validators/warehouse.validator';
 
 const router = Router();
@@ -37,6 +38,17 @@ router.get('/inbound/receivings',
   warehouseController.getReceivings
 );
 
+router.get('/inbound/receivings/:id',
+  requirePermission('inventory:view'),
+  warehouseController.getReceivingById
+);
+
+router.patch('/inbound/receivings/:id/qc',
+  requirePermission('inventory:receive'),
+  validate({ body: updateQCSchema.shape.body }), // Add validation
+  warehouseController.updateQCVerification
+);
+
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
 // Dispatch Orders
 router.post('/outbound/dispatch',
@@ -50,7 +62,8 @@ router.get('/outbound/dispatches',
   warehouseController.getDispatches
 );
 
-router.patch('/outbound/dispatch/:id/status',
+// FIXED: Changed from '/outbound/dispatch/:id/status' to '/outbound/dispatches/:id/status'
+router.patch('/outbound/dispatches/:id/status',
   requirePermission('dispatch:assign'),
   warehouseController.updateDispatchStatus
 );

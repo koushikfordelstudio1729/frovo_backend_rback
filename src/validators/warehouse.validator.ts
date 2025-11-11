@@ -94,3 +94,14 @@ export const warehouseReportSchema = z.object({
     format: z.enum(['json', 'csv']).default('json')
   })
 });
+
+export const updateQCSchema = z.object({
+  body: z.object({
+    qcVerification: z.object({
+      packaging: z.boolean().optional(),
+      expiry: z.boolean().optional(),
+      label: z.boolean().optional(),
+      documents: z.array(z.string()).optional()
+    })
+  })
+});

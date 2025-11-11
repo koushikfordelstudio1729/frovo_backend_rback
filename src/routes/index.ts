@@ -1,3 +1,4 @@
+// routes/index.ts
 import { Router } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes';
@@ -7,6 +8,8 @@ import permissionRoutes from './permission.routes';
 import accessRequestRoutes from './accessRequest.routes';
 import auditLogRoutes from './auditLog.routes';
 import securityRoutes from './security.routes';
+import warehouseRoutes from './warehouse.routes'; // Add this import
+import vendorRoutes from './vendor.routes';
 
 const router = Router();
 
@@ -29,5 +32,7 @@ router.use('/permissions', permissionRoutes);
 router.use('/access-requests', accessRequestRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/security', securityRoutes);
+router.use('/warehouse', warehouseRoutes); // Add this line
+router.use('/vendors', vendorRoutes);
 
 export default router;

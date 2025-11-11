@@ -1,6 +1,5 @@
 // models/Warehouse.model.ts
 import mongoose, { Document, Schema, Types } from 'mongoose';
-
 export interface IWarehouse extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -28,6 +27,7 @@ export interface IGoodsReceiving extends Document {
     packaging: boolean;
     expiry: boolean;
     label: boolean;
+    documents: string[]; // File URLs for QC documents
   };
   storage: {
     zone: string;
@@ -35,13 +35,11 @@ export interface IGoodsReceiving extends Document {
     rack: string;
     bin: string;
   };
-  documents: string[]; // File URLs
   status: 'received' | 'qc_pending' | 'qc_passed' | 'qc_failed';
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
-
 export interface IDispatchOrder extends Document {
   _id: Types.ObjectId;
   dispatchId: string; // Auto-generated DO-5678
@@ -126,7 +124,6 @@ export interface IExpense extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-
 // Schema definitions
 const warehouseSchema = new Schema<IWarehouse>({
   name: { type: String, required: true },
@@ -150,7 +147,8 @@ const goodsReceivingSchema = new Schema<IGoodsReceiving>({
   qcVerification: {
     packaging: { type: Boolean, required: true },
     expiry: { type: Boolean, required: true },
-    label: { type: Boolean, required: true }
+    label: { type: Boolean, required: true },
+    documents: [{ type: String }] // QC-specific documents
   },
   storage: {
     zone: { type: String, required: true },
@@ -158,7 +156,6 @@ const goodsReceivingSchema = new Schema<IGoodsReceiving>({
     rack: { type: String, required: true },
     bin: { type: String, required: true }
   },
-  documents: [{ type: String }],
   status: { 
     type: String, 
     enum: ['received', 'qc_pending', 'qc_passed', 'qc_failed'],
