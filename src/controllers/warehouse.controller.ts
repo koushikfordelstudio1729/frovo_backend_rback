@@ -507,3 +507,42 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
     sendError(res, error instanceof Error ? error.message : 'Failed to export report', 500);
   }
 });
+// Enhanced Reports & Analytics
+export const generateInventorySummary = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const report = await warehouseService.generateInventorySummaryReport({
+      warehouse: warehouseId as string,
+      ...filters
+    });
+    sendSuccess(res, report, 'Inventory summary report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate inventory summary report', 500);
+  }
+});
+
+export const generatePurchaseOrderReport = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const report = await warehouseService.generatePurchaseOrderReport({
+      warehouse: warehouseId as string,
+      ...filters
+    });
+    sendSuccess(res, report, 'Purchase order report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate purchase order report', 500);
+  }
+});
+
+export const getReportTypes = asyncHandler(async (_req: Request, res: Response) => {
+  const reportTypes = [
+    { value: 'inventory_summary', label: 'Inventory Summary' },
+    { value: 'purchase_orders', label: 'Purchase Orders from Vendors' },
+    { value: 'inventory_turnover', label: 'Inventory Turnover' },
+    { value: 'qc_summary', label: 'QC Summary' },
+    { value: 'efficiency', label: 'Efficiency Report' },
+    { value: 'stock_ageing', label: 'Stock Ageing' }
+  ];
+  
+  sendSuccess(res, reportTypes, 'Report types retrieved successfully');
+});

@@ -101,6 +101,51 @@ export interface InventoryUpsertData {
   createdBy: Types.ObjectId;
 }
 
+export interface ReportFilters {
+  reportType: 'inventory_summary' | 'purchase_orders' | 'inventory_turnover' | 'qc_summary' | 'efficiency' | 'stock_ageing';
+  dateRange?: {
+    startDate: Date;
+    endDate: Date;
+  };
+  warehouse?: string;
+  category?: string;
+  vendor?: string;
+  status?: string;
+  sku?: string;
+}
+
+export interface InventorySummaryReport {
+  summary: {
+    totalSKUs: number;
+    stockOutSKUs: number;
+    totalPOs: number;
+    pendingPOs: number;
+    pendingRefills: number;
+    completedRefills: number;
+    totalStockValue: number;
+    lowStockItems: number;
+    nearExpirySKUs: number;
+    stockAccuracy: number;
+  };
+  inventoryDetails: IInventory[];
+  generatedOn: Date;
+  filters: ReportFilters;
+}
+
+export interface PurchaseOrderReport {
+  summary: {
+    totalPOs: number;
+    pendingPOs: number;
+    approvedPOs: number;
+    rejectedPOs: number;
+    totalPOValue: number;
+    averagePOValue: number;
+  };
+  purchaseOrders: any[];
+  generatedOn: Date;
+  filters: ReportFilters;
+}
+
 class WarehouseService {
   // ==================== SCREEN 1: DASHBOARD ====================
   async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> {
@@ -777,362 +822,365 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 5: ENHANCED EXPENSE MANAGEMENT ====================
-
-async createExpense(data: {
-  category: 'staffing' | 'supplies' | 'equipment' | 'transport';
-  amount: number;
-  vendor?: Types.ObjectId;
-  date: Date;
-  description?: string;
-  warehouse: Types.ObjectId;
-  billUrl?: string;
-}, createdBy: Types.ObjectId): Promise<IExpense> {
-  return await Expense.create({
-    ...data,
-    status: 'pending',
-    paymentStatus: 'unpaid',
-    createdBy
-  });
-}
-
-async getExpenses(warehouseId?: string, filters?: any): Promise<IExpense[]> {
-  let query: any = {};
-  
-  if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-    query.warehouse = new Types.ObjectId(warehouseId);
-  }
-  
-  if (filters?.category) {
-    query.category = filters.category;
-  }
-  
-  if (filters?.status) {
-    query.status = filters.status;
+  async createExpense(data: {
+    category: 'staffing' | 'supplies' | 'equipment' | 'transport';
+    amount: number;
+    vendor?: Types.ObjectId;
+    date: Date;
+    description?: string;
+    warehouse: Types.ObjectId;
+    billUrl?: string;
+  }, createdBy: Types.ObjectId): Promise<IExpense> {
+    return await Expense.create({
+      ...data,
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      createdBy
+    });
   }
 
-  if (filters?.paymentStatus) {
-    query.paymentStatus = filters.paymentStatus;
-  }
-  
-  if (filters?.startDate || filters?.endDate) {
-    query.date = {};
-    if (filters.startDate) {
-      query.date.$gte = new Date(filters.startDate);
+  async getExpenses(warehouseId?: string, filters?: any): Promise<IExpense[]> {
+    let query: any = {};
+    
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+      query.warehouse = new Types.ObjectId(warehouseId);
     }
-    if (filters.endDate) {
-      query.date.$lte = new Date(filters.endDate);
+    
+    if (filters?.category) {
+      query.category = filters.category;
     }
-  }
-
-  if (filters?.month) {
-    const [year, month] = filters.month.split('-');
-    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const endDate = new Date(parseInt(year), parseInt(month), 0);
-    query.date = {
-      $gte: startDate,
-      $lte: endDate
-    };
-  }
-  
-  return await Expense.find(query)
-    .populate('vendor', 'name code contactPerson')
-    .populate('warehouse', 'name code')
-    .populate('createdBy', 'name email')
-    .populate('approvedBy', 'name email')
-    .sort({ date: -1, createdAt: -1 });
-}
-
-async updateExpenseStatus(expenseId: string, status: string, approvedBy?: Types.ObjectId): Promise<IExpense> {
-  const validStatuses = ['approved', 'pending', 'rejected'];
-  
-  if (!validStatuses.includes(status)) {
-    throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
-  }
-  
-  const updateData: any = { status };
-  
-  if (status === 'approved' && approvedBy) {
-    updateData.approvedBy = approvedBy;
-    updateData.approvedAt = new Date();
-  } else if (status === 'pending') {
-    updateData.approvedBy = null;
-    updateData.approvedAt = null;
-  }
-  
-  const expense = await Expense.findByIdAndUpdate(
-    expenseId,
-    updateData,
-    { new: true }
-  )
-  .populate('vendor warehouse createdBy approvedBy');
-  
-  if (!expense) {
-    throw new Error('Expense not found');
-  }
-  
-  return expense;
-}
-
-async updateExpensePaymentStatus(expenseId: string, paymentStatus: string): Promise<IExpense> {
-  const validPaymentStatuses = ['paid', 'unpaid', 'partially_paid'];
-  
-  if (!validPaymentStatuses.includes(paymentStatus)) {
-    throw new Error(`Invalid payment status. Must be one of: ${validPaymentStatuses.join(', ')}`);
-  }
-  
-  const expense = await Expense.findByIdAndUpdate(
-    expenseId,
-    { paymentStatus },
-    { new: true }
-  )
-  .populate('vendor warehouse createdBy approvedBy');
-  
-  if (!expense) {
-    throw new Error('Expense not found');
-  }
-  
-  return expense;
-}
-
-async updateExpense(expenseId: string, updateData: {
-  category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
-  amount?: number;
-  vendor?: Types.ObjectId;
-  date?: Date;
-  description?: string;
-  billUrl?: string;
-}): Promise<IExpense> {
-  const allowedUpdates = ['category', 'amount', 'vendor', 'date', 'description', 'billUrl'];
-  const updates: any = {};
-  
-  Object.keys(updateData).forEach(key => {
-    if (allowedUpdates.includes(key)) {
-      updates[key] = (updateData as any)[key];
+    
+    if (filters?.status) {
+      query.status = filters.status;
     }
-  });
-  
-  // Reset approval if amount or category is changed
-  if (updates.amount !== undefined || updates.category !== undefined) {
-    updates.status = 'pending';
-    updates.approvedBy = null;
-    updates.approvedAt = null;
-  }
-  
-  const expense = await Expense.findByIdAndUpdate(
-    expenseId,
-    updates,
-    { new: true, runValidators: true }
-  )
-  .populate('vendor warehouse createdBy approvedBy');
-  
-  if (!expense) {
-    throw new Error('Expense not found');
-  }
-  
-  return expense;
-}
 
-async deleteExpense(expenseId: string): Promise<void> {
-  if (!Types.ObjectId.isValid(expenseId)) {
-    throw new Error('Invalid expense ID');
-  }
-  
-  const result = await Expense.findByIdAndDelete(expenseId);
-  if (!result) {
-    throw new Error('Expense not found');
-  }
-}
-
-async getExpenseById(expenseId: string): Promise<IExpense | null> {
-  if (!Types.ObjectId.isValid(expenseId)) return null;
-  
-  return await Expense.findById(expenseId)
-    .populate('vendor', 'name code contactPerson phone email')
-    .populate('warehouse', 'name code location')
-    .populate('createdBy', 'name email')
-    .populate('approvedBy', 'name email');
-}
-
-async getExpenseSummary(warehouseId: string, filters?: any): Promise<{
-  total: number;
-  approved: number;
-  pending: number;
-  rejected: number;
-  byCategory: { [key: string]: number };
-  byMonth: { [key: string]: number };
-  paymentSummary: {
-    paid: number;
-    unpaid: number;
-    partially_paid: number;
-  };
-}> {
-  const matchStage: any = { warehouse: new Types.ObjectId(warehouseId) };
-  
-  if (filters?.dateRange) {
-    matchStage.date = this.getDateFilter(filters.dateRange);
-  }
-
-  if (filters?.month) {
-    const [year, month] = filters.month.split('-');
-    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const endDate = new Date(parseInt(year), parseInt(month), 0);
-    matchStage.date = {
-      $gte: startDate,
-      $lte: endDate
-    };
-  }
-
-  const summary = await Expense.aggregate([
-    { $match: matchStage },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: '$amount' },
-        approved: {
-          $sum: {
-            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-          }
-        },
-        pending: {
-          $sum: {
-            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-          }
-        },
-        rejected: {
-          $sum: {
-            $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0]
-          }
-        },
-        byCategory: {
-          $push: {
-            category: '$category',
-            amount: '$amount'
-          }
-        },
-        byMonth: {
-          $push: {
-            month: { $dateToString: { format: "%Y-%m", date: "$date" } },
-            amount: '$amount'
-          }
-        },
-        paid: {
-          $sum: {
-            $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0]
-          }
-        },
-        unpaid: {
-          $sum: {
-            $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0]
-          }
-        },
-        partially_paid: {
-          $sum: {
-            $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0]
-          }
-        }
+    if (filters?.paymentStatus) {
+      query.paymentStatus = filters.paymentStatus;
+    }
+    
+    if (filters?.startDate || filters?.endDate) {
+      query.date = {};
+      if (filters.startDate) {
+        query.date.$gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        query.date.$lte = new Date(filters.endDate);
       }
     }
-  ]);
 
-  const result = summary[0] || { 
-    total: 0, 
-    approved: 0, 
-    pending: 0, 
-    rejected: 0,
-    byCategory: [], 
-    byMonth: [],
-    paid: 0,
-    unpaid: 0,
-    partially_paid: 0
-  };
-  
-  const byCategory: { [key: string]: number } = {};
-  if (result.byCategory) {
-    result.byCategory.forEach((item: any) => {
-      byCategory[item.category] = (byCategory[item.category] || 0) + item.amount;
-    });
+    if (filters?.month) {
+      const [year, month] = filters.month.split('-');
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(month), 0);
+      query.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
+    
+    return await Expense.find(query)
+      .populate('vendor', 'name code contactPerson')
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .populate('approvedBy', 'name email')
+      .sort({ date: -1, createdAt: -1 });
   }
 
-  const byMonth: { [key: string]: number } = {};
-  if (result.byMonth) {
-    result.byMonth.forEach((item: any) => {
-      byMonth[item.month] = (byMonth[item.month] || 0) + item.amount;
-    });
+  async updateExpenseStatus(expenseId: string, status: string, approvedBy?: Types.ObjectId): Promise<IExpense> {
+    const validStatuses = ['approved', 'pending', 'rejected'];
+    
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+    
+    const updateData: any = { status };
+    
+    if (status === 'approved' && approvedBy) {
+      updateData.approvedBy = approvedBy;
+      updateData.approvedAt = new Date();
+    } else if (status === 'pending') {
+      updateData.approvedBy = null;
+      updateData.approvedAt = null;
+    }
+    
+    const expense = await Expense.findByIdAndUpdate(
+      expenseId,
+      updateData,
+      { new: true }
+    )
+    .populate('vendor warehouse createdBy approvedBy');
+    
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+    
+    return expense;
   }
 
-  return {
-    total: result.total,
-    approved: result.approved,
-    pending: result.pending,
-    rejected: result.rejected,
-    byCategory,
-    byMonth,
+  async updateExpensePaymentStatus(expenseId: string, paymentStatus: string): Promise<IExpense> {
+    const validPaymentStatuses = ['paid', 'unpaid', 'partially_paid'];
+    
+    if (!validPaymentStatuses.includes(paymentStatus)) {
+      throw new Error(`Invalid payment status. Must be one of: ${validPaymentStatuses.join(', ')}`);
+    }
+    
+    const expense = await Expense.findByIdAndUpdate(
+      expenseId,
+      { paymentStatus },
+      { new: true }
+    )
+    .populate('vendor warehouse createdBy approvedBy');
+    
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+    
+    return expense;
+  }
+
+  async updateExpense(expenseId: string, updateData: {
+    category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
+    amount?: number;
+    vendor?: Types.ObjectId;
+    date?: Date;
+    description?: string;
+    billUrl?: string;
+  }): Promise<IExpense> {
+    const allowedUpdates = ['category', 'amount', 'vendor', 'date', 'description', 'billUrl'];
+    const updates: any = {};
+    
+    Object.keys(updateData).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = (updateData as any)[key];
+      }
+    });
+    
+    // Reset approval if amount or category is changed
+    if (updates.amount !== undefined || updates.category !== undefined) {
+      updates.status = 'pending';
+      updates.approvedBy = null;
+      updates.approvedAt = null;
+    }
+    
+    const expense = await Expense.findByIdAndUpdate(
+      expenseId,
+      updates,
+      { new: true, runValidators: true }
+    )
+    .populate('vendor warehouse createdBy approvedBy');
+    
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+    
+    return expense;
+  }
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(expenseId)) {
+      throw new Error('Invalid expense ID');
+    }
+    
+    const result = await Expense.findByIdAndDelete(expenseId);
+    if (!result) {
+      throw new Error('Expense not found');
+    }
+  }
+
+  async getExpenseById(expenseId: string): Promise<IExpense | null> {
+    if (!Types.ObjectId.isValid(expenseId)) return null;
+    
+    return await Expense.findById(expenseId)
+      .populate('vendor', 'name code contactPerson phone email')
+      .populate('warehouse', 'name code location')
+      .populate('createdBy', 'name email')
+      .populate('approvedBy', 'name email');
+  }
+
+  async getExpenseSummary(warehouseId: string, filters?: any): Promise<{
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    byCategory: { [key: string]: number };
+    byMonth: { [key: string]: number };
     paymentSummary: {
-      paid: result.paid,
-      unpaid: result.unpaid,
-      partially_paid: result.partially_paid
+      paid: number;
+      unpaid: number;
+      partially_paid: number;
+    };
+  }> {
+    const matchStage: any = { warehouse: new Types.ObjectId(warehouseId) };
+    
+    if (filters?.dateRange) {
+      matchStage.date = this.getDateFilter(filters.dateRange);
     }
-  };
-}
 
-async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<any[]> {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
+    if (filters?.month) {
+      const [year, month] = filters.month.split('-');
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(month), 0);
+      matchStage.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
 
-  return await Expense.aggregate([
-    {
-      $match: {
-        warehouse: new Types.ObjectId(warehouseId),
-        date: {
-          $gte: startDate,
-          $lte: endDate
+    const summary = await Expense.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+          approved: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
+            }
+          },
+          pending: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
+            }
+          },
+          rejected: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0]
+            }
+          },
+          byCategory: {
+            $push: {
+              category: '$category',
+              amount: '$amount'
+            }
+          },
+          byMonth: {
+            $push: {
+              month: { $dateToString: { format: "%Y-%m", date: "$date" } },
+              amount: '$amount'
+            }
+          },
+          paid: {
+            $sum: {
+              $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0]
+            }
+          },
+          unpaid: {
+            $sum: {
+              $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0]
+            }
+          },
+          partially_paid: {
+            $sum: {
+              $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0]
+            }
+          }
         }
       }
-    },
-    {
-      $group: {
-        _id: {
-          year: { $year: '$date' },
-          month: { $month: '$date' }
-        },
-        totalAmount: { $sum: '$amount' },
-        approvedAmount: {
-          $sum: {
-            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-          }
-        },
-        pendingAmount: {
-          $sum: {
-            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-          }
-        },
-        expenseCount: { $sum: 1 }
+    ]);
+
+    const result = summary[0] || { 
+      total: 0, 
+      approved: 0, 
+      pending: 0, 
+      rejected: 0,
+      byCategory: [], 
+      byMonth: [],
+      paid: 0,
+      unpaid: 0,
+      partially_paid: 0
+    };
+    
+    const byCategory: { [key: string]: number } = {};
+    if (result.byCategory) {
+      result.byCategory.forEach((item: any) => {
+        byCategory[item.category] = (byCategory[item.category] || 0) + item.amount;
+      });
+    }
+
+    const byMonth: { [key: string]: number } = {};
+    if (result.byMonth) {
+      result.byMonth.forEach((item: any) => {
+        byMonth[item.month] = (byMonth[item.month] || 0) + item.amount;
+      });
+    }
+
+    return {
+      total: result.total,
+      approved: result.approved,
+      pending: result.pending,
+      rejected: result.rejected,
+      byCategory,
+      byMonth,
+      paymentSummary: {
+        paid: result.paid,
+        unpaid: result.unpaid,
+        partially_paid: result.partially_paid
       }
-    },
-    {
-      $project: {
-        _id: 0,
-        period: {
-          $concat: [
-            { $toString: '$_id.year' },
-            '-',
-            { $toString: { $cond: [{ $lt: ['$_id.month', 10] }, { $concat: ['0', { $toString: '$_id.month' }] }, { $toString: '$_id.month' }] } }
-          ]
-        },
-        totalAmount: 1,
-        approvedAmount: 1,
-        pendingAmount: 1,
-        expenseCount: 1
-      }
-    },
-    { $sort: { period: 1 } }
-  ]);
-}
+    };
+  }
+
+  async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<any[]> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    return await Expense.aggregate([
+      {
+        $match: {
+          warehouse: new Types.ObjectId(warehouseId),
+          date: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$date' },
+            month: { $month: '$date' }
+          },
+          totalAmount: { $sum: '$amount' },
+          approvedAmount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
+            }
+          },
+          pendingAmount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
+            }
+          },
+          expenseCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          period: {
+            $concat: [
+              { $toString: '$_id.year' },
+              '-',
+              { $toString: { $cond: [{ $lt: ['$_id.month', 10] }, { $concat: ['0', { $toString: '$_id.month' }] }, { $toString: '$_id.month' }] } }
+            ]
+          },
+          totalAmount: 1,
+          approvedAmount: 1,
+          pendingAmount: 1,
+          expenseCount: 1
+        }
+      },
+      { $sort: { period: 1 } }
+    ]);
+  }
 
   // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
   async generateReport(type: string, filters: any): Promise<any> {
     switch (type) {
+      case 'inventory_summary':
+        return await this.generateInventorySummaryReport(filters);
+      case 'purchase_orders':
+        return await this.generatePurchaseOrderReport(filters);
       case 'inventory_turnover':
         return await this.generateInventoryTurnoverReport(filters);
       case 'qc_summary':
@@ -1146,14 +1194,434 @@ async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<
     }
   }
 
+  async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
+    const warehouseId = filters.warehouse;
+    if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
+    const dateFilter = this.getDateFilter(filters.dateRange);
+    
+    // Get inventory data with filters
+    let inventoryQuery: any = { 
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: false 
+    };
+
+    if (filters.category) {
+      inventoryQuery.productName = { $regex: filters.category, $options: 'i' };
+    }
+
+    if (filters.status) {
+      inventoryQuery.status = filters.status;
+    }
+
+    const inventoryData = await Inventory.find(inventoryQuery)
+      .populate('warehouse', 'name code');
+
+    // Calculate summary metrics
+    const totalSKUs = await Inventory.distinct('sku', { 
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: false 
+    }).then(skus => skus.length);
+
+    const stockOutSKUs = await Inventory.countDocuments({
+      warehouse: new Types.ObjectId(warehouseId),
+      status: 'low_stock',
+      isArchived: false
+    });
+
+    // Get purchase order data (using GoodsReceiving as proxy for POs)
+    const poQuery: any = { warehouse: new Types.ObjectId(warehouseId) };
+    if (Object.keys(dateFilter).length > 0) {
+      poQuery.createdAt = dateFilter;
+    }
+
+    if (filters.vendor) {
+      poQuery.vendor = new Types.ObjectId(filters.vendor);
+    }
+
+    const totalPOs = await GoodsReceiving.countDocuments(poQuery);
+    const pendingPOs = await GoodsReceiving.countDocuments({
+      ...poQuery,
+      status: 'qc_pending'
+    });
+
+    // Calculate stock value and other metrics
+    const totalStockValue = inventoryData.reduce((sum, item) => {
+      return sum + (item.quantity * 100); // Using estimated value
+    }, 0);
+
+    const lowStockItems = inventoryData.filter(item => 
+      item.status === 'low_stock'
+    ).length;
+
+    const today = new Date();
+    const next30Days = new Date();
+    next30Days.setDate(today.getDate() + 30);
+
+    const nearExpirySKUs = inventoryData.filter(item => 
+      item.expiryDate && 
+      item.expiryDate <= next30Days && 
+      item.expiryDate >= today
+    ).length;
+
+    // Calculate stock accuracy (dummy calculation)
+    const stockAccuracy = 89;
+
+    // Dummy functions for machine/refill related metrics
+    const { pendingRefills, completedRefills } = await this.getRefillMetrics(warehouseId);
+
+    return {
+      summary: {
+        totalSKUs,
+        stockOutSKUs,
+        totalPOs,
+        pendingPOs,
+        pendingRefills,
+        completedRefills,
+        totalStockValue,
+        lowStockItems,
+        nearExpirySKUs,
+        stockAccuracy
+      },
+      inventoryDetails: inventoryData,
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
+    };
+  }
+
+  async generatePurchaseOrderReport(filters: any): Promise<PurchaseOrderReport> {
+    const warehouseId = filters.warehouse;
+    if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
+    const dateFilter = this.getDateFilter(filters.dateRange);
+    
+    // Build query for purchase orders (using GoodsReceiving)
+    let poQuery: any = { warehouse: new Types.ObjectId(warehouseId) };
+    
+    if (Object.keys(dateFilter).length > 0) {
+      poQuery.createdAt = dateFilter;
+    }
+
+    if (filters.vendor) {
+      poQuery.vendor = new Types.ObjectId(filters.vendor);
+    }
+
+    if (filters.status) {
+      poQuery.status = filters.status;
+    }
+
+    const purchaseOrders = await GoodsReceiving.find(poQuery)
+      .populate('vendor', 'name code contactPerson')
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Calculate summary metrics
+    const totalPOs = purchaseOrders.length;
+    const pendingPOs = purchaseOrders.filter(po => po.status === 'qc_pending').length;
+    const approvedPOs = purchaseOrders.filter(po => po.status === 'qc_passed').length;
+    const rejectedPOs = purchaseOrders.filter(po => po.status === 'qc_failed').length;
+    
+    const totalPOValue = purchaseOrders.reduce((sum, po) => sum + (po.quantity * 100), 0);
+    const averagePOValue = totalPOs > 0 ? totalPOValue / totalPOs : 0;
+
+    return {
+      summary: {
+        totalPOs,
+        pendingPOs,
+        approvedPOs,
+        rejectedPOs,
+        totalPOValue,
+        averagePOValue
+      },
+      purchaseOrders,
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
+    };
+  }
+
+  // Dummy function for machine/refill metrics (for future use)
+  private async getRefillMetrics(_warehouseId: string): Promise<{
+    pendingRefills: number;
+    completedRefills: number;
+  }> {
+    // These are dummy values - replace with actual refill/machine logic when implemented
+    return {
+      pendingRefills: 32,
+      completedRefills: 77
+    };
+  }
+
+  // Enhanced inventory turnover report
+  private async generateInventoryTurnoverReport(filters: any): Promise<any> {
+    const { warehouse, startDate, endDate, category } = filters;
+    
+    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
+    const matchStage: any = {
+      warehouse: new Types.ObjectId(warehouse),
+      isArchived: false
+    };
+
+    if (startDate && endDate) {
+      matchStage.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    if (category) {
+      matchStage.productName = { $regex: category, $options: 'i' };
+    }
+
+    const turnoverData = await Inventory.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: '$sku',
+          sku: { $first: '$sku' },
+          productName: { $first: '$productName' },
+          category: { $first: '$productName' },
+          currentQuantity: { $first: '$quantity' },
+          averageStock: { $avg: '$quantity' },
+          totalReceived: { $sum: '$quantity' },
+          stockOutCount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'low_stock'] }, 1, 0]
+            }
+          },
+          lastUpdated: { $max: '$updatedAt' }
+        }
+      },
+      {
+        $project: {
+          sku: 1,
+          productName: 1,
+          category: 1,
+          currentQuantity: 1,
+          averageStock: 1,
+          totalReceived: 1,
+          stockOutCount: 1,
+          turnoverRate: {
+            $cond: [
+              { $gt: ['$averageStock', 0] },
+              { $divide: ['$totalReceived', '$averageStock'] },
+              0
+            ]
+          },
+          lastUpdated: 1
+        }
+      },
+      { $sort: { turnoverRate: -1 } }
+    ]);
+    
+    return {
+      report: 'inventory_turnover',
+      data: turnoverData,
+      summary: {
+        totalSKUs: turnoverData.length,
+        averageTurnover: turnoverData.length > 0 ? 
+          turnoverData.reduce((acc: number, item: any) => acc + item.turnoverRate, 0) / turnoverData.length : 0,
+        highTurnoverItems: turnoverData.filter((item: any) => item.turnoverRate > 2).length,
+        lowTurnoverItems: turnoverData.filter((item: any) => item.turnoverRate < 0.5).length
+      },
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
+    };
+  }
+
+  // Enhanced QC summary report
+  private async generateQCSummaryReport(filters: any): Promise<any> {
+    const { warehouse, startDate, endDate, vendor } = filters;
+    
+    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
+    const matchStage: any = {
+      warehouse: new Types.ObjectId(warehouse)
+    };
+
+    if (startDate && endDate) {
+      matchStage.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    if (vendor) {
+      matchStage.vendor = new Types.ObjectId(vendor);
+    }
+
+    const qcData = await GoodsReceiving.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalQuantity: { $sum: '$quantity' },
+          totalValue: { $sum: { $multiply: ['$quantity', 100] } }
+        }
+      }
+    ]);
+    
+    const totalReceivings = qcData.reduce((acc: number, item: any) => acc + item.count, 0);
+    const passRate = totalReceivings > 0 
+      ? (qcData.find((item: any) => item._id === 'qc_passed')?.count || 0) / totalReceivings * 100 
+      : 0;
+    
+    // Get detailed QC data for table
+    const qcDetails = await GoodsReceiving.find(matchStage)
+      .populate('vendor', 'name code')
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
+    
+    return {
+      report: 'qc_summary',
+      data: qcData,
+      details: qcDetails,
+      summary: {
+        totalReceivings,
+        passRate: Math.round(passRate * 100) / 100,
+        failedCount: qcData.find((item: any) => item._id === 'qc_failed')?.count || 0,
+        pendingCount: qcData.find((item: any) => item._id === 'qc_pending')?.count || 0,
+        totalValue: qcData.reduce((acc: number, item: any) => acc + item.totalValue, 0)
+      },
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
+    };
+  }
+
+  // Enhanced export with multiple report types
   async exportReport(type: string, format: string, filters: any): Promise<any> {
     const reportData = await this.generateReport(type, filters);
     
     if (format === 'csv') {
       return this.convertToCSV(reportData, type);
+    } else if (format === 'pdf') {
+      return this.convertToPDF(reportData, type);
     }
     
     return reportData;
+  }
+
+  // Enhanced CSV export for new report types
+  private convertToCSV(data: any, reportType: string): string {
+    let csv = '';
+    
+    switch (reportType) {
+      case 'inventory_summary':
+        csv = this.convertInventorySummaryToCSV(data);
+        break;
+      case 'purchase_orders':
+        csv = this.convertPurchaseOrdersToCSV(data);
+        break;
+      case 'stock_ageing':
+        csv = this.convertStockAgeingToCSV(data);
+        break;
+      case 'inventory_turnover':
+        csv = this.convertInventoryTurnoverToCSV(data);
+        break;
+      case 'qc_summary':
+        csv = this.convertQCSummaryToCSV(data);
+        break;
+      default:
+        csv = 'Report Type,Data\n';
+        csv += `${reportType},"${JSON.stringify(data)}"`;
+    }
+    
+    return csv;
+  }
+
+  private convertInventorySummaryToCSV(data: any): string {
+    let csv = 'Inventory Summary Report\n';
+    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
+    
+    // Summary section
+    csv += 'SUMMARY METRICS\n';
+    csv += 'Metric,Value\n';
+    csv += `Total SKUs,${data.summary.totalSKUs}\n`;
+    csv += `Stock-Out SKUs,${data.summary.stockOutSKUs}\n`;
+    csv += `Total POs,${data.summary.totalPOs}\n`;
+    csv += `Pending POs,${data.summary.pendingPOs}\n`;
+    csv += `Total Stock Value,${data.summary.totalStockValue}\n`;
+    csv += `Low Stock Items,${data.summary.lowStockItems}\n`;
+    csv += `Near-Expiry SKUs,${data.summary.nearExpirySKUs}\n`;
+    csv += `Stock Accuracy,${data.summary.stockAccuracy}%\n\n`;
+    
+    // Inventory details section
+    csv += 'INVENTORY DETAILS\n';
+    csv += 'SKU ID,Product Name,Category,Current Qty,Threshold,Stock Status,Last Updated\n';
+    
+    data.inventoryDetails.forEach((item: any) => {
+      const threshold = this.getStockThreshold(item.quantity, item.minStockLevel, item.maxStockLevel);
+      const lastUpdated = item.updatedAt.toISOString().split('T')[0];
+      
+      csv += `"${item.sku}","${item.productName}","${this.extractCategory(item.productName)}",${item.quantity},${threshold},"${item.status}","${lastUpdated}"\n`;
+    });
+    
+    return csv;
+  }
+
+  private convertPurchaseOrdersToCSV(data: any): string {
+    let csv = 'Purchase Orders Report\n';
+    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
+    
+    // Summary section
+    csv += 'SUMMARY METRICS\n';
+    csv += 'Metric,Value\n';
+    csv += `Total POs,${data.summary.totalPOs}\n`;
+    csv += `Pending POs,${data.summary.pendingPOs}\n`;
+    csv += `Approved POs,${data.summary.approvedPOs}\n`;
+    csv += `Rejected POs,${data.summary.rejectedPOs}\n`;
+    csv += `Total PO Value,${data.summary.totalPOValue}\n`;
+    csv += `Average PO Value,${data.summary.averagePOValue.toFixed(2)}\n\n`;
+    
+    // Purchase orders details section
+    csv += 'PURCHASE ORDER DETAILS\n';
+    csv += 'PO Number,Vendor,SKU,Product Name,Quantity,Status,Received Date\n';
+    
+    data.purchaseOrders.forEach((po: any) => {
+      const receivedDate = po.createdAt.toISOString().split('T')[0];
+      const vendorName = po.vendor?.name || 'N/A';
+      
+      csv += `"${po.poNumber}","${vendorName}","${po.sku}","${po.productName}",${po.quantity},"${po.status}","${receivedDate}"\n`;
+    });
+    
+    return csv;
+  }
+
+  // Helper methods
+  private getStockThreshold(quantity: number, minStock: number, maxStock: number): string {
+    if (quantity <= minStock) return 'Low';
+    if (quantity >= maxStock * 0.9) return 'High';
+    return 'Normal';
+  }
+
+  private extractCategory(productName: string): string {
+    if (productName.toLowerCase().includes('lays') || productName.toLowerCase().includes('snack')) {
+      return 'Snacks';
+    }
+    if (productName.toLowerCase().includes('beverage') || productName.toLowerCase().includes('drink')) {
+      return 'Beverages';
+    }
+    return 'General';
+  }
+
+  // PDF generation stub
+  private convertToPDF(data: any, _reportType: string): any {
+    return {
+      message: 'PDF generation would be implemented here',
+      data: data,
+      format: 'pdf'
+    };
   }
 
   // ==================== PRIVATE HELPER METHODS ====================
@@ -1349,115 +1817,6 @@ async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<
   }
 
   // ==================== REPORT GENERATION METHODS ====================
-  private async generateInventoryTurnoverReport(filters: any): Promise<any> {
-    const { warehouse, startDate, endDate } = filters;
-    
-    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
-      throw new Error('Valid warehouse ID is required');
-    }
-
-    const turnoverData = await Inventory.aggregate([
-      {
-        $match: {
-          warehouse: new Types.ObjectId(warehouse),
-          isArchived: false,
-          ...(startDate && endDate ? {
-            createdAt: {
-              $gte: new Date(startDate),
-              $lte: new Date(endDate)
-            }
-          } : {})
-        }
-      },
-      {
-        $group: {
-          _id: '$sku',
-          sku: { $first: '$sku' },
-          productName: { $first: '$productName' },
-          averageStock: { $avg: '$quantity' },
-          totalReceived: { $sum: '$quantity' },
-          stockOutCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'low_stock'] }, 1, 0]
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          sku: 1,
-          productName: 1,
-          averageStock: 1,
-          totalReceived: 1,
-          stockOutCount: 1,
-          turnoverRate: {
-            $cond: [
-              { $gt: ['$averageStock', 0] },
-              { $divide: ['$totalReceived', '$averageStock'] },
-              0
-            ]
-          }
-        }
-      },
-      { $sort: { turnoverRate: -1 } }
-    ]);
-    
-    return {
-      report: 'inventory_turnover',
-      data: turnoverData,
-      summary: {
-        totalSKUs: turnoverData.length,
-        averageTurnover: turnoverData.length > 0 ? turnoverData.reduce((acc, item) => acc + item.turnoverRate, 0) / turnoverData.length : 0,
-        highTurnoverItems: turnoverData.filter((item: any) => item.turnoverRate > 2).length
-      }
-    };
-  }
-
-  private async generateQCSummaryReport(filters: any): Promise<any> {
-    const { warehouse, startDate, endDate } = filters;
-    
-    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
-      throw new Error('Valid warehouse ID is required');
-    }
-
-    const qcData = await GoodsReceiving.aggregate([
-      {
-        $match: {
-          warehouse: new Types.ObjectId(warehouse),
-          ...(startDate && endDate ? {
-            createdAt: {
-              $gte: new Date(startDate),
-              $lte: new Date(endDate)
-            }
-          } : {})
-        }
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-          totalQuantity: { $sum: '$quantity' }
-        }
-      }
-    ]);
-    
-    const totalReceivings = qcData.reduce((acc, item) => acc + item.count, 0);
-    const passRate = totalReceivings > 0 
-      ? (qcData.find(item => item._id === 'qc_passed')?.count || 0) / totalReceivings * 100 
-      : 0;
-    
-    return {
-      report: 'qc_summary',
-      data: qcData,
-      summary: {
-        totalReceivings,
-        passRate: Math.round(passRate * 100) / 100,
-        failedCount: qcData.find(item => item._id === 'qc_failed')?.count || 0,
-        pendingCount: qcData.find(item => item._id === 'qc_pending')?.count || 0
-      }
-    };
-  }
-
   private async generateEfficiencyReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate } = filters;
     
@@ -1542,7 +1901,9 @@ async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<
       overallScore: this.calculateOverallEfficiencyScore(
         dispatchEfficiency[0],
         inventoryEfficiency[0]
-      )
+      ),
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
     };
   }
 
@@ -1568,30 +1929,9 @@ async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<
     return Math.round(score);
   }
 
-  // ==================== CSV EXPORT METHODS ====================
-  private convertToCSV(data: any, reportType: string): string {
-    let csv = '';
-    
-    switch (reportType) {
-      case 'stock_ageing':
-        csv = this.convertStockAgeingToCSV(data);
-        break;
-      case 'inventory_turnover':
-        csv = this.convertInventoryTurnoverToCSV(data);
-        break;
-      case 'qc_summary':
-        csv = this.convertQCSummaryToCSV(data);
-        break;
-      default:
-        csv = 'Report Type,Data\n';
-        csv += `${reportType},"${JSON.stringify(data)}"`;
-    }
-    
-    return csv;
-  }
-
   private convertStockAgeingToCSV(data: any): string {
-    let csv = 'Age Range,Count\n';
+    let csv = 'Stock Ageing Report\n';
+    csv += 'Age Range,Count\n';
     
     if (data.ageingBuckets) {
       Object.entries(data.ageingBuckets).forEach(([range, count]) => {
@@ -1600,9 +1940,9 @@ async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<
     }
     
     if (data.details && Array.isArray(data.details)) {
-      csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Expiry Date,Location,Status\n';
+      csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Location\n';
       data.details.forEach((item: any) => {
-        csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.expiryDate || 'N/A'}","${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}","${item.status}"\n`;
+        csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}"\n`;
       });
     }
     

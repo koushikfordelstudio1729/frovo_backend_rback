@@ -205,5 +205,9 @@ router.get('/reports/export',
   requirePermission('reports:export'),
   warehouseController.exportReport
 );
+// Enhanced report routes
+router.get('/reports/types', warehouseController.getReportTypes);
+router.get('/reports/inventory-summary', warehouseController.generateInventorySummary);
+router.get('/reports/purchase-orders', warehouseController.generatePurchaseOrderReport);
 
 export default router;
