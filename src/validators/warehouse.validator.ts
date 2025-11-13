@@ -144,3 +144,26 @@ export const updateInventorySchema = z.object({
     maxStockLevel: z.number().min(1).optional()
   })
 });
+
+export const updateExpenseSchema = z.object({
+  body: z.object({
+    category: z.enum(['staffing', 'supplies', 'equipment', 'transport']).optional(),
+    amount: z.number().min(1, 'Amount must be greater than 0').optional(),
+    vendor: objectIdSchema.optional(),
+    date: z.string().datetime().optional(),
+    description: z.string().max(200, 'Description too long').optional(),
+    billUrl: z.string().url().optional()
+  })
+});
+
+export const updateExpenseStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['approved', 'pending', 'rejected'])
+  })
+});
+
+export const updateExpensePaymentStatusSchema = z.object({
+  body: z.object({
+    paymentStatus: z.enum(['paid', 'unpaid', 'partially_paid'])
+  })
+});

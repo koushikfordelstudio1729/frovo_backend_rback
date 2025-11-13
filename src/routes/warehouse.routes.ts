@@ -187,7 +187,13 @@ router.patch('/expenses/:id/status',
   requirePermission('expenses:approve'),
   warehouseController.updateExpenseStatus
 );
-
+// Enhanced expense routes
+router.get('/expenses/:id', warehouseController.getExpenseById);
+router.put('/expenses/:id', warehouseController.updateExpense);
+router.patch('/expenses/:id/status', warehouseController.updateExpenseStatus);
+router.patch('/expenses/:id/payment-status', warehouseController.updateExpensePaymentStatus);
+router.delete('/expenses/:id', warehouseController.deleteExpense);
+router.get('/expenses/trend/monthly', warehouseController.getMonthlyExpenseTrend);
 // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
 router.get('/reports',
   requirePermission('reports:view'),

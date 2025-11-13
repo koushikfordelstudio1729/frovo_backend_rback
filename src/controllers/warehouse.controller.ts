@@ -396,7 +396,8 @@ export const updateExpenseStatus = asyncHandler(async (req: Request, res: Respon
   if (!status) return sendBadRequest(res, 'Expense status is required');
 
   try {
-    const expense = await warehouseService.updateExpenseStatus(id, status);
+    const approvedBy = req.user?._id;
+    const expense = await warehouseService.updateExpenseStatus(id, status, approvedBy);
     return sendSuccess(res, expense, 'Expense status updated successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to update expense status', 500);
@@ -412,6 +413,70 @@ export const getExpenseSummary = asyncHandler(async (req: Request, res: Response
     sendSuccess(res, summary, 'Expense summary retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get expense summary', 500);
+  }
+});
+export const updateExpense = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  try {
+    const expense = await warehouseService.updateExpense(id, req.body);
+    return sendSuccess(res, expense, 'Expense updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense', 500);
+  }
+});
+
+export const updateExpensePaymentStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { paymentStatus } = req.body;
+
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+  if (!paymentStatus) return sendBadRequest(res, 'Expense payment status is required');
+
+  try {
+    const expense = await warehouseService.updateExpensePaymentStatus(id, paymentStatus);
+    return sendSuccess(res, expense, 'Expense payment status updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense payment status', 500);
+  }
+});
+
+export const deleteExpense = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  try {
+    await warehouseService.deleteExpense(id);
+    return sendSuccess(res, null, 'Expense deleted successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to delete expense', 500);
+  }
+});
+
+export const getExpenseById = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  try {
+    const expense = await warehouseService.getExpenseById(id);
+    if (!expense) return sendNotFound(res, 'Expense not found');
+    return sendSuccess(res, expense, 'Expense retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to get expense', 500);
+  }
+});
+
+export const getMonthlyExpenseTrend = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const months = parseInt(req.query['months'] as string) || 12;
+    const trend = await warehouseService.getMonthlyExpenseTrend(
+      req.query['warehouseId'] as string,
+      months
+    );
+    sendSuccess(res, trend, 'Monthly expense trend retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get monthly expense trend', 500);
   }
 });
 

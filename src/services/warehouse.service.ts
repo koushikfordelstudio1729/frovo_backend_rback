@@ -776,129 +776,359 @@ class WarehouseService {
     };
   }
 
-  // ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
-  async createExpense(data: {
-    category: 'staffing' | 'supplies' | 'equipment' | 'transport';
-    amount: number;
-    vendor?: Types.ObjectId;
-    date: Date;
-    description?: string;
-    warehouse: Types.ObjectId;
-    billUrl?: string;
-  }, createdBy: Types.ObjectId): Promise<IExpense> {
-    return await Expense.create({
-      ...data,
-      status: 'pending',
-      createdBy
-    });
+  // ==================== SCREEN 5: ENHANCED EXPENSE MANAGEMENT ====================
+
+async createExpense(data: {
+  category: 'staffing' | 'supplies' | 'equipment' | 'transport';
+  amount: number;
+  vendor?: Types.ObjectId;
+  date: Date;
+  description?: string;
+  warehouse: Types.ObjectId;
+  billUrl?: string;
+}, createdBy: Types.ObjectId): Promise<IExpense> {
+  return await Expense.create({
+    ...data,
+    status: 'pending',
+    paymentStatus: 'unpaid',
+    createdBy
+  });
+}
+
+async getExpenses(warehouseId?: string, filters?: any): Promise<IExpense[]> {
+  let query: any = {};
+  
+  if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+    query.warehouse = new Types.ObjectId(warehouseId);
+  }
+  
+  if (filters?.category) {
+    query.category = filters.category;
+  }
+  
+  if (filters?.status) {
+    query.status = filters.status;
   }
 
-  async getExpenses(warehouseId?: string, filters?: any): Promise<IExpense[]> {
-    let query: any = {};
-    
-    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-      query.warehouse = new Types.ObjectId(warehouseId);
+  if (filters?.paymentStatus) {
+    query.paymentStatus = filters.paymentStatus;
+  }
+  
+  if (filters?.startDate || filters?.endDate) {
+    query.date = {};
+    if (filters.startDate) {
+      query.date.$gte = new Date(filters.startDate);
     }
-    
-    if (filters?.category) {
-      query.category = filters.category;
+    if (filters.endDate) {
+      query.date.$lte = new Date(filters.endDate);
     }
-    
-    if (filters?.status) {
-      query.status = filters.status;
-    }
-    
-    if (filters?.startDate || filters?.endDate) {
-      query.date = {};
-      if (filters.startDate) {
-        query.date.$gte = new Date(filters.startDate);
-      }
-      if (filters.endDate) {
-        query.date.$lte = new Date(filters.endDate);
-      }
-    }
-    
-    return await Expense.find(query)
-      .populate('vendor', 'name code')
-      .populate('warehouse', 'name code')
-      .populate('createdBy', 'name email')
-      .sort({ date: -1 });
   }
 
-  async updateExpenseStatus(expenseId: string, status: string): Promise<IExpense> {
-    const validStatuses = ['approved', 'pending', 'rejected'];
-    
-    if (!validStatuses.includes(status)) {
-      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  if (filters?.month) {
+    const [year, month] = filters.month.split('-');
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = new Date(parseInt(year), parseInt(month), 0);
+    query.date = {
+      $gte: startDate,
+      $lte: endDate
+    };
+  }
+  
+  return await Expense.find(query)
+    .populate('vendor', 'name code contactPerson')
+    .populate('warehouse', 'name code')
+    .populate('createdBy', 'name email')
+    .populate('approvedBy', 'name email')
+    .sort({ date: -1, createdAt: -1 });
+}
+
+async updateExpenseStatus(expenseId: string, status: string, approvedBy?: Types.ObjectId): Promise<IExpense> {
+  const validStatuses = ['approved', 'pending', 'rejected'];
+  
+  if (!validStatuses.includes(status)) {
+    throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+  
+  const updateData: any = { status };
+  
+  if (status === 'approved' && approvedBy) {
+    updateData.approvedBy = approvedBy;
+    updateData.approvedAt = new Date();
+  } else if (status === 'pending') {
+    updateData.approvedBy = null;
+    updateData.approvedAt = null;
+  }
+  
+  const expense = await Expense.findByIdAndUpdate(
+    expenseId,
+    updateData,
+    { new: true }
+  )
+  .populate('vendor warehouse createdBy approvedBy');
+  
+  if (!expense) {
+    throw new Error('Expense not found');
+  }
+  
+  return expense;
+}
+
+async updateExpensePaymentStatus(expenseId: string, paymentStatus: string): Promise<IExpense> {
+  const validPaymentStatuses = ['paid', 'unpaid', 'partially_paid'];
+  
+  if (!validPaymentStatuses.includes(paymentStatus)) {
+    throw new Error(`Invalid payment status. Must be one of: ${validPaymentStatuses.join(', ')}`);
+  }
+  
+  const expense = await Expense.findByIdAndUpdate(
+    expenseId,
+    { paymentStatus },
+    { new: true }
+  )
+  .populate('vendor warehouse createdBy approvedBy');
+  
+  if (!expense) {
+    throw new Error('Expense not found');
+  }
+  
+  return expense;
+}
+
+async updateExpense(expenseId: string, updateData: {
+  category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
+  amount?: number;
+  vendor?: Types.ObjectId;
+  date?: Date;
+  description?: string;
+  billUrl?: string;
+}): Promise<IExpense> {
+  const allowedUpdates = ['category', 'amount', 'vendor', 'date', 'description', 'billUrl'];
+  const updates: any = {};
+  
+  Object.keys(updateData).forEach(key => {
+    if (allowedUpdates.includes(key)) {
+      updates[key] = (updateData as any)[key];
     }
-    
-    const expense = await Expense.findByIdAndUpdate(
-      expenseId,
-      { status },
-      { new: true }
-    ).populate('vendor warehouse');
-    
-    if (!expense) {
-      throw new Error('Expense not found');
-    }
-    
-    return expense;
+  });
+  
+  // Reset approval if amount or category is changed
+  if (updates.amount !== undefined || updates.category !== undefined) {
+    updates.status = 'pending';
+    updates.approvedBy = null;
+    updates.approvedAt = null;
+  }
+  
+  const expense = await Expense.findByIdAndUpdate(
+    expenseId,
+    updates,
+    { new: true, runValidators: true }
+  )
+  .populate('vendor warehouse createdBy approvedBy');
+  
+  if (!expense) {
+    throw new Error('Expense not found');
+  }
+  
+  return expense;
+}
+
+async deleteExpense(expenseId: string): Promise<void> {
+  if (!Types.ObjectId.isValid(expenseId)) {
+    throw new Error('Invalid expense ID');
+  }
+  
+  const result = await Expense.findByIdAndDelete(expenseId);
+  if (!result) {
+    throw new Error('Expense not found');
+  }
+}
+
+async getExpenseById(expenseId: string): Promise<IExpense | null> {
+  if (!Types.ObjectId.isValid(expenseId)) return null;
+  
+  return await Expense.findById(expenseId)
+    .populate('vendor', 'name code contactPerson phone email')
+    .populate('warehouse', 'name code location')
+    .populate('createdBy', 'name email')
+    .populate('approvedBy', 'name email');
+}
+
+async getExpenseSummary(warehouseId: string, filters?: any): Promise<{
+  total: number;
+  approved: number;
+  pending: number;
+  rejected: number;
+  byCategory: { [key: string]: number };
+  byMonth: { [key: string]: number };
+  paymentSummary: {
+    paid: number;
+    unpaid: number;
+    partially_paid: number;
+  };
+}> {
+  const matchStage: any = { warehouse: new Types.ObjectId(warehouseId) };
+  
+  if (filters?.dateRange) {
+    matchStage.date = this.getDateFilter(filters.dateRange);
   }
 
-  async getExpenseSummary(warehouseId: string, filters?: any): Promise<{
-    total: number;
-    approved: number;
-    pending: number;
-    byCategory: { [key: string]: number };
-  }> {
-    const matchStage: any = { warehouse: new Types.ObjectId(warehouseId) };
-    
-    if (filters?.dateRange) {
-      matchStage.date = this.getDateFilter(filters.dateRange);
-    }
+  if (filters?.month) {
+    const [year, month] = filters.month.split('-');
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = new Date(parseInt(year), parseInt(month), 0);
+    matchStage.date = {
+      $gte: startDate,
+      $lte: endDate
+    };
+  }
 
-    const summary = await Expense.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$amount' },
-          approved: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-            }
-          },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-            }
-          },
-          byCategory: {
-            $push: {
-              category: '$category',
-              amount: '$amount'
-            }
+  const summary = await Expense.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$amount' },
+        approved: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
+          }
+        },
+        pending: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
+          }
+        },
+        rejected: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0]
+          }
+        },
+        byCategory: {
+          $push: {
+            category: '$category',
+            amount: '$amount'
+          }
+        },
+        byMonth: {
+          $push: {
+            month: { $dateToString: { format: "%Y-%m", date: "$date" } },
+            amount: '$amount'
+          }
+        },
+        paid: {
+          $sum: {
+            $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0]
+          }
+        },
+        unpaid: {
+          $sum: {
+            $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0]
+          }
+        },
+        partially_paid: {
+          $sum: {
+            $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0]
           }
         }
       }
-    ]);
-
-    const result = summary[0] || { total: 0, approved: 0, pending: 0, byCategory: [] };
-    
-    const byCategory: { [key: string]: number } = {};
-    if (result.byCategory) {
-      result.byCategory.forEach((item: any) => {
-        byCategory[item.category] = (byCategory[item.category] || 0) + item.amount;
-      });
     }
+  ]);
 
-    return {
-      total: result.total,
-      approved: result.approved,
-      pending: result.pending,
-      byCategory
-    };
+  const result = summary[0] || { 
+    total: 0, 
+    approved: 0, 
+    pending: 0, 
+    rejected: 0,
+    byCategory: [], 
+    byMonth: [],
+    paid: 0,
+    unpaid: 0,
+    partially_paid: 0
+  };
+  
+  const byCategory: { [key: string]: number } = {};
+  if (result.byCategory) {
+    result.byCategory.forEach((item: any) => {
+      byCategory[item.category] = (byCategory[item.category] || 0) + item.amount;
+    });
   }
+
+  const byMonth: { [key: string]: number } = {};
+  if (result.byMonth) {
+    result.byMonth.forEach((item: any) => {
+      byMonth[item.month] = (byMonth[item.month] || 0) + item.amount;
+    });
+  }
+
+  return {
+    total: result.total,
+    approved: result.approved,
+    pending: result.pending,
+    rejected: result.rejected,
+    byCategory,
+    byMonth,
+    paymentSummary: {
+      paid: result.paid,
+      unpaid: result.unpaid,
+      partially_paid: result.partially_paid
+    }
+  };
+}
+
+async getMonthlyExpenseTrend(warehouseId: string, months: number = 12): Promise<any[]> {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+
+  return await Expense.aggregate([
+    {
+      $match: {
+        warehouse: new Types.ObjectId(warehouseId),
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$date' },
+          month: { $month: '$date' }
+        },
+        totalAmount: { $sum: '$amount' },
+        approvedAmount: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
+          }
+        },
+        pendingAmount: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
+          }
+        },
+        expenseCount: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        period: {
+          $concat: [
+            { $toString: '$_id.year' },
+            '-',
+            { $toString: { $cond: [{ $lt: ['$_id.month', 10] }, { $concat: ['0', { $toString: '$_id.month' }] }, { $toString: '$_id.month' }] } }
+          ]
+        },
+        totalAmount: 1,
+        approvedAmount: 1,
+        pendingAmount: 1,
+        expenseCount: 1
+      }
+    },
+    { $sort: { period: 1 } }
+  ]);
+}
 
   // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
   async generateReport(type: string, filters: any): Promise<any> {

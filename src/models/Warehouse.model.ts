@@ -145,11 +145,15 @@ export interface IExpense extends Document {
   description?: string;
   billUrl?: string;
   status: 'approved' | 'pending' | 'rejected';
+  paymentStatus: 'paid' | 'unpaid' | 'partially_paid'; // New field
   warehouse: Types.ObjectId;
   createdBy: Types.ObjectId;
+  approvedBy?: Types.ObjectId; // New field
+  approvedAt?: Date; // New field
   createdAt: Date;
   updatedAt: Date;
 }
+
 // Schema definitions
 const warehouseSchema = new Schema<IWarehouse>({
   name: { type: String, required: true },
@@ -296,7 +300,7 @@ const inventorySchema = new Schema<IInventory>({
   archivedAt: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
-
+// Update the expense schema
 const expenseSchema = new Schema<IExpense>({
   category: {
     type: String,
@@ -313,10 +317,16 @@ const expenseSchema = new Schema<IExpense>({
     enum: ['approved', 'pending', 'rejected'],
     default: 'pending'
   },
+  paymentStatus: {
+    type: String,
+    enum: ['paid', 'unpaid', 'partially_paid'],
+    default: 'unpaid'
+  },
   warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  approvedAt: { type: Date }
 }, { timestamps: true });
-
 // Export models
 export const Warehouse = mongoose.model<IWarehouse>('Warehouse', warehouseSchema);
 export const GoodsReceiving = mongoose.model<IGoodsReceiving>('GoodsReceiving', goodsReceivingSchema);
