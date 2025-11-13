@@ -159,7 +159,13 @@ router.get('/inventory/low-stock',
   requirePermission('inventory:view'),
   warehouseController.getLowStockAlerts
 );
-
+// Enhanced inventory routes
+router.get('/inventory/expiry-alerts', warehouseController.getExpiryAlerts);
+router.get('/inventory/quarantine', warehouseController.getQuarantineItems);
+router.get('/inventory/with-expiry', warehouseController.getInventoryWithExpiry);
+router.put('/inventory/:id/update', warehouseController.updateInventoryItem);
+router.patch('/inventory/:id/archive', warehouseController.archiveInventoryItem);
+router.patch('/inventory/:id/unarchive', warehouseController.unarchiveInventoryItem);
 // ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
 router.post('/expenses',
   requirePermission('expenses:create'),

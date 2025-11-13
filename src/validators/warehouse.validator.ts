@@ -129,3 +129,18 @@ export const updateQCSchema = z.object({
     })
   })
 });
+
+export const updateInventorySchema = z.object({
+  body: z.object({
+    quantity: z.number().min(0).optional(),
+    expiryDate: z.string().datetime().optional(),
+    location: z.object({
+      zone: z.string().min(1, 'Zone is required'),
+      aisle: z.string().min(1, 'Aisle is required'),
+      rack: z.string().min(1, 'Rack is required'),
+      bin: z.string().min(1, 'Bin is required')
+    }).optional(),
+    minStockLevel: z.number().min(0).optional(),
+    maxStockLevel: z.number().min(1).optional()
+  })
+});

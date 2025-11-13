@@ -551,6 +551,19 @@ class WarehouseService {
       query.age = this.getAgeFilter(filters.ageRange);
     }
 
+    // Archive filter
+    if (filters?.archived !== undefined) {
+      query.isArchived = filters.archived;
+    } else {
+      // Default to non-archived items
+      query.isArchived = false;
+    }
+
+    // Status filter
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
     const inventory = await Inventory.find(query)
       .populate('warehouse', 'name code')
       .sort({ age: -1 });
@@ -558,8 +571,56 @@ class WarehouseService {
     return inventory;
   }
 
+  async getInventoryWithExpiry(warehouseId: string, filters?: any): Promise<IInventory[]> {
+    let query: any = { warehouse: new Types.ObjectId(warehouseId) };
+    
+    // Age range filter
+    if (filters?.ageRange) {
+      query.age = this.getAgeFilter(filters.ageRange);
+    }
+    
+    // Expiry filter
+    if (filters?.expiryStatus) {
+      const today = new Date();
+      switch (filters.expiryStatus) {
+        case 'expiring_soon':
+          const next15Days = new Date(today);
+          next15Days.setDate(today.getDate() + 15);
+          query.expiryDate = { 
+            $gte: today,
+            $lte: next15Days
+          };
+          break;
+        case 'expired':
+          query.expiryDate = { $lt: today };
+          break;
+        case 'not_expired':
+          query.expiryDate = { $gte: today };
+          break;
+      }
+    }
+
+    // Status filter
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    // Archive filter
+    if (filters?.archived !== undefined) {
+      query.isArchived = filters.archived;
+    } else {
+      query.isArchived = false;
+    }
+
+    const inventory = await Inventory.find(query)
+      .populate('warehouse', 'name code')
+      .sort({ age: -1, expiryDate: 1 });
+
+    return inventory;
+  }
+
   async updateInventory(inventoryId: string, updateData: any): Promise<IInventory> {
-    const allowedUpdates = ['quantity', 'minStockLevel', 'maxStockLevel', 'location', 'status'];
+    const allowedUpdates = ['quantity', 'minStockLevel', 'maxStockLevel', 'location', 'status', 'expiryDate'];
     const updates: any = {};
     
     Object.keys(updateData).forEach(key => {
@@ -568,16 +629,24 @@ class WarehouseService {
       }
     });
     
-    if (updates.quantity !== undefined) {
-      const inventory = await Inventory.findById(inventoryId);
-      if (inventory) {
-        updates.status = this.calculateInventoryStatus({
-          quantity: updates.quantity,
-          minStockLevel: updates.minStockLevel || inventory.minStockLevel,
-          maxStockLevel: updates.maxStockLevel || inventory.maxStockLevel
-        });
-      }
+    // Update status based on quantity and expiry
+    const inventory = await Inventory.findById(inventoryId);
+    if (!inventory) {
+      throw new Error('Inventory item not found');
     }
+    
+    const finalQuantity = updates.quantity !== undefined ? updates.quantity : inventory.quantity;
+    const finalExpiryDate = updates.expiryDate !== undefined ? updates.expiryDate : inventory.expiryDate;
+    const finalMinStock = updates.minStockLevel !== undefined ? updates.minStockLevel : inventory.minStockLevel;
+    const finalMaxStock = updates.maxStockLevel !== undefined ? updates.maxStockLevel : inventory.maxStockLevel;
+    
+    // Calculate new status
+    updates.status = this.calculateInventoryStatus({
+      quantity: finalQuantity,
+      minStockLevel: finalMinStock,
+      maxStockLevel: finalMaxStock,
+      expiryDate: finalExpiryDate
+    });
     
     const updated = await Inventory.findByIdAndUpdate(
       inventoryId,
@@ -592,8 +661,57 @@ class WarehouseService {
     return updated;
   }
 
+  async archiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    const updated = await Inventory.findByIdAndUpdate(
+      inventoryId,
+      { 
+        isArchived: true,
+        status: 'archived',
+        archivedAt: new Date()
+      },
+      { new: true }
+    ).populate('warehouse', 'name code');
+    
+    if (!updated) {
+      throw new Error('Inventory item not found');
+    }
+    
+    return updated;
+  }
+
+  async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    const inventory = await Inventory.findById(inventoryId);
+    if (!inventory) {
+      throw new Error('Inventory item not found');
+    }
+    
+   const status = this.calculateInventoryStatus({
+  quantity: inventory.quantity,
+  minStockLevel: inventory.minStockLevel,
+  maxStockLevel: inventory.maxStockLevel,
+  ...(inventory.expiryDate && { expiryDate: inventory.expiryDate })
+});
+
+    
+    const updated = await Inventory.findByIdAndUpdate(
+      inventoryId,
+      { 
+        isArchived: false,
+        status: status,
+        archivedAt: null
+      },
+      { new: true }
+    ).populate('warehouse', 'name code');
+    
+    if (!updated) {
+      throw new Error('Inventory item not found');
+    }
+    
+    return updated;
+  }
+
   async getLowStockAlerts(warehouseId?: string): Promise<IInventory[]> {
-    let query: any = { status: 'low_stock' };
+    let query: any = { status: 'low_stock', isArchived: false };
     
     if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
       query.warehouse = new Types.ObjectId(warehouseId);
@@ -602,6 +720,34 @@ class WarehouseService {
     return await Inventory.find(query)
       .populate('warehouse', 'name code')
       .sort({ quantity: 1 });
+  }
+
+  async getExpiryAlerts(warehouseId: string, daysThreshold: number = 15): Promise<IInventory[]> {
+    const today = new Date();
+    const thresholdDate = new Date(today);
+    thresholdDate.setDate(today.getDate() + daysThreshold);
+    
+    return await Inventory.find({
+      warehouse: new Types.ObjectId(warehouseId),
+      expiryDate: {
+        $gte: today,
+        $lte: thresholdDate
+      },
+      isArchived: false,
+      status: { $ne: 'expired' }
+    })
+    .populate('warehouse', 'name code')
+    .sort({ expiryDate: 1 });
+  }
+
+  async getQuarantineItems(warehouseId: string): Promise<IInventory[]> {
+    return await Inventory.find({
+      warehouse: new Types.ObjectId(warehouseId),
+      status: 'quarantine',
+      isArchived: false
+    })
+    .populate('warehouse', 'name code')
+    .sort({ updatedAt: -1 });
   }
 
   async getStockAgeingReport(warehouseId: string): Promise<{
@@ -857,7 +1003,8 @@ class WarehouseService {
 
       const lowStock = await Inventory.countDocuments({
         ...baseQuery,
-        status: 'low_stock'
+        status: 'low_stock',
+        isArchived: false
       });
       
       if (lowStock > 0) {
@@ -923,7 +1070,8 @@ class WarehouseService {
       const inventory = await Inventory.findOne({
         sku: product.sku,
         batchId: product.batchId,
-        status: 'active'
+        status: { $in: ['active', 'low_stock'] },
+        isArchived: false
       });
       
       if (!inventory || inventory.quantity < product.quantity) {
@@ -936,17 +1084,37 @@ class WarehouseService {
     for (const product of products) {
       const multiplier = direction === 'inbound' ? 1 : -1;
       await Inventory.findOneAndUpdate(
-        { sku: product.sku, batchId: product.batchId },
+        { sku: product.sku, batchId: product.batchId, isArchived: false },
         { 
-          $inc: { quantity: multiplier * product.quantity }
+          $inc: { quantity: multiplier * product.quantity },
+          $set: { updatedAt: new Date() }
         }
       );
     }
   }
 
-  private calculateInventoryStatus(data: { quantity: number; minStockLevel: number; maxStockLevel: number }): string {
-    if (data.quantity <= data.minStockLevel) return 'low_stock';
-    if (data.quantity >= data.maxStockLevel * 0.9) return 'active';
+  private calculateInventoryStatus(data: {
+    quantity: number;
+    minStockLevel: number;
+    maxStockLevel: number;
+    expiryDate?: Date;
+  }): string {
+    const today = new Date();
+    
+    // Check expiry first
+    if (data.expiryDate && data.expiryDate < today) {
+      return 'expired';
+    }
+    
+    // Then check stock levels
+    if (data.quantity <= data.minStockLevel) {
+      return 'low_stock';
+    }
+    
+    if (data.quantity >= data.maxStockLevel * 0.9) {
+      return 'overstock';
+    }
+    
     return 'active';
   }
 
@@ -962,6 +1130,7 @@ class WarehouseService {
       {
         $match: {
           warehouse: new Types.ObjectId(warehouse),
+          isArchived: false,
           ...(startDate && endDate ? {
             createdAt: {
               $gte: new Date(startDate),
@@ -1109,6 +1278,7 @@ class WarehouseService {
         {
           $match: {
             warehouse: new Types.ObjectId(warehouse),
+            isArchived: false,
             ...dateMatch
           }
         },
@@ -1200,9 +1370,9 @@ class WarehouseService {
     }
     
     if (data.details && Array.isArray(data.details)) {
-      csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Location\n';
+      csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Expiry Date,Location,Status\n';
       data.details.forEach((item: any) => {
-        csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}"\n`;
+        csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.expiryDate || 'N/A'}","${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}","${item.status}"\n`;
       });
     }
     

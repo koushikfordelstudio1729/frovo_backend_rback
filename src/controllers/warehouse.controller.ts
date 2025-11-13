@@ -251,6 +251,77 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
 });
 
 // Screen 4: Inventory Management
+// Enhanced Inventory Management
+export const getInventoryWithExpiry = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const inventory = await warehouseService.getInventoryWithExpiry(
+      req.query['warehouseId'] as string,
+      req.query
+    );
+    sendSuccess(res, inventory, 'Inventory data with expiry retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory data', 500);
+  }
+});
+
+export const updateInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+
+  try {
+    const inventory = await warehouseService.updateInventory(id, req.body);
+    return sendSuccess(res, inventory, 'Inventory item updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update inventory item', 500);
+  }
+});
+
+export const archiveInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+
+  try {
+    const inventory = await warehouseService.archiveInventoryItem(id);
+    return sendSuccess(res, inventory, 'Inventory item archived successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to archive inventory item', 500);
+  }
+});
+
+export const unarchiveInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+
+  try {
+    const inventory = await warehouseService.unarchiveInventoryItem(id);
+    return sendSuccess(res, inventory, 'Inventory item unarchived successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to unarchive inventory item', 500);
+  }
+});
+
+export const getExpiryAlerts = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const daysThreshold = parseInt(req.query['days'] as string) || 15;
+    const alerts = await warehouseService.getExpiryAlerts(
+      req.query['warehouseId'] as string,
+      daysThreshold
+    );
+    sendSuccess(res, alerts, 'Expiry alerts retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get expiry alerts', 500);
+  }
+});
+
+export const getQuarantineItems = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const items = await warehouseService.getQuarantineItems(req.query['warehouseId'] as string);
+    sendSuccess(res, items, 'Quarantine items retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get quarantine items', 500);
+  }
+});
+
 export const getInventory = asyncHandler(async (req: Request, res: Response) => {
   try {
     const inventory = await warehouseService.getInventory(

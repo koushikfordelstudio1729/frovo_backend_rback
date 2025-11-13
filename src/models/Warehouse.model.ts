@@ -128,7 +128,9 @@ export interface IInventory extends Document {
     rack: string;
     bin: string;
   };
-  status: 'active' | 'low_stock' | 'expired' | 'quarantine';
+  status: 'active' | 'low_stock' | 'expired' | 'quarantine' | 'archived';
+  isArchived: boolean;
+  archivedAt?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -268,6 +270,7 @@ const fieldAgentSchema = new Schema<IFieldAgent>({
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
+// Update the inventory schema
 const inventorySchema = new Schema<IInventory>({
   sku: { type: String, required: true },
   productName: { type: String, required: true },
@@ -286,9 +289,11 @@ const inventorySchema = new Schema<IInventory>({
   },
   status: {
     type: String,
-    enum: ['active', 'low_stock', 'expired', 'quarantine'],
+    enum: ['active', 'low_stock', 'expired', 'quarantine', 'archived'],
     default: 'active'
   },
+  isArchived: { type: Boolean, default: false },
+  archivedAt: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
