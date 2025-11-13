@@ -42,7 +42,7 @@ export interface IGoodsReceiving extends Document {
 }
 export interface IDispatchOrder extends Document {
   _id: Types.ObjectId;
-  dispatchId: string; // Auto-generated DO-5678
+  dispatchId: string;
   vendor: Types.ObjectId;
   destination: string;
   products: {
@@ -50,11 +50,13 @@ export interface IDispatchOrder extends Document {
     productName: string;
     quantity: number;
     batchId: string;
+    unitPrice?: number;
   }[];
   assignedAgent: Types.ObjectId;
   route: string;
   notes?: string;
   status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
+  estimatedDelivery?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -68,7 +70,9 @@ export interface IQCTemplate extends Document {
     name: string;
     type: 'boolean' | 'text' | 'number';
     required: boolean;
+    options?: string[]; // For dropdown type
   }[];
+  isActive: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -78,15 +82,35 @@ export interface IReturnOrder extends Document {
   _id: Types.ObjectId;
   batchId: string;
   sku: string;
+  productName: string;
   vendor: Types.ObjectId;
   reason: string;
   quantity: number;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
+  returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
+  images?: string[]; // URLs of damage photos
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
+export interface IFieldAgent extends Document {
+  _id: Types.ObjectId;
+  name: string;
+  email: string;
+  phone: string;
+  vehicleType: string;
+  licensePlate: string;
+  isActive: boolean;
+  currentLocation?: {
+    latitude: number;
+    longitude: number;
+  };
+  assignedRoutes: string[];
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
 export interface IInventory extends Document {
   _id: Types.ObjectId;
   sku: string;
@@ -172,16 +196,18 @@ const dispatchOrderSchema = new Schema<IDispatchOrder>({
     sku: { type: String, required: true },
     productName: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
-    batchId: { type: String, required: true }
+    batchId: { type: String, required: true },
+    unitPrice: { type: Number, min: 0 }
   }],
-  assignedAgent: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
   route: { type: String, required: true },
-  notes: { type: String },
+  notes: { type: String, maxlength: 500 },
   status: {
     type: String,
     enum: ['pending', 'assigned', 'in_transit', 'delivered', 'cancelled'],
     default: 'pending'
   },
+  estimatedDelivery: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
@@ -197,16 +223,19 @@ const qcTemplateSchema = new Schema<IQCTemplate>({
     type: { 
       type: String, 
       enum: ['boolean', 'text', 'number'],
-      default: 'boolean'
+      required: true
     },
-    required: { type: Boolean, default: true }
+    required: { type: Boolean, default: true },
+    options: [{ type: String }]
   }],
+  isActive: { type: Boolean, default: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
 const returnOrderSchema = new Schema<IReturnOrder>({
   batchId: { type: String, required: true },
   sku: { type: String, required: true },
+  productName: { type: String, required: true },
   vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
   reason: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
@@ -215,6 +244,27 @@ const returnOrderSchema = new Schema<IReturnOrder>({
     enum: ['pending', 'approved', 'returned', 'rejected'],
     default: 'pending'
   },
+  returnType: {
+    type: String,
+    enum: ['damaged', 'expired', 'wrong_item', 'overstock', 'other'],
+    required: true
+  },
+  images: [{ type: String }],
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+}, { timestamps: true });
+
+const fieldAgentSchema = new Schema<IFieldAgent>({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  phone: { type: String, required: true },
+  vehicleType: { type: String, required: true },
+  licensePlate: { type: String, required: true },
+  isActive: { type: Boolean, default: true },
+  currentLocation: {
+    latitude: { type: Number },
+    longitude: { type: Number }
+  },
+  assignedRoutes: [{ type: String }],
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
@@ -270,3 +320,4 @@ export const QCTemplate = mongoose.model<IQCTemplate>('QCTemplate', qcTemplateSc
 export const ReturnOrder = mongoose.model<IReturnOrder>('ReturnOrder', returnOrderSchema);
 export const Inventory = mongoose.model<IInventory>('Inventory', inventorySchema);
 export const Expense = mongoose.model<IExpense>('Expense', expenseSchema);
+export const FieldAgent = mongoose.model<IFieldAgent>('FieldAgent', fieldAgentSchema);

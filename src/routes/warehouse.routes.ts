@@ -1,3 +1,4 @@
+
 // routes/warehouse.routes.ts
 import { Router } from 'express';
 import * as warehouseController from '../controllers/warehouse.controller';
@@ -12,7 +13,9 @@ import {
   createExpenseSchema,
   warehouseReportSchema,
   applyQCTemplateSchema,
-  updateQCSchema // Add this import
+  updateQCSchema,
+  updateDispatchStatusSchema,
+  createFieldAgentSchema
 } from '../validators/warehouse.validator';
 
 const router = Router();
@@ -50,6 +53,7 @@ router.patch('/inbound/receivings/:id/qc',
 );
 
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
+
 // Dispatch Orders
 router.post('/outbound/dispatch',
   requirePermission('dispatch:assign'),
@@ -62,9 +66,14 @@ router.get('/outbound/dispatches',
   warehouseController.getDispatches
 );
 
-// FIXED: Changed from '/outbound/dispatch/:id/status' to '/outbound/dispatches/:id/status'
+router.get('/outbound/dispatches/:id',
+  requirePermission('dispatch:view'),
+  warehouseController.getDispatchById
+);
+
 router.patch('/outbound/dispatches/:id/status',
   requirePermission('dispatch:assign'),
+  validate({ body: updateDispatchStatusSchema.shape.body }),
   warehouseController.updateDispatchStatus
 );
 
@@ -78,6 +87,17 @@ router.post('/qc/templates',
 router.get('/qc/templates',
   requirePermission('qc:view'),
   warehouseController.getQCTemplates
+);
+
+router.put('/qc/templates/:id',
+  requirePermission('qc:manage'),
+  validate({ body: createQCTemplateSchema.shape.body }),
+  warehouseController.updateQCTemplate
+);
+
+router.delete('/qc/templates/:id',
+  requirePermission('qc:manage'),
+  warehouseController.deleteQCTemplate
 );
 
 router.post('/qc/apply-template',
@@ -108,6 +128,17 @@ router.patch('/returns/:id/reject',
   warehouseController.rejectReturn
 );
 
+// Field Agent Management
+router.get('/field-agents',
+  requirePermission('agents:view'),
+  warehouseController.getFieldAgents
+);
+
+router.post('/field-agents',
+  requirePermission('agents:manage'),
+  validate({ body: createFieldAgentSchema.shape.body }),
+  warehouseController.createFieldAgent
+);
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
 router.get('/inventory',
   requirePermission('inventory:view'),

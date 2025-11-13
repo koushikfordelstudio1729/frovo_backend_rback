@@ -6,9 +6,10 @@ import {
   ReturnOrder,
   Inventory,
   Expense, 
+  FieldAgent,
 } from '../models/Warehouse.model';
 import { Types } from 'mongoose';
-import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder } from '../models/Warehouse.model';
+import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
 
 export interface DashboardData {
   kpis: {
@@ -55,10 +56,12 @@ export interface DispatchData {
     productName: string;
     quantity: number;
     batchId: string;
+    unitPrice?: number;
   }[];
   assignedAgent: Types.ObjectId;
   route: string;
   notes?: string;
+  estimatedDelivery?: Date;
 }
 
 export interface QCTemplateData {
@@ -68,15 +71,19 @@ export interface QCTemplateData {
     name: string;
     type: 'boolean' | 'text' | 'number';
     required: boolean;
+    options?: string[];
   }[];
 }
 
 export interface ReturnOrderData {
   batchId: string;
   sku: string;
+  productName: string;
   vendor: Types.ObjectId;
   reason: string;
   quantity: number;
+  returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
+  images?: string[];
 }
 
 export interface InventoryUpsertData {
@@ -96,63 +103,54 @@ export interface InventoryUpsertData {
 
 class WarehouseService {
   // ==================== SCREEN 1: DASHBOARD ====================
-  // services/warehouse.service.ts
+  async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> {
+    const dateFilter = this.getDateFilter(filters?.dateRange);
+    
+    const baseQuery: any = {};
+    
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+      baseQuery.warehouse = new Types.ObjectId(warehouseId);
+    }
 
-// ==================== SCREEN 1: DASHBOARD ====================
-async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> {
-  const dateFilter = this.getDateFilter(filters?.dateRange);
-  
-  // Build base query with proper ObjectId conversion
-  const baseQuery: any = {};
-  
-  if (warehouseId) {
-    baseQuery.warehouse = new Types.ObjectId(warehouseId);
+    const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
+      GoodsReceiving.countDocuments({
+        ...baseQuery,
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
+      }),
+      
+      DispatchOrder.countDocuments({
+        ...baseQuery,
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
+      }),
+      
+      GoodsReceiving.countDocuments({
+        ...baseQuery,
+        status: 'qc_pending'
+      }),
+      
+      DispatchOrder.countDocuments({
+        ...baseQuery,
+        createdAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date().setHours(23, 59, 59, 999))
+        }
+      })
+    ]);
+
+    const alerts = await this.generateAlerts(warehouseId);
+    const recentActivities = await this.getRecentActivities(warehouseId);
+
+    return {
+      kpis: { inbound, outbound, pendingQC, todayDispatches },
+      alerts,
+      recentActivities
+    };
   }
 
-  const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
-    // Inbound: Goods received in date range
-    GoodsReceiving.countDocuments({
-      ...baseQuery,
-      ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
-    }),
-    
-    // Outbound: Dispatches in date range
-    DispatchOrder.countDocuments({
-      ...baseQuery,
-      ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
-    }),
-    
-    // Pending QC: Goods with QC pending
-    GoodsReceiving.countDocuments({
-      ...baseQuery,
-      status: 'qc_pending'
-    }),
-    
-    // Today's dispatches - fixed date calculation
-    DispatchOrder.countDocuments({
-      ...baseQuery,
-      createdAt: {
-        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        $lte: new Date(new Date().setHours(23, 59, 59, 999))
-      }
-    })
-  ]);
-
-  const alerts = await this.generateAlerts(warehouseId);
-  const recentActivities = await this.getRecentActivities(warehouseId);
-
-  return {
-    kpis: { inbound, outbound, pendingQC, todayDispatches },
-    alerts,
-    recentActivities
-  };
-}
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
   async receiveGoods(data: GoodsReceivingData, createdBy: Types.ObjectId): Promise<IGoodsReceiving> {
-    // Auto-generate batch ID if not provided
     const batchId = data.batchId || `BATCH-${Date.now()}`;
     
-    // Determine status based on QC verification
     const qcPassed = data.qcVerification.packaging && 
                      data.qcVerification.expiry && 
                      data.qcVerification.label;
@@ -166,7 +164,6 @@ async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> 
       createdBy
     });
 
-    // Only update inventory if QC passed
     if (status === 'qc_passed') {
       await this.upsertInventory({
         sku: data.sku,
@@ -182,49 +179,44 @@ async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> 
     return goodsReceiving;
   }
 
-async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]> {
-  let query: any = {};
-  
-  if (warehouseId) {
-    query.warehouse = new Types.ObjectId(warehouseId);
-  }
-  
-  // Apply date filters
-  if (filters?.startDate || filters?.endDate) {
-    query.createdAt = {};
-    if (filters.startDate) {
-      query.createdAt.$gte = new Date(filters.startDate);
+  async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]> {
+    let query: any = {};
+    
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+      query.warehouse = new Types.ObjectId(warehouseId);
     }
-    if (filters.endDate) {
-      query.createdAt.$lte = new Date(filters.endDate);
+    
+    if (filters?.startDate || filters?.endDate) {
+      query.createdAt = {};
+      if (filters.startDate) {
+        query.createdAt.$gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        query.createdAt.$lte = new Date(filters.endDate);
+      }
     }
-  }
-  
-  // Apply status filter
-  if (filters?.status) {
-    query.status = filters.status;
-  }
+    
+    if (filters?.status) {
+      query.status = filters.status;
+    }
 
-  // Apply PO number filter
-  if (filters?.poNumber) {
-    query.poNumber = { $regex: filters.poNumber, $options: 'i' };
-  }
+    if (filters?.poNumber) {
+      query.poNumber = { $regex: filters.poNumber, $options: 'i' };
+    }
 
-  // Apply vendor filter
-  if (filters?.vendor) {
-    query.vendor = new Types.ObjectId(filters.vendor);
+    if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
+      query.vendor = new Types.ObjectId(filters.vendor);
+    }
+    
+    return await GoodsReceiving.find(query)
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
   }
-  
-  return await GoodsReceiving.find(query)
-    // .populate('vendor', 'name code') // Temporarily comment out vendor population
-    .populate('warehouse', 'name code')
-    .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 });
-}
 
   async getReceivingById(id: string): Promise<IGoodsReceiving | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
     return await GoodsReceiving.findById(id)
-      .populate('vendor', 'name code')
       .populate('warehouse', 'name code')
       .populate('createdBy', 'name email');
   }
@@ -233,15 +225,12 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     id: string, 
     qcData: Partial<GoodsReceivingData['qcVerification']>
   ): Promise<IGoodsReceiving | null> {
-    const receiving = await GoodsReceiving.findById(id);
-    if (!receiving) {
-      return null;
-    }
-
-    // Update QC verification
-    const updatedQC = { ...receiving.qcVerification, ...qcData };
+    if (!Types.ObjectId.isValid(id)) return null;
     
-    // Determine new status
+    const receiving = await GoodsReceiving.findById(id);
+    if (!receiving) return null;
+
+    const updatedQC = { ...receiving.qcVerification, ...qcData };
     const qcPassed = updatedQC.packaging && updatedQC.expiry && updatedQC.label;
     const status = qcPassed ? 'qc_passed' : 'qc_failed';
 
@@ -252,11 +241,9 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
         status
       },
       { new: true }
-    ).populate('vendor', 'name code')
-     .populate('warehouse', 'name code')
+    ).populate('warehouse', 'name code')
      .populate('createdBy', 'name email');
 
-    // If QC now passed and inventory wasn't updated before, update inventory
     if (status === 'qc_passed' && receiving.status !== 'qc_passed') {
       await this.upsertInventory({
         sku: receiving.sku,
@@ -280,17 +267,15 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     });
 
     if (existingInventory) {
-      // Update existing inventory
       await Inventory.findByIdAndUpdate(existingInventory._id, {
         $inc: { quantity: data.quantity },
         location: data.location,
         updatedAt: new Date()
       });
     } else {
-      // Create new inventory entry
       await Inventory.create({
         ...data,
-        minStockLevel: 0, // Default values, can be updated later
+        minStockLevel: 0,
         maxStockLevel: 1000,
         age: 0,
         status: 'active'
@@ -300,12 +285,11 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
 
   // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
   async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
-    // Validate stock availability
     await this.validateStockAvailability(data.products);
 
-    // Generate dispatch ID (DO-5678 format)
-    const dispatchCount = await DispatchOrder.countDocuments();
-    const dispatchId = `DO-${String(dispatchCount + 1).padStart(4, '0')}`;
+    const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
+    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId.split('-')[1] || "0") + 1 : 1;
+    const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
 
     const dispatch = await DispatchOrder.create({
       dispatchId,
@@ -314,25 +298,21 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
       createdBy
     });
 
-    // Update inventory quantities
     await this.updateInventoryQuantities(data.products, 'outbound');
-
     return dispatch;
   }
 
-  async getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
+  async getDispatches(_warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
     let query: any = {};
     
-    if (warehouseId) {
-      query.warehouse = new Types.ObjectId(warehouseId);
-    }
-    
-    // Apply status filter
     if (filters?.status) {
       query.status = filters.status;
     }
     
-    // Apply date filters
+    if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
+      query.vendor = new Types.ObjectId(filters.vendor);
+    }
+    
     if (filters?.startDate || filters?.endDate) {
       query.createdAt = {};
       if (filters.startDate) {
@@ -344,9 +324,8 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     }
     
     return await DispatchOrder.find(query)
-      .populate('vendor', 'name code')
-      .populate('assignedAgent', 'name email')
-      .populate('warehouse', 'name code')
+      .populate('vendor', 'name code contactPerson phone')
+      .populate('assignedAgent', 'name email phone vehicleType')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
   }
@@ -358,11 +337,21 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
       throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
     
+    if (!Types.ObjectId.isValid(dispatchId)) {
+      throw new Error('Invalid dispatch ID');
+    }
+    
+    const updateData: any = { status };
+    if (status === 'delivered') {
+      updateData.deliveredAt = new Date();
+    }
+    
     const dispatch = await DispatchOrder.findByIdAndUpdate(
       dispatchId,
-      { status },
+      updateData,
       { new: true }
-    ).populate('vendor assignedAgent warehouse');
+    )
+    .populate('vendor assignedAgent createdBy');
     
     if (!dispatch) {
       throw new Error('Dispatch order not found');
@@ -371,18 +360,25 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     return dispatch;
   }
 
-  // ==================== SCREEN 3: QC TEMPLATES ====================
+  async getDispatchById(dispatchId: string): Promise<IDispatchOrder | null> {
+    if (!Types.ObjectId.isValid(dispatchId)) return null;
+    return await DispatchOrder.findById(dispatchId)
+      .populate('vendor', 'name code contactPerson phone address')
+      .populate('assignedAgent', 'name email phone vehicleType licensePlate')
+      .populate('createdBy', 'name email');
+  }
+
+  // ==================== QC TEMPLATES ====================
   async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
     return await QCTemplate.create({
-      name: data.name,
-      category: data.category,
-      parameters: data.parameters,
+      ...data,
+      isActive: true,
       createdBy
     });
   }
 
   async getQCTemplates(category?: string): Promise<IQCTemplate[]> {
-    let query: any = {};
+    let query: any = { isActive: true };
     
     if (category) {
       query.category = category;
@@ -390,27 +386,60 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     
     return await QCTemplate.find(query)
       .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ name: 1 });
+  }
+
+  async updateQCTemplate(templateId: string, updateData: Partial<QCTemplateData>): Promise<IQCTemplate | null> {
+    if (!Types.ObjectId.isValid(templateId)) return null;
+    return await QCTemplate.findByIdAndUpdate(
+      templateId,
+      updateData,
+      { new: true }
+    ).populate('createdBy', 'name email');
+  }
+
+  async deleteQCTemplate(templateId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(templateId)) return;
+    await QCTemplate.findByIdAndUpdate(
+      templateId,
+      { isActive: false }
+    );
   }
 
   async applyQCTemplate(templateId: string, batchId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(templateId)) {
+      throw new Error('Invalid template ID');
+    }
+    
     const template = await QCTemplate.findById(templateId);
     if (!template) {
       throw new Error('QC template not found');
     }
 
-    // Apply template to goods receiving record
     await GoodsReceiving.findOneAndUpdate(
       { batchId },
       { 
         status: 'qc_pending',
-        // Store template application details
+        qcTemplate: templateId
       }
     );
   }
 
-  // ==================== SCREEN 3: RETURN MANAGEMENT ====================
+  // ==================== RETURN MANAGEMENT ====================
   async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
+    const inventory = await Inventory.findOne({
+      batchId: data.batchId,
+      sku: data.sku
+    });
+    
+    if (!inventory) {
+      throw new Error(`Batch ${data.batchId} with SKU ${data.sku} not found in inventory`);
+    }
+    
+    if (inventory.quantity < data.quantity) {
+      throw new Error(`Insufficient quantity in batch. Available: ${inventory.quantity}, Requested: ${data.quantity}`);
+    }
+
     return await ReturnOrder.create({
       ...data,
       status: 'pending',
@@ -418,18 +447,48 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     });
   }
 
-  async getReturnQueue(warehouseId?: string): Promise<IReturnOrder[]> {
-    return await ReturnOrder.find(warehouseId ? { warehouse: new Types.ObjectId(warehouseId) } : {})
-      .populate('vendor', 'name')
+  async getReturnQueue(_warehouseId?: string, filters?: any): Promise<IReturnOrder[]> {
+    let query: any = {};
+    
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+    
+    if (filters?.returnType) {
+      query.returnType = filters.returnType;
+    }
+
+    return await ReturnOrder.find(query)
+      .populate('vendor', 'name code contactPerson')
+      .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
   }
 
   async approveReturn(returnId: string): Promise<IReturnOrder> {
+    if (!Types.ObjectId.isValid(returnId)) {
+      throw new Error('Invalid return ID');
+    }
+    
+    const returnOrder = await ReturnOrder.findById(returnId);
+    if (!returnOrder) {
+      throw new Error('Return order not found');
+    }
+
+    await Inventory.findOneAndUpdate(
+      {
+        batchId: returnOrder.batchId,
+        sku: returnOrder.sku
+      },
+      {
+        $inc: { quantity: -returnOrder.quantity }
+      }
+    );
+
     const updated = await ReturnOrder.findByIdAndUpdate(
       returnId,
       { status: 'approved' },
       { new: true }
-    ).populate('vendor', 'name');
+    ).populate('vendor', 'name code');
 
     if (!updated) {
       throw new Error('Return order not found');
@@ -439,11 +498,15 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   }
 
   async rejectReturn(returnId: string): Promise<IReturnOrder> {
+    if (!Types.ObjectId.isValid(returnId)) {
+      throw new Error('Invalid return ID');
+    }
+    
     const updated = await ReturnOrder.findByIdAndUpdate(
       returnId,
       { status: 'rejected' },
       { new: true }
-    ).populate('vendor', 'name');
+    ).populate('vendor', 'name code');
     
     if (!updated) {
       throw new Error('Return order not found');
@@ -452,18 +515,40 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     return updated;
   }
 
+  // ==================== FIELD AGENT MANAGEMENT ====================
+  async getFieldAgents(isActive?: boolean): Promise<IFieldAgent[]> {
+    let query: any = {};
+    
+    if (isActive !== undefined) {
+      query.isActive = isActive;
+    }
+    
+    return await FieldAgent.find(query)
+      .populate('createdBy', 'name email')
+      .sort({ name: 1 });
+  }
+
+  async createFieldAgent(data: {
+    name: string;
+    email: string;
+    phone: string;
+    vehicleType: string;
+    licensePlate: string;
+    assignedRoutes: string[];
+  }, createdBy: Types.ObjectId): Promise<IFieldAgent> {
+    return await FieldAgent.create({
+      ...data,
+      isActive: true,
+      createdBy
+    });
+  }
+
   // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
   async getInventory(warehouseId: string, filters?: any): Promise<IInventory[]> {
     let query: any = { warehouse: new Types.ObjectId(warehouseId) };
     
-    // Apply filters
     if (filters?.ageRange) {
       query.age = this.getAgeFilter(filters.ageRange);
-    }
-    
-    if (filters?.category) {
-      // Assuming category is stored in product metadata
-      // This would need integration with product catalog
     }
 
     const inventory = await Inventory.find(query)
@@ -477,14 +562,12 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     const allowedUpdates = ['quantity', 'minStockLevel', 'maxStockLevel', 'location', 'status'];
     const updates: any = {};
     
-    // Only allow specific fields to be updated
     Object.keys(updateData).forEach(key => {
       if (allowedUpdates.includes(key)) {
         updates[key] = updateData[key];
       }
     });
     
-    // Recalculate status if quantity is updated
     if (updates.quantity !== undefined) {
       const inventory = await Inventory.findById(inventoryId);
       if (inventory) {
@@ -512,13 +595,13 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   async getLowStockAlerts(warehouseId?: string): Promise<IInventory[]> {
     let query: any = { status: 'low_stock' };
     
-    if (warehouseId) {
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
       query.warehouse = new Types.ObjectId(warehouseId);
     }
     
     return await Inventory.find(query)
       .populate('warehouse', 'name code')
-      .sort({ quantity: 1 }); // Sort by lowest quantity first
+      .sort({ quantity: 1 });
   }
 
   async getStockAgeingReport(warehouseId: string): Promise<{
@@ -567,21 +650,18 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   async getExpenses(warehouseId?: string, filters?: any): Promise<IExpense[]> {
     let query: any = {};
     
-    if (warehouseId) {
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
       query.warehouse = new Types.ObjectId(warehouseId);
     }
     
-    // Apply category filter
     if (filters?.category) {
       query.category = filters.category;
     }
     
-    // Apply status filter
     if (filters?.status) {
       query.status = filters.status;
     }
     
-    // Apply date filters
     if (filters?.startDate || filters?.endDate) {
       query.date = {};
       if (filters.startDate) {
@@ -659,7 +739,6 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
 
     const result = summary[0] || { total: 0, approved: 0, pending: 0, byCategory: [] };
     
-    // Transform byCategory
     const byCategory: { [key: string]: number } = {};
     if (result.byCategory) {
       result.byCategory.forEach((item: any) => {
@@ -707,9 +786,20 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     
     const now = new Date();
     switch (dateRange) {
+      case 'today':
+        return {
+          $gte: new Date(now.setHours(0, 0, 0, 0)),
+          $lte: new Date(now.setHours(23, 59, 59, 999))
+        };
       case 'this_week':
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        
         return {
           $gte: startOfWeek,
           $lte: endOfWeek
@@ -717,6 +807,8 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
       case 'this_month':
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+        
         return {
           $gte: startOfMonth,
           $lte: endOfMonth
@@ -744,63 +836,86 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   private async generateAlerts(warehouseId?: string): Promise<DashboardData['alerts']> {
     const alerts: DashboardData['alerts'] = [];
     
-    // QC Failed alerts
-    const qcFailed = await GoodsReceiving.countDocuments({
-      warehouse: warehouseId ? new Types.ObjectId(warehouseId) : undefined,
-      status: 'qc_failed'
-    });
-    if (qcFailed > 0) {
-      alerts.push({
-        type: 'qc_failed',
-        message: `${qcFailed} batches failed QC`,
-        count: qcFailed
+    try {
+      const baseQuery: any = {};
+      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+        baseQuery.warehouse = new Types.ObjectId(warehouseId);
+      }
+      
+      const qcFailed = await GoodsReceiving.countDocuments({
+        ...baseQuery,
+        status: 'qc_failed'
       });
-    }
+      
+      if (qcFailed > 0) {
+        alerts.push({
+          type: 'qc_failed',
+          message: `${qcFailed} batches failed QC`,
+          count: qcFailed
+        });
+      }
 
-    // Low stock alerts
-    const lowStock = await Inventory.countDocuments({
-      warehouse: warehouseId ? new Types.ObjectId(warehouseId) : undefined,
-      status: 'low_stock'
-    });
-    if (lowStock > 0) {
-      alerts.push({
-        type: 'low_stock',
-        message: `${lowStock} items below safety stock`,
-        count: lowStock
+      const lowStock = await Inventory.countDocuments({
+        ...baseQuery,
+        status: 'low_stock'
       });
+      
+      if (lowStock > 0) {
+        alerts.push({
+          type: 'low_stock',
+          message: `${lowStock} items below safety stock`,
+          count: lowStock
+        });
+      }
+    } catch (error) {
+      console.error('Error generating alerts:', error);
     }
 
     return alerts;
   }
 
   private async getRecentActivities(warehouseId?: string): Promise<any[]> {
-    const [receivingActivities, dispatchActivities] = await Promise.all([
-      GoodsReceiving.find(warehouseId ? { warehouse: new Types.ObjectId(warehouseId) } : {})
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('vendor', 'name')
-        .populate('createdBy', 'name'),
-      DispatchOrder.find(warehouseId ? { warehouse: new Types.ObjectId(warehouseId) } : {})
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('vendor', 'name')
-        .populate('assignedAgent', 'name')
-    ]);
+    try {
+      const baseQuery: any = {};
+      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+        baseQuery.warehouse = new Types.ObjectId(warehouseId);
+      }
+      
+      const [receivingActivities, dispatchActivities] = await Promise.all([
+        GoodsReceiving.find(baseQuery)
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .populate('createdBy', 'name'),
+        DispatchOrder.find(baseQuery)
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .populate('assignedAgent', 'name')
+      ]);
 
-    return [
-      ...receivingActivities.map((item: any) => ({
-        type: 'inbound',
-        message: `Received ${item.quantity} units of ${item.sku}`,
-        timestamp: item.createdAt,
-        user: (item.createdBy && (item.createdBy as any).name) || undefined
-      })),
-      ...dispatchActivities.map((item: any) => ({
-        type: 'outbound',
-        message: `Dispatched ${(item.products || []).length} products to ${item.destination}`,
-        timestamp: item.createdAt,
-        user: (item.assignedAgent && (item.assignedAgent as any).name) || undefined
-      }))
-    ].sort((a: any, b: any) => (b.timestamp?.getTime?.() || 0) - (a.timestamp?.getTime?.() || 0)).slice(0, 8);
+      const activities = [
+        ...receivingActivities.map((item: any) => ({
+          type: 'inbound',
+          message: `Received ${item.quantity} units of ${item.sku}`,
+          timestamp: item.createdAt,
+          user: item.createdBy?.name || 'System'
+        })),
+        
+        ...dispatchActivities.map((item: any) => ({
+          type: 'outbound',
+          message: `Dispatched ${item.products?.length || 0} products to ${item.destination}`,
+          timestamp: item.createdAt,
+          user: item.assignedAgent?.name || 'System'
+        }))
+      ];
+
+      return activities
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 8);
+        
+    } catch (error) {
+      console.error('Error getting recent activities:', error);
+      return [];
+    }
   }
 
   private async validateStockAvailability(products: { sku: string; quantity: number; batchId: string }[]): Promise<void> {
@@ -823,14 +938,7 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
       await Inventory.findOneAndUpdate(
         { sku: product.sku, batchId: product.batchId },
         { 
-          $inc: { quantity: multiplier * product.quantity },
-          $set: { 
-            status: this.calculateInventoryStatus({
-              quantity: product.quantity + (multiplier * product.quantity),
-              minStockLevel: 0, // This should come from existing record
-              maxStockLevel: 0  // This should come from existing record
-            })
-          }
+          $inc: { quantity: multiplier * product.quantity }
         }
       );
     }
@@ -838,7 +946,7 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
 
   private calculateInventoryStatus(data: { quantity: number; minStockLevel: number; maxStockLevel: number }): string {
     if (data.quantity <= data.minStockLevel) return 'low_stock';
-    if (data.quantity >= data.maxStockLevel * 0.9) return 'active'; // 90% of max
+    if (data.quantity >= data.maxStockLevel * 0.9) return 'active';
     return 'active';
   }
 
@@ -846,7 +954,10 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   private async generateInventoryTurnoverReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate } = filters;
     
-    // Calculate inventory turnover ratio
+    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
     const turnoverData = await Inventory.aggregate([
       {
         $match: {
@@ -897,7 +1008,7 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
       data: turnoverData,
       summary: {
         totalSKUs: turnoverData.length,
-        averageTurnover: turnoverData.reduce((acc, item) => acc + item.turnoverRate, 0) / turnoverData.length,
+        averageTurnover: turnoverData.length > 0 ? turnoverData.reduce((acc, item) => acc + item.turnoverRate, 0) / turnoverData.length : 0,
         highTurnoverItems: turnoverData.filter((item: any) => item.turnoverRate > 2).length
       }
     };
@@ -906,6 +1017,10 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   private async generateQCSummaryReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate } = filters;
     
+    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
     const qcData = await GoodsReceiving.aggregate([
       {
         $match: {
@@ -947,6 +1062,10 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
   private async generateEfficiencyReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate } = filters;
     
+    if (!warehouse || !Types.ObjectId.isValid(warehouse)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
     const dateMatch: any = {};
     if (startDate && endDate) {
       dateMatch.createdAt = {
@@ -956,7 +1075,6 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     }
     
     const [dispatchEfficiency, inventoryEfficiency] = await Promise.all([
-      // Dispatch efficiency (time from creation to delivery)
       DispatchOrder.aggregate([
         {
           $match: {
@@ -971,7 +1089,7 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
             processingTime: {
               $divide: [
                 { $subtract: ['$updatedAt', '$createdAt'] },
-                1000 * 60 * 60 // Convert to hours
+                1000 * 60 * 60
               ]
             },
             productsCount: { $size: '$products' }
@@ -987,7 +1105,6 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
         }
       ]),
       
-      // Inventory efficiency (stock utilization)
       Inventory.aggregate([
         {
           $match: {
@@ -1033,22 +1150,19 @@ async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceivin
     let score = 0;
     
     if (dispatchData?.avgProcessingTime) {
-      // Lower processing time is better (max 48 hours = 100%, min 0 hours = 0%)
       const processingScore = Math.max(0, 100 - (dispatchData.avgProcessingTime / 48 * 100));
-      score += processingScore * 0.4; // 40% weight
+      score += processingScore * 0.4;
     }
     
     if (inventoryData?.avgUtilization) {
-      // Higher utilization is better (target 80% utilization)
-      const utilizationScore = Math.min(100, inventoryData.avgUtilization * 100 * 1.25); // 80% = 100 points
-      score += utilizationScore * 0.4; // 40% weight
+      const utilizationScore = Math.min(100, inventoryData.avgUtilization * 100 * 1.25);
+      score += utilizationScore * 0.4;
     }
     
     if (inventoryData?.lowStockCount && inventoryData?.totalItems) {
-      // Lower low stock percentage is better
       const lowStockRate = inventoryData.lowStockCount / inventoryData.totalItems;
-      const lowStockScore = Math.max(0, 100 - (lowStockRate * 500)); // 20% low stock = 0 points
-      score += lowStockScore * 0.2; // 20% weight
+      const lowStockScore = Math.max(0, 100 - (lowStockRate * 500));
+      score += lowStockScore * 0.2;
     }
     
     return Math.round(score);
