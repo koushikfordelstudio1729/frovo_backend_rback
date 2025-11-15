@@ -15,7 +15,8 @@ import {
   applyQCTemplateSchema,
   updateQCSchema,
   updateDispatchStatusSchema,
-  createFieldAgentSchema
+  createFieldAgentSchema,
+  dashboardQuerySchema
 } from '../validators/warehouse.validator';
 
 const router = Router();
@@ -24,8 +25,10 @@ const router = Router();
 router.use(authenticate);
 
 // ==================== SCREEN 1: DASHBOARD ====================
+// Update dashboard route to include validation
 router.get('/dashboard',
   requirePermission('warehouse:view'),
+  validate({ query: dashboardQuerySchema.shape.query }),
   warehouseController.getDashboard
 );
 

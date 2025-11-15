@@ -167,3 +167,13 @@ export const updateExpensePaymentStatusSchema = z.object({
     paymentStatus: z.enum(['paid', 'unpaid', 'partially_paid'])
   })
 });
+
+// Add dashboard query schema
+export const dashboardQuerySchema = z.object({
+  query: z.object({
+    date: z.string().optional(), // For custom date like "22-10-2025"
+    category: z.string().optional(),
+    partner: z.string().optional(),
+    warehouseId: objectIdSchema.optional()
+  })
+});

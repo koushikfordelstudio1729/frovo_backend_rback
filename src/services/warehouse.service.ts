@@ -24,6 +24,22 @@ export interface DashboardData {
     count: number;
   }[];
   recentActivities: any[];
+  // Add new fields for the chart data
+  pendingVsRefill: {
+    days: string[];
+    pendingPercentages: number[];
+    refillPercentages: number[];
+  };
+  // Add data for dropdowns
+  filters: {
+    categories: string[];
+    partners: string[];
+  };
+  // Add warehouse info
+  warehouseInfo: {
+    name: string;
+    pendingBatches: number;
+  };
 }
 
 export interface GoodsReceivingData {
@@ -157,6 +173,11 @@ class WarehouseService {
       baseQuery.warehouse = new Types.ObjectId(warehouseId);
     }
 
+    // Apply category filter if provided
+    if (filters?.category) {
+      baseQuery.productName = { $regex: filters.category, $options: 'i' };
+    }
+
     const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
       GoodsReceiving.countDocuments({
         ...baseQuery,
@@ -184,12 +205,223 @@ class WarehouseService {
 
     const alerts = await this.generateAlerts(warehouseId);
     const recentActivities = await this.getRecentActivities(warehouseId);
+    
+    // Generate pending vs refill chart data
+    const pendingVsRefill = await this.generatePendingVsRefillData(warehouseId, filters);
+    
+    // Get filter options
+    const filterOptions = await this.getFilterOptions();
+    
+    // Get warehouse info
+    const warehouseInfo = await this.getWarehouseInfo(warehouseId);
 
     return {
       kpis: { inbound, outbound, pendingQC, todayDispatches },
       alerts,
-      recentActivities
+      recentActivities,
+      pendingVsRefill,
+      filters: filterOptions,
+      warehouseInfo
     };
+  }
+
+  private async generatePendingVsRefillData(_warehouseId?: string, _filters?: any): Promise<{
+    days: string[];
+    pendingPercentages: number[];
+    refillPercentages: number[];
+  }> {
+    // This would typically query your database for actual data
+    // For now, returning sample data as shown in your design
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    
+    // Sample data from your dashboard design
+    const pendingPercentages = [100, 90, 60, 40, 20, 50, 70];
+    const refillPercentages = [80, 70, 90, 60, 40, 85, 95];
+    
+    return {
+      days,
+      pendingPercentages,
+      refillPercentages
+    };
+  }
+
+  private async getFilterOptions(): Promise<{
+    categories: string[];
+    partners: string[];
+  }> {
+    try {
+      // Get unique categories from product names
+      const categories = await GoodsReceiving.aggregate([
+        { 
+          $match: { 
+            productName: { $exists: true, $ne: '' } 
+          } 
+        },
+        {
+          $group: {
+            _id: { $toLower: "$productName" }
+          }
+        },
+        {
+          $project: {
+            name: "$_id",
+            _id: 0
+          }
+        },
+        { $limit: 10 }
+      ]);
+
+      // Extract category names and format them
+      const categoryNames = categories.map((cat: any) => 
+        cat.name.charAt(0).toUpperCase() + cat.name.slice(1)
+      ).filter((name: string) => name.length > 0);
+
+      // Get partners from vendors - simplified approach
+      const partners = await GoodsReceiving.aggregate([
+        {
+          $lookup: {
+            from: 'vendors',
+            localField: 'vendor',
+            foreignField: '_id',
+            as: 'vendorData'
+          }
+        },
+        {
+          $unwind: {
+            path: '$vendorData',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $group: {
+            _id: '$vendor',
+            vendorName: { $first: '$vendorData.name' }
+          }
+        },
+        {
+          $match: {
+            vendorName: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $project: {
+            name: '$vendorName',
+            _id: 0
+          }
+        },
+        { $limit: 10 }
+      ]);
+
+      const partnerNames = partners.map((p: any) => p.name).filter(Boolean);
+
+      return {
+        categories: categoryNames.length > 0 ? categoryNames : ['Snacks', 'Beverages', 'Perishable', 'Non-Perishable'],
+        partners: partnerNames.length > 0 ? partnerNames : ['XYZ Warehouse', 'ABC Suppliers', 'Global Foods']
+      };
+    } catch (error) {
+      console.error('Error getting filter options:', error);
+      // Return default options if there's an error
+      return {
+        categories: ['Snacks', 'Beverages', 'Perishable', 'Non-Perishable'],
+        partners: ['XYZ Warehouse', 'ABC Suppliers', 'Global Foods']
+      };
+    }
+  }
+
+  private async getWarehouseInfo(warehouseId?: string): Promise<{
+    name: string;
+    pendingBatches: number;
+  }> {
+    try {
+      // Get pending batches count
+      const pendingBatches = await GoodsReceiving.countDocuments({
+        ...(warehouseId && Types.ObjectId.isValid(warehouseId) && { 
+          warehouse: new Types.ObjectId(warehouseId) 
+        }),
+        status: 'qc_pending'
+      });
+
+      // Get warehouse name (you might need to query your Warehouse model)
+      // For now, returning a default name
+      return {
+        name: 'XYZ WAREHOUSE',
+        pendingBatches
+      };
+    } catch (error) {
+      console.error('Error getting warehouse info:', error);
+      return {
+        name: 'XYZ WAREHOUSE',
+        pendingBatches: 3 // Default from your design
+      };
+    }
+  }
+
+  // Update the getDateFilter method to handle custom dates
+  private getDateFilter(dateRange?: any): any {
+    if (!dateRange) return {};
+    
+    // Handle custom date string like "22-10-2025"
+    if (typeof dateRange === 'string' && dateRange.includes('-')) {
+      try {
+        const parts = dateRange.split('-');
+        const [dayStr, monthStr, yearStr] = parts;
+        const day = dayStr ? Number(dayStr) : NaN;
+        const month = monthStr ? Number(monthStr) : NaN;
+        const year = yearStr ? Number(yearStr) : NaN;
+
+        // Validate parsed numbers
+        if (![day, month, year].every(n => Number.isInteger(n) && !Number.isNaN(n))) {
+          throw new Error(`Invalid custom date format: ${dateRange}`);
+        }
+
+        const customDate = new Date(year, month - 1, day);
+        const startOfDay = new Date(customDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(customDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        return {
+          $gte: startOfDay,
+          $lte: endOfDay
+        };
+      } catch (error) {
+        console.error('Error parsing custom date:', error);
+        return {};
+      }
+    }
+    
+    const now = new Date();
+    switch (dateRange) {
+      case 'today':
+        return {
+          $gte: new Date(now.setHours(0, 0, 0, 0)),
+          $lte: new Date(now.setHours(23, 59, 59, 999))
+        };
+      case 'this_week':
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        
+        return {
+          $gte: startOfWeek,
+          $lte: endOfWeek
+        };
+      case 'this_month':
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+        
+        return {
+          $gte: startOfMonth,
+          $lte: endOfMonth
+        };
+      default:
+        return {};
+    }
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
@@ -333,7 +565,7 @@ class WarehouseService {
     await this.validateStockAvailability(data.products);
 
     const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
-    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId.split('-')[1] || "0") + 1 : 1;
+    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
     const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
 
     const dispatch = await DispatchOrder.create({
@@ -347,8 +579,12 @@ class WarehouseService {
     return dispatch;
   }
 
-  async getDispatches(_warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
+  async getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
     let query: any = {};
+    
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+      query.warehouse = new Types.ObjectId(warehouseId);
+    }
     
     if (filters?.status) {
       query.status = filters.status;
@@ -492,8 +728,12 @@ class WarehouseService {
     });
   }
 
-  async getReturnQueue(_warehouseId?: string, filters?: any): Promise<IReturnOrder[]> {
+  async getReturnQueue(warehouseId?: string, filters?: any): Promise<IReturnOrder[]> {
     let query: any = {};
+    
+    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+      query.warehouse = new Types.ObjectId(warehouseId);
+    }
     
     if (filters?.status) {
       query.status = filters.status;
@@ -730,14 +970,13 @@ class WarehouseService {
       throw new Error('Inventory item not found');
     }
     
-   const status = this.calculateInventoryStatus({
-  quantity: inventory.quantity,
-  minStockLevel: inventory.minStockLevel,
-  maxStockLevel: inventory.maxStockLevel,
-  ...(inventory.expiryDate && { expiryDate: inventory.expiryDate })
-});
+    const status = this.calculateInventoryStatus({
+      quantity: inventory.quantity,
+      minStockLevel: inventory.minStockLevel,
+      maxStockLevel: inventory.maxStockLevel,
+      ...(inventory.expiryDate && { expiryDate: inventory.expiryDate })
+    });
 
-    
     const updated = await Inventory.findByIdAndUpdate(
       inventoryId,
       { 
@@ -1616,52 +1855,16 @@ class WarehouseService {
   }
 
   // PDF generation stub
-  private convertToPDF(data: any, _reportType: string): any {
+  private convertToPDF(data: any, reportType: string): any {
     return {
       message: 'PDF generation would be implemented here',
       data: data,
-      format: 'pdf'
+      format: 'pdf',
+      reportType: reportType
     };
   }
 
   // ==================== PRIVATE HELPER METHODS ====================
-  private getDateFilter(dateRange?: string): any {
-    if (!dateRange) return {};
-    
-    const now = new Date();
-    switch (dateRange) {
-      case 'today':
-        return {
-          $gte: new Date(now.setHours(0, 0, 0, 0)),
-          $lte: new Date(now.setHours(23, 59, 59, 999))
-        };
-      case 'this_week':
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-        
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        
-        return {
-          $gte: startOfWeek,
-          $lte: endOfWeek
-        };
-      case 'this_month':
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        endOfMonth.setHours(23, 59, 59, 999);
-        
-        return {
-          $gte: startOfMonth,
-          $lte: endOfMonth
-        };
-      default:
-        return {};
-    }
-  }
-
   private getAgeFilter(ageRange: string): any {
     switch (ageRange) {
       case '0-30':

@@ -5,11 +5,21 @@ import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 
 // Screen 1: Dashboard
+// Update getDashboard controller to handle the new filters
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
   try {
+    const { date, category, partner, warehouseId, ...otherFilters } = req.query;
+    
+    // Build filters object for the service
+    const filters: any = { ...otherFilters };
+    
+    if (date) filters.dateRange = date as string;
+    if (category) filters.category = category as string;
+    if (partner) filters.partner = partner as string;
+
     const dashboard = await warehouseService.getDashboard(
-      req.query['warehouseId'] as string,
-      req.query
+      warehouseId as string,
+      filters
     );
     sendSuccess(res, dashboard, 'Dashboard data retrieved successfully');
   } catch (error) {
