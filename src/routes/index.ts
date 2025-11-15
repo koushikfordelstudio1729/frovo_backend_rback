@@ -7,6 +7,11 @@ import permissionRoutes from './permission.routes';
 import accessRequestRoutes from './accessRequest.routes';
 import auditLogRoutes from './auditLog.routes';
 import securityRoutes from './security.routes';
+import vendingMachineRoutes from './vendingMachine.routes';
+import productRoutes from './product.routes';
+import cartRoutes from './cart.routes';
+import orderRoutes from './order.routes';
+import paymentRoutes from './payment.routes';
 
 const router = Router();
 
@@ -29,5 +34,10 @@ router.use('/permissions', permissionRoutes);
 router.use('/access-requests', accessRequestRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/security', securityRoutes);
+router.use('/vending', vendingMachineRoutes);
+router.use('/', productRoutes);
+router.use('/cart', cartRoutes);
+router.use('/orders', orderRoutes);
+router.use('/payments', paymentRoutes);
 
 export default router;

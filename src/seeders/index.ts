@@ -4,6 +4,8 @@ import { seedPermissions } from './permissions.seeder';
 import { seedDepartments } from './departments.seeder';
 import { seedRoles } from './roles.seeder';
 import { seedSuperAdmin } from './superAdmin.seeder';
+import { seedProducts } from './products.seeder';
+import { seedVendingMachines } from './vendingMachines.seeder';
 import { Types } from 'mongoose';
 
 export const seedDatabase = async (): Promise<void> => {
@@ -25,7 +27,13 @@ export const seedDatabase = async (): Promise<void> => {
     // Step 5: Seed Super Admin
     const superAdminId = await seedSuperAdmin(departmentMap, roleMap);
     
-    // Step 6: Update createdBy references to point to the actual Super Admin
+    // Step 6: Seed Products
+    const productMap = await seedProducts(superAdminId);
+    
+    // Step 7: Seed Vending Machines
+    const machineMap = await seedVendingMachines(superAdminId, productMap);
+    
+    // Step 8: Update createdBy references to point to the actual Super Admin
     const { Department, Role } = await import('../models');
     
     await Promise.all([
@@ -45,6 +53,8 @@ export const seedDatabase = async (): Promise<void> => {
     logger.info(`   • Departments: ✅ (${Object.keys(departmentMap).length} created)`);
     logger.info(`   • Roles: ✅ (${Object.keys(roleMap).length} created)`);
     logger.info(`   • Super Admin: ✅`);
+    logger.info(`   • Products: ✅ (${Object.keys(productMap).length} created)`);
+    logger.info(`   • Vending Machines: ✅ (${Object.keys(machineMap).length} created)`);
     logger.info('');
     logger.info('🎉 Your RBAC system is ready to use!');
     
