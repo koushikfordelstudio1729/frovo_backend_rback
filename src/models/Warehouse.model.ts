@@ -121,7 +121,7 @@ export interface IInventory extends Document {
   sku: string;
   productName: string;
   batchId: string;
-  warehouse: Types.ObjectId;
+  warehouseId: Types.ObjectId;
   quantity: number;
   minStockLevel: number;
   maxStockLevel: number;
@@ -144,19 +144,25 @@ export interface IExpense extends Document {
   _id: Types.ObjectId;
   category: 'staffing' | 'supplies' | 'equipment' | 'transport';
   amount: number;
-  vendor?: Types.ObjectId;
+  vendor: Types.ObjectId;
   date: Date;
   description?: string;
   billUrl?: string;
-  status: 'approved' | 'pending' | 'rejected';
-  paymentStatus: 'paid' | 'unpaid' | 'partially_paid'; // New field
-  warehouse: Types.ObjectId;
+
+  status: 'approved' | 'pending';
+  assignedAgent: Types.ObjectId; // ⬅ Added to support UI
+  warehouseId: Types.ObjectId;
+
+  paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
+
   createdBy: Types.ObjectId;
-  approvedBy?: Types.ObjectId; // New field
-  approvedAt?: Date; // New field
+  approvedBy?: Types.ObjectId;
+  approvedAt?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 }
+
 
 // Schema definitions
 const warehouseSchema = new Schema<IWarehouse>({
@@ -304,7 +310,7 @@ const inventorySchema = new Schema<IInventory>({
   sku: { type: String, required: true },
   productName: { type: String, required: true },
   batchId: { type: String, required: true },
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+  warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   quantity: { type: Number, required: true, min: 0 },
   minStockLevel: { type: Number, default: 0 },
   maxStockLevel: { type: Number, default: 1000 },
@@ -332,26 +338,38 @@ const expenseSchema = new Schema<IExpense>({
     enum: ['staffing', 'supplies', 'equipment', 'transport'],
     required: true
   },
+
   amount: { type: Number, required: true, min: 0 },
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor' },
+  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+
   date: { type: Date, required: true },
   description: { type: String, maxlength: 200 },
+
   billUrl: { type: String },
+
   status: {
     type: String,
-    enum: ['approved', 'pending', 'rejected'],
+    enum: ['approved', 'pending'],
     default: 'pending'
   },
+
+  assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
+
+  warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+
   paymentStatus: {
     type: String,
     enum: ['paid', 'unpaid', 'partially_paid'],
     default: 'unpaid'
   },
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+
   approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   approvedAt: { type: Date }
+
 }, { timestamps: true });
+
 // Export models
 export const Warehouse = mongoose.model<IWarehouse>('Warehouse', warehouseSchema);
 export const GoodsReceiving = mongoose.model<IGoodsReceiving>('GoodsReceiving', goodsReceivingSchema);

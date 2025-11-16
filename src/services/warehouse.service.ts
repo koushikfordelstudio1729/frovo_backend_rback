@@ -11,6 +11,7 @@ import {
 import { Types } from 'mongoose';
 import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
 
+
 // Add these interfaces to your existing interfaces in warehouse.service.ts
 export interface InventoryStats {
   totalItems: number;
@@ -1458,7 +1459,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     vendor?: Types.ObjectId;
     date: Date;
     description?: string;
-    warehouse: Types.ObjectId;
+    warehouseId: Types.ObjectId;
     billUrl?: string;
   }, createdBy: Types.ObjectId): Promise<IExpense> {
     return await Expense.create({
@@ -1473,7 +1474,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     let query: any = {};
     
     if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-      query.warehouse = new Types.ObjectId(warehouseId);
+      query.warehouseId = new Types.ObjectId(warehouseId);
     }
     
     if (filters?.category) {
@@ -1499,20 +1500,26 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     }
 
     if (filters?.month) {
-      const [year, month] = filters.month.split('-');
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0);
-      query.date = {
-        $gte: startDate,
-        $lte: endDate
-      };
+        const [year, month] = filters.month.split('-');
+  
+  const startDate = new Date(Number(year), Number(month) - 1, 1);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(Number(year), Number(month), 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  query.date = {
+    $gte: startDate,
+    $lte: endDate
+  };
     }
     
     return await Expense.find(query)
       .populate('vendor', 'name code contactPerson')
-      .populate('warehouse', 'name code')
+      .populate('warehouseId', 'name code')
       .populate('createdBy', 'name email')
       .populate('approvedBy', 'name email')
+      .populate('assignedAgent', 'name email')
       .sort({ date: -1, createdAt: -1 });
   }
 
@@ -1568,43 +1575,50 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     return expense;
   }
 
-  async updateExpense(expenseId: string, updateData: {
+  
+  
+  async updateExpense(
+  expenseId: string,
+  updateData: {
     category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
     amount?: number;
-    vendor?: Types.ObjectId;
+    status?: 'approved' | 'pending';
     date?: Date;
-    description?: string;
-    billUrl?: string;
-  }): Promise<IExpense> {
-    const allowedUpdates = ['category', 'amount', 'vendor', 'date', 'description', 'billUrl'];
-    const updates: any = {};
-    
-    Object.keys(updateData).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        updates[key] = (updateData as any)[key];
-      }
-    });
-    
-    // Reset approval if amount or category is changed
-    if (updates.amount !== undefined || updates.category !== undefined) {
-      updates.status = 'pending';
-      updates.approvedBy = null;
-      updates.approvedAt = null;
-    }
-    
-    const expense = await Expense.findByIdAndUpdate(
-      expenseId,
-      updates,
-      { new: true, runValidators: true }
-    )
-    .populate('vendor warehouse createdBy approvedBy');
-    
-    if (!expense) {
-      throw new Error('Expense not found');
-    }
-    
-    return expense;
   }
+): Promise<IExpense> {
+
+  const allowedUpdates = ['category', 'amount', 'date', 'status'];
+  const updates: any = {};
+  
+  Object.keys(updateData).forEach(key => {
+    if (allowedUpdates.includes(key)) {
+      updates[key] = (updateData as any)[key];
+    }
+  });
+
+  // Reset approval metadata if modifying key fields
+  if (updates.amount !== undefined ||
+      updates.category !== undefined ||
+      updates.date !== undefined) {
+    updates.status = 'pending';
+    updates.approvedBy = null;
+    updates.approvedAt = null;
+  }
+
+  const expense = await Expense.findByIdAndUpdate(
+    expenseId,
+    updates,
+    { new: true, runValidators: true }
+  )
+  .populate('vendor createdBy approvedBy warehouseId');
+
+  if (!expense) {
+    throw new Error('Expense not found');
+  }
+
+  return expense;
+}
+
 
   async deleteExpense(expenseId: string): Promise<void> {
     if (!Types.ObjectId.isValid(expenseId)) {
@@ -1622,7 +1636,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     
     return await Expense.findById(expenseId)
       .populate('vendor', 'name code contactPerson phone email')
-      .populate('warehouse', 'name code location')
+      .populate('warehouseId', 'name code location')
       .populate('createdBy', 'name email')
       .populate('approvedBy', 'name email');
   }
@@ -1640,20 +1654,25 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       partially_paid: number;
     };
   }> {
-    const matchStage: any = { warehouse: new Types.ObjectId(warehouseId) };
+    const matchStage: any = { warehouseId: new Types.ObjectId(warehouseId) };
     
     if (filters?.dateRange) {
       matchStage.date = this.getDateFilter(filters.dateRange);
     }
 
     if (filters?.month) {
-      const [year, month] = filters.month.split('-');
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0);
-      matchStage.date = {
-        $gte: startDate,
-        $lte: endDate
-      };
+        const [year, month] = filters.month.split('-');
+  
+  const startDate = new Date(Number(year), Number(month) - 1, 1);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(Number(year), Number(month), 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  matchStage.date = {
+    $gte: startDate,
+    $lte: endDate
+  };
     }
 
     const summary = await Expense.aggregate([
@@ -1757,7 +1776,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     return await Expense.aggregate([
       {
         $match: {
-          warehouse: new Types.ObjectId(warehouseId),
+          warehouseId: new Types.ObjectId(warehouseId),
           date: {
             $gte: startDate,
             $lte: endDate

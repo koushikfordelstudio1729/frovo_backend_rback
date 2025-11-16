@@ -118,17 +118,6 @@ export const createFieldAgentSchema = z.object({
   })
 });
 
-export const createExpenseSchema = z.object({
-  body: z.object({
-    category: z.enum(['staffing', 'supplies', 'equipment', 'transport']),
-    amount: z.number().min(1, 'Amount must be greater than 0'),
-    vendor: objectIdSchema.optional(),
-    date: z.string().datetime(),
-    description: z.string().max(200, 'Description too long').optional(),
-    warehouse: objectIdSchema,
-    billUrl: z.string().optional()
-  })
-});
 
 export const warehouseReportSchema = z.object({
   query: z.object({
@@ -173,17 +162,31 @@ export const updateInventorySchema = z.object({
   })
 });
 
+export const createExpenseSchema = z.object({
+  body: z.object({
+    category: z.enum(['staffing', 'supplies', 'equipment', 'transport']),
+    amount: z.number().min(1),
+    vendor: objectIdSchema,
+    date: z.string().datetime(),
+    description: z.string().max(200).optional(),
+    billUrl: z.string().url().optional(),
+    assignedAgent: objectIdSchema,
+    warehouseId: objectIdSchema,
+    status: z.enum(['approved', 'pending']).optional()
+  })
+});
 
 export const updateExpenseSchema = z.object({
   body: z.object({
     category: z.enum(['staffing', 'supplies', 'equipment', 'transport']).optional(),
-    amount: z.number().min(1, 'Amount must be greater than 0').optional(),
-    vendor: objectIdSchema.optional(),
+    amount: z.number().min(1).optional(),
     date: z.string().datetime().optional(),
-    description: z.string().max(200, 'Description too long').optional(),
-    billUrl: z.string().url().optional()
+    description: z.string().max(200).optional(),
+    status: z.enum(['approved', 'pending']).optional(),
+    assignedAgent: objectIdSchema.optional()
   })
 });
+
 
 export const updateExpenseStatusSchema = z.object({
   body: z.object({

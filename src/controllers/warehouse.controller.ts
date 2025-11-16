@@ -448,20 +448,15 @@ export const getExpenses = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
-export const updateExpenseStatus = asyncHandler(async (req: Request, res: Response) => {
+export const updateExpenseStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  if (!id) return sendBadRequest(res, 'Expense ID is required');
-  if (!status) return sendBadRequest(res, 'Expense status is required');
+  if (!id) return sendBadRequest(res, 'ID required');
 
-  try {
-    const approvedBy = req.user?._id;
-    const expense = await warehouseService.updateExpenseStatus(id, status, approvedBy);
-    return sendSuccess(res, expense, 'Expense status updated successfully');
-  } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense status', 500);
-  }
+  const expense = await warehouseService.updateExpense(id, { status } as any);
+
+  sendSuccess(res, expense, 'Status updated');
 });
 
 export const getExpenseSummary = asyncHandler(async (req: Request, res: Response) => {
