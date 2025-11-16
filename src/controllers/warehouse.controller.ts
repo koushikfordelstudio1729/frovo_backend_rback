@@ -146,7 +146,10 @@ export const createQCTemplate = asyncHandler(async (req: Request, res: Response)
 
 export const getQCTemplates = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const templates = await warehouseService.getQCTemplates(req.query['category'] as string);
+    const templates = await warehouseService.getQCTemplates(
+      req.query['sku'] as string // <-- updated filtering
+    );
+    
     sendSuccess(res, templates, 'QC templates retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get QC templates', 500);
@@ -160,6 +163,7 @@ export const updateQCTemplate = asyncHandler(async (req: Request, res: Response)
   try {
     const template = await warehouseService.updateQCTemplate(id, req.body);
     if (!template) return sendNotFound(res, 'QC template not found');
+  
     return sendSuccess(res, template, 'QC template updated successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to update QC template', 500);
@@ -178,24 +182,29 @@ export const deleteQCTemplate = asyncHandler(async (req: Request, res: Response)
   }
 });
 
-export const applyQCTemplate = asyncHandler(async (req: Request, res: Response) => {
-  const { templateId, batchId } = req.body;
-  if (!templateId || !batchId) return sendBadRequest(res, 'Template ID and Batch ID are required');
-  
-  try {
-    await warehouseService.applyQCTemplate(templateId, batchId);
-    sendSuccess(res, null, 'QC template applied successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to apply QC template', 500);
-  }
-});
 
 // Return Management
 export const createReturnOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
   try {
-    const returnOrder = await warehouseService.createReturnOrder(req.body, req.user._id);
+    // Extract only the required fields
+    const { batchId, vendor, reason, status, quantity } = req.body;
+
+    // Validate required fields
+    if (!batchId || !vendor || !reason) {
+      return sendError(res, 'Missing required fields: batchId, vendor, and reason are required', 400);
+    }
+
+    const returnOrderData = {
+      batchId,
+      vendor,
+      reason,
+      status: status || 'pending',
+      quantity
+    } as any;
+
+    const returnOrder = await warehouseService.createReturnOrder(returnOrderData, req.user._id);
     return sendCreated(res, returnOrder, 'Return order created successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to create return order', 500);
@@ -261,119 +270,160 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
 });
 
 // Screen 4: Inventory Management
-// Enhanced Inventory Management
-export const getInventoryWithExpiry = asyncHandler(async (req: Request, res: Response) => {
+// Inventory Dashboard Controllers
+export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
+  const { warehouseId } = req.params;
+  const { page = 1, limit = 50, ...filters } = req.query;
+
+  if (!warehouseId) {
+    return sendBadRequest(res, 'Warehouse ID is required');
+  }
+
   try {
-    const inventory = await warehouseService.getInventoryWithExpiry(
-      req.query['warehouseId'] as string,
-      req.query
+    const result = await warehouseService.getInventoryDashboard(
+      warehouseId,
+      filters,
+      parseInt(page as string),
+      parseInt(limit as string)
     );
-    sendSuccess(res, inventory, 'Inventory data with expiry retrieved successfully');
+    
+    sendSuccess(res, result, 'Inventory dashboard data retrieved successfully');
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory data', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory dashboard', 500);
+  }
+});
+
+export const getInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return sendBadRequest(res, 'Inventory ID is required');
+  }
+
+  try {
+    const inventoryItem = await warehouseService.getInventoryById(id);
+    
+    if (!inventoryItem) {
+      return sendError(res, 'Inventory item not found', 404);
+    }
+    
+    sendSuccess(res, inventoryItem, 'Inventory item retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory item', 500);
   }
 });
 
 export const updateInventoryItem = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+  const updateData = req.body;
+
+  if (!id) {
+    return sendBadRequest(res, 'Inventory ID is required');
+  }
 
   try {
-    const inventory = await warehouseService.updateInventory(id, req.body);
-    return sendSuccess(res, inventory, 'Inventory item updated successfully');
+    const updatedItem = await warehouseService.updateInventoryItem(id, updateData);
+    sendSuccess(res, updatedItem, 'Inventory item updated successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update inventory item', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to update inventory item', 500);
   }
 });
 
-export const archiveInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+export const archiveInventory = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+
+  if (!id) {
+    return sendBadRequest(res, 'Inventory ID is required');
+  }
 
   try {
-    const inventory = await warehouseService.archiveInventoryItem(id);
-    return sendSuccess(res, inventory, 'Inventory item archived successfully');
+    const archivedItem = await warehouseService.archiveInventoryItem(id);
+    sendSuccess(res, archivedItem, 'Inventory item archived successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to archive inventory item', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to archive inventory item', 500);
   }
 });
 
-export const unarchiveInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+export const unarchiveInventory = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Inventory ID is required');
+
+  if (!id) {
+    return sendBadRequest(res, 'Inventory ID is required');
+  }
 
   try {
-    const inventory = await warehouseService.unarchiveInventoryItem(id);
-    return sendSuccess(res, inventory, 'Inventory item unarchived successfully');
+    const unarchivedItem = await warehouseService.unarchiveInventoryItem(id);
+    sendSuccess(res, unarchivedItem, 'Inventory item unarchived successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to unarchive inventory item', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to unarchive inventory item', 500);
   }
 });
 
-export const getExpiryAlerts = asyncHandler(async (req: Request, res: Response) => {
+export const getArchivedInventory = asyncHandler(async (req: Request, res: Response) => {
+  const { warehouseId } = req.params;
+  const { page = 1, limit = 50 } = req.query;
+
+  if (!warehouseId) {
+    return sendBadRequest(res, 'Warehouse ID is required');
+  }
+
   try {
-    const daysThreshold = parseInt(req.query['days'] as string) || 15;
-    const alerts = await warehouseService.getExpiryAlerts(
-      req.query['warehouseId'] as string,
-      daysThreshold
+    const result = await warehouseService.getArchivedInventory(
+      warehouseId,
+      parseInt(page as string),
+      parseInt(limit as string)
     );
-    sendSuccess(res, alerts, 'Expiry alerts retrieved successfully');
+    
+    sendSuccess(res, result, 'Archived inventory retrieved successfully');
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get expiry alerts', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to get archived inventory', 500);
   }
 });
 
-export const getQuarantineItems = asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const items = await warehouseService.getQuarantineItems(req.query['warehouseId'] as string);
-    sendSuccess(res, items, 'Quarantine items retrieved successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get quarantine items', 500);
-  }
-});
+export const getInventoryStats = asyncHandler(async (req: Request, res: Response) => {
+  const { warehouseId } = req.params;
 
-export const getInventory = asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const inventory = await warehouseService.getInventory(
-      req.query['warehouseId'] as string,
-      req.query
-    );
-    sendSuccess(res, inventory, 'Inventory data retrieved successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory data', 500);
+  if (!warehouseId) {
+    return sendBadRequest(res, 'Warehouse ID is required');
   }
-});
-
-export const updateInventory = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Inventory ID is required');
 
   try {
-    const inventory = await warehouseService.updateInventory(id, req.body);
-    return sendSuccess(res, inventory, 'Inventory updated successfully');
+    const stats = await warehouseService.getInventoryStats(warehouseId);
+    sendSuccess(res, stats, 'Inventory statistics retrieved successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update inventory', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to get inventory statistics', 500);
   }
 });
 
-export const getLowStockAlerts = asyncHandler(async (req: Request, res: Response) => {
+export const bulkArchiveInventory = asyncHandler(async (req: Request, res: Response) => {
+  const { inventoryIds } = req.body;
+
+  if (!inventoryIds || !Array.isArray(inventoryIds) || inventoryIds.length === 0) {
+    return sendBadRequest(res, 'Inventory IDs array is required');
+  }
+
   try {
-    const alerts = await warehouseService.getLowStockAlerts(req.query['warehouseId'] as string);
-    sendSuccess(res, alerts, 'Low stock alerts retrieved successfully');
+    const result = await warehouseService.bulkArchiveInventory(inventoryIds);
+    sendSuccess(res, result, result.message);
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get low stock alerts', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to bulk archive inventory', 500);
   }
 });
 
-export const getStockAgeingReport = asyncHandler(async (req: Request, res: Response) => {
+export const bulkUnarchiveInventory = asyncHandler(async (req: Request, res: Response) => {
+  const { inventoryIds } = req.body;
+
+  if (!inventoryIds || !Array.isArray(inventoryIds) || inventoryIds.length === 0) {
+    return sendBadRequest(res, 'Inventory IDs array is required');
+  }
+
   try {
-    const report = await warehouseService.getStockAgeingReport(req.query['warehouseId'] as string);
-    sendSuccess(res, report, 'Stock ageing report generated successfully');
+    const result = await warehouseService.bulkUnarchiveInventory(inventoryIds);
+    sendSuccess(res, result, result.message);
   } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
+    sendError(res, error instanceof Error ? error.message : 'Failed to bulk unarchive inventory', 500);
   }
 });
-
 // Screen 5: Expense Management
 export const createExpense = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);

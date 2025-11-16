@@ -12,12 +12,12 @@ import {
   createReturnOrderSchema,
   createExpenseSchema,
   warehouseReportSchema,
-  applyQCTemplateSchema,
   updateQCSchema,
   updateDispatchStatusSchema,
   createFieldAgentSchema,
   dashboardQuerySchema
 } from '../validators/warehouse.validator';
+import { getArchivedInventory } from '../controllers/warehouse.controller';
 
 const router = Router();
 
@@ -103,11 +103,7 @@ router.delete('/qc/templates/:id',
   warehouseController.deleteQCTemplate
 );
 
-router.post('/qc/apply-template',
-  requirePermission('qc:verify'),
-  validate({ body: applyQCTemplateSchema.shape.body }),
-  warehouseController.applyQCTemplate
-);
+
 
 // Return Management
 router.post('/returns',
@@ -143,32 +139,52 @@ router.post('/field-agents',
   warehouseController.createFieldAgent
 );
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
-router.get('/inventory',
+// Inventory Dashboard Routes
+router.get('/inventory/dashboard/:warehouseId',
   requirePermission('inventory:view'),
-  warehouseController.getInventory
+  warehouseController.getInventoryDashboard
 );
 
-router.get('/inventory/ageing-report',
+router.get('/inventory/stats/:warehouseId',
   requirePermission('inventory:view'),
-  warehouseController.getStockAgeingReport
+  warehouseController.getInventoryStats
 );
 
-router.patch('/inventory/:id',
-  requirePermission('inventory:edit'),
-  warehouseController.updateInventory
+router.get('/inventory/:id',
+  requirePermission('inventory:view'),
+  warehouseController.getInventoryItem
 );
 
-router.get('/inventory/low-stock',
-  requirePermission('inventory:view'),
-  warehouseController.getLowStockAlerts
+router.put('/inventory/:id',
+  requirePermission('inventory:manage'),
+  warehouseController.updateInventoryItem
 );
-// Enhanced inventory routes
-router.get('/inventory/expiry-alerts', warehouseController.getExpiryAlerts);
-router.get('/inventory/quarantine', warehouseController.getQuarantineItems);
-router.get('/inventory/with-expiry', warehouseController.getInventoryWithExpiry);
-router.put('/inventory/:id/update', warehouseController.updateInventoryItem);
-router.patch('/inventory/:id/archive', warehouseController.archiveInventoryItem);
-router.patch('/inventory/:id/unarchive', warehouseController.unarchiveInventoryItem);
+
+router.patch('/inventory/:id/archive',
+  requirePermission('inventory:manage'),
+  warehouseController.archiveInventory
+);
+
+router.patch('/inventory/:id/unarchive',
+  requirePermission('inventory:manage'),
+  warehouseController.unarchiveInventory
+);
+
+router.get('/inventory/archived/:warehouseId',
+  requirePermission('inventory:view'),
+  getArchivedInventory
+);
+
+router.post('/inventory/bulk-archive',
+  requirePermission('inventory:manage'),
+  warehouseController.bulkArchiveInventory
+);
+
+router.post('/inventory/bulk-unarchive',
+  requirePermission('inventory:manage'),
+  warehouseController.bulkUnarchiveInventory
+);
+
 // ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
 router.post('/expenses',
   requirePermission('expenses:create'),

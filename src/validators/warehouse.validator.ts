@@ -56,16 +56,36 @@ export const updateDispatchStatusSchema = z.object({
 
 export const createQCTemplateSchema = z.object({
   body: z.object({
-    name: z.string().min(1, 'Template name is required'),
-    category: z.enum(['snacks', 'beverages', 'perishable', 'non_perishable']),
-    parameters: z.array(z.object({
-      name: z.string().min(1, 'Parameter name is required'),
-      type: z.enum(['boolean', 'text', 'number']),
-      required: z.boolean().default(true),
-      options: z.array(z.string()).optional()
-    })).min(1, 'At least one parameter is required')
+    title: z.string()
+      .trim()
+      .min(1, 'Template Title is required'),
+
+    sku: z.string()
+      .trim()
+      .min(1, 'SKU is required'),
+
+    parameters: z.array(
+      z.object({
+        name: z.string()
+          .trim()
+          .min(1, 'Parameter name is required'),
+
+        value: z.string()
+          .trim()
+          .min(1, 'Value is required')
+      })
+    )
+    .min(1, 'At least one parameter required')
+    .refine(
+      (params) => {
+        const names = params.map(p => p.name.toLowerCase());
+        return new Set(names).size === names.length;
+      },
+      { message: 'Duplicate parameter names are not allowed' }
+    )
   })
 });
+
 
 export const applyQCTemplateSchema = z.object({
   body: z.object({
@@ -74,16 +94,16 @@ export const applyQCTemplateSchema = z.object({
   })
 });
 
+// Update your createReturnOrderSchema
 export const createReturnOrderSchema = z.object({
   body: z.object({
     batchId: z.string().min(1, 'Batch ID is required'),
-    sku: z.string().min(1, 'SKU is required'),
-    productName: z.string().min(1, 'Product name is required'),
     vendor: objectIdSchema,
     reason: z.string().min(1, 'Reason is required'),
-    quantity: z.number().min(1, 'Quantity must be at least 1'),
-    returnType: z.enum(['damaged', 'expired', 'wrong_item', 'overstock', 'other']),
-    images: z.array(z.string().url()).optional()
+    status: z.enum(['pending', 'approved', 'returned', 'rejected']).optional().default('pending'),
+    quantity: z.number().min(1, 'Quantity must be at least 1').optional().default(1),
+    // Remove required fields: sku, productName, returnType
+    // They will be auto-populated
   })
 });
 
@@ -134,18 +154,25 @@ export const updateQCSchema = z.object({
 
 export const updateInventorySchema = z.object({
   body: z.object({
+    sku: z.string().optional(),
+    productName: z.string().optional(),
+    batchId: z.string().optional(),
+
     quantity: z.number().min(0).optional(),
     expiryDate: z.string().datetime().optional(),
+
     location: z.object({
-      zone: z.string().min(1, 'Zone is required'),
-      aisle: z.string().min(1, 'Aisle is required'),
-      rack: z.string().min(1, 'Rack is required'),
-      bin: z.string().min(1, 'Bin is required')
+      zone: z.string().optional(),
+      aisle: z.string().optional(),
+      rack: z.string().optional(),
+      bin: z.string().optional()
     }).optional(),
+
     minStockLevel: z.number().min(0).optional(),
     maxStockLevel: z.number().min(1).optional()
   })
 });
+
 
 export const updateExpenseSchema = z.object({
   body: z.object({

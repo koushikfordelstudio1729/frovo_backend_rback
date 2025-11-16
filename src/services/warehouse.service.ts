@@ -11,6 +11,38 @@ import {
 import { Types } from 'mongoose';
 import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
 
+// Add these interfaces to your existing interfaces in warehouse.service.ts
+export interface InventoryStats {
+  totalItems: number;
+  activeItems: number;
+  archivedItems: number;
+  lowStockItems: number;
+  expiredItems: number;
+  nearExpiryItems: number;
+  totalStockValue: number;
+  statusBreakdown: { [key: string]: number };
+}
+
+export interface InventoryDashboardFilters {
+  status?: string;
+  sku?: string;
+  batchId?: string;
+  productName?: string;
+  expiryStatus?: 'expiring_soon' | 'expired' | 'not_expired' | 'no_expiry';
+  ageRange?: '0-30' | '31-60' | '61-90' | '90+';
+  quantityRange?: 'low' | 'medium' | 'high' | 'out_of_stock';
+  archived?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface InventoryDashboardResponse {
+  inventory: IInventory[];
+  total: number;
+  page: number;
+  totalPages: number;
+  filters: InventoryDashboardFilters;
+}
 export interface DashboardData {
   kpis: {
     inbound: number;
@@ -81,6 +113,8 @@ export interface DispatchData {
 }
 
 export interface QCTemplateData {
+  sku: any | string;
+  title: any | string;
   name: string;
   category: 'snacks' | 'beverages' | 'perishable' | 'non_perishable';
   parameters: {
@@ -92,6 +126,7 @@ export interface QCTemplateData {
 }
 
 export interface ReturnOrderData {
+  status: string;
   batchId: string;
   sku: string;
   productName: string;
@@ -663,84 +698,112 @@ class WarehouseService {
       .populate('createdBy', 'name email');
   }
 
-  // ==================== QC TEMPLATES ====================
-  async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
-    return await QCTemplate.create({
-      ...data,
-      isActive: true,
-      createdBy
-    });
-  }
+// ==================== QC TEMPLATES ====================
+async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
+  return await QCTemplate.create({
+    title: data.title,
+    sku: data.sku,
+    parameters: data.parameters,
+    isActive: true,
+    createdBy
+  });
+}
 
-  async getQCTemplates(category?: string): Promise<IQCTemplate[]> {
-    let query: any = { isActive: true };
-    
-    if (category) {
-      query.category = category;
-    }
-    
-    return await QCTemplate.find(query)
-      .populate('createdBy', 'name email')
-      .sort({ name: 1 });
-  }
+async getQCTemplates(sku?: string): Promise<IQCTemplate[]> {
+  const query: any = { isActive: true };
 
-  async updateQCTemplate(templateId: string, updateData: Partial<QCTemplateData>): Promise<IQCTemplate | null> {
-    if (!Types.ObjectId.isValid(templateId)) return null;
-    return await QCTemplate.findByIdAndUpdate(
-      templateId,
-      updateData,
-      { new: true }
-    ).populate('createdBy', 'name email');
-  }
+  if (sku) query.sku = sku;
 
-  async deleteQCTemplate(templateId: string): Promise<void> {
-    if (!Types.ObjectId.isValid(templateId)) return;
-    await QCTemplate.findByIdAndUpdate(
-      templateId,
-      { isActive: false }
-    );
-  }
+  return await QCTemplate.find(query)
+    .populate('createdBy', 'name email')
+    .sort({ title: 1 });  // 👈 Updated here
+}
 
-  async applyQCTemplate(templateId: string, batchId: string): Promise<void> {
-    if (!Types.ObjectId.isValid(templateId)) {
-      throw new Error('Invalid template ID');
-    }
-    
-    const template = await QCTemplate.findById(templateId);
-    if (!template) {
-      throw new Error('QC template not found');
-    }
 
-    await GoodsReceiving.findOneAndUpdate(
-      { batchId },
-      { 
-        status: 'qc_pending',
-        qcTemplate: templateId
-      }
-    );
-  }
+async updateQCTemplate(templateId: string, updateData: Partial<QCTemplateData>): Promise<IQCTemplate | null> {
+  if (!Types.ObjectId.isValid(templateId)) return null;
+
+  return await QCTemplate.findByIdAndUpdate(
+    templateId,
+    updateData,
+    { new: true }
+  ).populate('createdBy', 'name email');
+}
+
+async deleteQCTemplate(templateId: string): Promise<void> {
+  if (!Types.ObjectId.isValid(templateId)) return;
+
+  await QCTemplate.findByIdAndUpdate(
+    templateId,
+    { isActive: false }
+  );
+}
+
 
   // ==================== RETURN MANAGEMENT ====================
-  async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
-    const inventory = await Inventory.findOne({
-      batchId: data.batchId,
-      sku: data.sku
-    });
-    
-    if (!inventory) {
-      throw new Error(`Batch ${data.batchId} with SKU ${data.sku} not found in inventory`);
-    }
-    
-    if (inventory.quantity < data.quantity) {
-      throw new Error(`Insufficient quantity in batch. Available: ${inventory.quantity}, Requested: ${data.quantity}`);
-    }
+  // ==================== RETURN MANAGEMENT ====================
+async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
+  console.log('=== 📦 CREATING RETURN ORDER ===');
+  console.log('Input data:', data);
 
-    return await ReturnOrder.create({
-      ...data,
-      status: 'pending',
-      createdBy
-    });
+  // Find inventory by batchId to auto-populate product details
+  const inventory = await Inventory.findOne({
+    batchId: data.batchId,
+    isArchived: false
+  });
+  
+  if (!inventory) {
+    throw new Error(`Batch ${data.batchId} not found in inventory`);
   }
+
+  // Auto-calculate quantity if not provided
+  const quantity = data.quantity || Math.min(inventory.quantity, 1); // Default to 1 or available quantity
+  
+  // Validate quantity
+  if (inventory.quantity < quantity) {
+    throw new Error(`Insufficient quantity in batch. Available: ${inventory.quantity}, Requested: ${quantity}`);
+  }
+
+  // Auto-determine return type based on reason
+  const returnType = this.determineReturnType(data.reason);
+
+  // Create return order with auto-populated fields
+  const returnOrderData = {
+    batchId: data.batchId,
+    vendor: data.vendor,
+    reason: data.reason,
+    status: data.status || 'pending',
+    quantity: quantity,
+    // Auto-populated fields:
+    sku: inventory.sku,
+    productName: inventory.productName,
+    returnType: returnType,
+    createdBy
+  };
+
+  console.log('Auto-populated return order:', returnOrderData);
+
+  return await ReturnOrder.create(returnOrderData);
+}
+
+private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other' {
+  const lowerReason = reason.toLowerCase();
+  
+  if (lowerReason.includes('damage') || lowerReason.includes('broken') || lowerReason.includes('defective')) {
+    return 'damaged';
+  }
+  if (lowerReason.includes('expir') || lowerReason.includes('date') || lowerReason.includes('spoiled')) {
+    return 'expired';
+  }
+  if (lowerReason.includes('wrong') || lowerReason.includes('incorrect') || lowerReason.includes('mistake')) {
+    return 'wrong_item';
+  }
+  if (lowerReason.includes('overstock') || lowerReason.includes('excess') || lowerReason.includes('surplus')) {
+    return 'overstock';
+  }
+  
+  return 'other';
+}
 
   async getReturnQueue(warehouseId?: string, filters?: any): Promise<IReturnOrder[]> {
     let query: any = {};
@@ -776,7 +839,7 @@ class WarehouseService {
     await Inventory.findOneAndUpdate(
       {
         batchId: returnOrder.batchId,
-        sku: returnOrder.sku
+        sku: (returnOrder as any).sku
       },
       {
         $inc: { quantity: -returnOrder.quantity }
@@ -842,52 +905,56 @@ class WarehouseService {
     });
   }
 
-  // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
-  async getInventory(warehouseId: string, filters?: any): Promise<IInventory[]> {
+  // ==================== INVENTORY DASHBOARD METHODS ====================
+
+  /**
+   * Get inventory dashboard with filtering, pagination, and sorting
+   */
+  async getInventoryDashboard(
+    warehouseId: string, 
+    filters: InventoryDashboardFilters = {}, 
+    page: number = 1, 
+    limit: number = 50
+  ): Promise<InventoryDashboardResponse> {
     let query: any = { warehouse: new Types.ObjectId(warehouseId) };
     
-    if (filters?.ageRange) {
-      query.age = this.getAgeFilter(filters.ageRange);
-    }
-
-    // Archive filter
-    if (filters?.archived !== undefined) {
+    // Archive filter - default to non-archived
+    if (filters.archived !== undefined) {
       query.isArchived = filters.archived;
     } else {
-      // Default to non-archived items
       query.isArchived = false;
     }
 
     // Status filter
-    if (filters?.status) {
+    if (filters.status && filters.status !== 'all') {
       query.status = filters.status;
     }
 
-    const inventory = await Inventory.find(query)
-      .populate('warehouse', 'name code')
-      .sort({ age: -1 });
-
-    return inventory;
-  }
-
-  async getInventoryWithExpiry(warehouseId: string, filters?: any): Promise<IInventory[]> {
-    let query: any = { warehouse: new Types.ObjectId(warehouseId) };
-    
-    // Age range filter
-    if (filters?.ageRange) {
-      query.age = this.getAgeFilter(filters.ageRange);
+    // SKU filter
+    if (filters.sku) {
+      query.sku = { $regex: filters.sku, $options: 'i' };
     }
-    
-    // Expiry filter
-    if (filters?.expiryStatus) {
+
+    // Batch ID filter
+    if (filters.batchId) {
+      query.batchId = { $regex: filters.batchId, $options: 'i' };
+    }
+
+    // Product name filter
+    if (filters.productName) {
+      query.productName = { $regex: filters.productName, $options: 'i' };
+    }
+
+    // Expiry date filters
+    if (filters.expiryStatus) {
       const today = new Date();
       switch (filters.expiryStatus) {
         case 'expiring_soon':
-          const next15Days = new Date(today);
-          next15Days.setDate(today.getDate() + 15);
+          const next30Days = new Date(today);
+          next30Days.setDate(today.getDate() + 30);
           query.expiryDate = { 
             $gte: today,
-            $lte: next15Days
+            $lte: next30Days
           };
           break;
         case 'expired':
@@ -896,71 +963,165 @@ class WarehouseService {
         case 'not_expired':
           query.expiryDate = { $gte: today };
           break;
+        case 'no_expiry':
+          query.expiryDate = { $exists: false };
+          break;
       }
     }
 
-    // Status filter
-    if (filters?.status) {
-      query.status = filters.status;
+    // Age range filter
+    if (filters.ageRange) {
+      query.age = this.getAgeFilter(filters.ageRange);
     }
 
-    // Archive filter
-    if (filters?.archived !== undefined) {
-      query.isArchived = filters.archived;
-    } else {
-      query.isArchived = false;
+    // Quantity filters
+    if (filters.quantityRange) {
+      switch (filters.quantityRange) {
+        case 'low':
+          query.quantity = { $lte: 10 };
+          break;
+        case 'medium':
+          query.quantity = { $gt: 10, $lte: 50 };
+          break;
+        case 'high':
+          query.quantity = { $gt: 50 };
+          break;
+        case 'out_of_stock':
+          query.quantity = { $lte: 0 };
+          break;
+      }
     }
 
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination
+    const total = await Inventory.countDocuments(query);
+
+    // Determine sort field and order
+    const sortField = filters.sortBy || 'updatedAt';
+    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+
+    // Get inventory with pagination and sorting
     const inventory = await Inventory.find(query)
       .populate('warehouse', 'name code')
-      .sort({ age: -1, expiryDate: 1 });
+      .populate('createdBy', 'name email')
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(limit);
 
-    return inventory;
+    return {
+      inventory,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      filters
+    };
   }
 
-  async updateInventory(inventoryId: string, updateData: any): Promise<IInventory> {
-    const allowedUpdates = ['quantity', 'minStockLevel', 'maxStockLevel', 'location', 'status', 'expiryDate'];
-    const updates: any = {};
+  /**
+   * Get inventory item by ID for editing
+   */
+  async getInventoryById(inventoryId: string): Promise<IInventory | null> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
     
-    Object.keys(updateData).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        updates[key] = updateData[key];
-      }
-    });
-    
-    // Update status based on quantity and expiry
+    return await Inventory.findById(inventoryId)
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email');
+  }
+
+  /**
+   * Update inventory item with all editable fields
+   */
+  async updateInventoryItem(
+    inventoryId: string, 
+    updateData: {
+      sku?: string;
+      productName?: string;
+      batchId?: string;
+      quantity?: number;
+      minStockLevel?: number;
+      maxStockLevel?: number;
+      expiryDate?: Date | string;
+      location?: {
+        zone: string;
+        aisle: string;
+        rack: string;
+        bin: string;
+      };
+    }
+  ): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
+
+    // Get current inventory item
     const inventory = await Inventory.findById(inventoryId);
     if (!inventory) {
       throw new Error('Inventory item not found');
     }
+
+    const allowedUpdates = [
+      'sku', 'productName', 'batchId', 'quantity', 
+      'minStockLevel', 'maxStockLevel', 'expiryDate', 'location'
+    ];
     
+    const updates: any = {};
+    Object.keys(updateData).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = (updateData as any)[key];
+      }
+    });
+
+    // Convert expiry date to Date object if provided
+    if (updates.expiryDate) {
+      updates.expiryDate = new Date(updates.expiryDate);
+    }
+
+    // Recalculate age based on creation date
+    const now = new Date();
+    const createdAt = inventory.createdAt;
+    const ageInDays = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    updates.age = ageInDays;
+
+    // Recalculate status based on updated values
     const finalQuantity = updates.quantity !== undefined ? updates.quantity : inventory.quantity;
     const finalExpiryDate = updates.expiryDate !== undefined ? updates.expiryDate : inventory.expiryDate;
     const finalMinStock = updates.minStockLevel !== undefined ? updates.minStockLevel : inventory.minStockLevel;
     const finalMaxStock = updates.maxStockLevel !== undefined ? updates.maxStockLevel : inventory.maxStockLevel;
-    
-    // Calculate new status
+
     updates.status = this.calculateInventoryStatus({
       quantity: finalQuantity,
       minStockLevel: finalMinStock,
       maxStockLevel: finalMaxStock,
       expiryDate: finalExpiryDate
     });
-    
+
+    // Update the inventory item
     const updated = await Inventory.findByIdAndUpdate(
       inventoryId,
       updates,
       { new: true, runValidators: true }
-    ).populate('warehouse', 'name code');
-    
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
     if (!updated) {
-      throw new Error('Inventory item not found');
+      throw new Error('Inventory item not found after update');
     }
-    
+
     return updated;
   }
 
+  /**
+   * Archive an inventory item
+   */
   async archiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
+
     const updated = await Inventory.findByIdAndUpdate(
       inventoryId,
       { 
@@ -969,26 +1130,35 @@ class WarehouseService {
         archivedAt: new Date()
       },
       { new: true }
-    ).populate('warehouse', 'name code');
-    
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
     if (!updated) {
       throw new Error('Inventory item not found');
     }
-    
+
     return updated;
   }
 
+  /**
+   * Unarchive an inventory item
+   */
   async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
+
     const inventory = await Inventory.findById(inventoryId);
     if (!inventory) {
       throw new Error('Inventory item not found');
     }
-    
+
+    // Recalculate status when unarchiving
     const status = this.calculateInventoryStatus({
       quantity: inventory.quantity,
       minStockLevel: inventory.minStockLevel,
       maxStockLevel: inventory.maxStockLevel,
-      ...(inventory.expiryDate && { expiryDate: inventory.expiryDate })
+      expiryDate: inventory.expiryDate
     });
 
     const updated = await Inventory.findByIdAndUpdate(
@@ -999,81 +1169,288 @@ class WarehouseService {
         archivedAt: null
       },
       { new: true }
-    ).populate('warehouse', 'name code');
-    
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
     if (!updated) {
       throw new Error('Inventory item not found');
     }
-    
+
     return updated;
   }
 
-  async getLowStockAlerts(warehouseId?: string): Promise<IInventory[]> {
-    let query: any = { status: 'low_stock', isArchived: false };
-    
-    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-      query.warehouse = new Types.ObjectId(warehouseId);
-    }
-    
-    return await Inventory.find(query)
-      .populate('warehouse', 'name code')
-      .sort({ quantity: 1 });
+  /**
+   * Get archived inventory items
+   */
+  // ==================== INVENTORY STATISTICS ====================
+async getInventoryStats(warehouseId: string): Promise<InventoryStats> {
+  if (!Types.ObjectId.isValid(warehouseId)) {
+    throw new Error('Invalid warehouse ID');
   }
 
-  async getExpiryAlerts(warehouseId: string, daysThreshold: number = 15): Promise<IInventory[]> {
-    const today = new Date();
-    const thresholdDate = new Date(today);
-    thresholdDate.setDate(today.getDate() + daysThreshold);
+  const warehouseObjectId = new Types.ObjectId(warehouseId);
+  
+  const [
+    totalItems,
+    activeItems,
+    archivedItems,
+    lowStockItems,
+    expiredItems,
+    nearExpiryItems,
+    statusBreakdown,
+    stockValueResult
+  ] = await Promise.all([
+    // Total items
+    Inventory.countDocuments({ warehouse: warehouseObjectId }),
     
-    return await Inventory.find({
-      warehouse: new Types.ObjectId(warehouseId),
-      expiryDate: {
-        $gte: today,
-        $lte: thresholdDate
+    // Active items (non-archived)
+    Inventory.countDocuments({ 
+      warehouse: warehouseObjectId, 
+      isArchived: false 
+    }),
+    
+    // Archived items
+    Inventory.countDocuments({ 
+      warehouse: warehouseObjectId, 
+      isArchived: true 
+    }),
+    
+    // Low stock items
+    Inventory.countDocuments({ 
+      warehouse: warehouseObjectId, 
+      status: 'low_stock',
+      isArchived: false 
+    }),
+    
+    // Expired items
+    Inventory.countDocuments({ 
+      warehouse: warehouseObjectId,
+      expiryDate: { $lt: new Date() },
+      isArchived: false 
+    }),
+    
+    // Near expiry items (next 30 days)
+    Inventory.countDocuments({
+      warehouse: warehouseObjectId,
+      expiryDate: { 
+        $gte: new Date(),
+        $lte: new Date(new Date().setDate(new Date().getDate() + 30))
       },
-      isArchived: false,
-      status: { $ne: 'expired' }
-    })
-    .populate('warehouse', 'name code')
-    .sort({ expiryDate: 1 });
-  }
-
-  async getQuarantineItems(warehouseId: string): Promise<IInventory[]> {
-    return await Inventory.find({
-      warehouse: new Types.ObjectId(warehouseId),
-      status: 'quarantine',
       isArchived: false
-    })
-    .populate('warehouse', 'name code')
-    .sort({ updatedAt: -1 });
+    }),
+    
+    // Status breakdown
+    Inventory.aggregate([
+      {
+        $match: {
+          warehouse: warehouseObjectId,
+          isArchived: false
+        }
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]),
+    
+    // Total stock value (using estimated value)
+    Inventory.aggregate([
+      {
+        $match: {
+          warehouse: warehouseObjectId,
+          isArchived: false
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalValue: { 
+            $sum: { 
+              $multiply: ['$quantity', 100] // Assuming average value of 100 per unit
+            }
+          }
+        }
+      }
+    ])
+  ]);
+
+  // Convert status breakdown to object
+  const statusBreakdownObj: { [key: string]: number } = {};
+  statusBreakdown.forEach((item: any) => {
+    statusBreakdownObj[item._id] = item.count;
+  });
+
+  // Extract total stock value
+  const totalStockValue = stockValueResult.length > 0 ? stockValueResult[0].totalValue : 0;
+
+  return {
+    totalItems,
+    activeItems,
+    archivedItems,
+    lowStockItems,
+    expiredItems,
+    nearExpiryItems,
+    totalStockValue,
+    statusBreakdown: statusBreakdownObj
+  };
+}
+
+// ==================== BULK ARCHIVE INVENTORY ====================
+async bulkArchiveInventory(inventoryIds: string[]): Promise<{ 
+  success: boolean; 
+  message: string;
+  archivedCount: number;
+  failedCount: number;
+  failedIds: string[];
+}> {
+  const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
+  
+  if (validIds.length === 0) {
+    throw new Error('No valid inventory IDs provided');
   }
 
-  async getStockAgeingReport(warehouseId: string): Promise<{
-    ageingBuckets: { [key: string]: number };
-    details: IInventory[];
-  }> {
-    const inventory = await this.getInventory(warehouseId);
-    
-    const ageingBuckets = {
-      '0-30': 0,
-      '31-60': 0,
-      '61-90': 0,
-      '90+': 0
-    };
+  const objectIds = validIds.map(id => new Types.ObjectId(id));
+  
+  const result = await Inventory.updateMany(
+    {
+      _id: { $in: objectIds },
+      isArchived: false
+    },
+    {
+      $set: {
+        isArchived: true,
+        status: 'archived',
+        archivedAt: new Date()
+      }
+    }
+  );
 
-    inventory.forEach(item => {
-      if (item.age <= 30) ageingBuckets['0-30']++;
-      else if (item.age <= 60) ageingBuckets['31-60']++;
-      else if (item.age <= 90) ageingBuckets['61-90']++;
-      else ageingBuckets['90+']++;
+  const archivedCount = result.modifiedCount;
+  const failedCount = validIds.length - archivedCount;
+  
+  // Find which IDs failed to archive (likely already archived or not found)
+  let failedIds: string[] = [];
+  if (failedCount > 0) {
+    const archivedItems = await Inventory.find({
+      _id: { $in: objectIds },
+      isArchived: true
+    }).select('_id');
+    
+    const archivedItemIds = archivedItems.map(item => item._id.toString());
+    failedIds = validIds.filter(id => !archivedItemIds.includes(id));
+  }
+
+  return {
+    success: archivedCount > 0,
+    message: `Successfully archived ${archivedCount} items. ${failedCount} items failed to archive.`,
+    archivedCount,
+    failedCount,
+    failedIds
+  };
+}
+
+// ==================== BULK UNARCHIVE INVENTORY ====================
+async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{ 
+  success: boolean; 
+  message: string;
+  unarchivedCount: number;
+  failedCount: number;
+  failedIds: string[];
+}> {
+  const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
+  
+  if (validIds.length === 0) {
+    throw new Error('No valid inventory IDs provided');
+  }
+
+  const objectIds = validIds.map(id => new Types.ObjectId(id));
+  
+  // First get the items to unarchive to recalculate their status
+  const itemsToUnarchive = await Inventory.find({
+    _id: { $in: objectIds },
+    isArchived: true
+  });
+
+  // Update each item with recalculated status
+  const updatePromises = itemsToUnarchive.map(async (item) => {
+    const status = this.calculateInventoryStatus({
+      quantity: item.quantity,
+      minStockLevel: item.minStockLevel,
+      maxStockLevel: item.maxStockLevel,
+      expiryDate: item.expiryDate
     });
 
-    return {
-      ageingBuckets,
-      details: inventory
-    };
+    return Inventory.findByIdAndUpdate(
+      item._id,
+      {
+        $set: {
+          isArchived: false,
+          status: status,
+          archivedAt: null
+        }
+      }
+    );
+  });
+
+  await Promise.all(updatePromises);
+
+  const unarchivedCount = itemsToUnarchive.length;
+  const failedCount = validIds.length - unarchivedCount;
+  
+  // Find which IDs failed to unarchive (likely not archived or not found)
+  let failedIds: string[] = [];
+  if (failedCount > 0) {
+    const unarchivedItems = await Inventory.find({
+      _id: { $in: objectIds },
+      isArchived: false
+    }).select('_id');
+    
+    const unarchivedItemIds = unarchivedItems.map(item => item._id.toString());
+    failedIds = validIds.filter(id => !unarchivedItemIds.includes(id));
   }
 
+  return {
+    success: unarchivedCount > 0,
+    message: `Successfully unarchived ${unarchivedCount} items. ${failedCount} items failed to unarchive.`,
+    unarchivedCount,
+    failedCount,
+    failedIds
+  };
+}
+  async getArchivedInventory(
+    warehouseId: string, 
+    page: number = 1, 
+    limit: number = 50
+  ): Promise<{
+    inventory: IInventory[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const query = { 
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: true 
+    };
+
+    const skip = (page - 1) * limit;
+    const total = await Inventory.countDocuments(query);
+
+    const inventory = await Inventory.find(query)
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .sort({ archivedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return {
+      inventory,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
   // ==================== SCREEN 5: ENHANCED EXPENSE MANAGEMENT ====================
   async createExpense(data: {
     category: 'staffing' | 'supplies' | 'equipment' | 'transport';
@@ -1445,6 +1822,10 @@ class WarehouseService {
       default:
         throw new Error('Invalid report type');
     }
+  }
+  getStockAgeingReport(_warehouse: any): any {
+    // Parameter is intentionally unused for now; kept to match callers.
+    throw new Error('Method not implemented.');
   }
 
   async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
@@ -2011,7 +2392,7 @@ private async reduceStockBySku(products: { sku: string; quantity: number }[]): P
     quantity: number;
     minStockLevel: number;
     maxStockLevel: number;
-    expiryDate?: Date;
+    expiryDate?: Date | undefined;
   }): string {
     const today = new Date();
     

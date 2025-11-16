@@ -67,31 +67,32 @@ export interface IDispatchOrder extends Document {
 
 export interface IQCTemplate extends Document {
   _id: Types.ObjectId;
-  name: string;
-  category: 'snacks' | 'beverages' | 'perishable' | 'non_perishable';
+
+  title: string;   // Template title
+  sku: string;     // Product SKU
+
   parameters: {
     name: string;
-    type: 'boolean' | 'text' | 'number';
-    required: boolean;
-    options?: string[]; // For dropdown type
+    value: string;
   }[];
+
   isActive: boolean;
   createdBy: Types.ObjectId;
+
   createdAt: Date;
   updatedAt: Date;
 }
 
+
 export interface IReturnOrder extends Document {
   _id: Types.ObjectId;
   batchId: string;
-  sku: string;
-  productName: string;
   vendor: Types.ObjectId;
   reason: string;
   quantity: number;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
   returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
-  images?: string[]; // URLs of damage photos
+  images?: string[];
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -114,6 +115,7 @@ export interface IFieldAgent extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+// In Warehouse.model.ts
 export interface IInventory extends Document {
   _id: Types.ObjectId;
   sku: string;
@@ -123,22 +125,21 @@ export interface IInventory extends Document {
   quantity: number;
   minStockLevel: number;
   maxStockLevel: number;
+  age: number;
   expiryDate?: Date;
-  age: number; // Days since receipt
   location: {
     zone: string;
     aisle: string;
     rack: string;
     bin: string;
   };
-  status: 'active' | 'low_stock' | 'expired' | 'quarantine' | 'archived';
+  status: 'active' | 'low_stock' | 'overstock' | 'expired' | 'quarantine' | 'archived';
   isArchived: boolean;
   archivedAt?: Date;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
-
 export interface IExpense extends Document {
   _id: Types.ObjectId;
   category: 'staffing' | 'supplies' | 'equipment' | 'transport';
@@ -223,30 +224,49 @@ const dispatchOrderSchema = new Schema({
 }, { timestamps: true });
 
 const qcTemplateSchema = new Schema<IQCTemplate>({
-  name: { type: String, required: true },
-  category: {
+  title: {
     type: String,
-    enum: ['snacks', 'beverages', 'perishable', 'non_perishable'],
-    required: true
+    required: true,
+    trim: true
   },
-  parameters: [{
-    name: { type: String, required: true },
-    type: { 
-      type: String, 
-      enum: ['boolean', 'text', 'number'],
-      required: true
-    },
-    required: { type: Boolean, default: true },
-    options: [{ type: String }]
-  }],
-  isActive: { type: Boolean, default: true },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+
+  sku: {
+    type: String,
+    required: true,
+    trim: true
+  },
+
+  parameters: [
+    {
+      name: {
+        type: String,
+        required: true,
+        trim: true
+      },
+      value: {
+        type: String,
+        required: true,
+        trim: true
+      }
+    }
+  ],
+
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+
 }, { timestamps: true });
+
 
 const returnOrderSchema = new Schema<IReturnOrder>({
   batchId: { type: String, required: true },
-  sku: { type: String, required: true },
-  productName: { type: String, required: true },
   vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
   reason: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
@@ -286,10 +306,10 @@ const inventorySchema = new Schema<IInventory>({
   batchId: { type: String, required: true },
   warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   quantity: { type: Number, required: true, min: 0 },
-  minStockLevel: { type: Number, required: true },
-  maxStockLevel: { type: Number, required: true },
-  expiryDate: { type: Date },
+  minStockLevel: { type: Number, default: 0 },
+  maxStockLevel: { type: Number, default: 1000 },
   age: { type: Number, default: 0 },
+  expiryDate: { type: Date },
   location: {
     zone: { type: String, required: true },
     aisle: { type: String, required: true },
@@ -298,7 +318,7 @@ const inventorySchema = new Schema<IInventory>({
   },
   status: {
     type: String,
-    enum: ['active', 'low_stock', 'expired', 'quarantine', 'archived'],
+    enum: ['active', 'low_stock', 'overstock', 'expired', 'quarantine', 'archived'],
     default: 'active'
   },
   isArchived: { type: Boolean, default: false },
