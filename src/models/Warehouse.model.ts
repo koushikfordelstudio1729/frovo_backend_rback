@@ -43,24 +43,27 @@ export interface IGoodsReceiving extends Document {
 export interface IDispatchOrder extends Document {
   _id: Types.ObjectId;
   dispatchId: string;
-  vendor: Types.ObjectId;
+
+  // Combined field for vendor + destination + route info
   destination: string;
+
   products: {
     sku: string;
-    productName: string;
     quantity: number;
-    batchId: string;
-    unitPrice?: number;
   }[];
+
   assignedAgent: Types.ObjectId;
-  route: string;
+
   notes?: string;
+
   status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
-  estimatedDelivery?: Date;
+
   createdBy: Types.ObjectId;
+
   createdAt: Date;
   updatedAt: Date;
 }
+
 
 export interface IQCTemplate extends Document {
   _id: Types.ObjectId;
@@ -194,27 +197,29 @@ const goodsReceivingSchema = new Schema<IGoodsReceiving>({
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
-const dispatchOrderSchema = new Schema<IDispatchOrder>({
+const dispatchOrderSchema = new Schema({
   dispatchId: { type: String, required: true, unique: true },
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+
+  // merged field
   destination: { type: String, required: true },
+
   products: [{
     sku: { type: String, required: true },
-    productName: { type: String, required: true },
-    quantity: { type: Number, required: true, min: 1 },
-    batchId: { type: String, required: true },
-    unitPrice: { type: Number, min: 0 }
+    quantity: { type: Number, required: true, min: 1 }
   }],
+
   assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
-  route: { type: String, required: true },
+
   notes: { type: String, maxlength: 500 },
+
   status: {
     type: String,
     enum: ['pending', 'assigned', 'in_transit', 'delivered', 'cancelled'],
     default: 'pending'
   },
-  estimatedDelivery: { type: Date },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+
 }, { timestamps: true });
 
 const qcTemplateSchema = new Schema<IQCTemplate>({

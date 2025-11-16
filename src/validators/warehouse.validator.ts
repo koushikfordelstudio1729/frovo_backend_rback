@@ -29,22 +29,24 @@ export const receiveGoodsSchema = z.object({
 
 export const createDispatchSchema = z.object({
   body: z.object({
-    vendor: objectIdSchema,
+    dispatchId: z.string().min(1, 'Dispatch ID is required'),
+    
+    // merged field
     destination: z.string().min(1, 'Destination is required'),
+
     products: z.array(z.object({
       sku: z.string().min(1, 'SKU is required'),
-      productName: z.string().min(1, 'Product name is required'),
-      quantity: z.number().min(1, 'Quantity must be at least 1'),
-      batchId: z.string().min(1, 'Batch ID is required'),
-      unitPrice: z.number().min(0).optional()
+      quantity: z.number().min(1, 'Quantity must be at least 1')
     })).min(1, 'At least one product is required'),
-    assignedAgent: objectIdSchema,
-    route: z.string().min(1, 'Route is required'),
+
+    assignedAgent: objectIdSchema, // Agent required
+
     notes: z.string().max(500, 'Notes too long').optional(),
-    estimatedDelivery: z.string().datetime().optional()
+
+    // status is optional because model defaults to "pending"
+    status: z.enum(['pending', 'assigned', 'in_transit', 'delivered', 'cancelled']).optional()
   })
 });
-
 export const updateDispatchStatusSchema = z.object({
   body: z.object({
     status: z.enum(['pending', 'assigned', 'in_transit', 'delivered', 'cancelled'])

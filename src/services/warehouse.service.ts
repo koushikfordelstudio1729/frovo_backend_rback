@@ -561,23 +561,37 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
-  async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
-    await this.validateStockAvailability(data.products);
+ async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
+  
+  // Validate stock only by SKU now
+  await this.validateSkuStock(data.products);
 
-    const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
-    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
-    const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
+  // Auto-generate Dispatch ID
+  const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
+  const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
+  const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
 
-    const dispatch = await DispatchOrder.create({
-      dispatchId,
-      ...data,
-      status: 'assigned',
-      createdBy
-    });
+  const formattedProducts = data.products.map(p => ({
+    sku: p.sku,
+    quantity: p.quantity
+  }));
 
-    await this.updateInventoryQuantities(data.products, 'outbound');
-    return dispatch;
-  }
+  const dispatch = await DispatchOrder.create({
+    dispatchId,
+    destination: data.destination,   // merged destination
+    products: formattedProducts,
+    assignedAgent: data.assignedAgent,
+    notes: data.notes,
+    status: 'pending',               // default pending (UI may update later)
+    createdBy
+  });
+
+  // decrease stock
+  await this.reduceStockBySku(data.products);
+
+  return dispatch;
+}
+
 
   async getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
     let query: any = {};
@@ -1966,33 +1980,32 @@ class WarehouseService {
     }
   }
 
-  private async validateStockAvailability(products: { sku: string; quantity: number; batchId: string }[]): Promise<void> {
-    for (const product of products) {
-      const inventory = await Inventory.findOne({
-        sku: product.sku,
-        batchId: product.batchId,
-        status: { $in: ['active', 'low_stock'] },
-        isArchived: false
-      });
-      
-      if (!inventory || inventory.quantity < product.quantity) {
-        throw new Error(`Insufficient stock for ${product.sku} in batch ${product.batchId}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`);
-      }
-    }
-  }
+  private async validateSkuStock(products: { sku: string; quantity: number }[]): Promise<void> {
+  for (const product of products) {
+    const inventory = await Inventory.findOne({
+      sku: product.sku,
+      isArchived: false
+    });
 
-  private async updateInventoryQuantities(products: { sku: string; quantity: number; batchId: string }[], direction: 'inbound' | 'outbound'): Promise<void> {
-    for (const product of products) {
-      const multiplier = direction === 'inbound' ? 1 : -1;
-      await Inventory.findOneAndUpdate(
-        { sku: product.sku, batchId: product.batchId, isArchived: false },
-        { 
-          $inc: { quantity: multiplier * product.quantity },
-          $set: { updatedAt: new Date() }
-        }
+    if (!inventory || inventory.quantity < product.quantity) {
+      throw new Error(
+        `Insufficient stock for ${product.sku}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`
       );
     }
   }
+}
+private async reduceStockBySku(products: { sku: string; quantity: number }[]): Promise<void> {
+  for (const product of products) {
+    await Inventory.findOneAndUpdate(
+      { sku: product.sku, isArchived: false },
+      {
+        $inc: { quantity: -product.quantity },
+        $set: { updatedAt: new Date() }
+      }
+    );
+  }
+}
+
 
   private calculateInventoryStatus(data: {
     quantity: number;
