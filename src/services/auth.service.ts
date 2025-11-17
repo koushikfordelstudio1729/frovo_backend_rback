@@ -1,6 +1,7 @@
-import { User, IUser, UserStatus } from '../models';
+import { User, IUser, UserStatus, Role, SystemRole } from '../models';
 import { generateTokenPair, verifyRefreshToken } from '../utils/jwt.util';
 import { Types } from 'mongoose';
+import { emailService } from './email.service';
 
 export interface AuthResponse {
   user: Partial<IUser>;
@@ -51,6 +52,56 @@ class AuthService {
       deviceInfo?.ipAddress,
       deviceInfo?.userAgent
     );
+    
+    // Return user without sensitive data
+    const userResponse = user.toObject();
+    const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
+    
+    return {
+      user: cleanUser,
+      ...tokens
+    };
+  }
+
+  async registerCustomer(userData: RegisterData, deviceInfo?: DeviceInfo): Promise<AuthResponse> {
+    // Check if user with this email already exists
+    const existingUser = await User.findOne({ email: userData.email });
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Find the customer role
+    const customerRole = await Role.findOne({ systemRole: SystemRole.CUSTOMER });
+    if (!customerRole) {
+      throw new Error('Customer role not found. Please contact administrator.');
+    }
+
+    // Create the customer user
+    const user = await User.create({
+      ...userData,
+      roles: [customerRole._id],
+      status: UserStatus.ACTIVE,
+      createdBy: null // Customers are self-registered
+    });
+    
+    // Generate tokens
+    const tokens = generateTokenPair(user._id);
+    
+    // Store refresh token in database
+    await user.addRefreshToken(
+      tokens.refreshToken,
+      deviceInfo?.deviceInfo,
+      deviceInfo?.ipAddress,
+      deviceInfo?.userAgent
+    );
+    
+    // Send welcome email to customer
+    try {
+      await emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
+    } catch (emailError) {
+      // Log email error but don't fail registration
+      console.error('Failed to send welcome email:', emailError);
+    }
     
     // Return user without sensitive data
     const userResponse = user.toObject();

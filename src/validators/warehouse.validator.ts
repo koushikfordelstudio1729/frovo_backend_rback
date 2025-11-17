@@ -110,11 +110,7 @@ export const createReturnOrderSchema = z.object({
 export const createFieldAgentSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
-    email: z.string().email('Invalid email format'),
-    phone: z.string().min(1, 'Phone is required'),
-    vehicleType: z.string().min(1, 'Vehicle type is required'),
-    licensePlate: z.string().min(1, 'License plate is required'),
-    assignedRoutes: z.array(z.string()).optional()
+    assignedRoutes: z.string().optional()
   })
 });
 

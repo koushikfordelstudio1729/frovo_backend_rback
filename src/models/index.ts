@@ -5,6 +5,4 @@ export { Permission, IPermission } from './Permission.model';
 export { AccessRequest, IAccessRequest } from './AccessRequest.model';
 export { AuditLog, IAuditLog, IAuditTarget, IAuditChanges } from './AuditLog.model';
 export { SecurityConfig, ISecurityConfig, ISSOConfig, IPasswordPolicy } from './SecurityConfig.model';
-export * from './Vendor.model';
-export * from './Warehouse.model';
 export * from './enums';

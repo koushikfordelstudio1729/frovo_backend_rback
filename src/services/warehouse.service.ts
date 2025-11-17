@@ -461,140 +461,141 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-  async receiveGoods(data: GoodsReceivingData, createdBy: Types.ObjectId): Promise<IGoodsReceiving> {
-    const batchId = data.batchId || `BATCH-${Date.now()}`;
-    
-    const qcPassed = data.qcVerification.packaging && 
-                     data.qcVerification.expiry && 
-                     data.qcVerification.label;
-    
-    const status = qcPassed ? 'qc_passed' : 'qc_failed';
+async receiveGoods(data: GoodsReceivingData, createdBy: Types.ObjectId): Promise<IGoodsReceiving> {
+  const batchId = data.batchId || `BATCH-${Date.now()}`;
 
-    const goodsReceiving = await GoodsReceiving.create({
-      ...data,
+  const qcPassed = data.qcVerification.packaging &&
+                   data.qcVerification.expiry &&
+                   data.qcVerification.label;
+
+  const status = qcPassed ? 'qc_passed' : 'qc_failed';
+
+  const goodsReceiving = await GoodsReceiving.create({
+    ...data,
+    batchId,
+    status,
+    createdBy
+  });
+
+  if (status === 'qc_passed') {
+    await this.upsertInventory({
+      sku: data.sku,
+      productName: data.productName,
       batchId,
-      status,
+      warehouse: data.warehouse,
+      quantity: data.quantity,
+      location: data.storage,
       createdBy
     });
-
-    if (status === 'qc_passed') {
-      await this.upsertInventory({
-        sku: data.sku,
-        productName: data.productName,
-        batchId,
-        warehouse: data.warehouse,
-        quantity: data.quantity,
-        location: data.storage,
-        createdBy
-      });
-    }
-
-    return goodsReceiving;
   }
 
-  async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]> {
-    let query: any = {};
-    
-    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-      query.warehouse = new Types.ObjectId(warehouseId);
-    }
-    
-    if (filters?.startDate || filters?.endDate) {
-      query.createdAt = {};
-      if (filters.startDate) {
-        query.createdAt.$gte = new Date(filters.startDate);
-      }
-      if (filters.endDate) {
-        query.createdAt.$lte = new Date(filters.endDate);
-      }
-    }
-    
-    if (filters?.status) {
-      query.status = filters.status;
-    }
+  return goodsReceiving;
+}
 
-    if (filters?.poNumber) {
-      query.poNumber = { $regex: filters.poNumber, $options: 'i' };
-    }
 
-    if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
-      query.vendor = new Types.ObjectId(filters.vendor);
-    }
-    
-    return await GoodsReceiving.find(query)
-      .populate('warehouse', 'name code')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
+async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]> {
+  let query: any = {};
+
+  if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+    query.warehouseId = new Types.ObjectId(warehouseId);
   }
 
-  async getReceivingById(id: string): Promise<IGoodsReceiving | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    return await GoodsReceiving.findById(id)
-      .populate('warehouse', 'name code')
-      .populate('createdBy', 'name email');
+  if (filters?.startDate || filters?.endDate) {
+    query.createdAt = {};
+    if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
+    if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
   }
 
-  async updateQCVerification(
-    id: string, 
-    qcData: Partial<GoodsReceivingData['qcVerification']>
-  ): Promise<IGoodsReceiving | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    
-    const receiving = await GoodsReceiving.findById(id);
-    if (!receiving) return null;
-
-    const updatedQC = { ...receiving.qcVerification, ...qcData };
-    const qcPassed = updatedQC.packaging && updatedQC.expiry && updatedQC.label;
-    const status = qcPassed ? 'qc_passed' : 'qc_failed';
-
-    const updatedReceiving = await GoodsReceiving.findByIdAndUpdate(
-      id,
-      {
-        qcVerification: updatedQC,
-        status
-      },
-      { new: true }
-    ).populate('warehouse', 'name code')
-     .populate('createdBy', 'name email');
-
-    if (status === 'qc_passed' && receiving.status !== 'qc_passed') {
-      await this.upsertInventory({
-        sku: receiving.sku,
-        productName: receiving.productName,
-        batchId: receiving.batchId,
-        warehouse: receiving.warehouse,
-        quantity: receiving.quantity,
-        location: receiving.storage,
-        createdBy: receiving.createdBy
-      });
-    }
-
-    return updatedReceiving;
+  if (filters?.status) query.status = filters.status;
+  if (filters?.poNumber) query.poNumber = { $regex: filters.poNumber, $options: 'i' };
+  if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
+    query.vendor = new Types.ObjectId(filters.vendor);
   }
 
-  async upsertInventory(data: InventoryUpsertData): Promise<void> {
-    const existingInventory = await Inventory.findOne({
-      sku: data.sku,
-      batchId: data.batchId,
-      warehouse: data.warehouse
+  return await GoodsReceiving.find(query)
+    .populate('warehouse', 'name code') // ✔ fixed field
+    .populate('vendor', 'name code') // better vendor details
+    .populate('createdBy', 'name email')
+    .sort({ createdAt: -1 });
+}
+
+
+async getReceivingById(id: string): Promise<IGoodsReceiving | null> {
+  if (!Types.ObjectId.isValid(id)) return null;
+
+  return await GoodsReceiving.findById(id)
+    .populate('warehouse', 'name code') // ✔ fixed reference
+    .populate('vendor', 'name code contactPerson')
+    .populate('createdBy', 'name email');
+}
+
+
+async updateQCVerification(
+  id: string,
+  qcData: Partial<GoodsReceivingData['qcVerification']>
+): Promise<IGoodsReceiving | null> {
+
+  if (!Types.ObjectId.isValid(id)) return null;
+
+  const receiving = await GoodsReceiving.findById(id);
+  if (!receiving) return null;
+
+  const updatedQC = { ...receiving.qcVerification, ...qcData };
+  const qcPassed = updatedQC.packaging && updatedQC.expiry && updatedQC.label;
+
+  const status = qcPassed ? 'qc_passed' : 'qc_failed';
+
+  const updatedReceiving = await GoodsReceiving.findByIdAndUpdate(
+    id,
+    { qcVerification: updatedQC, status },
+    { new: true }
+  )
+  .populate('warehouse', 'name code')
+  .populate('vendor', 'name code')
+  .populate('createdBy', 'name email');
+
+  if (status === 'qc_passed' && receiving.status !== 'qc_passed') {
+    await this.upsertInventory({
+      sku: receiving.sku,
+      productName: receiving.productName,
+      batchId: receiving.batchId,
+      warehouse: receiving.warehouse,
+      quantity: receiving.quantity,
+      location: receiving.storage,
+      createdBy: receiving.createdBy
     });
-
-    if (existingInventory) {
-      await Inventory.findByIdAndUpdate(existingInventory._id, {
-        $inc: { quantity: data.quantity },
-        location: data.location,
-        updatedAt: new Date()
-      });
-    } else {
-      await Inventory.create({
-        ...data,
-        minStockLevel: 0,
-        maxStockLevel: 1000,
-        age: 0,
-        status: 'active'
-      });
-    }
   }
+
+  return updatedReceiving;
+}
+
+
+async upsertInventory(data: InventoryUpsertData): Promise<void> {
+  const existingInventory = await Inventory.findOne({
+    sku: data.sku,
+    batchId: data.batchId,
+    warehouse: data.warehouse // FIXED
+  });
+
+  if (existingInventory) {
+    await Inventory.findByIdAndUpdate(existingInventory._id, {
+      $inc: { quantity: data.quantity },
+      location: data.location,
+      updatedAt: new Date()
+    });
+  } else {
+    await Inventory.create({
+      ...data,
+      warehouse: data.warehouse, // FIXED
+      minStockLevel: 0,
+      maxStockLevel: 1000,
+      age: 0,
+      status: 'active'
+    });
+  }
+}
+
+
 
   // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
  async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
@@ -887,16 +888,12 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     }
     
     return await FieldAgent.find(query)
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name')
       .sort({ name: 1 });
   }
 
   async createFieldAgent(data: {
     name: string;
-    email: string;
-    phone: string;
-    vehicleType: string;
-    licensePlate: string;
     assignedRoutes: string[];
   }, createdBy: Types.ObjectId): Promise<IFieldAgent> {
     return await FieldAgent.create({

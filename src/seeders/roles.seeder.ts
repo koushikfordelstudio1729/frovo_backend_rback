@@ -153,6 +153,20 @@ export const seedRoles = async (
         uiAccess: UIAccess.ADMIN_PANEL,
         status: RoleStatus.PUBLISHED,
         description: 'Audit and compliance with global read access'
+      },
+      {
+        name: 'Customer',
+        key: 'customer',
+        systemRole: SystemRole.CUSTOMER,
+        type: RoleType.SYSTEM,
+        department: departmentMap[DepartmentName.CUSTOMER],
+        permissions: [
+          'orders:view'
+        ],
+        scope: { level: ScopeLevel.MACHINE },
+        uiAccess: UIAccess.MOBILE_APP,
+        status: RoleStatus.PUBLISHED,
+        description: 'Customer with basic order viewing access'
       }
     ];
     

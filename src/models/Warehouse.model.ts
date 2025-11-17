@@ -101,15 +101,6 @@ export interface IReturnOrder extends Document {
 export interface IFieldAgent extends Document {
   _id: Types.ObjectId;
   name: string;
-  email: string;
-  phone: string;
-  vehicleType: string;
-  licensePlate: string;
-  isActive: boolean;
-  currentLocation?: {
-    latitude: number;
-    longitude: number;
-  };
   assignedRoutes: string[];
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -121,7 +112,7 @@ export interface IInventory extends Document {
   sku: string;
   productName: string;
   batchId: string;
-  warehouseId: Types.ObjectId;
+  warehouse: Types.ObjectId;
   quantity: number;
   minStockLevel: number;
   maxStockLevel: number;
@@ -292,15 +283,6 @@ const returnOrderSchema = new Schema<IReturnOrder>({
 
 const fieldAgentSchema = new Schema<IFieldAgent>({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true },
-  vehicleType: { type: String, required: true },
-  licensePlate: { type: String, required: true },
-  isActive: { type: Boolean, default: true },
-  currentLocation: {
-    latitude: { type: Number },
-    longitude: { type: Number }
-  },
   assignedRoutes: [{ type: String }],
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
@@ -310,7 +292,7 @@ const inventorySchema = new Schema<IInventory>({
   sku: { type: String, required: true },
   productName: { type: String, required: true },
   batchId: { type: String, required: true },
-  warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   quantity: { type: Number, required: true, min: 0 },
   minStockLevel: { type: Number, default: 0 },
   maxStockLevel: { type: Number, default: 1000 },

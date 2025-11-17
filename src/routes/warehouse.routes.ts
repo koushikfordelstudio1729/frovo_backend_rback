@@ -11,7 +11,6 @@ import {
   createQCTemplateSchema,
   createReturnOrderSchema,
   createExpenseSchema,
-  warehouseReportSchema,
   updateQCSchema,
   updateDispatchStatusSchema,
   createFieldAgentSchema,
@@ -214,9 +213,9 @@ router.patch('/expenses/:id/payment-status', warehouseController.updateExpensePa
 router.delete('/expenses/:id', warehouseController.deleteExpense);
 router.get('/expenses/trend/monthly', warehouseController.getMonthlyExpenseTrend);
 // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
+// ==================== SCREEN 6: REPORTS & ANALYTICS ====================
 router.get('/reports',
   requirePermission('reports:view'),
-  validate({ query: warehouseReportSchema.shape.query }),
   warehouseController.generateReport
 );
 
@@ -224,9 +223,21 @@ router.get('/reports/export',
   requirePermission('reports:export'),
   warehouseController.exportReport
 );
-// Enhanced report routes
-router.get('/reports/types', warehouseController.getReportTypes);
-router.get('/reports/inventory-summary', warehouseController.generateInventorySummary);
-router.get('/reports/purchase-orders', warehouseController.generatePurchaseOrderReport);
+
+router.get('/reports/types',
+  requirePermission('reports:view'),
+  warehouseController.getReportTypes
+);
+
+router.get('/reports/inventory-summary',
+  requirePermission('reports:view'),
+  warehouseController.generateInventorySummary
+);
+
+router.get('/reports/purchase-orders',
+  requirePermission('reports:view'),
+  warehouseController.generatePurchaseOrderReport
+);
+
 
 export default router;

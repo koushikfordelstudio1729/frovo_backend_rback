@@ -64,6 +64,32 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
+export const registerCustomer = asyncHandler(async (req: Request, res: Response) => {
+  const { name, email, password } = req.body;
+  
+  try {
+    // Extract device info
+    const deviceInfo = {
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('User-Agent') || undefined,
+      deviceInfo: req.get('X-Device-Info') || undefined
+    };
+    
+    const result = await authService.registerCustomer({ name, email, password }, deviceInfo);
+    
+    // Set tokens in cookies
+    setCookieTokens(res, result.accessToken, result.refreshToken);
+    
+    return sendCreated(res, result, 'Customer registration successful');
+  } catch (error) {
+    if (error instanceof Error) {
+      return sendError(res, error.message, 400);
+    } else {
+      return sendError(res, 'Customer registration failed', 500);
+    }
+  }
+});
+
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   

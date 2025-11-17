@@ -536,10 +536,19 @@ export const getMonthlyExpenseTrend = asyncHandler(async (req: Request, res: Res
 });
 
 // Screen 6: Reports
+// Screen 6: Reports
 export const generateReport = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { type, ...filters } = req.query;
-    const report = await warehouseService.generateReport(type as string, filters);
+    const { type, warehouseId, ...filters } = req.query;
+
+    if (!type) return sendBadRequest(res, 'Report type is required');
+    if (!warehouseId) return sendBadRequest(res, 'warehouseId is required');
+
+    const report = await warehouseService.generateReport(type as string, {
+      warehouse: warehouseId as string,
+      ...filters
+    });
+
     sendSuccess(res, report, 'Report generated successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to generate report', 500);
@@ -548,8 +557,19 @@ export const generateReport = asyncHandler(async (req: Request, res: Response) =
 
 export const exportReport = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { type, format, ...filters } = req.query;
-    const report = await warehouseService.exportReport(type as string, format as string, filters);
+    const { type, format = 'csv', warehouseId, ...filters } = req.query;
+
+    if (!type) return sendBadRequest(res, 'Report type is required');
+    if (!warehouseId) return sendBadRequest(res, 'warehouseId is required');
+
+    const report = await warehouseService.exportReport(
+      type as string,
+      format as string,
+      {
+        warehouse: warehouseId as string,
+        ...filters
+      }
+    );
 
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
@@ -562,6 +582,7 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
     sendError(res, error instanceof Error ? error.message : 'Failed to export report', 500);
   }
 });
+
 // Enhanced Reports & Analytics
 export const generateInventorySummary = asyncHandler(async (req: Request, res: Response) => {
   try {

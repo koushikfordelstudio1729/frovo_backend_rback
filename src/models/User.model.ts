@@ -113,7 +113,7 @@ const userSchema = new Schema<IUser>(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'CreatedBy is required']
+      required: false
     }
   },
   {
