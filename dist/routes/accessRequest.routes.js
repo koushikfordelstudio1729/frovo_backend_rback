@@ -49,4 +49,3 @@ router.post('/', auth_middleware_1.authenticate, (0, validation_middleware_1.val
 router.put('/:id/approve', (0, permission_middleware_1.requirePermission)('roles:edit'), (0, validation_middleware_1.validateObjectId)(), (0, validation_middleware_1.validate)({ body: accessRequest_validator_1.updateAccessRequestStatusSchema.shape.body }), (0, auditLog_middleware_1.auditApprove)(constants_1.MODULES.ACCESS_REQUESTS), accessRequestController.approveAccessRequest);
 router.put('/:id/reject', (0, permission_middleware_1.requirePermission)('roles:edit'), (0, validation_middleware_1.validateObjectId)(), (0, validation_middleware_1.validate)({ body: accessRequest_validator_1.updateAccessRequestStatusSchema.shape.body }), (0, auditLog_middleware_1.auditReject)(constants_1.MODULES.ACCESS_REQUESTS), accessRequestController.rejectAccessRequest);
 exports.default = router;
-//# sourceMappingURL=accessRequest.routes.js.map

@@ -260,4 +260,3 @@ orderSchema.methods['markItemDispensed'] = function (productId, slotNumber) {
     throw new Error('Item not found in order');
 };
 exports.Order = (0, mongoose_1.model)('Order', orderSchema);
-//# sourceMappingURL=Order.model.js.map

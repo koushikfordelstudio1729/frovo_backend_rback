@@ -46,4 +46,3 @@ router.get('/', (0, validation_middleware_1.validate)({ query: auditLog_validato
 router.get('/stats', auditLogController.getAuditStats);
 router.get('/export', (0, permission_middleware_1.requirePermission)('audit:export'), (0, validation_middleware_1.validate)({ query: auditLog_validator_1.exportAuditLogsQuerySchema.shape.query }), auditLogController.exportAuditLogs);
 exports.default = router;
-//# sourceMappingURL=auditLog.routes.js.map

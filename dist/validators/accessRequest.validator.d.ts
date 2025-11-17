@@ -7,39 +7,39 @@ export declare const createAccessRequestSchema: z.ZodObject<{
         reason: z.ZodString;
         duration: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     }, {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     }>, {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     }, {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     }>;
 }, "strip", z.ZodTypeAny, {
-    body: {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+    body?: {
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     };
 }, {
-    body: {
-        reason: string;
-        requestedRole?: string | undefined;
-        requestedPermissions?: string[] | undefined;
-        duration?: number | undefined;
+    body?: {
+        requestedRole?: string;
+        requestedPermissions?: string[];
+        reason?: string;
+        duration?: number;
     };
 }>;
 export declare const updateAccessRequestStatusSchema: z.ZodObject<{
@@ -47,21 +47,21 @@ export declare const updateAccessRequestStatusSchema: z.ZodObject<{
         status: z.ZodEffects<z.ZodNativeEnum<typeof AccessRequestStatus>, AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED, AccessRequestStatus>;
         comments: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        status: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
-        comments?: string | undefined;
+        status?: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
+        comments?: string;
     }, {
-        status: AccessRequestStatus;
-        comments?: string | undefined;
+        status?: AccessRequestStatus;
+        comments?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
-    body: {
-        status: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
-        comments?: string | undefined;
+    body?: {
+        status?: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
+        comments?: string;
     };
 }, {
-    body: {
-        status: AccessRequestStatus;
-        comments?: string | undefined;
+    body?: {
+        status?: AccessRequestStatus;
+        comments?: string;
     };
 }>;
 export declare const getAccessRequestsQuerySchema: z.ZodObject<{
@@ -75,45 +75,45 @@ export declare const getAccessRequestsQuerySchema: z.ZodObject<{
         sortBy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["createdAt", "status", "approvedAt", "rejectedAt"]>>>;
         sortOrder: z.ZodDefault<z.ZodOptional<z.ZodEnum<["asc", "desc"]>>>;
     }, "strip", z.ZodTypeAny, {
-        limit: number;
-        page: number;
-        sortBy: "status" | "createdAt" | "approvedAt" | "rejectedAt";
-        sortOrder: "asc" | "desc";
-        status?: AccessRequestStatus | undefined;
-        requester?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+        status?: AccessRequestStatus;
+        limit?: number;
+        requester?: string;
+        page?: number;
+        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
     }, {
-        status?: AccessRequestStatus | undefined;
-        limit?: string | undefined;
-        requester?: string | undefined;
-        page?: string | undefined;
-        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt" | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+        status?: AccessRequestStatus;
+        limit?: string;
+        requester?: string;
+        page?: string;
+        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
-    query: {
-        limit: number;
-        page: number;
-        sortBy: "status" | "createdAt" | "approvedAt" | "rejectedAt";
-        sortOrder: "asc" | "desc";
-        status?: AccessRequestStatus | undefined;
-        requester?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+    query?: {
+        status?: AccessRequestStatus;
+        limit?: number;
+        requester?: string;
+        page?: number;
+        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
     };
 }, {
-    query: {
-        status?: AccessRequestStatus | undefined;
-        limit?: string | undefined;
-        requester?: string | undefined;
-        page?: string | undefined;
-        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt" | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+    query?: {
+        status?: AccessRequestStatus;
+        limit?: string;
+        requester?: string;
+        page?: string;
+        sortBy?: "status" | "createdAt" | "approvedAt" | "rejectedAt";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
     };
 }>;
 export declare const bulkUpdateAccessRequestsSchema: z.ZodObject<{
@@ -122,25 +122,25 @@ export declare const bulkUpdateAccessRequestsSchema: z.ZodObject<{
         status: z.ZodEffects<z.ZodNativeEnum<typeof AccessRequestStatus>, AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED, AccessRequestStatus>;
         comments: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        status: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
-        requestIds: string[];
-        comments?: string | undefined;
+        status?: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
+        comments?: string;
+        requestIds?: string[];
     }, {
-        status: AccessRequestStatus;
-        requestIds: string[];
-        comments?: string | undefined;
+        status?: AccessRequestStatus;
+        comments?: string;
+        requestIds?: string[];
     }>;
 }, "strip", z.ZodTypeAny, {
-    body: {
-        status: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
-        requestIds: string[];
-        comments?: string | undefined;
+    body?: {
+        status?: AccessRequestStatus.APPROVED | AccessRequestStatus.REJECTED;
+        comments?: string;
+        requestIds?: string[];
     };
 }, {
-    body: {
-        status: AccessRequestStatus;
-        requestIds: string[];
-        comments?: string | undefined;
+    body?: {
+        status?: AccessRequestStatus;
+        comments?: string;
+        requestIds?: string[];
     };
 }>;
 //# sourceMappingURL=accessRequest.validator.d.ts.map

@@ -1772,4 +1772,3 @@ class WarehouseService {
     }
 }
 exports.warehouseService = new WarehouseService();
-//# sourceMappingURL=warehouse.service.js.map

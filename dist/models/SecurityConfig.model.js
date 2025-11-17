@@ -168,4 +168,3 @@ securityConfigSchema.set('toJSON', {
     }
 });
 exports.SecurityConfig = mongoose_1.default.model('SecurityConfig', securityConfigSchema);
-//# sourceMappingURL=SecurityConfig.model.js.map

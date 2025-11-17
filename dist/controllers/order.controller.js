@@ -220,4 +220,3 @@ exports.getMachineOrderStats = (0, asyncHandler_util_1.asyncHandler)(async (req,
         }
     }
 });
-//# sourceMappingURL=order.controller.js.map

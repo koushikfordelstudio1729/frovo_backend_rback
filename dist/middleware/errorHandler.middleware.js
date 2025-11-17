@@ -69,4 +69,3 @@ const catchAsync = (fn) => {
     };
 };
 exports.catchAsync = catchAsync;
-//# sourceMappingURL=errorHandler.middleware.js.map

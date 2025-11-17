@@ -76,4 +76,3 @@ exports.getProductCategories = (0, asyncHandler_util_1.asyncHandler)(async (_req
         }
     }
 });
-//# sourceMappingURL=product.controller.js.map

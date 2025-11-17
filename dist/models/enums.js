@@ -103,4 +103,3 @@ var UIAccess;
     UIAccess["WAREHOUSE_PORTAL"] = "Warehouse Portal";
     UIAccess["MOBILE_AND_WEB"] = "Mobile & Web";
 })(UIAccess || (exports.UIAccess = UIAccess = {}));
-//# sourceMappingURL=enums.js.map

@@ -125,4 +125,3 @@ auditLogSchema.set('toJSON', {
     }
 });
 exports.AuditLog = mongoose_1.default.model('AuditLog', auditLogSchema);
-//# sourceMappingURL=AuditLog.model.js.map

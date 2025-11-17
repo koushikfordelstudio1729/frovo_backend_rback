@@ -9,37 +9,37 @@ export declare const validate: (schemas: ValidationTargets) => (req: Request, re
 export declare const commonSchemas: {
     objectId: z.ZodString;
     pagination: z.ZodObject<{
-        page: z.ZodEffects<z.ZodOptional<z.ZodString>, number, string | undefined>;
-        limit: z.ZodEffects<z.ZodOptional<z.ZodString>, number, string | undefined>;
+        page: z.ZodEffects<z.ZodOptional<z.ZodString>, number, string>;
+        limit: z.ZodEffects<z.ZodOptional<z.ZodString>, number, string>;
     }, "strip", z.ZodTypeAny, {
-        limit: number;
-        page: number;
+        limit?: number;
+        page?: number;
     }, {
-        limit?: string | undefined;
-        page?: string | undefined;
+        limit?: string;
+        page?: string;
     }>;
     search: z.ZodObject<{
         search: z.ZodOptional<z.ZodString>;
         sortBy: z.ZodOptional<z.ZodString>;
         sortOrder: z.ZodOptional<z.ZodEnum<["asc", "desc"]>>;
     }, "strip", z.ZodTypeAny, {
-        search?: string | undefined;
-        sortBy?: string | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
+        search?: string;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
     }, {
-        search?: string | undefined;
-        sortBy?: string | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
+        search?: string;
+        sortBy?: string;
+        sortOrder?: "asc" | "desc";
     }>;
     dateRange: z.ZodObject<{
         startDate: z.ZodOptional<z.ZodString>;
         endDate: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+        startDate?: string;
+        endDate?: string;
     }, {
-        startDate?: string | undefined;
-        endDate?: string | undefined;
+        startDate?: string;
+        endDate?: string;
     }>;
 };
 export declare const validateObjectId: (field?: string) => (req: Request, res: Response, next: NextFunction) => void;

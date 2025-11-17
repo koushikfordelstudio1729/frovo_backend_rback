@@ -73,4 +73,3 @@ exports.optionalAuth = (0, asyncHandler_util_1.asyncHandler)(async (req, _res, n
     }
     return next();
 });
-//# sourceMappingURL=auth.middleware.js.map

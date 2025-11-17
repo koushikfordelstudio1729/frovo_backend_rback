@@ -179,4 +179,3 @@ exports.searchUsers = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => 
         (0, response_util_1.sendError)(res, 'Failed to search users', 500);
     }
 });
-//# sourceMappingURL=user.controller.js.map

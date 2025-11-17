@@ -206,4 +206,3 @@ exports.ReturnOrder = mongoose_1.default.model('ReturnOrder', returnOrderSchema)
 exports.Inventory = mongoose_1.default.model('Inventory', inventorySchema);
 exports.Expense = mongoose_1.default.model('Expense', expenseSchema);
 exports.FieldAgent = mongoose_1.default.model('FieldAgent', fieldAgentSchema);
-//# sourceMappingURL=Warehouse.model.js.map

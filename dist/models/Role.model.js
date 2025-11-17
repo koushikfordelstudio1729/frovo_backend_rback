@@ -142,4 +142,3 @@ roleSchema.set('toJSON', {
     }
 });
 exports.Role = mongoose_1.default.model('Role', roleSchema);
-//# sourceMappingURL=Role.model.js.map

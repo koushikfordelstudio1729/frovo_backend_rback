@@ -105,4 +105,3 @@ if (require.main === module) {
         });
     });
 }
-//# sourceMappingURL=permissions.seeder.js.map

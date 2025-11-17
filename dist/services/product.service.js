@@ -147,4 +147,3 @@ class ProductService {
     }
 }
 exports.productService = new ProductService();
-//# sourceMappingURL=product.service.js.map

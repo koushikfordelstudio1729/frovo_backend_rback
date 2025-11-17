@@ -55,4 +55,3 @@ exports.getAuditStats = (0, asyncHandler_util_1.asyncHandler)(async (req, res) =
         (0, response_util_1.sendError)(res, 'Failed to get audit stats', 500);
     }
 });
-//# sourceMappingURL=auditLog.controller.js.map

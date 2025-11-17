@@ -49,4 +49,3 @@ router.get('/:paymentId', paymentController.getPayment);
 router.post('/:paymentId/refund', paymentController.processRefund);
 router.get('/machine/:machineId/stats', paymentController.getMachinePaymentStats);
 exports.default = router;
-//# sourceMappingURL=payment.routes.js.map

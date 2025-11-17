@@ -217,4 +217,3 @@ vendingMachineSchema.set('toJSON', {
     }
 });
 exports.VendingMachine = mongoose_1.default.model('VendingMachine', vendingMachineSchema);
-//# sourceMappingURL=VendingMachine.model.js.map

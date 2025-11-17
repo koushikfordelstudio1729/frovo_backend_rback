@@ -43,4 +43,3 @@ exports.updateSecurityConfig = (0, asyncHandler_util_1.asyncHandler)(async (req,
         return (0, response_util_1.sendError)(res, 'Failed to update security configuration', 500);
     }
 });
-//# sourceMappingURL=security.controller.js.map

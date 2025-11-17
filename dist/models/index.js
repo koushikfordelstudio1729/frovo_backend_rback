@@ -30,4 +30,3 @@ Object.defineProperty(exports, "AuditLog", { enumerable: true, get: function () 
 var SecurityConfig_model_1 = require("./SecurityConfig.model");
 Object.defineProperty(exports, "SecurityConfig", { enumerable: true, get: function () { return SecurityConfig_model_1.SecurityConfig; } });
 __exportStar(require("./enums"), exports);
-//# sourceMappingURL=index.js.map

@@ -190,4 +190,3 @@ const startServer = async () => {
 };
 startServer();
 exports.default = app;
-//# sourceMappingURL=simple-server.js.map

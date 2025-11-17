@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 export interface AddToCartData {
     productId: string;
     machineId: string;
@@ -6,41 +7,41 @@ export interface AddToCartData {
 }
 declare class CartService {
     getCart(userId: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
-    addToCart(userId: string, cartData: AddToCartData): Promise<(import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-        _id: unknown;
+    addToCart(userId: string, cartData: AddToCartData): Promise<import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
-    }) | null>;
-    updateCartItem(userId: string, productId: string, machineId: string, slotNumber: string, quantity: number): Promise<(import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-        _id: unknown;
+    }>;
+    updateCartItem(userId: string, productId: string, machineId: string, slotNumber: string, quantity: number): Promise<import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
-    }) | null>;
-    removeFromCart(userId: string, productId: string, machineId: string, slotNumber: string): Promise<(import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-        _id: unknown;
+    }>;
+    removeFromCart(userId: string, productId: string, machineId: string, slotNumber: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
-    }) | null>;
-    clearCart(userId: string): Promise<(import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-        _id: unknown;
+    }>;
+    clearCart(userId: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
-    }) | null>;
+    }>;
     validateCartItems(userId: string): Promise<{
         isValid: boolean;
-        invalidItems: never[];
-        validItems: never[];
-        cart?: never;
+        invalidItems: any[];
+        validItems: any[];
+        cart?: undefined;
     } | {
         isValid: boolean;
         invalidItems: any[];
-        validItems: import("../models/Cart.model").ICartItem[];
+        validItems: any[];
         cart: import("mongoose").Document<unknown, {}, import("../models/Cart.model").ICart, {}, {}> & import("../models/Cart.model").ICart & Required<{
-            _id: unknown;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         };
@@ -51,10 +52,10 @@ declare class CartService {
         totalAmount: number;
         tax: number;
         finalAmount: number;
-        items: never[];
-        subtotal?: never;
-        itemsByMachine?: never;
-        lastUpdated?: never;
+        items: any[];
+        subtotal?: undefined;
+        itemsByMachine?: undefined;
+        lastUpdated?: undefined;
     } | {
         isEmpty: boolean;
         totalItems: number;
@@ -64,7 +65,7 @@ declare class CartService {
         itemsByMachine: any;
         items: import("../models/Cart.model").ICartItem[];
         lastUpdated: Date;
-        totalAmount?: never;
+        totalAmount?: undefined;
     }>;
 }
 export declare const cartService: CartService;

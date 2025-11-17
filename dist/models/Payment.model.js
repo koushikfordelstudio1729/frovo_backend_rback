@@ -233,4 +233,3 @@ paymentSchema.statics['findByOrderId'] = function (orderId) {
     return this.findOne({ orderId, transactionType: TransactionType.PAYMENT });
 };
 exports.Payment = (0, mongoose_1.model)('Payment', paymentSchema);
-//# sourceMappingURL=Payment.model.js.map

@@ -46,4 +46,3 @@ router.delete('/clear', cartController.clearCart);
 router.get('/validate', cartController.validateCart);
 router.get('/summary', cartController.getCartSummary);
 exports.default = router;
-//# sourceMappingURL=cart.routes.js.map

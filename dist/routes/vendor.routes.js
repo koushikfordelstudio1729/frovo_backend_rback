@@ -9,4 +9,3 @@ router.use(auth_middleware_1.authenticate);
 router.get('/', (0, permission_middleware_1.requirePermission)('vendors:view'), vendor_controller_1.getVendors);
 router.post('/', (0, permission_middleware_1.requirePermission)('vendors:create'), vendor_controller_1.createVendor);
 exports.default = router;
-//# sourceMappingURL=vendor.routes.js.map

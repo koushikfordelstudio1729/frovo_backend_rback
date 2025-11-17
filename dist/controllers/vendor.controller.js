@@ -33,4 +33,3 @@ exports.createVendor = (0, express_async_handler_1.default)(async (req, res) => 
         (0, responseHandlers_1.sendError)(res, error instanceof Error ? error.message : 'Failed to create vendor', 500);
     }
 });
-//# sourceMappingURL=vendor.controller.js.map

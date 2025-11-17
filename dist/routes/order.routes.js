@@ -49,4 +49,3 @@ router.put('/:orderId/dispense', orderController.markItemDispensed);
 router.get('/machine/:machineId', orderController.getOrdersByMachine);
 router.get('/machine/:machineId/stats', orderController.getMachineOrderStats);
 exports.default = router;
-//# sourceMappingURL=order.routes.js.map

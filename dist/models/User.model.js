@@ -199,4 +199,3 @@ userSchema.set('toJSON', {
     }
 });
 exports.User = mongoose_1.default.model('User', userSchema);
-//# sourceMappingURL=User.model.js.map

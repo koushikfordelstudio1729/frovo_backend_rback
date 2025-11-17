@@ -97,4 +97,3 @@ vendorSchema.index({ name: 1 });
 vendorSchema.index({ email: 1 });
 vendorSchema.index({ isActive: 1 });
 exports.Vendor = mongoose_1.default.model('Vendor', vendorSchema);
-//# sourceMappingURL=Vendor.model.js.map

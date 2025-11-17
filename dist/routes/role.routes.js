@@ -55,4 +55,3 @@ router.patch('/:id/publish', (0, permission_middleware_1.requirePermission)('rol
 router.post('/:id/assign', (0, permission_middleware_1.requirePermission)('roles:edit'), (0, validation_middleware_1.validateObjectId)(), (0, validation_middleware_1.validate)({ body: role_validator_1.assignRoleSchema.shape.body }), (0, auditLog_middleware_1.auditAssign)(constants_1.MODULES.ROLES), roleController.assignRole);
 router.delete('/:id', (0, permission_middleware_1.requirePermission)('roles:delete'), (0, validation_middleware_1.validateObjectId)(), (0, auditLog_middleware_1.auditDelete)(constants_1.MODULES.ROLES), roleController.deleteRole);
 exports.default = router;
-//# sourceMappingURL=role.routes.js.map

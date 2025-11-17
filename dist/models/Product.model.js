@@ -110,4 +110,3 @@ productSchema.set('toJSON', {
     }
 });
 exports.Product = mongoose_1.default.model('Product', productSchema);
-//# sourceMappingURL=Product.model.js.map

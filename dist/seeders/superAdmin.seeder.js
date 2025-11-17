@@ -130,4 +130,3 @@ if (require.main === module) {
         });
     });
 }
-//# sourceMappingURL=superAdmin.seeder.js.map

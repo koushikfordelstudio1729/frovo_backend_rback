@@ -121,4 +121,3 @@ const requireAllPermissions = (permissions) => {
     });
 };
 exports.requireAllPermissions = requireAllPermissions;
-//# sourceMappingURL=permission.middleware.js.map

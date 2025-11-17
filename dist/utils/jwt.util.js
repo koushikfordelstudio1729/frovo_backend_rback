@@ -124,4 +124,3 @@ const generateTokenPair = (userId) => {
     };
 };
 exports.generateTokenPair = generateTokenPair;
-//# sourceMappingURL=jwt.util.js.map

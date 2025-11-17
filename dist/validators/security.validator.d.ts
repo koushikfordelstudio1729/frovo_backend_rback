@@ -9,13 +9,13 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             clientSecret: z.ZodString;
             metadataUrl: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
         }, {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
         }>>;
         passwordPolicy: z.ZodOptional<z.ZodObject<{
             minLength: z.ZodOptional<z.ZodNumber>;
@@ -25,147 +25,147 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars: z.ZodOptional<z.ZodBoolean>;
             expiryDays: z.ZodOptional<z.ZodNumber>;
         }, "strip", z.ZodTypeAny, {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
         }, {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
         }>>;
         sessionTimeout: z.ZodOptional<z.ZodNumber>;
         maxLoginAttempts: z.ZodOptional<z.ZodNumber>;
         lockoutDuration: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     }, {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     }>, {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     }, {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     }>;
 }, "strip", z.ZodTypeAny, {
-    body: {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+    body?: {
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     };
 }, {
-    body: {
-        sessionTimeout?: number | undefined;
-        mfaEnforced?: boolean | undefined;
-        ipAllowlist?: string[] | undefined;
-        ssoEnabled?: boolean | undefined;
+    body?: {
+        sessionTimeout?: number;
+        mfaEnforced?: boolean;
+        ipAllowlist?: string[];
+        ssoEnabled?: boolean;
         ssoConfig?: {
-            clientId: string;
-            clientSecret: string;
-            metadataUrl: string;
-        } | undefined;
+            clientId?: string;
+            clientSecret?: string;
+            metadataUrl?: string;
+        };
         passwordPolicy?: {
-            minLength?: number | undefined;
-            requireUppercase?: boolean | undefined;
-            requireLowercase?: boolean | undefined;
-            requireNumbers?: boolean | undefined;
-            requireSpecialChars?: boolean | undefined;
-            expiryDays?: number | undefined;
-        } | undefined;
-        maxLoginAttempts?: number | undefined;
-        lockoutDuration?: number | undefined;
+            minLength?: number;
+            requireUppercase?: boolean;
+            requireLowercase?: boolean;
+            requireNumbers?: boolean;
+            requireSpecialChars?: boolean;
+            expiryDays?: number;
+        };
+        maxLoginAttempts?: number;
+        lockoutDuration?: number;
     };
 }>;
 export declare const testSSOConfigSchema: z.ZodObject<{
@@ -174,25 +174,25 @@ export declare const testSSOConfigSchema: z.ZodObject<{
         clientSecret: z.ZodString;
         metadataUrl: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        clientId: string;
-        clientSecret: string;
-        metadataUrl: string;
+        clientId?: string;
+        clientSecret?: string;
+        metadataUrl?: string;
     }, {
-        clientId: string;
-        clientSecret: string;
-        metadataUrl: string;
+        clientId?: string;
+        clientSecret?: string;
+        metadataUrl?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
-    body: {
-        clientId: string;
-        clientSecret: string;
-        metadataUrl: string;
+    body?: {
+        clientId?: string;
+        clientSecret?: string;
+        metadataUrl?: string;
     };
 }, {
-    body: {
-        clientId: string;
-        clientSecret: string;
-        metadataUrl: string;
+    body?: {
+        clientId?: string;
+        clientSecret?: string;
+        metadataUrl?: string;
     };
 }>;
 //# sourceMappingURL=security.validator.d.ts.map

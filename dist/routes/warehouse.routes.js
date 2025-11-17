@@ -86,4 +86,3 @@ router.get('/reports/types', (0, permission_middleware_1.requirePermission)('rep
 router.get('/reports/inventory-summary', (0, permission_middleware_1.requirePermission)('reports:view'), warehouseController.generateInventorySummary);
 router.get('/reports/purchase-orders', (0, permission_middleware_1.requirePermission)('reports:view'), warehouseController.generatePurchaseOrderReport);
 exports.default = router;
-//# sourceMappingURL=warehouse.routes.js.map

@@ -72,4 +72,3 @@ exports.getDepartmentsQuerySchema = zod_1.z.object({
             .default('desc')
     })
 });
-//# sourceMappingURL=department.validator.js.map

@@ -51,4 +51,3 @@ router.post('/:id/members', (0, permission_middleware_1.requirePermission)('depa
 router.delete('/:id/members/:userId', (0, permission_middleware_1.requirePermission)('departments:edit'), (0, validation_middleware_1.validateObjectId)(), (0, validation_middleware_1.validateObjectId)('userId'), (0, auditLog_middleware_1.auditRemove)(constants_1.MODULES.DEPARTMENTS), departmentController.removeMember);
 router.delete('/:id', (0, permission_middleware_1.requireSuperAdmin)(), (0, validation_middleware_1.validateObjectId)(), (0, auditLog_middleware_1.auditDelete)(constants_1.MODULES.DEPARTMENTS), departmentController.deleteDepartment);
 exports.default = router;
-//# sourceMappingURL=department.routes.js.map

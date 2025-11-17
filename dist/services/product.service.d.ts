@@ -25,18 +25,8 @@ declare class ProductService {
     getProductAvailabilityAcrossMachines(productId: string): Promise<{
         productId: string;
         totalMachines: number;
-        totalQuantity: number;
-        availability: {
-            machineId: string;
-            machineName: string;
-            location: import("../models/VendingMachine.model").ILocation;
-            slots: {
-                slotNumber: string;
-                quantity: number;
-                price: number;
-            }[];
-            totalAvailable: number;
-        }[];
+        totalQuantity: any;
+        availability: any[];
     }>;
 }
 export declare const productService: ProductService;

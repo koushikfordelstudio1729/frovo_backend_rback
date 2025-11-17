@@ -117,4 +117,3 @@ accessRequestSchema.set('toJSON', {
     }
 });
 exports.AccessRequest = mongoose_1.default.model('AccessRequest', accessRequestSchema);
-//# sourceMappingURL=AccessRequest.model.js.map

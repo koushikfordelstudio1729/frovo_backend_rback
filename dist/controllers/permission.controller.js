@@ -65,4 +65,3 @@ exports.getPermissionStats = (0, asyncHandler_util_1.asyncHandler)(async (_req, 
         return (0, response_util_1.sendError)(res, 'Failed to get permission stats', 500);
     }
 });
-//# sourceMappingURL=permission.controller.js.map

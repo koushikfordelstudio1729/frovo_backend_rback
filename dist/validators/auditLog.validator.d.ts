@@ -13,57 +13,57 @@ export declare const getAuditLogsQuerySchema: z.ZodObject<{
         sortBy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["timestamp", "actor", "module", "action"]>>>;
         sortOrder: z.ZodDefault<z.ZodOptional<z.ZodEnum<["asc", "desc"]>>>;
     }, "strip", z.ZodTypeAny, {
-        limit: number;
-        page: number;
-        sortBy: "module" | "action" | "timestamp" | "actor";
-        sortOrder: "asc" | "desc";
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        targetId?: string | undefined;
+        limit?: number;
+        module?: string;
+        action?: string;
+        actor?: string;
+        page?: number;
+        sortBy?: "module" | "action" | "timestamp" | "actor";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        targetId?: string;
     }, {
-        limit?: string | undefined;
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        page?: string | undefined;
-        sortBy?: "module" | "action" | "timestamp" | "actor" | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        targetId?: string | undefined;
+        limit?: string;
+        module?: string;
+        action?: string;
+        actor?: string;
+        page?: string;
+        sortBy?: "module" | "action" | "timestamp" | "actor";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        targetId?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
-    query: {
-        limit: number;
-        page: number;
-        sortBy: "module" | "action" | "timestamp" | "actor";
-        sortOrder: "asc" | "desc";
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        targetId?: string | undefined;
+    query?: {
+        limit?: number;
+        module?: string;
+        action?: string;
+        actor?: string;
+        page?: number;
+        sortBy?: "module" | "action" | "timestamp" | "actor";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        targetId?: string;
     };
 }, {
-    query: {
-        limit?: string | undefined;
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        page?: string | undefined;
-        sortBy?: "module" | "action" | "timestamp" | "actor" | undefined;
-        sortOrder?: "asc" | "desc" | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        targetId?: string | undefined;
+    query?: {
+        limit?: string;
+        module?: string;
+        action?: string;
+        actor?: string;
+        page?: string;
+        sortBy?: "module" | "action" | "timestamp" | "actor";
+        sortOrder?: "asc" | "desc";
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        targetId?: string;
     };
 }>;
 export declare const exportAuditLogsQuerySchema: z.ZodObject<{
@@ -76,41 +76,41 @@ export declare const exportAuditLogsQuerySchema: z.ZodObject<{
         action: z.ZodOptional<z.ZodString>;
         targetType: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        format: "csv" | "json";
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
+        module?: string;
+        action?: string;
+        actor?: string;
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        format?: "csv" | "json";
     }, {
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        format?: "csv" | "json" | undefined;
+        module?: string;
+        action?: string;
+        actor?: string;
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        format?: "csv" | "json";
     }>;
 }, "strip", z.ZodTypeAny, {
-    query: {
-        format: "csv" | "json";
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
+    query?: {
+        module?: string;
+        action?: string;
+        actor?: string;
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        format?: "csv" | "json";
     };
 }, {
-    query: {
-        module?: string | undefined;
-        action?: string | undefined;
-        actor?: string | undefined;
-        startDate?: string | undefined;
-        endDate?: string | undefined;
-        targetType?: string | undefined;
-        format?: "csv" | "json" | undefined;
+    query?: {
+        module?: string;
+        action?: string;
+        actor?: string;
+        startDate?: string;
+        endDate?: string;
+        targetType?: string;
+        format?: "csv" | "json";
     };
 }>;
 //# sourceMappingURL=auditLog.validator.d.ts.map

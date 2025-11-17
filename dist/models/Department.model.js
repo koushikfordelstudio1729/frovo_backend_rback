@@ -91,4 +91,3 @@ departmentSchema.set('toJSON', {
     }
 });
 exports.Department = mongoose_1.default.model('Department', departmentSchema);
-//# sourceMappingURL=Department.model.js.map

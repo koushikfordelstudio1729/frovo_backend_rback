@@ -234,4 +234,3 @@ exports.disableMFA = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
         return (0, response_util_1.sendError)(res, 'Failed to disable MFA', 500);
     }
 });
-//# sourceMappingURL=auth.controller.js.map

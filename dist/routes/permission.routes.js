@@ -45,4 +45,3 @@ router.get('/module/:module', auth_middleware_1.authenticate, permissionControll
 router.get('/search', auth_middleware_1.authenticate, permissionController.searchPermissions);
 router.get('/stats', (0, permission_middleware_1.requirePermission)('audit:view'), permissionController.getPermissionStats);
 exports.default = router;
-//# sourceMappingURL=permission.routes.js.map

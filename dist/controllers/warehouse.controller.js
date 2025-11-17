@@ -546,4 +546,3 @@ exports.getReportTypes = (0, express_async_handler_1.default)(async (_req, res) 
     ];
     (0, responseHandlers_1.sendSuccess)(res, reportTypes, 'Report types retrieved successfully');
 });
-//# sourceMappingURL=warehouse.controller.js.map

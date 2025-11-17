@@ -175,4 +175,3 @@ class PermissionService {
     }
 }
 exports.permissionService = new PermissionService();
-//# sourceMappingURL=permission.service.js.map

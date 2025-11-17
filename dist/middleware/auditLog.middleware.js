@@ -172,4 +172,3 @@ const auditReject = (module, getTarget) => {
     return (0, exports.auditLog)(options);
 };
 exports.auditReject = auditReject;
-//# sourceMappingURL=auditLog.middleware.js.map

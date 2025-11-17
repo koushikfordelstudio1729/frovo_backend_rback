@@ -20,7 +20,7 @@ export interface ICart extends Document {
     isActive: boolean;
 }
 export declare const Cart: import("mongoose").Model<ICart, {}, {}, {}, Document<unknown, {}, ICart, {}, {}> & ICart & Required<{
-    _id: unknown;
+    _id: Types.ObjectId;
 }> & {
     __v: number;
 }, any>;

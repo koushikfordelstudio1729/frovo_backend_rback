@@ -90,4 +90,3 @@ permissionSchema.set('toJSON', {
     }
 });
 exports.Permission = mongoose_1.default.model('Permission', permissionSchema);
-//# sourceMappingURL=Permission.model.js.map

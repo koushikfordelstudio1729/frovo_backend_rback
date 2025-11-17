@@ -30,4 +30,3 @@ router.use('/access-requests', accessRequest_routes_1.default);
 router.use('/audit-logs', auditLog_routes_1.default);
 router.use('/security', security_routes_1.default);
 exports.default = router;
-//# sourceMappingURL=index.js.map

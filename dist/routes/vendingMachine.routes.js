@@ -48,4 +48,3 @@ router.use(auth_middleware_1.authenticate);
 router.get('/machines/:machineId/stats', vendingMachineController.getMachineStats);
 router.get('/internal/:id', vendingMachineController.getVendingMachineById);
 exports.default = router;
-//# sourceMappingURL=vendingMachine.routes.js.map

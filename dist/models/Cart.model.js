@@ -137,4 +137,3 @@ cartSchema.methods['clearCart'] = function () {
     return this.save();
 };
 exports.Cart = (0, mongoose_1.model)('Cart', cartSchema);
-//# sourceMappingURL=Cart.model.js.map

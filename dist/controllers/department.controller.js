@@ -137,4 +137,3 @@ exports.removeMember = (0, asyncHandler_util_1.asyncHandler)(async (req, res) =>
         return (0, response_util_1.sendError)(res, 'Failed to remove member', 500);
     }
 });
-//# sourceMappingURL=department.controller.js.map

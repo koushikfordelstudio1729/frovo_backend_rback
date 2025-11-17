@@ -55,4 +55,3 @@ router.post('/:id/roles', (0, permission_middleware_1.requirePermission)('users:
 router.delete('/:id/roles/:roleId', (0, permission_middleware_1.requirePermission)('users:edit'), (0, validation_middleware_1.validateObjectId)(), (0, validation_middleware_1.validateObjectId)('roleId'), (0, auditLog_middleware_1.auditRemove)(constants_1.MODULES.USERS), userController.removeRole);
 router.delete('/:id', (0, permission_middleware_1.requirePermission)('users:delete'), (0, validation_middleware_1.validateObjectId)(), (0, auditLog_middleware_1.auditDelete)(constants_1.MODULES.USERS), userController.deleteUser);
 exports.default = router;
-//# sourceMappingURL=user.routes.js.map

@@ -51,4 +51,3 @@ router.post('/enable-mfa', authController.enableMFA);
 router.post('/verify-mfa', authController.verifyMFA);
 router.post('/disable-mfa', authController.disableMFA);
 exports.default = router;
-//# sourceMappingURL=auth.routes.js.map

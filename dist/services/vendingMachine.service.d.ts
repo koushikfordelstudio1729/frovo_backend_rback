@@ -52,9 +52,9 @@ declare class VendingMachineService {
         availableProducts: number;
         outOfStockSlots: number;
         totalStock: number;
-        revenue: number | undefined;
-        totalSales: number | undefined;
-        lastMaintenanceDate: Date | undefined;
+        revenue: number;
+        totalSales: number;
+        lastMaintenanceDate: Date;
         location: import("../models/VendingMachine.model").ILocation;
     }>;
     checkProductAvailability(machineId: string, slotNumber: string): Promise<{
@@ -66,42 +66,20 @@ declare class VendingMachineService {
     }>;
     searchProductAcrossMachines(productSearchTerm: string, currentMachineId?: string): Promise<{
         searchTerm: string;
-        currentMachine: string | null;
-        productsFound: never[];
-        alternativeMachines: never[];
-        totalMachinesWithProduct?: never;
-        totalAlternatives?: never;
+        currentMachine: string;
+        productsFound: any[];
+        alternativeMachines: any[];
+        totalMachinesWithProduct?: undefined;
+        totalAlternatives?: undefined;
     } | {
         searchTerm: string;
-        currentMachine: {
-            machineId: string;
-            machineName: string;
-            location: import("../models/VendingMachine.model").ILocation;
-            isCurrentMachine: boolean;
-            availableProducts: {
-                slotNumber: string;
-                product: Types.ObjectId;
-                quantity: number;
-                price: number;
-            }[];
-        } | null;
+        currentMachine: any;
         productsFound: (import("mongoose").Document<unknown, {}, import("../models/Product.model").IProduct, {}, {}> & import("../models/Product.model").IProduct & Required<{
             _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];
-        alternativeMachines: {
-            machineId: string;
-            machineName: string;
-            location: import("../models/VendingMachine.model").ILocation;
-            isCurrentMachine: boolean;
-            availableProducts: {
-                slotNumber: string;
-                product: Types.ObjectId;
-                quantity: number;
-                price: number;
-            }[];
-        }[];
+        alternativeMachines: any[];
         totalMachinesWithProduct: number;
         totalAlternatives: number;
     }>;

@@ -166,4 +166,3 @@ exports.dashboardQuerySchema = zod_1.z.object({
         warehouseId: objectIdSchema.optional()
     })
 });
-//# sourceMappingURL=warehouse.validator.js.map

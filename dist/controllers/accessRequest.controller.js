@@ -121,4 +121,3 @@ exports.rejectAccessRequest = (0, asyncHandler_util_1.asyncHandler)(async (req, 
         return (0, response_util_1.sendError)(res, 'Failed to reject access request', 500);
     }
 });
-//# sourceMappingURL=accessRequest.controller.js.map

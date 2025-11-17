@@ -224,4 +224,3 @@ exports.getRoleUsers = (0, asyncHandler_util_1.asyncHandler)(async (req, res) =>
         return (0, response_util_1.sendError)(res, 'Failed to get role users', 500);
     }
 });
-//# sourceMappingURL=role.controller.js.map

@@ -41,4 +41,3 @@ router.get('/products/categories', productController.getProductCategories);
 router.get('/products/category/:category', productController.getProductsByCategory);
 router.get('/products/:id', productController.getProductById);
 exports.default = router;
-//# sourceMappingURL=product.routes.js.map

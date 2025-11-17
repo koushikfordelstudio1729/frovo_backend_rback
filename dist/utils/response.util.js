@@ -84,4 +84,3 @@ const sendInternalError = (res, message = 'Internal server error') => {
     });
 };
 exports.sendInternalError = sendInternalError;
-//# sourceMappingURL=response.util.js.map

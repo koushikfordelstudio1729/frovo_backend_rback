@@ -73,4 +73,3 @@ const seedVendors = async (createdBy) => {
     }
 };
 exports.seedVendors = seedVendors;
-//# sourceMappingURL=vendor.seeder.js.map

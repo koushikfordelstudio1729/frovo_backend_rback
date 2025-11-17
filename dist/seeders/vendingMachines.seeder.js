@@ -285,4 +285,3 @@ if (require.main === module) {
         });
     });
 }
-//# sourceMappingURL=vendingMachines.seeder.js.map

@@ -134,4 +134,3 @@ if (require.main === module) {
         });
     });
 }
-//# sourceMappingURL=departments.seeder.js.map

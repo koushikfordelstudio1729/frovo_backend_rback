@@ -71,4 +71,3 @@ const sendForbidden = (res, message = 'Forbidden') => {
     res.status(403).json(response);
 };
 exports.sendForbidden = sendForbidden;
-//# sourceMappingURL=responseHandlers.js.map
