@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.authService = void 0;
 const models_1 = require("../models");
 const jwt_util_1 = require("../utils/jwt.util");
+const email_service_1 = require("./email.service");
 class AuthService {
     async register(userData, createdBy, deviceInfo) {
         const existingUserCount = await models_1.User.countDocuments();
@@ -16,6 +17,36 @@ class AuthService {
         });
         const tokens = (0, jwt_util_1.generateTokenPair)(user._id);
         await user.addRefreshToken(tokens.refreshToken, deviceInfo?.deviceInfo, deviceInfo?.ipAddress, deviceInfo?.userAgent);
+        const userResponse = user.toObject();
+        const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
+        return {
+            user: cleanUser,
+            ...tokens
+        };
+    }
+    async registerCustomer(userData, deviceInfo) {
+        const existingUser = await models_1.User.findOne({ email: userData.email });
+        if (existingUser) {
+            throw new Error('User with this email already exists');
+        }
+        const customerRole = await models_1.Role.findOne({ systemRole: models_1.SystemRole.CUSTOMER });
+        if (!customerRole) {
+            throw new Error('Customer role not found. Please contact administrator.');
+        }
+        const user = await models_1.User.create({
+            ...userData,
+            roles: [customerRole._id],
+            status: models_1.UserStatus.ACTIVE,
+            createdBy: null
+        });
+        const tokens = (0, jwt_util_1.generateTokenPair)(user._id);
+        await user.addRefreshToken(tokens.refreshToken, deviceInfo?.deviceInfo, deviceInfo?.ipAddress, deviceInfo?.userAgent);
+        try {
+            await email_service_1.emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
+        }
+        catch (emailError) {
+            console.error('Failed to send welcome email:', emailError);
+        }
         const userResponse = user.toObject();
         const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
         return {

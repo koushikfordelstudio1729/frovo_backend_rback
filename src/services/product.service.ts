@@ -1,4 +1,4 @@
-import { Product } from '../models';
+import { Product } from '../models/Product.model';
 import { Types } from 'mongoose';
 
 export interface ProductQuery {
@@ -101,7 +101,7 @@ class ProductService {
       throw new Error('Invalid product ID');
     }
     
-    const { VendingMachine } = await import('../models');
+    const { VendingMachine } = await import('../models/VendingMachine.model');
     
     // Find all machines that have this product in stock
     const machinesWithProduct = await VendingMachine.find({

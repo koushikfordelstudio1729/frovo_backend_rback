@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.disableMFA = exports.verifyMFA = exports.enableMFA = exports.changePassword = exports.refreshToken = exports.getCurrentUser = exports.logoutFromAllDevices = exports.logout = exports.login = exports.register = void 0;
+exports.disableMFA = exports.verifyMFA = exports.enableMFA = exports.changePassword = exports.refreshToken = exports.getCurrentUser = exports.logoutFromAllDevices = exports.logout = exports.login = exports.registerCustomer = exports.register = void 0;
 const auth_service_1 = require("../services/auth.service");
 const asyncHandler_util_1 = require("../utils/asyncHandler.util");
 const response_util_1 = require("../utils/response.util");
@@ -45,6 +45,27 @@ exports.register = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
         }
         else {
             return (0, response_util_1.sendError)(res, 'Registration failed', 500);
+        }
+    }
+});
+exports.registerCustomer = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
+    const { name, email, password } = req.body;
+    try {
+        const deviceInfo = {
+            ipAddress: req.ip || req.socket.remoteAddress,
+            userAgent: req.get('User-Agent') || undefined,
+            deviceInfo: req.get('X-Device-Info') || undefined
+        };
+        const result = await auth_service_1.authService.registerCustomer({ name, email, password }, deviceInfo);
+        setCookieTokens(res, result.accessToken, result.refreshToken);
+        return (0, response_util_1.sendCreated)(res, result, 'Customer registration successful');
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            return (0, response_util_1.sendError)(res, error.message, 400);
+        }
+        else {
+            return (0, response_util_1.sendError)(res, 'Customer registration failed', 500);
         }
     }
 });

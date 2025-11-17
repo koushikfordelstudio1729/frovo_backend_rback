@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { orderService, CreateOrderData } from '../services/order.service';
-import { OrderStatus } from '../models';
+import { OrderStatus } from '../models/Order.model';
 import { asyncHandler } from '../utils/asyncHandler.util';
 import { sendSuccess, sendError } from '../utils/response.util';
 

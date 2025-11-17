@@ -1,4 +1,4 @@
-import { Product } from '../models';
+import { Product } from '../models/Product.model';
 import { logger } from '../utils/logger.util';
 import { Types } from 'mongoose';
 

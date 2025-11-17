@@ -114,7 +114,7 @@ const userSchema = new mongoose_1.Schema({
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'User',
-        required: [true, 'CreatedBy is required']
+        required: false
     }
 }, {
     timestamps: true,

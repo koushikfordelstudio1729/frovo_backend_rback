@@ -1,4 +1,11 @@
-import { Payment, Order, PaymentMethod, PaymentGateway, TransactionType, TransactionStatus, PaymentStatus } from '../models';
+import { TransactionType } from '../models/Payment.model';
+import { Payment } from '../models/Payment.model';
+import { Order } from '../models/Order.model';
+import { PaymentStatus } from '../models/Order.model';
+import { PaymentMethod } from '../models/Payment.model';
+import { PaymentGateway } from '../models/Payment.model';
+import { TransactionStatus } from '../models/Payment.model';
+
 import { Types } from 'mongoose';
 
 export interface InitiatePaymentData {

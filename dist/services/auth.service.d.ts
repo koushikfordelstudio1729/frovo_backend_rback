@@ -21,6 +21,7 @@ export interface RegisterData {
 }
 declare class AuthService {
     register(userData: RegisterData, createdBy: Types.ObjectId, deviceInfo?: DeviceInfo): Promise<AuthResponse>;
+    registerCustomer(userData: RegisterData, deviceInfo?: DeviceInfo): Promise<AuthResponse>;
     login(credentials: LoginCredentials, deviceInfo?: DeviceInfo): Promise<AuthResponse>;
     refreshToken(refreshToken: string, deviceInfo?: DeviceInfo): Promise<{
         accessToken: string;

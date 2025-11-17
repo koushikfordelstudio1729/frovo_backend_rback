@@ -47,7 +47,7 @@ const routes_1 = __importDefault(require("./routes"));
 const errorHandler_middleware_1 = require("./middleware/errorHandler.middleware");
 const seeders_1 = require("./seeders");
 const logger_util_1 = require("./utils/logger.util");
-dotenv_1.default.config();
+dotenv_1.default.config({ path: '.env' });
 const app = (0, express_1.default)();
 app.set('trust proxy', 1);
 app.use((0, helmet_1.default)({
@@ -168,6 +168,7 @@ const startServer = async () => {
             logger_util_1.logger.info('   📝 Access Requests: /api/access-requests');
             logger_util_1.logger.info('   📋 Audit Logs: /api/audit-logs');
             logger_util_1.logger.info('   🔒 Security: /api/security');
+            logger_util_1.logger.info('   🏭 Warehouse: /api/warehouse');
             logger_util_1.logger.info('');
             logger_util_1.logger.info('✅ Ready to accept requests!');
         });

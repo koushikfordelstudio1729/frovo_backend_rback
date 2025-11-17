@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userService = void 0;
 const models_1 = require("../models");
+const email_service_1 = require("./email.service");
+const logger_util_1 = require("../utils/logger.util");
 class UserService {
     async createUser(userData, createdBy) {
         const existingUser = await models_1.User.findOne({ email: userData.email });
@@ -29,6 +31,19 @@ class UserService {
             createdBy,
             status: models_1.UserStatus.ACTIVE
         });
+        const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+        if (emailConfigured) {
+            try {
+                await email_service_1.emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
+                logger_util_1.logger.info(`📧 Welcome email sent successfully to ${userData.email}`);
+            }
+            catch (emailError) {
+                logger_util_1.logger.warn(`⚠️  Failed to send welcome email to ${userData.email}:`, emailError);
+            }
+        }
+        else {
+            logger_util_1.logger.info('📧 Email not configured, skipping welcome email');
+        }
         return await this.getUserById(user._id.toString());
     }
     async getUserById(id) {

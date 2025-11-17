@@ -39,6 +39,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const auditLog_middleware_1 = require("../middleware/auditLog.middleware");
 const router = (0, express_1.Router)();
 router.post('/register', authController.register);
+router.post('/register-customer', authController.registerCustomer);
 router.post('/login', (0, auditLog_middleware_1.auditLogin)(), authController.login);
 router.post('/refresh-token', authController.refreshToken);
 router.use(auth_middleware_1.authenticate);

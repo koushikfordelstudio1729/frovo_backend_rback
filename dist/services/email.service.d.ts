@@ -7,7 +7,9 @@ interface EmailOptions {
 declare class EmailService {
     private transporter;
     private fromEmail;
+    private initialized;
     constructor();
+    private ensureInitialized;
     private initializeTransporter;
     sendWelcomeEmail(email: string, name: string, password: string): Promise<void>;
     sendEmail(options: EmailOptions): Promise<void>;

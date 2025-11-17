@@ -8,9 +8,17 @@ const nodemailer_1 = __importDefault(require("nodemailer"));
 const logger_util_1 = require("../utils/logger.util");
 class EmailService {
     constructor() {
-        this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
+        this.transporter = null;
+        this.fromEmail = null;
+        this.initialized = false;
+    }
+    ensureInitialized() {
+        if (this.initialized) {
+            return;
+        }
         try {
             this.initializeTransporter();
+            this.initialized = true;
         }
         catch (error) {
             logger_util_1.logger.error('Failed to initialize email transporter:', error);
@@ -18,9 +26,11 @@ class EmailService {
                 sendMail: async () => { throw new Error('Email service not configured'); },
                 verify: async () => { throw new Error('Email service not configured'); }
             };
+            this.initialized = true;
         }
     }
     initializeTransporter() {
+        this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
         logger_util_1.logger.info('Environment variables:');
         logger_util_1.logger.info(`  EMAIL_HOST: ${process.env['EMAIL_HOST']}`);
         logger_util_1.logger.info(`  EMAIL_PORT: ${process.env['EMAIL_PORT']}`);
@@ -58,11 +68,15 @@ class EmailService {
     }
     async sendEmail(options) {
         try {
+            this.ensureInitialized();
+            if (!this.transporter) {
+                throw new Error('Email transporter not initialized');
+            }
             logger_util_1.logger.info('Verifying SMTP connection...');
             await this.transporter.verify();
             logger_util_1.logger.info('✅ SMTP connection verified');
             const mailOptions = {
-                from: this.fromEmail,
+                from: this.fromEmail || 'noreply@example.com',
                 to: options.to,
                 subject: options.subject,
                 html: options.html,
@@ -161,6 +175,10 @@ This is an automated message from the Frovo RBAC System. Please do not reply to 
     }
     async verifyConnection() {
         try {
+            this.ensureInitialized();
+            if (!this.transporter) {
+                throw new Error('Email transporter not initialized');
+            }
             await this.transporter.verify();
             logger_util_1.logger.info('✅ Email service connection verified successfully');
             return true;

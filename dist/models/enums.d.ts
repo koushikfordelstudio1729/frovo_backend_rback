@@ -31,7 +31,8 @@ export declare enum SystemRole {
     FINANCE_MANAGER = "finance_manager",
     SUPPORT_AGENT = "support_agent",
     WAREHOUSE_MANAGER = "warehouse_manager",
-    AUDITOR = "auditor"
+    AUDITOR = "auditor",
+    CUSTOMER = "customer"
 }
 export declare enum DepartmentName {
     SYSTEM_ADMIN = "System Admin",
@@ -41,7 +42,8 @@ export declare enum DepartmentName {
     FINANCE = "Finance",
     SUPPORT = "Support",
     WAREHOUSE = "Warehouse",
-    COMPLIANCE = "Compliance"
+    COMPLIANCE = "Compliance",
+    CUSTOMER = "Customer"
 }
 export declare enum PermissionModule {
     MACHINES = "machines",

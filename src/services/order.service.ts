@@ -1,4 +1,8 @@
-import { Order, Cart, VendingMachine, OrderStatus, PaymentStatus } from '../models';
+import { Cart } from '../models/Cart.model';
+import { VendingMachine } from '../models/VendingMachine.model';
+import { Order } from '../models/Order.model';
+import { PaymentStatus } from '../models/Order.model';
+import { OrderStatus } from '../models/Order.model';
 import { Types } from 'mongoose';
 
 export interface CreateOrderData {

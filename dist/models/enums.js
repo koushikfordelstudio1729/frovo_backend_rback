@@ -41,6 +41,7 @@ var SystemRole;
     SystemRole["SUPPORT_AGENT"] = "support_agent";
     SystemRole["WAREHOUSE_MANAGER"] = "warehouse_manager";
     SystemRole["AUDITOR"] = "auditor";
+    SystemRole["CUSTOMER"] = "customer";
 })(SystemRole || (exports.SystemRole = SystemRole = {}));
 var DepartmentName;
 (function (DepartmentName) {
@@ -52,6 +53,7 @@ var DepartmentName;
     DepartmentName["SUPPORT"] = "Support";
     DepartmentName["WAREHOUSE"] = "Warehouse";
     DepartmentName["COMPLIANCE"] = "Compliance";
+    DepartmentName["CUSTOMER"] = "Customer";
 })(DepartmentName || (exports.DepartmentName = DepartmentName = {}));
 var PermissionModule;
 (function (PermissionModule) {

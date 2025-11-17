@@ -1,4 +1,5 @@
-import { VendingMachine, Product } from '../models';
+import { VendingMachine } from '../models/VendingMachine.model';
+import { Product } from '../models/Product.model';
 import { Types } from 'mongoose';
 
 export interface VendingMachineQuery {

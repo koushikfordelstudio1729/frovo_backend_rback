@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { paymentService, InitiatePaymentData, PaymentWebhookData, RefundData } from '../services/payment.service';
 import { orderService } from '../services/order.service';
-import { PaymentMethod, PaymentGateway } from '../models';
+import { PaymentMethod, PaymentGateway } from '../models/Payment.model';
 import { asyncHandler } from '../utils/asyncHandler.util';
 import { sendSuccess, sendError } from '../utils/response.util';
 

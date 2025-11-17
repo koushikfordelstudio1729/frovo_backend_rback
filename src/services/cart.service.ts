@@ -1,4 +1,6 @@
-import { Cart, Product, VendingMachine } from '../models';
+import { Cart } from '../models/Cart.model';
+import { Product } from '../models/Product.model';
+import { VendingMachine } from '../models/VendingMachine.model';
 import { Types } from 'mongoose';
 
 export interface AddToCartData {

@@ -180,6 +180,20 @@ const seedRoles = async (createdBy, departmentMap) => {
                 uiAccess: models_1.UIAccess.ADMIN_PANEL,
                 status: models_1.RoleStatus.PUBLISHED,
                 description: 'Audit and compliance with global read access'
+            },
+            {
+                name: 'Customer',
+                key: 'customer',
+                systemRole: models_1.SystemRole.CUSTOMER,
+                type: models_1.RoleType.SYSTEM,
+                department: departmentMap[models_1.DepartmentName.CUSTOMER],
+                permissions: [
+                    'orders:view'
+                ],
+                scope: { level: models_1.ScopeLevel.MACHINE },
+                uiAccess: models_1.UIAccess.MOBILE_APP,
+                status: models_1.RoleStatus.PUBLISHED,
+                description: 'Customer with basic order viewing access'
             }
         ];
         const rolesWithCreatedBy = roles.map(role => ({

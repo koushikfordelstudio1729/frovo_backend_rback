@@ -77,6 +77,11 @@ const departments = [
         name: 'Compliance',
         systemName: models_1.DepartmentName.COMPLIANCE,
         description: 'Compliance and audit management'
+    },
+    {
+        name: 'Customer',
+        systemName: models_1.DepartmentName.CUSTOMER,
+        description: 'Customer accounts and customer-facing services'
     }
 ];
 const seedDepartments = async (createdBy) => {
