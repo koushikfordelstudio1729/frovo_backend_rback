@@ -8,6 +8,7 @@ import permissionRoutes from './permission.routes';
 import accessRequestRoutes from './accessRequest.routes';
 import auditLogRoutes from './auditLog.routes';
 import securityRoutes from './security.routes';
+import warehouseRoutes from './warehouse.routes'
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/permissions', permissionRoutes);
 router.use('/access-requests', accessRequestRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/security', securityRoutes);
+router.use('/warehouse', warehouseRoutes);
 
 export default router;

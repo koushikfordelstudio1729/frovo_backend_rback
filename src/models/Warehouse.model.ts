@@ -16,7 +16,6 @@ export interface IWarehouse extends Document {
 
 export interface IGoodsReceiving extends Document {
   _id: Types.ObjectId;
-  poNumber: string;
   vendor: Types.ObjectId;
   sku: string;
   productName: string;
@@ -168,7 +167,6 @@ const warehouseSchema = new Schema<IWarehouse>({
 }, { timestamps: true });
 
 const goodsReceivingSchema = new Schema<IGoodsReceiving>({
-  poNumber: { type: String, required: true },
   vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
   sku: { type: String, required: true },
   productName: { type: String, required: true },
