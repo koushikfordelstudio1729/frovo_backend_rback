@@ -2,6 +2,15 @@ import { Permission, PermissionModule, PermissionAction } from '../models';
 import { logger } from '../utils/logger.util';
 
 const permissions = [
+  
+   // Vendor Management Permissions
+  { key: 'vendors:view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View all vendors', group: 'Vendors' },
+  { key: 'vendors:create', module: PermissionModule.VENDORS, action: PermissionAction.CREATE, description: 'Create new vendors', group: 'Vendors' },
+  { key: 'vendors:edit', module: PermissionModule.VENDORS, action: PermissionAction.EDIT, description: 'Edit vendor details', group: 'Vendors' },
+  { key: 'vendors:delete', module: PermissionModule.VENDORS, action: PermissionAction.DELETE, description: 'Delete vendors', group: 'Vendors' },
+  { key: 'vendors:approve', module: PermissionModule.VENDORS, action: PermissionAction.APPROVE, description: 'Approve vendor registrations', group: 'Vendors' },
+  { key: 'vendors:financials_view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View vendor financial information', group: 'Vendors' },
+  { key: 'vendors:compliance_view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View vendor compliance data', group: 'Vendors' },
   // Machines
   { key: 'machines:view', module: PermissionModule.MACHINES, action: PermissionAction.VIEW, description: 'View all machines', group: 'Machines' },
   { key: 'machines:edit', module: PermissionModule.MACHINES, action: PermissionAction.EDIT, description: 'Edit machine details', group: 'Machines' },

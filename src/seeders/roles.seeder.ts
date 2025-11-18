@@ -14,14 +14,22 @@ export const seedRoles = async (
     if (existingCount > 0) {
       logger.info(`✅ Roles already seeded (${existingCount} roles found)`);
       
-      // Return existing role IDs
+      // DEBUG: Check what roles actually exist
       const existingRoles = await Role.find();
+      console.log('🔍 Existing roles in database:');
+      existingRoles.forEach(role => {
+        console.log(`   - ${role.name} (systemRole: ${role.systemRole})`);
+      });
+      
+      // Return existing role IDs
       const roleMap: { [key: string]: Types.ObjectId } = {};
       existingRoles.forEach(role => {
         if (role.systemRole) {
           roleMap[role.systemRole] = role._id;
         }
       });
+      
+      console.log('🔍 Role map created:', Object.keys(roleMap));
       return roleMap;
     }
     
@@ -39,6 +47,23 @@ export const seedRoles = async (
         description: 'Full system access with all permissions'
       },
       {
+    name: 'Vendor Admin',
+    key: 'vendor_admin',
+    systemRole: SystemRole.VENDOR_ADMIN,
+    type: RoleType.SYSTEM,
+    department: departmentMap[DepartmentName.OPERATIONS], // Or create a Vendor Management department
+    permissions: [
+      'vendors:view', 'vendors:create', 'vendors:edit', 'vendors:delete', 'vendors:approve',
+      'vendors:financials_view', 'vendors:compliance_view',
+      'users:view', // To view vendor users
+      'roles:view'  // To view roles for vendor assignments
+    ],
+    scope: { level: ScopeLevel.GLOBAL },
+    uiAccess: UIAccess.ADMIN_PANEL,
+    status: RoleStatus.PUBLISHED,
+    description: 'Vendor management with full control over vendor lifecycle'
+  },
+      {
         name: 'Ops Manager',
         key: 'ops_manager',
         systemRole: SystemRole.OPS_MANAGER,
@@ -48,7 +73,9 @@ export const seedRoles = async (
           'machines:view', 'machines:edit', 'machines:assign',
           'planogram:view', 'planogram:edit',
           'refills:view', 'refills:assign',
-          'users:view', 'roles:view'
+          'users:view', 'roles:view',
+          'vendors:view', // Can view vendors for operational purposes
+      'vendors:financials_view' // Can view financials for payment processing
         ],
         scope: { level: ScopeLevel.PARTNER },
         uiAccess: UIAccess.ADMIN_PANEL,
@@ -97,7 +124,9 @@ export const seedRoles = async (
           'finance:view',
           'settlement:view', 'settlement:compute',
           'payout:compute',
-          'orders:view'
+          'orders:view',
+          'vendors:view',
+      'vendors:financials_view'
         ],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.FINANCE_DASHBOARD,

@@ -30,6 +30,7 @@ export enum AccessRequestStatus {
 
 export enum SystemRole {
   SUPER_ADMIN = 'super_admin',
+  VENDOR_ADMIN = 'vendor_admin',
   OPS_MANAGER = 'ops_manager',
   FIELD_AGENT = 'field_agent',
   TECHNICIAN = 'technician',
@@ -54,6 +55,7 @@ export enum DepartmentName {
 
 export enum PermissionModule {
   MACHINES = 'machines',
+  VENDORS = 'vendors',
   PLANOGRAM = 'planogram',
   ORDERS = 'orders',
   FINANCE = 'finance',
