@@ -903,7 +903,89 @@ export class VendorService {
       throw new Error(`Error fetching vendor system info: ${error.message}`);
     }
   }
+// In VendorService class
 
+// Bulk update vendor details, status, and contract
+async bulkUpdateVendor(
+  vendorId: string,
+  updateData: {
+    vendorDetails?: Partial<IVendorDetails>;
+    vendorStatus?: Partial<IVendorStatus>;
+    vendorContract?: Partial<IVendorContract>;
+  }
+): Promise<{
+  vendorDetails: IVendorDetails | null;
+  vendorStatus: IVendorStatus | null;
+  vendorContract: IVendorContract | null;
+}> {
+  const session = await VendorDetails.startSession();
+  session.startTransaction();
+
+  try {
+    // Validate vendor exists
+    const vendorExists = await VendorDetails.findById(vendorId);
+    if (!vendorExists) {
+      throw new Error('Vendor not found');
+    }
+
+    const updatePromises = [];
+
+    // Update vendor details if provided
+    if (updateData.vendorDetails) {
+      updatePromises.push(
+        VendorDetails.findByIdAndUpdate(
+          vendorId,
+          updateData.vendorDetails,
+          { new: true, runValidators: true, session }
+        )
+      );
+    } else {
+      updatePromises.push(Promise.resolve(null));
+    }
+
+    // Update vendor status if provided
+    if (updateData.vendorStatus) {
+      updatePromises.push(
+        VendorStatus.findOneAndUpdate(
+          { vendor: vendorId },
+          updateData.vendorStatus,
+          { new: true, runValidators: true, session }
+        )
+      );
+    } else {
+      updatePromises.push(Promise.resolve(null));
+    }
+
+    // Update vendor contract if provided
+    if (updateData.vendorContract) {
+      updatePromises.push(
+        VendorContract.findOneAndUpdate(
+          { vendor: vendorId },
+          updateData.vendorContract,
+          { new: true, runValidators: true, session }
+        )
+      );
+    } else {
+      updatePromises.push(Promise.resolve(null));
+    }
+
+    const [updatedDetails, updatedStatus, updatedContract] = await Promise.all(updatePromises);
+
+    await session.commitTransaction();
+
+    return {
+      vendorDetails: updatedDetails,
+      vendorStatus: updatedStatus,
+      vendorContract: updatedContract
+    };
+
+  } catch (error: any) {
+    await session.abortTransaction();
+    throw new Error(`Error bulk updating vendor: ${error.message}`);
+  } finally {
+    session.endSession();
+  }
+}
   // Update vendor system info by ID (for backward compatibility)
   async updateVendorSystemInfo(id: string, data: Partial<IVendorSystemInfo>): Promise<IVendorSystemInfo | null> {
     try {

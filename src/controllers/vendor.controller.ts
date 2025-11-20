@@ -753,6 +753,35 @@ export class VendorController {
     }
   }
 
+  // In VendorController class
+
+// Bulk update vendor details, status, and contract
+async bulkUpdateVendor(req: Request, res: Response) {
+  try {
+    const { vendorId } = req.params;
+    const { 
+      vendorDetails, 
+      vendorStatus, 
+      vendorContract 
+    } = req.body;
+
+    const result = await vendorService.bulkUpdateVendor(
+      vendorId, 
+      { vendorDetails, vendorStatus, vendorContract }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendor updated successfully',
+      data: result
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
   // Deactivate Vendor
   async deactivateVendor(req: Request, res: Response) {
     try {
