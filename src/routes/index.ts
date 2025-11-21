@@ -10,7 +10,7 @@ import auditLogRoutes from './auditLog.routes';
 import securityRoutes from './security.routes';
 import warehouseRoutes from './warehouse.routes'
 import vendorRoutes from './vendor.routes';
-
+import auditTrailRoutes from './auditTrail.routes';
 const router = Router();
 
 // Health check route
@@ -34,5 +34,6 @@ router.use('/audit-logs', auditLogRoutes);
 router.use('/security', securityRoutes);
 router.use('/warehouse', warehouseRoutes);
 router.use('/vendors', vendorRoutes);
+router.use('/audit-trails', auditTrailRoutes);
 
 export default router;
