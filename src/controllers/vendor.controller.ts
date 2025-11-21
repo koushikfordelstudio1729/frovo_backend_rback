@@ -1,4 +1,3 @@
-// controllers/vendor.controller.ts
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { VendorService } from '../services/vendor.service';
@@ -21,24 +20,71 @@ export class VendorController {
     };
   }
 
-  // Utility function to get vendor ID from headers
-  private getVendorIdFromHeader(req: Request): string {
-    const vendorId = req.headers['x-vendor-id'] as string;
-    if (!vendorId) {
-      throw new Error('Vendor ID is required in headers (x-vendor-id)');
+  // Get Super Admin Dashboard with filters
+  async getSuperAdminDashboard(req: Request, res: Response) {
+    try {
+      const { roles } = this.getLoggedInUser(req);
+      
+      // Validate user is Super Admin
+      if (!roles.some(role => role.key === 'super_admin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admin can access this dashboard'
+        });
+      }
+
+      const filters = {
+        verification_status: req.query.verification_status as string,
+        risk_rating: req.query.risk_rating as string,
+        vendor_category: req.query.vendor_category as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10
+      };
+
+      const dashboardData = await vendorService.getSuperAdminDashboard(filters);
+
+      res.status(200).json({
+        success: true,
+        data: dashboardData
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
     }
-    return vendorId;
   }
 
-  // Complete Vendor Creation
-  async createCompleteVendor(req: Request, res: Response) {
+  // Get All Vendors for Super Admin
+  async getAllVendorsForSuperAdmin(req: Request, res: Response) {
     try {
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      const result = await vendorService.createCompleteVendor(req.body, createdBy);
+      const { roles } = this.getLoggedInUser(req);
+      
+      // Validate user is Super Admin
+      if (!roles.some(role => role.key === 'super_admin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admin can access this endpoint'
+        });
+      }
 
-      res.status(201).json({
+      const filters = {
+        verification_status: req.query.verification_status as string,
+        risk_rating: req.query.risk_rating as string,
+        vendor_category: req.query.vendor_category as string,
+        created_by: req.query.created_by as string,
+        search: req.query.search as string,
+        date_from: req.query.date_from as string,
+        date_to: req.query.date_to as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10
+      };
+
+      const result = await vendorService.getAllVendorsForSuperAdmin(filters);
+      
+      res.status(200).json({
         success: true,
-        message: 'Vendor created successfully with all components',
         data: result
       });
     } catch (error: any) {
@@ -49,185 +95,24 @@ export class VendorController {
     }
   }
 
-  // Step 1: Create Vendor Details
-  async createVendorDetails(req: Request, res: Response) {
+  // Get Vendor Statistics for Super Admin
+  async getVendorStatistics(req: Request, res: Response) {
     try {
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      const vendorDetails = await vendorService.createVendorDetails(req.body, createdBy);
+      const { roles } = this.getLoggedInUser(req);
       
-      res.status(201).json({
-        success: true,
-        message: 'Vendor details created successfully',
-        data: vendorDetails
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 2: Create Vendor Financials
-  async createVendorFinancials(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorFinancials = await vendorService.createVendorFinancials({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor financials created successfully',
-        data: vendorFinancials
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 3: Create Vendor Compliance
-  async createVendorCompliance(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorCompliance = await vendorService.createVendorCompliance({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor compliance created successfully',
-        data: vendorCompliance
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 4: Create Vendor Status
-  async createVendorStatus(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorStatus = await vendorService.createVendorStatus({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor status created successfully with pending verification',
-        data: vendorStatus
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 5: Create Vendor Document
-  async createVendorDocument(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorDocument = await vendorService.createVendorDocument({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor document created successfully',
-        data: vendorDocument
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 6: Create Vendor Contract
-  async createVendorContract(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorContract = await vendorService.createVendorContract({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor contract created successfully',
-        data: vendorContract
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Step 7: Create Vendor System Info
-  async createVendorSystemInfo(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { _id: createdBy } = this.getLoggedInUser(req);
-      
-      const vendorSystemInfo = await vendorService.createVendorSystemInfo({
-        ...req.body,
-        vendor: vendorId
-      }, createdBy);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Vendor system info created successfully',
-        data: vendorSystemInfo
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Details by ID
-  async getVendorDetails(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const vendorDetails = await vendorService.getVendorDetailsById(id);
-      
-      if (!vendorDetails) {
-        return res.status(404).json({
+      // Validate user is Super Admin
+      if (!roles.some(role => role.key === 'super_admin')) {
+        return res.status(403).json({
           success: false,
-          message: 'Vendor details not found'
+          message: 'Only Super Admin can access this endpoint'
         });
       }
 
+      const statistics = await vendorService.getVendorStatistics();
+
       res.status(200).json({
         success: true,
-        data: vendorDetails
+        data: statistics
       });
     } catch (error: any) {
       res.status(400).json({
@@ -237,396 +122,33 @@ export class VendorController {
     }
   }
 
-  // Get Vendor Financials by Vendor ID
-  async getVendorFinancials(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const vendorFinancials = await vendorService.getVendorFinancialsByVendorId(vendorId);
-      
-      if (!vendorFinancials) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor financials not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: vendorFinancials
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Compliance by Vendor ID
-  async getVendorCompliance(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const vendorCompliance = await vendorService.getVendorComplianceByVendorId(vendorId);
-      
-      if (!vendorCompliance) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor compliance not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: vendorCompliance
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Status by Vendor ID
-  async getVendorStatus(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const userRole = (req as any).user.roles[0]?.key;
-      
-      const vendorStatus = await vendorService.getVendorStatusByVendorId(vendorId, userRole);
-      
-      if (!vendorStatus) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor status not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: vendorStatus
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Status by Vendor ID
-  async updateVendorStatus(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const userRole = (req as any).user.roles[0]?.key;
-      
-      const updatedStatus = await vendorService.updateVendorStatusByVendorId(vendorId, req.body, userRole);
-      
-      if (!updatedStatus) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor status not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor status updated successfully',
-        data: updatedStatus
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Documents by Vendor ID
-  async getVendorDocuments(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const documents = await vendorService.getVendorDocuments(vendorId);
-      
-      res.status(200).json({
-        success: true,
-        data: documents
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Contract by Vendor ID
-  async updateVendorContract(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const updatedContract = await vendorService.updateVendorContractByVendorId(vendorId, req.body);
-      
-      if (!updatedContract) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor contract not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor contract updated successfully',
-        data: updatedContract
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Contract by Vendor ID
-  async getVendorContract(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const vendorContract = await vendorService.getVendorContractByVendorId(vendorId);
-      
-      if (!vendorContract) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor contract not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: vendorContract
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Dashboard
-  async getVendorDashboard(req: Request, res: Response) {
-    try {
-      const createdBy = (req as any).user._id;
-      const dashboard = await vendorService.getVendorDashboard(createdBy);
-
-      res.status(200).json({
-        success: true,
-        data: dashboard
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor Overview
-  async getVendorOverview(req: Request, res: Response) {
-    try {
-      const overviewData = await vendorService.getVendorOverview();
-      
-      res.status(200).json({
-        success: true,
-        data: overviewData
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Details by ID
-  async updateVendorDetails(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const updatedDetails = await vendorService.updateVendorDetails(id, req.body);
-      
-      if (!updatedDetails) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor details not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor details updated successfully',
-        data: updatedDetails
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Financials by Vendor ID
-  async updateVendorFinancials(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const updatedFinancials = await vendorService.updateVendorFinancialsByVendorId(vendorId, req.body);
-      
-      if (!updatedFinancials) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor financials not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor financials updated successfully',
-        data: updatedFinancials
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Compliance by Vendor ID
-  async updateVendorCompliance(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const updatedCompliance = await vendorService.updateVendorComplianceByVendorId(vendorId, req.body);
-      
-      if (!updatedCompliance) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor compliance not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor compliance updated successfully',
-        data: updatedCompliance
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Delete Vendor Document by ID
-  async deleteVendorDocument(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const result = await vendorService.deleteVendorDocument(id);
-      
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor document not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor document deleted successfully'
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Get Vendor System Info by Vendor ID
-  async getVendorSystemInfo(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const systemInfo = await vendorService.getVendorSystemInfoByVendorId(vendorId);
-      
-      if (!systemInfo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor system info not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: systemInfo
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor System Info by Vendor ID
-  async updateVendorSystemInfo(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const updatedSystemInfo = await vendorService.updateVendorSystemInfoByVendorId(vendorId, req.body);
-      
-      if (!updatedSystemInfo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor system info not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor system info updated successfully',
-        data: updatedSystemInfo
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Update Vendor Verification (Super Admin only)
+  // Enhanced Vendor Verification with status flexibility
   async updateVendorVerification(req: Request, res: Response) {
     try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const { verification_status, rejection_reason } = req.body;
+      const { id } = req.params;
+      const { verification_status, notes } = req.body;
       const verifiedBy = (req as any).user._id;
       const userRole = (req as any).user.roles[0]?.key;
 
-      if (!['verified', 'rejected'].includes(verification_status)) {
+      if (!['verified', 'rejected', 'pending'].includes(verification_status)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid verification status'
+          message: 'Invalid verification status. Must be: verified, rejected, or pending'
         });
       }
 
-      const updatedStatus = await vendorService.updateVendorVerification(
-        vendorId,
-        verification_status as 'verified' | 'rejected',
+      const updatedVendor = await vendorService.updateVendorVerification(
+        id,
+        verification_status as 'verified' | 'rejected' | 'pending',
         verifiedBy,
         userRole,
-        rejection_reason
+        notes
       );
 
       res.status(200).json({
         success: true,
-        message: `Vendor ${verification_status} successfully`,
-        data: updatedStatus
+        message: `Vendor status updated to ${verification_status}`,
+        data: updatedVendor
       });
     } catch (error: any) {
       if (error.message.includes('Only Super Admin')) {
@@ -642,9 +164,99 @@ export class VendorController {
     }
   }
 
-  // Get Pending Approvals (Super Admin only)
+  // Toggle Vendor Verification (Verify ↔ Reject)
+  async toggleVendorVerification(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const verifiedBy = (req as any).user._id;
+      const userRole = (req as any).user.roles[0]?.key;
+
+      const updatedVendor = await vendorService.toggleVendorVerification(
+        id,
+        verifiedBy,
+        userRole
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Vendor status toggled to ${updatedVendor.verification_status}`,
+        data: updatedVendor
+      });
+    } catch (error: any) {
+      if (error.message.includes('Only Super Admin')) {
+        return res.status(403).json({
+          success: false,
+          message: error.message
+        });
+      }
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Bulk Verify/Reject Vendors
+  async bulkUpdateVendorVerification(req: Request, res: Response) {
+    try {
+      const { vendor_ids, verification_status, rejection_reason } = req.body;
+      const verifiedBy = (req as any).user._id;
+      const userRole = (req as any).user.roles[0]?.key;
+
+      if (!['verified', 'rejected'].includes(verification_status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid verification status'
+        });
+      }
+
+      if (!Array.isArray(vendor_ids) || vendor_ids.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vendor IDs array is required'
+        });
+      }
+
+      const result = await vendorService.bulkUpdateVendorVerification(
+        vendor_ids,
+        verification_status as 'verified' | 'rejected',
+        verifiedBy,
+        userRole,
+        rejection_reason
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Bulk verification completed. ${result.successful.length} successful, ${result.failed.length} failed.`,
+        data: result
+      });
+    } catch (error: any) {
+      if (error.message.includes('Only Super Admin')) {
+        return res.status(403).json({
+          success: false,
+          message: error.message
+        });
+      }
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get Pending Approvals for Super Admin
   async getPendingApprovals(req: Request, res: Response) {
     try {
+      const { roles } = this.getLoggedInUser(req);
+      
+      // Validate user is Super Admin
+      if (!roles.some(role => role.key === 'super_admin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admin can access pending approvals'
+        });
+      }
+
       const pendingApprovals = await vendorService.getPendingApprovals();
 
       res.status(200).json({
@@ -659,14 +271,76 @@ export class VendorController {
     }
   }
 
-  // Get All Vendors
-  async getAllVendors(req: Request, res: Response) {
+  // Create Complete Vendor
+  async createCompleteVendor(req: Request, res: Response) {
     try {
-      const vendors = await vendorService.getAllVendors();
+      const { _id: createdBy, roles } = this.getLoggedInUser(req);
       
-      res.status(200).json({
+      // Validate user has permission to create vendors
+      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions to create vendors'
+        });
+      }
+
+      const vendor = await vendorService.createCompleteVendor(req.body, createdBy);
+
+      res.status(201).json({
         success: true,
-        data: vendors
+        message: 'Vendor created successfully',
+        data: vendor
+      });
+    } catch (error: any) {
+      console.error('Error creating vendor:', error);
+      
+      if (error.message.includes('already exists')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+      
+      if (error.message.includes('validation failed') || error.message.includes('is required')) {
+        return res.status(422).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Bulk Create Vendors
+  async createBulkVendors(req: Request, res: Response) {
+    try {
+      const { _id: createdBy, roles } = this.getLoggedInUser(req);
+      const { vendors } = req.body;
+
+      if (!Array.isArray(vendors) || vendors.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vendors array is required and cannot be empty'
+        });
+      }
+
+      if (vendors.length > 50) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot process more than 50 vendors at once'
+        });
+      }
+
+      const result = await vendorService.createBulkVendors(vendors, createdBy);
+
+      res.status(207).json({
+        success: true,
+        message: `Processed ${vendors.length} vendors. ${result.successful.length} successful, ${result.failed.length} failed.`,
+        data: result
       });
     } catch (error: any) {
       res.status(400).json({
@@ -676,6 +350,270 @@ export class VendorController {
     }
   }
 
+  // Get Vendor by ID
+  async getVendorById(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const vendor = await vendorService.getVendorById(id);
+      
+      if (!vendor) {
+        return res.status(404).json({
+          success: false,
+          message: 'Vendor not found'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: vendor
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get Vendor by Vendor ID
+  async getVendorByVendorId(req: Request, res: Response) {
+    try {
+      const { vendorId } = req.params;
+      const vendor = await vendorService.getVendorByVendorId(vendorId);
+      
+      if (!vendor) {
+        return res.status(404).json({
+          success: false,
+          message: 'Vendor not found'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: vendor
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get All Vendors
+  async getAllVendors(req: Request, res: Response) {
+    try {
+      const filters = {
+        verification_status: req.query.verification_status as string,
+        risk_rating: req.query.risk_rating as string,
+        vendor_category: req.query.vendor_category as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10
+      };
+
+      const result = await vendorService.getAllVendors(filters);
+      
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Update Vendor
+  async updateVendor(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const userRole = (req as any).user.roles[0]?.key;
+      
+      const updatedVendor = await vendorService.updateVendor(id, req.body, userRole);
+      
+      if (!updatedVendor) {
+        return res.status(404).json({
+          success: false,
+          message: 'Vendor not found'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Vendor updated successfully',
+        data: updatedVendor
+      });
+    } catch (error: any) {
+      if (error.message.includes('already exists')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      if (error.message.includes('Only Super Admin')) {
+        return res.status(403).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+   // Get Vendor Admin Dashboard
+async getVendorAdminDashboard(req: Request, res: Response) {
+  try {
+    const { _id: userId, roles } = this.getLoggedInUser(req);
+    
+    // Validate user is Vendor Admin
+    if (!roles.some(role => role.key === 'vendor_admin')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Vendor Admin can access this dashboard'
+      });
+    }
+
+    const filters = {
+      verification_status: req.query.verification_status as string,
+      risk_rating: req.query.risk_rating as string,
+      vendor_category: req.query.vendor_category as string,
+      search: req.query.search as string,
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10
+    };
+
+    const dashboardData = await vendorService.getVendorAdminDashboard(userId, filters);
+
+    res.status(200).json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Get Vendor for Edit (with authorization)
+async getVendorForEdit(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { _id: userId, roles } = this.getLoggedInUser(req);
+    const userRole = roles[0]?.key;
+
+    const vendor = await vendorService.getVendorForEdit(id, userId, userRole);
+    
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: vendor
+    });
+  } catch (error: any) {
+    if (error.message.includes('You can only access')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Update Vendor for Vendor Admin
+async updateVendorForAdmin(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { _id: userId, roles } = this.getLoggedInUser(req);
+    const userRole = roles[0]?.key;
+
+    const updatedVendor = await vendorService.updateVendorForAdmin(id, req.body, userId, userRole);
+    
+    if (!updatedVendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendor updated successfully',
+      data: updatedVendor
+    });
+  } catch (error: any) {
+    if (error.message.includes('You can only update') || error.message.includes('Only Super Admin')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    if (error.message.includes('already exists')) {
+      return res.status(409).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Delete Vendor for Vendor Admin
+async deleteVendorForAdmin(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { _id: userId, roles } = this.getLoggedInUser(req);
+    const userRole = roles[0]?.key;
+
+    const result = await vendorService.deleteVendorForAdmin(id, userId, userRole);
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendor deleted successfully'
+    });
+  } catch (error: any) {
+    if (error.message.includes('You can only delete')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
   // Delete Vendor
   async deleteVendor(req: Request, res: Response) {
     try {
@@ -692,113 +630,6 @@ export class VendorController {
       res.status(200).json({
         success: true,
         message: 'Vendor deleted successfully'
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Approve Vendor
-  async approveVendor(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const result = await vendorService.approveVendor(vendorId);
-      
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor approved successfully',
-        data: result
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // Activate Vendor
-  async activateVendor(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const result = await vendorService.activateVendor(vendorId);
-      
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor activated successfully',
-        data: result
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  // In VendorController class
-
-// Bulk update vendor details, status, and contract
-async bulkUpdateVendor(req: Request, res: Response) {
-  try {
-    const { vendorId } = req.params;
-    const { 
-      vendorDetails, 
-      vendorStatus, 
-      vendorContract 
-    } = req.body;
-
-    const result = await vendorService.bulkUpdateVendor(
-      vendorId, 
-      { vendorDetails, vendorStatus, vendorContract }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Vendor updated successfully',
-      data: result
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-}
-  // Deactivate Vendor
-  async deactivateVendor(req: Request, res: Response) {
-    try {
-      const vendorId = this.getVendorIdFromHeader(req);
-      const result = await vendorService.deactivateVendor(vendorId);
-      
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: 'Vendor not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Vendor deactivated successfully',
-        data: result
       });
     } catch (error: any) {
       res.status(400).json({

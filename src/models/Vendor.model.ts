@@ -1,21 +1,55 @@
-// models/Vendor.model.ts
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
-export interface IVendorDetails extends Document {
+export interface IVendorCreate extends Document {
+  // Basic Information
   vendor_name: string;
   vendor_billing_name: string;
-  vendor_type: 'supplier' | 'distributor' | 'manufacturer';
+  primary_contact_name: string;
   vendor_category: string;
-  vendor_contact_name: string;
-  vendor_email: string;
-  vendor_phone: string;
   vendor_address: string;
+  vendor_contact: string;
+  vendor_email: string;
+  vendor_id: string;
+  vendor_phone: string;
+  
+  // Financial Information
+  bank_account_number: string;
+  ifsc_code: string;
+  payment_terms: string;
+  
+  // Compliance Information
+  gst_number: string;
+  pan_number: string;
+  tds_rate: number;
+  billing_cycle: string;
+  
+  // Status & Risk Information
+  vendor_status_cycle: string;
+  risk_rating: 'low' | 'medium' | 'high';
+  risk_notes: string;
+  verification_status: 'verified' | 'rejected' | 'pending';
+  verified_by?: Types.ObjectId;
+  
+  // System Information
+  payment_methods: string;
+  internal_notes: string;
+  
+  // Contract Information
+  contract_expiry_date: Date;
+  contract_renewal_date: Date;
+  
+  // Documents
+  document_names: string;
+  documents_uploaded: string[];
+  
+  // Audit Fields
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const vendorDetailsSchema = new Schema<IVendorDetails>({
+const vendorCreateSchema = new Schema<IVendorCreate>({
+  // Basic Information
   vendor_name: { 
     type: String, 
     required: true,
@@ -26,28 +60,12 @@ const vendorDetailsSchema = new Schema<IVendorDetails>({
     required: true,
     trim: true 
   },
-  vendor_type: {
-    type: String,
-    enum: ['supplier', 'distributor', 'manufacturer'],
-    required: true
+  primary_contact_name: { 
+    type: String, 
+    required: true,
+    trim: true 
   },
   vendor_category: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  vendor_contact_name: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  vendor_email: { 
-    type: String, 
-    required: true,
-    lowercase: true,
-    trim: true 
-  },
-  vendor_phone: { 
     type: String, 
     required: true,
     trim: true 
@@ -57,39 +75,31 @@ const vendorDetailsSchema = new Schema<IVendorDetails>({
     required: true,
     trim: true 
   },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendordetails' // Add explicit collection name
-});
-
-// Indexes for better performance
-vendorDetailsSchema.index({ vendor_email: 1 });
-vendorDetailsSchema.index({ vendor_type: 1 });
-vendorDetailsSchema.index({ createdBy: 1 });
-
-export const VendorDetails = mongoose.model<IVendorDetails>('VendorDetails', vendorDetailsSchema);
-
-export interface IVendorFinancials extends Document {
-  vendor: Types.ObjectId;
-  bank_account_number: string;
-  ifsc_code: string;
-  payment_terms: string;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorFinancialsSchema = new Schema<IVendorFinancials>({
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorDetails',
-    required: true
+  vendor_contact: { 
+    type: String, 
+    required: true,
+    trim: true 
   },
+  vendor_email: { 
+    type: String, 
+    required: true,
+    lowercase: true,
+    trim: true,
+    unique: true
+  },
+  vendor_id: { 
+    type: String, 
+    required: true,
+    unique: true,
+    trim: true 
+  },
+  vendor_phone: { 
+    type: String, 
+    required: true,
+    trim: true 
+  },
+  
+  // Financial Information
   bank_account_number: { 
     type: String, 
     required: true,
@@ -107,44 +117,15 @@ const vendorFinancialsSchema = new Schema<IVendorFinancials>({
     default: 'Net 30',
     trim: true 
   },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendorfinancials' // Add explicit collection name
-});
-
-vendorFinancialsSchema.index({ vendor: 1 });
-
-export const VendorFinancials = mongoose.model<IVendorFinancials>('VendorFinancials', vendorFinancialsSchema);
-
-export interface IVendorCompliance extends Document {
-  vendor: Types.ObjectId;
-  gst_details: string;
-  pan_details: string;
-  tds_rate: number;
-  billing_cycle: 'monthly' | 'weekly' | 'per_order';
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorComplianceSchema = new Schema<IVendorCompliance>({
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorDetails',
-    required: true
-  },
-  gst_details: { 
+  
+  // Compliance Information
+  gst_number: { 
     type: String, 
     required: true,
     uppercase: true,
     trim: true 
   },
-  pan_details: { 
+  pan_number: { 
     type: String, 
     required: true,
     uppercase: true,
@@ -159,46 +140,19 @@ const vendorComplianceSchema = new Schema<IVendorCompliance>({
   },
   billing_cycle: { 
     type: String, 
-    enum: ['monthly', 'weekly', 'per_order'], 
     required: true,
+    enum: ['monthly', 'weekly', 'quarterly', 'annually', 'per_order'],
     default: 'monthly'
   },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendorcompliances' // Add explicit collection name
-});
-
-vendorComplianceSchema.index({ vendor: 1 });
-vendorComplianceSchema.index({ billing_cycle: 1 });
-
-export const VendorCompliance = mongoose.model<IVendorCompliance>('VendorCompliance', vendorComplianceSchema);
-
-export interface IVendorStatus extends Document {
-  vendor: Types.ObjectId;
-  risk_level: 'low' | 'medium' | 'high';
-  risk_notes: string;
-  verified_by?: Types.ObjectId;
-  verification_status: 'pending' | 'verified' | 'rejected';
-  vendor_status_cycle: 'Procurement' | 'Restocking' | 'Finance Reconciliation' | 'Audit';
-  verification_date?: Date;
-  rejection_reason?: string;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorStatusSchema = new Schema<IVendorStatus>({
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorDetails', 
-    required: true 
+  
+  // Status & Risk Information
+  vendor_status_cycle: { 
+    type: String, 
+    required: true,
+    enum: ['Procurement', 'Restocking', 'Finance Reconciliation', 'Audit', 'Onboarding'],
+    default: 'Onboarding'
   },
-  risk_level: { 
+  risk_rating: { 
     type: String, 
     enum: ['low', 'medium', 'high'], 
     required: true,
@@ -207,191 +161,56 @@ const vendorStatusSchema = new Schema<IVendorStatus>({
   risk_notes: { 
     type: String, 
     required: true,
-    trim: true 
+    trim: true,
+    default: 'New vendor - requires assessment'
+  },
+  verification_status: { 
+    type: String, 
+    enum: ['verified', 'rejected', 'pending'], 
+    required: true,
+    default: 'pending'
   },
   verified_by: { 
     type: Schema.Types.ObjectId, 
     ref: 'User'
   },
-  verification_status: { 
-    type: String, 
-    enum: ['pending', 'verified', 'rejected'], 
-    required: true,
-    default: 'pending'
-  },
-  vendor_status_cycle: { 
-    type: String, 
-    enum: ['Procurement', 'Restocking', 'Finance Reconciliation', 'Audit'], 
-    required: true,
-    default: 'Procurement'
-  },
-  verification_date: { 
-    type: Date 
-  },
-  rejection_reason: { 
-    type: String,
-    trim: true 
-  },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendorstatuses' // Add explicit collection name
-});
-
-// Pre-save middleware to enforce verification rules
-vendorStatusSchema.pre('save', function(next) {
-  // If verification_status is being modified to 'verified' or 'rejected'
-  if (this.isModified('verification_status') && 
-      (this.verification_status === 'verified' || this.verification_status === 'rejected')) {
-    
-    // Check if verified_by is set (should be set by Super Admin)
-    if (!this.verified_by) {
-      const error = new Error('Only Super Admin can verify or reject vendors');
-      return next(error);
-    }
-    
-    // Set verification date when status changes to verified or rejected
-    this.verification_date = new Date();
-  }
   
-  // If trying to set verification_status to pending but verified_by is set
-  if (this.isModified('verification_status') && this.verification_status === 'pending' && this.verified_by) {
-    const error = new Error('Cannot set status to pending once verified/rejected');
-    return next(error);
-  }
-  
-  next();
-});
-
-// Indexes for better query performance
-vendorStatusSchema.index({ vendor: 1 });
-vendorStatusSchema.index({ verification_status: 1 });
-vendorStatusSchema.index({ risk_level: 1 });
-vendorStatusSchema.index({ vendor_status_cycle: 1 });
-
-export const VendorStatus = mongoose.model<IVendorStatus>('VendorStatus', vendorStatusSchema);
-
-export interface IVendorDocument extends Document {
-  vendor: Types.ObjectId;
-  document_type: 'Signed Contract' | 'GST' | 'MSME' | 'TDS Exemption';
-  expiry_date: Date;
-  document_upload: string;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorDocumentSchema = new Schema<IVendorDocument>({
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorDetails',
-    required: true
-  },
-  document_type: { 
-    type: String, 
-    enum: ['Signed Contract', 'GST', 'MSME', 'TDS Exemption'], 
-    required: true 
-  },
-  expiry_date: { 
-    type: Date, 
-    required: true 
-  },
-  document_upload: { 
+  // System Information
+  payment_methods: { 
     type: String, 
     required: true,
-    trim: true 
-  },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendordocuments' // Add explicit collection name
-});
-
-vendorDocumentSchema.index({ vendor: 1 });
-vendorDocumentSchema.index({ document_type: 1 });
-vendorDocumentSchema.index({ expiry_date: 1 });
-
-export const VendorDocument = mongoose.model<IVendorDocument>('VendorDocument', vendorDocumentSchema);
-
-export interface IVendorContract extends Document {
-  vendor: Types.ObjectId;
-  contract_terms: string;
-  renewal_date: Date;
-  expiry_date: Date;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorContractSchema = new Schema<IVendorContract>({
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorDetails',
-    required: true
-  },
-  contract_terms: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  renewal_date: { 
-    type: Date, 
-    required: true 
-  },
-  expiry_date: { 
-    type: Date, 
-    required: true 
-  },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  }
-}, { 
-  timestamps: true,
-  collection: 'vendorcontracts' // Add explicit collection name
-});
-
-vendorContractSchema.index({ vendor: 1 });
-vendorContractSchema.index({ expiry_date: 1 });
-vendorContractSchema.index({ renewal_date: 1 });
-
-export const VendorContract = mongoose.model<IVendorContract>('VendorContract', vendorContractSchema);
-
-export interface IVendorSystemInfo extends Document {
-  vendor: Types.ObjectId;
-  payment_method: 'Bank Transfer' | 'Credit Card' | 'Cheque';
-  internal_notes: string;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorSystemInfoSchema = new Schema<IVendorSystemInfo>({
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorDetails',
-    required: true
-  },
-  payment_method: { 
-    type: String, 
-    enum: ['Bank Transfer', 'Credit Card', 'Cheque'], 
-    required: true,
+    enum: ['Bank Transfer', 'Credit Card', 'Cheque', 'UPI', 'Multiple'],
     default: 'Bank Transfer'
   },
   internal_notes: { 
     type: String, 
     required: true,
+    trim: true,
+    default: 'No internal notes'
+  },
+  
+  // Contract Information
+  contract_expiry_date: { 
+    type: Date, 
+    required: true 
+  },
+  contract_renewal_date: { 
+    type: Date, 
+    required: true 
+  },
+  
+  // Documents
+  document_names: { 
+    type: String, 
+    required: false,
     trim: true 
   },
+  documents_uploaded: [{ 
+    type: String, 
+    trim: true 
+  }],
+  
+  // Audit Fields
   createdBy: { 
     type: Schema.Types.ObjectId, 
     ref: 'User', 
@@ -399,13 +218,45 @@ const vendorSystemInfoSchema = new Schema<IVendorSystemInfo>({
   }
 }, { 
   timestamps: true,
-  collection: 'vendorsysteminfo' // Add explicit collection name
+  collection: 'vendors'
 });
 
-vendorSystemInfoSchema.index({ vendor: 1 });
-vendorSystemInfoSchema.index({ payment_method: 1 });
+// Pre-save middleware for vendor ID generation and validation
+vendorCreateSchema.pre('save', function(next) {
+  // Generate vendor ID if not provided
+  if (!this.vendor_id) {
+    const timestamp = new Date().getTime().toString().slice(-6);
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    this.vendor_id = `VEND-${timestamp}-${random}`;
+  }
+  
+  // Validate contract dates
+  if (this.contract_expiry_date <= this.contract_renewal_date) {
+    return next(new Error('Contract expiry date must be after renewal date'));
+  }
+  
+  // Auto-set verification date when status changes to verified/rejected
+  if (this.isModified('verification_status') && 
+      (this.verification_status === 'verified' || this.verification_status === 'rejected')) {
+    
+    if (!this.verified_by) {
+      return next(new Error('Verified_by field is required when verification status is changed'));
+    }
+  }
+  
+  next();
+});
 
-export const VendorSystemInfo = mongoose.model<IVendorSystemInfo>('VendorSystemInfo', vendorSystemInfoSchema);
+// Indexes for better performance
+vendorCreateSchema.index({ vendor_email: 1 }, { unique: true });
+vendorCreateSchema.index({ vendor_id: 1 }, { unique: true });
+vendorCreateSchema.index({ verification_status: 1 });
+vendorCreateSchema.index({ risk_rating: 1 });
+vendorCreateSchema.index({ vendor_category: 1 });
+vendorCreateSchema.index({ createdBy: 1 });
+vendorCreateSchema.index({ contract_expiry_date: 1 });
+
+export const VendorCreate = mongoose.model<IVendorCreate>('VendorCreate', vendorCreateSchema);
 
 export interface IVendorDashboard extends Document {
   total_vendors: number;
@@ -415,10 +266,10 @@ export interface IVendorDashboard extends Document {
   vendors: {
     vendor_name: string;
     vendor_category: string;
-    status: 'active' | 'inactive' | 'pending';
+    verification_status: 'verified' | 'rejected' | 'pending';
     risk_level: 'low' | 'medium' | 'high';
     contract_expiry_date: Date;
-    action: 'edit' | 'delete';
+    action: 'edit' | 'delete' | 'view';
   }[];
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -461,9 +312,9 @@ const vendorDashboardSchema = new Schema<IVendorDashboard>({
       required: true,
       trim: true 
     },
-    status: { 
-      type: String, 
-      enum: ['active', 'inactive', 'pending'], 
+    verification_status: {
+      type: String,
+      enum: ['verified', 'rejected', 'pending'],
       required: true,
       default: 'pending'
     },
@@ -491,11 +342,9 @@ const vendorDashboardSchema = new Schema<IVendorDashboard>({
   }
 }, { 
   timestamps: true,
-  collection: 'vendordashboards' // Add explicit collection name
+  collection: 'vendordashboards'
 });
 
 vendorDashboardSchema.index({ createdBy: 1 });
 
 export const VendorDashboard = mongoose.model<IVendorDashboard>('VendorDashboard', vendorDashboardSchema);
-
-// Export all models and interfaces

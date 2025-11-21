@@ -1,1012 +1,935 @@
-// services/vendor.service.ts
-import {
-  VendorDetails,
-  IVendorDetails,
-  VendorFinancials,
-  IVendorFinancials,
-  VendorCompliance,
-  IVendorCompliance,
-  VendorStatus,
-  IVendorStatus,
-  VendorDocument,
-  IVendorDocument,
-  VendorContract,
-  IVendorContract,
-  VendorSystemInfo,
-  IVendorSystemInfo,
-  VendorDashboard,
-  IVendorDashboard
-} from '../models/Vendor.model';
+import { VendorCreate, IVendorCreate, VendorDashboard, IVendorDashboard } from '../models/Vendor.model';
 import { Types } from 'mongoose';
 
 export class VendorService {
   
-  // Step 1: Create Vendor Details
-  async createVendorDetails(
-    vendorDetailsData: Partial<IVendorDetails>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorDetails> {
-    try {
-      const vendorDetails = new VendorDetails({
-        ...vendorDetailsData,
-        createdBy
-      });
-      return await vendorDetails.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor details: ${error.message}`);
-    }
-  }
-
-  // Step 2: Create Vendor Financials
-  async createVendorFinancials(
-    financialsData: Partial<IVendorFinancials>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorFinancials> {
-    try {
-      // Validate that vendor field is provided
-      if (!financialsData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(financialsData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      // Check if financials already exist for this vendor
-      const existingFinancials = await VendorFinancials.findOne({ 
-        vendor: financialsData.vendor 
-      });
-      
-      if (existingFinancials) {
-        throw new Error('Financials already exist for this vendor. Use update instead.');
-      }
-
-      const vendorFinancials = new VendorFinancials({
-        ...financialsData,
-        createdBy
-      });
-
-      return await vendorFinancials.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor financials: ${error.message}`);
-    }
-  }
-
-  // Step 3: Create Vendor Compliance
-  async createVendorCompliance(
-    complianceData: Partial<IVendorCompliance>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorCompliance> {
-    try {
-      // Validate that vendor field is provided
-      if (!complianceData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(complianceData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      // Check if compliance already exists for this vendor
-      const existingCompliance = await VendorCompliance.findOne({ 
-        vendor: complianceData.vendor 
-      });
-      
-      if (existingCompliance) {
-        throw new Error('Compliance already exists for this vendor. Use update instead.');
-      }
-
-      const vendorCompliance = new VendorCompliance({
-        ...complianceData,
-        createdBy
-      });
-      return await vendorCompliance.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor compliance: ${error.message}`);
-    }
-  }
-
-  // Step 4: Create Vendor Status
-  async createVendorStatus(
-    statusData: Partial<IVendorStatus>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorStatus> {
-    try {
-      // Validate that vendor field is provided
-      if (!statusData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(statusData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      // Check if status already exists for this vendor
-      const existingStatus = await VendorStatus.findOne({ 
-        vendor: statusData.vendor 
-      });
-      
-      if (existingStatus) {
-        throw new Error('Status already exists for this vendor. Use update instead.');
-      }
-
-      const vendorStatusData = {
-        ...statusData,
-        createdBy,
-        verification_status: 'pending',
-        verified_by: undefined
-      };
-      
-      const vendorStatus = new VendorStatus(vendorStatusData);
-      return await vendorStatus.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor status: ${error.message}`);
-    }
-  }
-
-  // Step 5: Create Vendor Document
-  async createVendorDocument(
-    documentData: Partial<IVendorDocument>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorDocument> {
-    try {
-      // Validate that vendor field is provided
-      if (!documentData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(documentData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      const vendorDocument = new VendorDocument({
-        ...documentData,
-        createdBy
-      });
-      return await vendorDocument.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor document: ${error.message}`);
-    }
-  }
-
-  // Step 6: Create Vendor Contract
-  async createVendorContract(
-    contractData: Partial<IVendorContract>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorContract> {
-    try {
-      // Validate that vendor field is provided
-      if (!contractData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(contractData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      // Check if contract already exists for this vendor
-      const existingContract = await VendorContract.findOne({ 
-        vendor: contractData.vendor 
-      });
-      
-      if (existingContract) {
-        throw new Error('Contract already exists for this vendor. Use update instead.');
-      }
-
-      const vendorContract = new VendorContract({
-        ...contractData,
-        createdBy
-      });
-      return await vendorContract.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor contract: ${error.message}`);
-    }
-  }
-
-  // Step 7: Create Vendor System Info
-  async createVendorSystemInfo(
-    systemInfoData: Partial<IVendorSystemInfo>,
-    createdBy: Types.ObjectId
-  ): Promise<IVendorSystemInfo> {
-    try {
-      // Validate that vendor field is provided
-      if (!systemInfoData.vendor) {
-        throw new Error('Vendor ID is required. Please provide a valid vendor ID.');
-      }
-
-      // Check if vendor exists
-      const vendorExists = await VendorDetails.findById(systemInfoData.vendor);
-      if (!vendorExists) {
-        throw new Error('Vendor not found. Please provide a valid vendor ID.');
-      }
-
-      // Check if system info already exists for this vendor
-      const existingSystemInfo = await VendorSystemInfo.findOne({ 
-        vendor: systemInfoData.vendor 
-      });
-      
-      if (existingSystemInfo) {
-        throw new Error('System info already exists for this vendor. Use update instead.');
-      }
-
-      const vendorSystemInfo = new VendorSystemInfo({
-        ...systemInfoData,
-        createdBy
-      });
-      return await vendorSystemInfo.save();
-    } catch (error: any) {
-      throw new Error(`Error creating vendor system info: ${error.message}`);
-    }
-  }
-
-  // Complete Vendor Creation
+  // Create Complete Vendor in single collection
   async createCompleteVendor(
-    vendorData: {
-      details: Partial<IVendorDetails>;
-      financials: Partial<IVendorFinancials>;
-      compliance: Partial<IVendorCompliance>;
-      status: Partial<IVendorStatus>;
-      contract?: Partial<IVendorContract>;
-      systemInfo?: Partial<IVendorSystemInfo>;
-    },
+    vendorData: Partial<IVendorCreate>,
     createdBy: Types.ObjectId
-  ): Promise<{ vendor: IVendorDetails; status: IVendorStatus }> {
-    const session = await VendorDetails.startSession();
-    session.startTransaction();
-
+  ): Promise<IVendorCreate> {
     try {
-      // Validate vendor data first
-      VendorValidationService.validateVendorDetails(vendorData.details);
-      VendorValidationService.validateFinancials(vendorData.financials);
-      VendorValidationService.validateCompliance(vendorData.compliance);
+      // Validate vendor data
+      VendorValidationService.validateCompleteVendorData(vendorData);
 
-      // Step 1: Create Vendor Details
-      const vendorDetails = await this.createVendorDetails(
-        vendorData.details,
-        createdBy
-      );
+      // Check for duplicate vendor email
+      const existingVendorByEmail = await VendorCreate.findOne({
+        vendor_email: vendorData.vendor_email?.toLowerCase()
+      });
 
-      // Step 2: Create related records with vendor reference
-      const [financials, compliance, status] = await Promise.all([
-        this.createVendorFinancials({
-          ...vendorData.financials,
-          vendor: vendorDetails._id
-        }, createdBy),
-        this.createVendorCompliance({
-          ...vendorData.compliance,
-          vendor: vendorDetails._id
-        }, createdBy),
-        this.createVendorStatus({
-          ...vendorData.status,
-          vendor: vendorDetails._id
-        }, createdBy)
+      if (existingVendorByEmail) {
+        throw new Error('Vendor with this email already exists');
+      }
+
+      // Generate vendor ID if not provided
+      if (!vendorData.vendor_id) {
+        vendorData.vendor_id = this.generateVendorId();
+      } else {
+        // Check for duplicate vendor ID if provided
+        const existingVendorById = await VendorCreate.findOne({
+          vendor_id: vendorData.vendor_id
+        });
+
+        if (existingVendorById) {
+          throw new Error('Vendor with this ID already exists');
+        }
+      }
+
+      // Prepare vendor data with defaults
+      const completeVendorData = {
+        ...vendorData,
+        createdBy,
+        verification_status: 'pending', // Always start as pending
+        verified_by: undefined // Clear verified_by for new vendors
+      };
+
+      const vendor = new VendorCreate(completeVendorData);
+      return await vendor.save();
+
+    } catch (error: any) {
+      throw new Error(`Error creating vendor: ${error.message}`);
+    }
+  }
+
+  // Generate unique vendor ID
+  private generateVendorId(): string {
+    const timestamp = new Date().getTime().toString().slice(-6);
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `VEND-${timestamp}-${random}`;
+  }
+
+  // Get Super Admin Dashboard Data - Show ALL vendors
+  async getSuperAdminDashboard(filters: {
+    verification_status?: string;
+    risk_rating?: string;
+    vendor_category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{
+    total_vendors: number;
+    pending_approvals: number;
+    active_vendors: number;
+    rejected_vendors: number;
+    vendors: any[];
+  }> {
+    try {
+      // Get counts with proper filtering
+      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
+        VendorCreate.countDocuments(),
+        VendorCreate.countDocuments({ verification_status: 'pending' }),
+        VendorCreate.countDocuments({ verification_status: 'verified' }),
+        VendorCreate.countDocuments({ verification_status: 'rejected' })
       ]);
 
-      // Optional: Create contract and system info if provided
-      if (vendorData.contract) {
-        await this.createVendorContract({
-          ...vendorData.contract,
-          vendor: vendorDetails._id
-        }, createdBy);
+      // Build query for vendors
+      const query: any = {};
+
+      if (filters.verification_status) {
+        query.verification_status = filters.verification_status;
       }
 
-      if (vendorData.systemInfo) {
-        await this.createVendorSystemInfo({
-          ...vendorData.systemInfo,
-          vendor: vendorDetails._id
-        }, createdBy);
+      if (filters.risk_rating) {
+        query.risk_rating = filters.risk_rating;
       }
 
-      await session.commitTransaction();
-      return { vendor: vendorDetails, status };
+      if (filters.vendor_category) {
+        query.vendor_category = filters.vendor_category;
+      }
 
-    } catch (error: any) {
-      await session.abortTransaction();
-      throw new Error(`Error creating complete vendor: ${error.message}`);
-    } finally {
-      session.endSession();
-    }
-  }
+      if (filters.search) {
+        query.$or = [
+          { vendor_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_email: { $regex: filters.search, $options: 'i' } },
+          { vendor_id: { $regex: filters.search, $options: 'i' } },
+          { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_category: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
 
-  // Get vendor details by ID
-  async getVendorDetailsById(id: string): Promise<IVendorDetails | null> {
-    try {
-      return await VendorDetails.findById(id);
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor details: ${error.message}`);
-    }
-  }
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
 
-  // Get vendor financials by Vendor ID
-  async getVendorFinancialsByVendorId(vendorId: string): Promise<IVendorFinancials | null> {
-    try {
-      return await VendorFinancials.findOne({ vendor: vendorId });
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor financials: ${error.message}`);
-    }
-  }
-
-  // Get vendor compliance by Vendor ID
-  async getVendorComplianceByVendorId(vendorId: string): Promise<IVendorCompliance | null> {
-    try {
-      return await VendorCompliance.findOne({ vendor: vendorId });
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor compliance: ${error.message}`);
-    }
-  }
-
-  // Get vendor status by Vendor ID
-  async getVendorStatusByVendorId(vendorId: string, userRole: string): Promise<IVendorStatus | null> {
-    try {
-      const status = await VendorStatus.findOne({ vendor: vendorId })
-        .populate('vendor')
+      // Get ALL vendors for the dashboard table with creator information
+      const vendors = await VendorCreate.find(query)
+        .populate('createdBy', 'name email')
         .populate('verified_by', 'name email')
-        .populate('createdBy', 'name email');
+        .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
 
-      // If user is not Super Admin, hide verified_by information for pending status
-      if (status && userRole !== 'super_admin' && status.verification_status === 'pending') {
-        status.verified_by = undefined as any;
-      }
+      const dashboardVendors = vendors.map(vendor => ({
+        _id: vendor._id,
+        vendor_id: vendor.vendor_id,
+        vendor_name: vendor.vendor_name,
+        vendor_category: vendor.vendor_category,
+        verification_status: vendor.verification_status,
+        risk_rating: vendor.risk_rating,
+        contract_expiry_date: vendor.contract_expiry_date,
+        created_by: vendor.createdBy,
+        verified_by: vendor.verified_by,
+        created_at: vendor.createdAt,
+        updated_at: vendor.updatedAt,
+        // Actions based on current status
+        actions: this.getAvailableActions(vendor.verification_status)
+      }));
 
-      return status;
+      return {
+        total_vendors: totalVendors,
+        pending_approvals: pendingApprovals,
+        active_vendors: activeVendors,
+        rejected_vendors: rejectedVendors,
+        vendors: dashboardVendors
+      };
+
     } catch (error: any) {
-      throw new Error(`Error fetching vendor status: ${error.message}`);
+      throw new Error(`Error getting super admin dashboard: ${error.message}`);
     }
   }
 
-  // Update vendor status by Vendor ID
-  async updateVendorStatusByVendorId(
+  // Helper method to determine available actions based on vendor status
+  private getAvailableActions(verificationStatus: string): string[] {
+    switch (verificationStatus) {
+      case 'pending':
+        return ['verify', 'reject', 'view', 'edit'];
+      case 'verified':
+        return ['reject', 'view', 'edit']; // Can still reject a verified vendor
+      case 'rejected':
+        return ['verify', 'view', 'edit']; // Can verify a rejected vendor
+      default:
+        return ['view', 'edit'];
+    }
+  }
+
+  // Toggle Vendor Verification Status (Verify ↔ Reject)
+  async toggleVendorVerification(
     vendorId: string, 
-    statusData: Partial<IVendorStatus>,
-    userRole: string
-  ): Promise<IVendorStatus | null> {
-    try {
-      // If user is not Super Admin, prevent changing verification_status
-      if (userRole !== 'super_admin' && 'verification_status' in statusData) {
-        throw new Error('Only Super Admin can modify verification status');
-      }
-
-      return await VendorStatus.findOneAndUpdate(
-        { vendor: vendorId },
-        statusData,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor status: ${error.message}`);
-    }
-  }
-
-  // Update vendor financials by Vendor ID
-  async updateVendorFinancialsByVendorId(
-    vendorId: string, 
-    data: Partial<IVendorFinancials>
-  ): Promise<IVendorFinancials | null> {
-    try {
-      // Remove vendor field from update data to prevent changing the vendor reference
-      const { vendor, ...updateData } = data;
-      
-      return await VendorFinancials.findOneAndUpdate(
-        { vendor: vendorId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor financials: ${error.message}`);
-    }
-  }
-
-  // Update vendor compliance by Vendor ID
-  async updateVendorComplianceByVendorId(
-    vendorId: string, 
-    data: Partial<IVendorCompliance>
-  ): Promise<IVendorCompliance | null> {
-    try {
-      // Remove vendor field from update data to prevent changing the vendor reference
-      const { vendor, ...updateData } = data;
-      
-      return await VendorCompliance.findOneAndUpdate(
-        { vendor: vendorId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor compliance: ${error.message}`);
-    }
-  }
-
-  // Get vendor documents by Vendor ID
-  async getVendorDocuments(vendorId: string): Promise<IVendorDocument[]> {
-    try {
-      return await VendorDocument.find({ vendor: vendorId });
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor documents: ${error.message}`);
-    }
-  }
-
-  // Update vendor contract by Vendor ID
-  async updateVendorContractByVendorId(
-    vendorId: string, 
-    contractData: Partial<IVendorContract>
-  ): Promise<IVendorContract | null> {
-    try {
-      // Remove vendor field from update data to prevent changing the vendor reference
-      const { vendor, ...updateData } = contractData;
-      
-      return await VendorContract.findOneAndUpdate(
-        { vendor: vendorId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor contract: ${error.message}`);
-    }
-  }
-
-  // Get vendor contract by Vendor ID
-  async getVendorContractByVendorId(vendorId: string): Promise<IVendorContract | null> {
-    try {
-      return await VendorContract.findOne({ vendor: vendorId });
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor contract: ${error.message}`);
-    }
-  }
-
-  // Get vendor system info by Vendor ID
-  async getVendorSystemInfoByVendorId(vendorId: string): Promise<IVendorSystemInfo | null> {
-    try {
-      return await VendorSystemInfo.findOne({ vendor: vendorId });
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor system info: ${error.message}`);
-    }
-  }
-
-  // Update vendor system info by Vendor ID
-  async updateVendorSystemInfoByVendorId(
-    vendorId: string, 
-    data: Partial<IVendorSystemInfo>
-  ): Promise<IVendorSystemInfo | null> {
-    try {
-      // Remove vendor field from update data to prevent changing the vendor reference
-      const { vendor, ...updateData } = data;
-      
-      return await VendorSystemInfo.findOneAndUpdate(
-        { vendor: vendorId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor system info: ${error.message}`);
-    }
-  }
-
-  // Update vendor verification by Vendor ID (Only for Super Admin)
-  async updateVendorVerification(
-    vendorId: string, 
-    verificationStatus: 'verified' | 'rejected',
     verifiedBy: Types.ObjectId,
-    userRole: string,
-    rejectionReason?: string
-  ): Promise<IVendorStatus> {
+    userRole: string
+  ): Promise<IVendorCreate> {
     try {
       // Check if user is Super Admin
       if (userRole !== 'super_admin') {
         throw new Error('Only Super Admin can verify or reject vendors');
       }
 
-      const updateData: any = {
-        verification_status: verificationStatus,
-        verified_by: verifiedBy,
-        verification_date: new Date()
-      };
-
-      if (verificationStatus === 'rejected' && rejectionReason) {
-        updateData.rejection_reason = rejectionReason;
+      const vendor = await VendorCreate.findById(vendorId);
+      if (!vendor) {
+        throw new Error('Vendor not found');
       }
 
-      const updatedStatus = await VendorStatus.findOneAndUpdate(
-        { vendor: vendorId },
+      let newStatus: 'verified' | 'rejected';
+      let updateData: any = {
+        verified_by: verifiedBy,
+        updatedAt: new Date()
+      };
+
+      // Toggle between verified and rejected
+      if (vendor.verification_status === 'verified') {
+        newStatus = 'rejected';
+        updateData.verification_status = newStatus;
+        updateData.risk_notes = `Vendor rejected by super admin on ${new Date().toISOString()}`;
+      } else if (vendor.verification_status === 'rejected') {
+        newStatus = 'verified';
+        updateData.verification_status = newStatus;
+        updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
+      } else {
+        // If pending, default to verify
+        newStatus = 'verified';
+        updateData.verification_status = newStatus;
+        updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
+      }
+
+      const updatedVendor = await VendorCreate.findByIdAndUpdate(
+        vendorId,
         updateData,
         { new: true, runValidators: true }
       ).populate('verified_by', 'name email')
-       .populate('vendor');
+       .populate('createdBy', 'name email');
 
-      if (!updatedStatus) {
-        throw new Error('Vendor status not found');
+      if (!updatedVendor) {
+        throw new Error('Vendor not found');
       }
 
-      return updatedStatus;
+      return updatedVendor;
+    } catch (error: any) {
+      throw new Error(`Error toggling vendor verification: ${error.message}`);
+    }
+  }
+
+  // Update Vendor Verification with flexible status changes
+  async updateVendorVerification(
+    vendorId: string, 
+    verificationStatus: 'verified' | 'rejected' | 'pending',
+    verifiedBy: Types.ObjectId,
+    userRole: string,
+    notes?: string
+  ): Promise<IVendorCreate> {
+    try {
+      // Check if user is Super Admin
+      if (userRole !== 'super_admin') {
+        throw new Error('Only Super Admin can modify vendor verification status');
+      }
+
+      const updateData: any = {
+        verification_status: verificationStatus,
+        verified_by: verifiedBy,
+        updatedAt: new Date()
+      };
+
+      // Add notes if provided
+      if (notes) {
+        updateData.risk_notes = `${verificationStatus.toUpperCase()} - ${notes} (${new Date().toISOString()})`;
+      } else {
+        updateData.risk_notes = `Status changed to ${verificationStatus} by super admin on ${new Date().toISOString()}`;
+      }
+
+      const updatedVendor = await VendorCreate.findByIdAndUpdate(
+        vendorId,
+        updateData,
+        { new: true, runValidators: true }
+      ).populate('verified_by', 'name email')
+       .populate('createdBy', 'name email');
+
+      if (!updatedVendor) {
+        throw new Error('Vendor not found');
+      }
+
+      return updatedVendor;
     } catch (error: any) {
       throw new Error(`Error updating vendor verification: ${error.message}`);
     }
   }
 
-  // Get vendor dashboard data
-  async getVendorDashboard(createdBy: Types.ObjectId): Promise<IVendorDashboard> {
+  // Get All Vendors for Super Admin with advanced filtering
+  async getAllVendorsForSuperAdmin(filters: {
+    verification_status?: string;
+    risk_rating?: string;
+    vendor_category?: string;
+    created_by?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    date_from?: string;
+    date_to?: string;
+  } = {}): Promise<{ vendors: any[]; total: number; page: number; pages: number }> {
     try {
-      // Get counts with proper filtering
-      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-        VendorDetails.countDocuments(),
-        VendorStatus.countDocuments({ verification_status: 'pending' }),
-        VendorStatus.countDocuments({ verification_status: 'verified' }),
-        VendorStatus.countDocuments({ verification_status: 'rejected' })
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const query: any = {};
+
+      if (filters.verification_status) {
+        query.verification_status = filters.verification_status;
+      }
+
+      if (filters.risk_rating) {
+        query.risk_rating = filters.risk_rating;
+      }
+
+      if (filters.vendor_category) {
+        query.vendor_category = filters.vendor_category;
+      }
+
+      if (filters.created_by) {
+        query.createdBy = new Types.ObjectId(filters.created_by);
+      }
+
+      if (filters.date_from || filters.date_to) {
+        query.createdAt = {};
+        if (filters.date_from) {
+          query.createdAt.$gte = new Date(filters.date_from);
+        }
+        if (filters.date_to) {
+          query.createdAt.$lte = new Date(filters.date_to);
+        }
+      }
+
+      if (filters.search) {
+        query.$or = [
+          { vendor_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_email: { $regex: filters.search, $options: 'i' } },
+          { vendor_id: { $regex: filters.search, $options: 'i' } },
+          { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_category: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+
+      const [vendors, total] = await Promise.all([
+        VendorCreate.find(query)
+          .populate('createdBy', 'name email')
+          .populate('verified_by', 'name email')
+          .select('vendor_name vendor_category vendor_email vendor_id risk_rating verification_status contract_expiry_date createdBy verified_by createdAt updatedAt')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        VendorCreate.countDocuments(query)
       ]);
 
-      // Get vendors with their details for the table
-      const vendors = await VendorStatus.aggregate([
-        {
-          $lookup: {
-            from: 'vendordetails',
-            localField: 'vendor',
-            foreignField: '_id',
-            as: 'vendor_details'
+      const formattedVendors = vendors.map(vendor => ({
+        _id: vendor._id,
+        vendor_name: vendor.vendor_name,
+        vendor_category: vendor.vendor_category,
+        vendor_email: vendor.vendor_email,
+        vendor_id: vendor.vendor_id,
+        risk_rating: vendor.risk_rating,
+        verification_status: vendor.verification_status,
+        contract_expiry_date: vendor.contract_expiry_date,
+        created_by: vendor.createdBy,
+        verified_by: vendor.verified_by,
+        created_at: vendor.createdAt,
+        updated_at: vendor.updatedAt,
+        actions: this.getAvailableActions(vendor.verification_status)
+      }));
+
+      return {
+        vendors: formattedVendors,
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      };
+
+    } catch (error: any) {
+      throw new Error(`Error fetching vendors for super admin: ${error.message}`);
+    }
+  }
+
+  // Bulk Verify/Reject Vendors
+  async bulkUpdateVendorVerification(
+    vendorIds: string[],
+    verificationStatus: 'verified' | 'rejected',
+    verifiedBy: Types.ObjectId,
+    userRole: string,
+    rejectionReason?: string
+  ): Promise<{ successful: string[]; failed: any[] }> {
+    try {
+      // Check if user is Super Admin
+      if (userRole !== 'super_admin') {
+        throw new Error('Only Super Admin can verify or reject vendors');
+      }
+
+      const successful: string[] = [];
+      const failed: any[] = [];
+
+      for (const vendorId of vendorIds) {
+        try {
+          const updateData: any = {
+            verification_status: verificationStatus,
+            verified_by: verifiedBy,
+            updatedAt: new Date()
+          };
+
+          if (verificationStatus === 'rejected' && rejectionReason) {
+            updateData.risk_notes = rejectionReason;
           }
-        },
-        {
-          $unwind: '$vendor_details'
-        },
-        {
-          $lookup: {
-            from: 'vendorcontracts',
-            localField: 'vendor',
-            foreignField: 'vendor',
-            as: 'contracts'
+
+          const updatedVendor = await VendorCreate.findByIdAndUpdate(
+            vendorId,
+            updateData,
+            { new: true, runValidators: true }
+          );
+
+          if (updatedVendor) {
+            successful.push(vendorId);
+          } else {
+            failed.push({ vendorId, error: 'Vendor not found' });
           }
-        },
+        } catch (error: any) {
+          failed.push({ vendorId, error: error.message });
+        }
+      }
+
+      return { successful, failed };
+    } catch (error: any) {
+      throw new Error(`Error bulk updating vendor verification: ${error.message}`);
+    }
+  }
+
+  // Get Vendor Statistics for Super Admin
+  async getVendorStatistics(): Promise<{
+    total_vendors: number;
+    pending_approvals: number;
+    active_vendors: number;
+    rejected_vendors: number;
+    vendors_by_category: any[];
+    vendors_by_risk: any[];
+    recent_activity: any[];
+  }> {
+    try {
+      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
+        VendorCreate.countDocuments(),
+        VendorCreate.countDocuments({ verification_status: 'pending' }),
+        VendorCreate.countDocuments({ verification_status: 'verified' }),
+        VendorCreate.countDocuments({ verification_status: 'rejected' })
+      ]);
+
+      const vendorsByCategory = await VendorCreate.aggregate([
         {
-          $addFields: {
-            contract_expiry_date: {
-              $arrayElemAt: ['$contracts.expiry_date', 0]
+          $group: {
+            _id: '$vendor_category',
+            count: { $sum: 1 },
+            pending: {
+              $sum: { $cond: [{ $eq: ['$verification_status', 'pending'] }, 1, 0] }
+            },
+            verified: {
+              $sum: { $cond: [{ $eq: ['$verification_status', 'verified'] }, 1, 0] }
+            },
+            rejected: {
+              $sum: { $cond: [{ $eq: ['$verification_status', 'rejected'] }, 1, 0] }
             }
           }
         },
+        { $sort: { count: -1 } }
+      ]);
+
+      const vendorsByRisk = await VendorCreate.aggregate([
         {
-          $project: {
-            vendor_name: '$vendor_details.vendor_name',
-            vendor_category: '$vendor_details.vendor_category',
-            status: '$verification_status',
-            risk_level: 1,
-            contract_expiry_date: 1,
-            action: 'edit'
+          $group: {
+            _id: '$risk_rating',
+            count: { $sum: 1 }
           }
         }
       ]);
 
-      const dashboardData = {
+      const recentActivity = await VendorCreate.find()
+        .populate('createdBy', 'name email')
+        .populate('verified_by', 'name email')
+        .select('vendor_name verification_status createdBy verified_by createdAt')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
+
+      return {
         total_vendors: totalVendors,
         pending_approvals: pendingApprovals,
         active_vendors: activeVendors,
         rejected_vendors: rejectedVendors,
-        vendors: vendors,
-        createdBy: createdBy
+        vendors_by_category: vendorsByCategory,
+        vendors_by_risk: vendorsByRisk,
+        recent_activity: recentActivity
       };
-
-      const dashboard = await VendorDashboard.findOneAndUpdate(
-        { createdBy: createdBy },
-        dashboardData,
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
-
-      if (!dashboard) {
-        throw new Error('Failed to create vendor dashboard');
-      }
-
-      return dashboard;
     } catch (error: any) {
-      throw new Error(`Error getting vendor dashboard: ${error.message}`);
+      throw new Error(`Error getting vendor statistics: ${error.message}`);
     }
   }
 
-  // Get vendors pending approval
-  async getPendingApprovals(): Promise<IVendorStatus[]> {
+  // Get Pending Approvals with detailed information
+  async getPendingApprovals(): Promise<any[]> {
     try {
-      return await VendorStatus.find({ verification_status: 'pending' })
-        .populate('vendor')
+      return await VendorCreate.find({ verification_status: 'pending' })
         .populate('createdBy', 'name email')
-        .sort({ createdAt: -1 });
+        .select('vendor_name vendor_category vendor_email vendor_id risk_rating contract_expiry_date createdBy createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
     } catch (error: any) {
       throw new Error(`Error fetching pending approvals: ${error.message}`);
     }
   }
 
-  // Get vendor overview
-  async getVendorOverview(): Promise<any> {
+  // Get Vendor by ID
+  async getVendorById(id: string): Promise<IVendorCreate | null> {
     try {
-      const vendorsByType = await VendorDetails.aggregate([
-        {
-          $group: {
-            _id: '$vendor_type',
-            count: { $sum: 1 }
-          }
-        }
-      ]);
+      return await VendorCreate.findById(id)
+        .populate('createdBy', 'name email')
+        .populate('verified_by', 'name email');
+    } catch (error: any) {
+      throw new Error(`Error fetching vendor: ${error.message}`);
+    }
+  }
 
-      const vendorsByStatus = await VendorStatus.aggregate([
-        {
-          $group: {
-            _id: '$verification_status',
-            count: { $sum: 1 }
-          }
-        }
-      ]);
+  // Get Vendor by Vendor ID
+  async getVendorByVendorId(vendorId: string): Promise<IVendorCreate | null> {
+    try {
+      return await VendorCreate.findOne({ vendor_id: vendorId })
+        .populate('createdBy', 'name email')
+        .populate('verified_by', 'name email');
+    } catch (error: any) {
+      throw new Error(`Error fetching vendor: ${error.message}`);
+    }
+  }
 
-      const complianceStatus = await VendorCompliance.aggregate([
-        {
-          $group: {
-            _id: '$billing_cycle',
-            count: { $sum: 1 }
-          }
-        }
+  // Get All Vendors with filtering and pagination (for general use)
+  async getAllVendors(filters: {
+    verification_status?: string;
+    risk_rating?: string;
+    vendor_category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ vendors: IVendorCreate[]; total: number; page: number; pages: number }> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const query: any = {};
+
+      if (filters.verification_status) {
+        query.verification_status = filters.verification_status;
+      }
+
+      if (filters.risk_rating) {
+        query.risk_rating = filters.risk_rating;
+      }
+
+      if (filters.vendor_category) {
+        query.vendor_category = filters.vendor_category;
+      }
+
+      if (filters.search) {
+        query.$or = [
+          { vendor_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_email: { $regex: filters.search, $options: 'i' } },
+          { vendor_id: { $regex: filters.search, $options: 'i' } },
+          { primary_contact_name: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+
+      const [vendors, total] = await Promise.all([
+        VendorCreate.find(query)
+          .populate('createdBy', 'name email')
+          .populate('verified_by', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        VendorCreate.countDocuments(query)
       ]);
 
       return {
-        vendorsByType,
-        vendorsByStatus,
-        complianceStatus
+        vendors,
+        total,
+        page,
+        pages: Math.ceil(total / limit)
       };
+
     } catch (error: any) {
-      throw new Error(`Error getting vendor overview: ${error.message}`);
+      throw new Error(`Error fetching vendors: ${error.message}`);
     }
   }
 
-  // Update vendor details by ID
-  async updateVendorDetails(id: string, data: Partial<IVendorDetails>): Promise<IVendorDetails | null> {
+  // Update Vendor
+  async updateVendor(
+    id: string, 
+    updateData: Partial<IVendorCreate>,
+    userRole: string
+  ): Promise<IVendorCreate | null> {
     try {
-      return await VendorDetails.findByIdAndUpdate(
-        id,
-        data,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor details: ${error.message}`);
-    }
-  }
+      // If user is not Super Admin, prevent changing verification_status
+      if (userRole !== 'super_admin' && 'verification_status' in updateData) {
+        throw new Error('Only Super Admin can modify verification status');
+      }
 
-  // Delete vendor document by ID
-  async deleteVendorDocument(id: string): Promise<boolean> {
-    try {
-      const result = await VendorDocument.findByIdAndDelete(id);
-      return !!result;
-    } catch (error: any) {
-      throw new Error(`Error deleting vendor document: ${error.message}`);
-    }
-  }
+      // Validate update data
+      if (updateData.vendor_email) {
+        const existingVendor = await VendorCreate.findOne({
+          vendor_email: updateData.vendor_email.toLowerCase(),
+          _id: { $ne: id }
+        });
 
-  // Get all vendors
-  async getAllVendors(): Promise<any[]> {
-    try {
-      const vendors = await VendorStatus.aggregate([
-        {
-          $lookup: {
-            from: 'vendordetails',
-            localField: 'vendor',
-            foreignField: '_id',
-            as: 'vendor_details'
-          }
-        },
-        {
-          $unwind: '$vendor_details'
-        },
-        {
-          $lookup: {
-            from: 'vendorfinancials',
-            localField: 'vendor',
-            foreignField: 'vendor',
-            as: 'vendor_financials'
-          }
-        },
-        {
-          $lookup: {
-            from: 'vendorcompliances',
-            localField: 'vendor',
-            foreignField: 'vendor',
-            as: 'vendor_compliance'
-          }
-        },
-        {
-          $project: {
-            vendor_name: '$vendor_details.vendor_name',
-            vendor_type: '$vendor_details.vendor_type',
-            vendor_category: '$vendor_details.vendor_category',
-            vendor_email: '$vendor_details.vendor_email',
-            vendor_phone: '$vendor_details.vendor_phone',
-            verification_status: 1,
-            risk_level: 1,
-            vendor_status_cycle: 1,
-            payment_terms: { $arrayElemAt: ['$vendor_financials.payment_terms', 0] },
-            billing_cycle: { $arrayElemAt: ['$vendor_compliance.billing_cycle', 0] },
-            created_at: '$createdAt'
-          }
+        if (existingVendor) {
+          throw new Error('Vendor with this email already exists');
         }
-      ]);
+      }
 
-      return vendors;
+      if (updateData.vendor_id) {
+        const existingVendor = await VendorCreate.findOne({
+          vendor_id: updateData.vendor_id,
+          _id: { $ne: id }
+        });
+
+        if (existingVendor) {
+          throw new Error('Vendor with this ID already exists');
+        }
+      }
+
+      return await VendorCreate.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      ).populate('createdBy', 'name email')
+       .populate('verified_by', 'name email');
+
     } catch (error: any) {
-      throw new Error(`Error fetching all vendors: ${error.message}`);
+      throw new Error(`Error updating vendor: ${error.message}`);
     }
   }
 
-  // Delete vendor (cascade delete)
+  // Delete Vendor
   async deleteVendor(id: string): Promise<boolean> {
     try {
-      const session = await VendorDetails.startSession();
-      session.startTransaction();
-
-      try {
-        // Delete all related vendor data
-        await Promise.all([
-          VendorDetails.findByIdAndDelete(id).session(session),
-          VendorFinancials.deleteMany({ vendor: id }).session(session),
-          VendorCompliance.deleteMany({ vendor: id }).session(session),
-          VendorStatus.deleteMany({ vendor: id }).session(session),
-          VendorDocument.deleteMany({ vendor: id }).session(session),
-          VendorContract.deleteMany({ vendor: id }).session(session),
-          VendorSystemInfo.deleteMany({ vendor: id }).session(session)
-        ]);
-
-        await session.commitTransaction();
-        return true;
-      } catch (error: any) {
-        await session.abortTransaction();
-        throw error;
-      } finally {
-        session.endSession();
-      }
+      const result = await VendorCreate.findByIdAndDelete(id);
+      return !!result;
     } catch (error: any) {
       throw new Error(`Error deleting vendor: ${error.message}`);
     }
   }
 
-  // Approve vendor by Vendor ID
-  async approveVendor(vendorId: string): Promise<IVendorStatus | null> {
-    try {
-      return await VendorStatus.findOneAndUpdate(
-        { vendor: vendorId },
-        { 
-          verification_status: 'verified',
-          verification_date: new Date()
-        },
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error approving vendor: ${error.message}`);
-    }
-  }
+  // Bulk Create Vendors
+  async createBulkVendors(
+    vendorsData: Partial<IVendorCreate>[],
+    createdBy: Types.ObjectId
+  ): Promise<{ 
+    successful: any[]; 
+    failed: any[]; 
+  }> {
+    const successful: any[] = [];
+    const failed: any[] = [];
 
-  // Activate vendor by Vendor ID
-  async activateVendor(vendorId: string): Promise<IVendorStatus | null> {
-    try {
-      return await VendorStatus.findOneAndUpdate(
-        { vendor: vendorId },
-        { 
-          verification_status: 'verified',
-          risk_level: 'low'
-        },
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error activating vendor: ${error.message}`);
+    for (let i = 0; i < vendorsData.length; i++) {
+      try {
+        const result = await this.createCompleteVendor(vendorsData[i], createdBy);
+        successful.push({
+          index: i,
+          vendor_name: result.vendor_name,
+          vendor_id: result.vendor_id,
+          data: result
+        });
+      } catch (error: any) {
+        failed.push({
+          index: i,
+          vendor_name: vendorsData[i].vendor_name,
+          error: error.message
+        });
+      }
     }
-  }
 
-  // Deactivate vendor by Vendor ID
-  async deactivateVendor(vendorId: string): Promise<IVendorStatus | null> {
-    try {
-      return await VendorStatus.findOneAndUpdate(
-        { vendor: vendorId },
-        { 
-          verification_status: 'rejected',
-          risk_level: 'high',
-          rejection_reason: 'Vendor deactivated by admin'
-        },
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error deactivating vendor: ${error.message}`);
-    }
+    return { successful, failed };
   }
-
-  // Search vendors with filters
-  async searchVendors(filters: {
-    vendor_type?: string;
+  // Get Vendor Admin Dashboard Data
+async getVendorAdminDashboard(
+  createdBy: Types.ObjectId,
+  filters: {
     verification_status?: string;
-    risk_level?: string;
+    risk_rating?: string;
     vendor_category?: string;
     search?: string;
-  }): Promise<any[]> {
-    try {
-      const matchStage: any = {};
-
-      if (filters.vendor_type) {
-        matchStage['vendor_details.vendor_type'] = filters.vendor_type;
-      }
-
-      if (filters.verification_status) {
-        matchStage.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_level) {
-        matchStage.risk_level = filters.risk_level;
-      }
-
-      if (filters.vendor_category) {
-        matchStage['vendor_details.vendor_category'] = filters.vendor_category;
-      }
-
-      if (filters.search) {
-        matchStage['$or'] = [
-          { 'vendor_details.vendor_name': { $regex: filters.search, $options: 'i' } },
-          { 'vendor_details.vendor_email': { $regex: filters.search, $options: 'i' } },
-          { 'vendor_details.vendor_contact_name': { $regex: filters.search, $options: 'i' } }
-        ];
-      }
-
-      const pipeline: any[] = [
-        {
-          $lookup: {
-            from: 'vendordetails',
-            localField: 'vendor',
-            foreignField: '_id',
-            as: 'vendor_details'
-          }
-        },
-        { $unwind: '$vendor_details' }
-      ];
-
-      if (Object.keys(matchStage).length > 0) {
-        pipeline.push({ $match: matchStage });
-      }
-
-      pipeline.push({
-        $project: {
-          vendor_name: '$vendor_details.vendor_name',
-          vendor_type: '$vendor_details.vendor_type',
-          vendor_category: '$vendor_details.vendor_category',
-          vendor_email: '$vendor_details.vendor_email',
-          vendor_phone: '$vendor_details.vendor_phone',
-          verification_status: 1,
-          risk_level: 1,
-          vendor_status_cycle: 1,
-          created_at: '$createdAt'
-        }
-      });
-
-      return await VendorStatus.aggregate(pipeline);
-    } catch (error: any) {
-      throw new Error(`Error searching vendors: ${error.message}`);
-    }
-  }
-
-  // Get vendor contract by ID (for backward compatibility)
-  async getVendorContractById(id: string): Promise<IVendorContract | null> {
-    try {
-      return await VendorContract.findById(id);
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor contract: ${error.message}`);
-    }
-  }
-
-  // Get vendor system info by ID (for backward compatibility)
-  async getVendorSystemInfoById(id: string): Promise<IVendorSystemInfo | null> {
-    try {
-      return await VendorSystemInfo.findById(id);
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor system info: ${error.message}`);
-    }
-  }
-// In VendorService class
-
-// Bulk update vendor details, status, and contract
-async bulkUpdateVendor(
-  vendorId: string,
-  updateData: {
-    vendorDetails?: Partial<IVendorDetails>;
-    vendorStatus?: Partial<IVendorStatus>;
-    vendorContract?: Partial<IVendorContract>;
-  }
+    page?: number;
+    limit?: number;
+  } = {}
 ): Promise<{
-  vendorDetails: IVendorDetails | null;
-  vendorStatus: IVendorStatus | null;
-  vendorContract: IVendorContract | null;
+  total_vendors: number;
+  pending_approvals: number;
+  active_vendors: number;
+  rejected_vendors: number;
+  vendors: any[];
 }> {
-  const session = await VendorDetails.startSession();
-  session.startTransaction();
-
   try {
-    // Validate vendor exists
-    const vendorExists = await VendorDetails.findById(vendorId);
-    if (!vendorExists) {
-      throw new Error('Vendor not found');
+    // Build query for vendor admin (only their own vendors)
+    const baseQuery: any = { createdBy };
+
+    // Get counts with vendor admin filtering
+    const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
+      VendorCreate.countDocuments(baseQuery),
+      VendorCreate.countDocuments({ ...baseQuery, verification_status: 'pending' }),
+      VendorCreate.countDocuments({ ...baseQuery, verification_status: 'verified' }),
+      VendorCreate.countDocuments({ ...baseQuery, verification_status: 'rejected' })
+    ]);
+
+    // Build complete query with filters
+    const query: any = { createdBy };
+
+    if (filters.verification_status) {
+      query.verification_status = filters.verification_status;
     }
 
-    const updatePromises = [];
-
-    // Update vendor details if provided
-    if (updateData.vendorDetails) {
-      updatePromises.push(
-        VendorDetails.findByIdAndUpdate(
-          vendorId,
-          updateData.vendorDetails,
-          { new: true, runValidators: true, session }
-        )
-      );
-    } else {
-      updatePromises.push(Promise.resolve(null));
+    if (filters.risk_rating) {
+      query.risk_rating = filters.risk_rating;
     }
 
-    // Update vendor status if provided
-    if (updateData.vendorStatus) {
-      updatePromises.push(
-        VendorStatus.findOneAndUpdate(
-          { vendor: vendorId },
-          updateData.vendorStatus,
-          { new: true, runValidators: true, session }
-        )
-      );
-    } else {
-      updatePromises.push(Promise.resolve(null));
+    if (filters.vendor_category) {
+      query.vendor_category = filters.vendor_category;
     }
 
-    // Update vendor contract if provided
-    if (updateData.vendorContract) {
-      updatePromises.push(
-        VendorContract.findOneAndUpdate(
-          { vendor: vendorId },
-          updateData.vendorContract,
-          { new: true, runValidators: true, session }
-        )
-      );
-    } else {
-      updatePromises.push(Promise.resolve(null));
+    if (filters.search) {
+      query.$or = [
+        { vendor_name: { $regex: filters.search, $options: 'i' } },
+        { vendor_email: { $regex: filters.search, $options: 'i' } },
+        { vendor_id: { $regex: filters.search, $options: 'i' } },
+        { vendor_category: { $regex: filters.search, $options: 'i' } }
+      ];
     }
 
-    const [updatedDetails, updatedStatus, updatedContract] = await Promise.all(updatePromises);
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const skip = (page - 1) * limit;
 
-    await session.commitTransaction();
+    // Get vendors for the dashboard table (only vendor admin's vendors)
+    const vendors = await VendorCreate.find(query)
+      .populate('createdBy', 'name email')
+      .populate('verified_by', 'name email')
+      .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const dashboardVendors = vendors.map(vendor => ({
+      _id: vendor._id,
+      vendor_id: vendor.vendor_id,
+      vendor_name: vendor.vendor_name,
+      vendor_category: vendor.vendor_category,
+      verification_status: vendor.verification_status,
+      risk_rating: vendor.risk_rating,
+      contract_expiry_date: vendor.contract_expiry_date,
+      created_by: vendor.createdBy,
+      verified_by: vendor.verified_by,
+      created_at: vendor.createdAt,
+      updated_at: vendor.updatedAt,
+      // Actions for vendor admin
+      actions: this.getVendorAdminActions(vendor.verification_status)
+    }));
 
     return {
-      vendorDetails: updatedDetails,
-      vendorStatus: updatedStatus,
-      vendorContract: updatedContract
+      total_vendors: totalVendors,
+      pending_approvals: pendingApprovals,
+      active_vendors: activeVendors,
+      rejected_vendors: rejectedVendors,
+      vendors: dashboardVendors
     };
 
   } catch (error: any) {
-    await session.abortTransaction();
-    throw new Error(`Error bulk updating vendor: ${error.message}`);
-  } finally {
-    session.endSession();
+    throw new Error(`Error getting vendor admin dashboard: ${error.message}`);
   }
 }
-  // Update vendor system info by ID (for backward compatibility)
-  async updateVendorSystemInfo(id: string, data: Partial<IVendorSystemInfo>): Promise<IVendorSystemInfo | null> {
-    try {
-      return await VendorSystemInfo.findByIdAndUpdate(
-        id,
-        data,
-        { new: true, runValidators: true }
-      );
-    } catch (error: any) {
-      throw new Error(`Error updating vendor system info: ${error.message}`);
+
+// Helper method to determine available actions for vendor admin
+private getVendorAdminActions(verificationStatus: string): string[] {
+  // Vendor admin can always view, edit, and delete their vendors
+  // But cannot change verification status (only super admin can do that)
+  return ['view', 'edit', 'delete'];
+}
+
+// Update Vendor for Vendor Admin (with restrictions)
+async updateVendorForAdmin(
+  id: string, 
+  updateData: Partial<IVendorCreate>,
+  userId: Types.ObjectId,
+  userRole: string
+): Promise<IVendorCreate | null> {
+  try {
+    // Check if vendor exists and belongs to the user
+    const existingVendor = await VendorCreate.findById(id);
+    if (!existingVendor) {
+      throw new Error('Vendor not found');
     }
+
+    // Vendor admin can only update their own vendors
+    if (userRole === 'vendor_admin' && !existingVendor.createdBy.equals(userId)) {
+      throw new Error('You can only update vendors created by you');
+    }
+
+    // Vendor admin cannot change verification_status
+    if (userRole === 'vendor_admin' && 'verification_status' in updateData) {
+      throw new Error('Only Super Admin can modify verification status');
+    }
+
+    // Define allowed fields for vendor admin to update
+    const allowedFields = [
+      'vendor_name',
+      'vendor_billing_name',
+      'primary_contact_name',
+      'vendor_category',
+      'vendor_address',
+      'vendor_contact',
+      'vendor_email',
+      'vendor_phone',
+      'bank_account_number',
+      'ifsc_code',
+      'payment_terms',
+      'gst_number',
+      'pan_number',
+      'tds_rate',
+      'billing_cycle',
+      'risk_rating',
+      'risk_notes',
+      'payment_methods',
+      'internal_notes',
+      'contract_expiry_date',
+      'contract_renewal_date',
+      'document_names',
+      'documents_uploaded'
+    ];
+
+    // Filter update data to only include allowed fields
+    const filteredUpdateData: Record<string, any> = {};
+    Object.keys(updateData).forEach(key => {
+      if (allowedFields.includes(key)) {
+        filteredUpdateData[key] = updateData[key as keyof IVendorCreate];
+      }
+    });
+
+    // Validate email uniqueness if being updated
+    if (filteredUpdateData.vendor_email) {
+      const existingVendorWithEmail = await VendorCreate.findOne({
+        vendor_email: filteredUpdateData.vendor_email.toLowerCase(),
+        _id: { $ne: id }
+      });
+
+      if (existingVendorWithEmail) {
+        throw new Error('Vendor with this email already exists');
+      }
+    }
+
+    return await VendorCreate.findByIdAndUpdate(
+      id,
+      filteredUpdateData,
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'name email')
+     .populate('verified_by', 'name email');
+
+  } catch (error: any) {
+    throw new Error(`Error updating vendor: ${error.message}`);
   }
+}
+
+// Get Vendor Details for Edit (with proper authorization)
+async getVendorForEdit(
+  id: string,
+  userId: Types.ObjectId,
+  userRole: string
+): Promise<IVendorCreate | null> {
+  try {
+    const vendor = await VendorCreate.findById(id)
+      .populate('createdBy', 'name email')
+      .populate('verified_by', 'name email');
+
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // Vendor admin can only access their own vendors
+    if (userRole === 'vendor_admin' && !vendor.createdBy.equals(userId)) {
+      throw new Error('You can only access vendors created by you');
+    }
+
+    return vendor;
+  } catch (error: any) {
+    throw new Error(`Error fetching vendor: ${error.message}`);
+  }
+}
+
+// Delete Vendor with authorization check
+async deleteVendorForAdmin(
+  id: string,
+  userId: Types.ObjectId,
+  userRole: string
+): Promise<boolean> {
+  try {
+    const vendor = await VendorCreate.findById(id);
+    
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // Vendor admin can only delete their own vendors
+    if (userRole === 'vendor_admin' && !vendor.createdBy.equals(userId)) {
+      throw new Error('You can only delete vendors created by you');
+    }
+
+    const result = await VendorCreate.findByIdAndDelete(id);
+    return !!result;
+  } catch (error: any) {
+    throw new Error(`Error deleting vendor: ${error.message}`);
+  }
+}
 }
 
 // Validation Service
 class VendorValidationService {
-  static validateVendorDetails(data: Partial<IVendorDetails>): void {
+  static validateCompleteVendorData(data: Partial<IVendorCreate>): void {
+    // Basic Information Validation
+    if (!data.vendor_name) {
+      throw new Error('Vendor name is required');
+    }
+
+    if (!data.vendor_billing_name) {
+      throw new Error('Vendor billing name is required');
+    }
+
+    if (!data.primary_contact_name) {
+      throw new Error('Primary contact name is required');
+    }
+
+    if (!data.vendor_category) {
+      throw new Error('Vendor category is required');
+    }
+
+    if (!data.vendor_address) {
+      throw new Error('Vendor address is required');
+    }
+
+    if (!data.vendor_contact) {
+      throw new Error('Vendor contact is required');
+    }
+
     if (!data.vendor_email) {
       throw new Error('Vendor email is required');
     }
-    
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.vendor_email)) {
       throw new Error('Invalid vendor email format');
@@ -1016,32 +939,7 @@ class VendorValidationService {
       throw new Error('Vendor phone is required');
     }
 
-    if (!data.vendor_name) {
-      throw new Error('Vendor name is required');
-    }
-
-    if (!data.vendor_billing_name) {
-      throw new Error('Vendor billing name is required');
-    }
-
-    if (!data.vendor_type) {
-      throw new Error('Vendor type is required');
-    }
-
-    if (!data.vendor_category) {
-      throw new Error('Vendor category is required');
-    }
-
-    if (!data.vendor_contact_name) {
-      throw new Error('Vendor contact name is required');
-    }
-
-    if (!data.vendor_address) {
-      throw new Error('Vendor address is required');
-    }
-  }
-
-  static validateFinancials(data: Partial<IVendorFinancials>): void {
+    // Financial Information Validation
     if (!data.bank_account_number) {
       throw new Error('Bank account number is required');
     }
@@ -1054,15 +952,14 @@ class VendorValidationService {
     if (!ifscRegex.test(data.ifsc_code)) {
       throw new Error('Valid IFSC code is required (format: ABCD0123456)');
     }
-  }
 
-  static validateCompliance(data: Partial<IVendorCompliance>): void {
-    if (!data.gst_details) {
-      throw new Error('GST details are required');
+    // Compliance Information Validation
+    if (!data.gst_number) {
+      throw new Error('GST number is required');
     }
 
-    if (!data.pan_details) {
-      throw new Error('PAN details are required');
+    if (!data.pan_number) {
+      throw new Error('PAN number is required');
     }
 
     if (data.tds_rate === undefined || data.tds_rate === null) {
@@ -1071,6 +968,29 @@ class VendorValidationService {
 
     if (data.tds_rate < 0 || data.tds_rate > 100) {
       throw new Error('TDS rate must be between 0 and 100');
+    }
+
+    // Contract Information Validation
+    if (!data.contract_expiry_date) {
+      throw new Error('Contract expiry date is required');
+    }
+
+    if (!data.contract_renewal_date) {
+      throw new Error('Contract renewal date is required');
+    }
+
+    if (data.contract_expiry_date && data.contract_renewal_date) {
+      const expiryDate = new Date(data.contract_expiry_date);
+      const renewalDate = new Date(data.contract_renewal_date);
+      
+      if (expiryDate <= renewalDate) {
+        throw new Error('Contract expiry date must be after renewal date');
+      }
+    }
+
+    // Risk Information Validation
+    if (!data.risk_notes) {
+      throw new Error('Risk notes are required');
     }
   }
 }
