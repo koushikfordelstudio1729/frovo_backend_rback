@@ -1,4 +1,3 @@
-
 // routes/warehouse.routes.ts
 import { Router } from 'express';
 import * as warehouseController from '../controllers/warehouse.controller';
@@ -6,17 +5,16 @@ import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { 
-  receiveGoodsSchema,
   createDispatchSchema,
   createQCTemplateSchema,
   createReturnOrderSchema,
   createExpenseSchema,
-  updateQCSchema,
   updateDispatchStatusSchema,
   createFieldAgentSchema,
-  dashboardQuerySchema
+  dashboardQuerySchema,
+  createPurchaseOrderSchema,
+  updatePurchaseOrderStatusSchema
 } from '../validators/warehouse.validator';
-import { getArchivedInventory } from '../controllers/warehouse.controller';
 
 const router = Router();
 
@@ -24,7 +22,6 @@ const router = Router();
 router.use(authenticate);
 
 // ==================== SCREEN 1: DASHBOARD ====================
-// Update dashboard route to include validation
 router.get('/dashboard',
   requirePermission('warehouse:view'),
   validate({ query: dashboardQuerySchema.shape.query }),
@@ -32,30 +29,30 @@ router.get('/dashboard',
 );
 
 // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-router.post('/inbound/receive',
-  requirePermission('inventory:receive'),
-  validate({ body: receiveGoodsSchema.shape.body }),
-  warehouseController.receiveGoods
+// Purchase Orders
+router.post('/inbound/purchase-orders',
+  requirePermission('purchase:create'),
+  validate({ body: createPurchaseOrderSchema.shape.body }),
+  warehouseController.createPurchaseOrder
 );
 
-router.get('/inbound/receivings',
-  requirePermission('inventory:view'),
-  warehouseController.getReceivings
+router.get('/inbound/purchase-orders',
+  requirePermission('purchase:view'),
+  warehouseController.getPurchaseOrders
 );
 
-router.get('/inbound/receivings/:id',
-  requirePermission('inventory:view'),
-  warehouseController.getReceivingById
+router.get('/inbound/purchase-orders/:id',
+  requirePermission('purchase:view'),
+  warehouseController.getPurchaseOrderById
 );
 
-router.patch('/inbound/receivings/:id/qc',
-  requirePermission('inventory:receive'),
-  validate({ body: updateQCSchema.shape.body }), // Add validation
-  warehouseController.updateQCVerification
+router.patch('/inbound/purchase-orders/:id/status',
+  requirePermission('purchase:approve'),
+  validate({ body: updatePurchaseOrderStatusSchema.shape.body }),
+  warehouseController.updatePurchaseOrderStatus
 );
 
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
-
 // Dispatch Orders
 router.post('/outbound/dispatch',
   requirePermission('dispatch:assign'),
@@ -102,8 +99,6 @@ router.delete('/qc/templates/:id',
   warehouseController.deleteQCTemplate
 );
 
-
-
 // Return Management
 router.post('/returns',
   requirePermission('returns:manage'),
@@ -137,6 +132,7 @@ router.post('/field-agents',
   validate({ body: createFieldAgentSchema.shape.body }),
   warehouseController.createFieldAgent
 );
+
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
 // Inventory Dashboard Routes
 router.get('/inventory/dashboard/:warehouseId',
@@ -171,7 +167,7 @@ router.patch('/inventory/:id/unarchive',
 
 router.get('/inventory/archived/:warehouseId',
   requirePermission('inventory:view'),
-  getArchivedInventory
+  warehouseController.getArchivedInventory
 );
 
 router.post('/inventory/bulk-archive',
@@ -201,18 +197,36 @@ router.get('/expenses/summary',
   warehouseController.getExpenseSummary
 );
 
+router.get('/expenses/:id',
+  requirePermission('expenses:view'),
+  warehouseController.getExpenseById
+);
+
+router.put('/expenses/:id',
+  requirePermission('expenses:manage'),
+  warehouseController.updateExpense
+);
+
 router.patch('/expenses/:id/status',
   requirePermission('expenses:approve'),
   warehouseController.updateExpenseStatus
 );
-// Enhanced expense routes
-router.get('/expenses/:id', warehouseController.getExpenseById);
-router.put('/expenses/:id', warehouseController.updateExpense);
-router.patch('/expenses/:id/status', warehouseController.updateExpenseStatus);
-router.patch('/expenses/:id/payment-status', warehouseController.updateExpensePaymentStatus);
-router.delete('/expenses/:id', warehouseController.deleteExpense);
-router.get('/expenses/trend/monthly', warehouseController.getMonthlyExpenseTrend);
-// ==================== SCREEN 6: REPORTS & ANALYTICS ====================
+
+router.patch('/expenses/:id/payment-status',
+  requirePermission('expenses:manage'),
+  warehouseController.updateExpensePaymentStatus
+);
+
+router.delete('/expenses/:id',
+  requirePermission('expenses:manage'),
+  warehouseController.deleteExpense
+);
+
+router.get('/expenses/trend/monthly',
+  requirePermission('expenses:view'),
+  warehouseController.getMonthlyExpenseTrend
+);
+
 // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
 router.get('/reports',
   requirePermission('reports:view'),
@@ -239,5 +253,24 @@ router.get('/reports/purchase-orders',
   warehouseController.generatePurchaseOrderReport
 );
 
+router.get('/reports/inventory-turnover',
+  requirePermission('reports:view'),
+  warehouseController.generateInventoryTurnoverReport
+);
+
+router.get('/reports/qc-summary',
+  requirePermission('reports:view'),
+  warehouseController.generateQCSummaryReport
+);
+
+router.get('/reports/efficiency',
+  requirePermission('reports:view'),
+  warehouseController.generateEfficiencyReport
+);
+
+router.get('/reports/stock-ageing',
+  requirePermission('reports:view'),
+  warehouseController.getStockAgeingReport
+);
 
 export default router;

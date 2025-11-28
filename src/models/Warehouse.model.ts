@@ -14,31 +14,92 @@ export interface IWarehouse extends Document {
   updatedAt: Date;
 }
 
-export interface IGoodsReceiving extends Document {
+export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
+  po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
-  sku: string;
-  productName: string;
-  quantity: number;
-  batchId: string;
-  warehouse: Types.ObjectId;
-  qcVerification: {
-    packaging: boolean;
-    expiry: boolean;
-    label: boolean;
-    documents: string[]; // File URLs for QC documents
-  };
-  storage: {
-    zone: string;
-    aisle: string;
-    rack: string;
-    bin: string;
-  };
-  status: 'received' | 'qc_pending' | 'qc_passed' | 'qc_failed';
-  createdBy: Types.ObjectId;
+  po_status: 'draft' | 'approved' | 'pending';
+  po_raised_date: Date;
+  remarks?: string;
   createdAt: Date;
   updatedAt: Date;
+  createdBy: Types.ObjectId;
+  generatePONumber(): Promise<string>;
 }
+
+const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
+  po_number: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    uppercase: true,
+    trim: true
+  },
+  vendor: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'VendorCreate', 
+    required: true 
+  },
+  po_status: {
+    type: String,
+    enum: ['draft', 'approved', 'pending'],
+    default: 'draft'
+  },
+  po_raised_date: { 
+    type: Date, 
+    required: true,
+    default: Date.now 
+  },
+  remarks: { 
+    type: String 
+  },
+createdBy: { // Add this field to the schema
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true
+}
+}, {
+  timestamps: true 
+});
+
+// Pre-save middleware to generate 7-digit PO number
+raisePurchaseOrderSchema.pre('save', async function(next) {
+  if (this.isNew && !this.po_number) {
+    this.po_number = await this.generatePONumber();
+  }
+  next();
+});
+
+// Method to generate unique 7-digit PO number
+raisePurchaseOrderSchema.methods.generatePONumber = async function(): Promise<string> {
+  const PO = mongoose.model<IRaisePurchaseOrder>('RaisePurchaseOrder');
+  
+  let isUnique = false;
+  let poNumber = '';
+  
+  while (!isUnique) {
+    // Generate 7-digit number with leading zeros
+    const randomNum = Math.floor(1000000 + Math.random() * 9000000);
+    poNumber = `PO${randomNum.toString().substring(0, 7)}`;
+    
+    // Check if PO number already exists
+    const existingPO = await PO.findOne({ po_number: poNumber });
+    if (!existingPO) {
+      isUnique = true;
+    }
+  }
+  
+  return poNumber;
+};
+
+
+
+// Index for better performance
+raisePurchaseOrderSchema.index({ po_number: 1 }, { unique: true });
+raisePurchaseOrderSchema.index({ vendor: 1 });
+raisePurchaseOrderSchema.index({ po_status: 1 });
+raisePurchaseOrderSchema.index({ po_raised_date: -1 });
+
 export interface IDispatchOrder extends Document {
   _id: Types.ObjectId;
   dispatchId: string;
@@ -166,32 +227,6 @@ const warehouseSchema = new Schema<IWarehouse>({
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
-const goodsReceivingSchema = new Schema<IGoodsReceiving>({
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
-  sku: { type: String, required: true },
-  productName: { type: String, required: true },
-  quantity: { type: Number, required: true, min: 1 },
-  batchId: { type: String, required: true },
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-  qcVerification: {
-    packaging: { type: Boolean, required: true },
-    expiry: { type: Boolean, required: true },
-    label: { type: Boolean, required: true },
-    documents: [{ type: String }] // QC-specific documents
-  },
-  storage: {
-    zone: { type: String, required: true },
-    aisle: { type: String, required: true },
-    rack: { type: String, required: true },
-    bin: { type: String, required: true }
-  },
-  status: { 
-    type: String, 
-    enum: ['received', 'qc_pending', 'qc_passed', 'qc_failed'],
-    default: 'received'
-  },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
 
 const dispatchOrderSchema = new Schema({
   dispatchId: { type: String, required: true, unique: true },
@@ -352,7 +387,7 @@ const expenseSchema = new Schema<IExpense>({
 
 // Export models
 export const Warehouse = mongoose.model<IWarehouse>('Warehouse', warehouseSchema);
-export const GoodsReceiving = mongoose.model<IGoodsReceiving>('GoodsReceiving', goodsReceivingSchema);
+export const RaisePurchaseOrder = mongoose.model<IRaisePurchaseOrder>('RaisePurchaseOrder', raisePurchaseOrderSchema);
 export const DispatchOrder = mongoose.model<IDispatchOrder>('DispatchOrder', dispatchOrderSchema);
 export const QCTemplate = mongoose.model<IQCTemplate>('QCTemplate', qcTemplateSchema);
 export const ReturnOrder = mongoose.model<IReturnOrder>('ReturnOrder', returnOrderSchema);

@@ -1,6 +1,6 @@
 // services/warehouse.service.ts
 import { 
-  GoodsReceiving,
+  RaisePurchaseOrder,
   DispatchOrder,
   QCTemplate,
   ReturnOrder,
@@ -9,10 +9,9 @@ import {
   FieldAgent,
 } from '../models/Warehouse.model';
 import { Types } from 'mongoose';
-import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
+import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
 
-
-// Add these interfaces to your existing interfaces in warehouse.service.ts
+// Interfaces
 export interface InventoryStats {
   totalItems: number;
   activeItems: number;
@@ -44,6 +43,7 @@ export interface InventoryDashboardResponse {
   totalPages: number;
   filters: InventoryDashboardFilters;
 }
+
 export interface DashboardData {
   kpis: {
     inbound: number;
@@ -57,44 +57,34 @@ export interface DashboardData {
     count: number;
   }[];
   recentActivities: any[];
-  // Add new fields for the chart data
   pendingVsRefill: {
     days: string[];
     pendingPercentages: number[];
     refillPercentages: number[];
   };
-  // Add data for dropdowns
   filters: {
     categories: string[];
     partners: string[];
   };
-  // Add warehouse info
   warehouseInfo: {
     name: string;
     pendingBatches: number;
   };
 }
 
-export interface GoodsReceivingData {
-  poNumber: string;
+export interface RaisePurchaseOrderData {
+  po_number?: string;
   vendor: Types.ObjectId;
-  sku: string;
-  productName: string;
-  quantity: number;
-  batchId?: string;
-  warehouse: Types.ObjectId;
-  qcVerification: {
-    packaging: boolean;
-    expiry: boolean;
-    label: boolean;
-    documents?: string[];
-  };
-  storage: {
-    zone: string;
-    aisle: string;
-    rack: string;
-    bin: string;
-  };
+  po_raised_date: Date;
+  po_status: 'pending' | 'approved' | 'draft';
+  vendor_id: string;
+  vendor_address: string;
+  vendor_contact: string;
+  vendor_email: string;
+  vendor_phone: string;
+  gst_number: string;
+  remarks?: string;
+  warehouse?: Types.ObjectId;
 }
 
 export interface DispatchData {
@@ -114,15 +104,11 @@ export interface DispatchData {
 }
 
 export interface QCTemplateData {
-  sku: any | string;
-  title: any | string;
-  name: string;
-  category: 'snacks' | 'beverages' | 'perishable' | 'non_perishable';
+  title: string;
+  sku: string;
   parameters: {
     name: string;
-    type: 'boolean' | 'text' | 'number';
-    required: boolean;
-    options?: string[];
+    value: string;
   }[];
 }
 
@@ -215,21 +201,25 @@ class WarehouseService {
     }
 
     const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
-      GoodsReceiving.countDocuments({
+      // Use RaisePurchaseOrder for inbound count
+      RaisePurchaseOrder.countDocuments({
         ...baseQuery,
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
       }),
       
+      // Use DispatchOrder for outbound count
       DispatchOrder.countDocuments({
         ...baseQuery,
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
       }),
       
-      GoodsReceiving.countDocuments({
+      // Use RaisePurchaseOrder with draft status for pending QC
+      RaisePurchaseOrder.countDocuments({
         ...baseQuery,
-        status: 'qc_pending'
+        po_status: 'draft'
       }),
       
+      // Today's dispatches
       DispatchOrder.countDocuments({
         ...baseQuery,
         createdAt: {
@@ -241,14 +231,8 @@ class WarehouseService {
 
     const alerts = await this.generateAlerts(warehouseId);
     const recentActivities = await this.getRecentActivities(warehouseId);
-    
-    // Generate pending vs refill chart data
     const pendingVsRefill = await this.generatePendingVsRefillData(warehouseId, filters);
-    
-    // Get filter options
     const filterOptions = await this.getFilterOptions();
-    
-    // Get warehouse info
     const warehouseInfo = await this.getWarehouseInfo(warehouseId);
 
     return {
@@ -266,19 +250,12 @@ class WarehouseService {
     pendingPercentages: number[];
     refillPercentages: number[];
   }> {
-    // This would typically query your database for actual data
-    // For now, returning sample data as shown in your design
+    // Sample data
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    
-    // Sample data from your dashboard design
     const pendingPercentages = [100, 90, 60, 40, 20, 50, 70];
     const refillPercentages = [80, 70, 90, 60, 40, 85, 95];
     
-    return {
-      days,
-      pendingPercentages,
-      refillPercentages
-    };
+    return { days, pendingPercentages, refillPercentages };
   }
 
   private async getFilterOptions(): Promise<{
@@ -286,8 +263,8 @@ class WarehouseService {
     partners: string[];
   }> {
     try {
-      // Get unique categories from product names
-      const categories = await GoodsReceiving.aggregate([
+      // Get unique categories from Inventory
+      const categories = await Inventory.aggregate([
         { 
           $match: { 
             productName: { $exists: true, $ne: '' } 
@@ -307,16 +284,15 @@ class WarehouseService {
         { $limit: 10 }
       ]);
 
-      // Extract category names and format them
       const categoryNames = categories.map((cat: any) => 
         cat.name.charAt(0).toUpperCase() + cat.name.slice(1)
       ).filter((name: string) => name.length > 0);
 
-      // Get partners from vendors - simplified approach
-      const partners = await GoodsReceiving.aggregate([
+      // Get partners from RaisePurchaseOrder vendors
+      const partners = await RaisePurchaseOrder.aggregate([
         {
           $lookup: {
-            from: 'vendors',
+            from: 'vendorcreates',
             localField: 'vendor',
             foreignField: '_id',
             as: 'vendorData'
@@ -331,7 +307,7 @@ class WarehouseService {
         {
           $group: {
             _id: '$vendor',
-            vendorName: { $first: '$vendorData.name' }
+            vendorName: { $first: '$vendorData.vendor_name' }
           }
         },
         {
@@ -356,7 +332,6 @@ class WarehouseService {
       };
     } catch (error) {
       console.error('Error getting filter options:', error);
-      // Return default options if there's an error
       return {
         categories: ['Snacks', 'Beverages', 'Perishable', 'Non-Perishable'],
         partners: ['XYZ Warehouse', 'ABC Suppliers', 'Global Foods']
@@ -369,16 +344,13 @@ class WarehouseService {
     pendingBatches: number;
   }> {
     try {
-      // Get pending batches count
-      const pendingBatches = await GoodsReceiving.countDocuments({
+      const pendingBatches = await RaisePurchaseOrder.countDocuments({
         ...(warehouseId && Types.ObjectId.isValid(warehouseId) && { 
           warehouse: new Types.ObjectId(warehouseId) 
         }),
-        status: 'qc_pending'
+        po_status: 'draft'
       });
 
-      // Get warehouse name (you might need to query your Warehouse model)
-      // For now, returning a default name
       return {
         name: 'XYZ WAREHOUSE',
         pendingBatches
@@ -387,12 +359,11 @@ class WarehouseService {
       console.error('Error getting warehouse info:', error);
       return {
         name: 'XYZ WAREHOUSE',
-        pendingBatches: 3 // Default from your design
+        pendingBatches: 3
       };
     }
   }
 
-  // Update the getDateFilter method to handle custom dates
   private getDateFilter(dateRange?: any): any {
     if (!dateRange) return {};
     
@@ -401,25 +372,19 @@ class WarehouseService {
       try {
         const parts = dateRange.split('-');
         const [dayStr, monthStr, yearStr] = parts;
-        const day = dayStr ? Number(dayStr) : NaN;
-        const month = monthStr ? Number(monthStr) : NaN;
-        const year = yearStr ? Number(yearStr) : NaN;
+        const day = Number(dayStr);
+        const month = Number(monthStr);
+        const year = Number(yearStr);
 
-        // Validate parsed numbers
-        if (![day, month, year].every(n => Number.isInteger(n) && !Number.isNaN(n))) {
-          throw new Error(`Invalid custom date format: ${dateRange}`);
+        if ([day, month, year].every(n => Number.isInteger(n) && !Number.isNaN(n))) {
+          const customDate = new Date(year, month - 1, day);
+          const startOfDay = new Date(customDate);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(customDate);
+          endOfDay.setHours(23, 59, 59, 999);
+          
+          return { $gte: startOfDay, $lte: endOfDay };
         }
-
-        const customDate = new Date(year, month - 1, day);
-        const startOfDay = new Date(customDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(customDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        
-        return {
-          $gte: startOfDay,
-          $lte: endOfDay
-        };
       } catch (error) {
         console.error('Error parsing custom date:', error);
         return {};
@@ -437,198 +402,143 @@ class WarehouseService {
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
-        
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         endOfWeek.setHours(23, 59, 59, 999);
-        
-        return {
-          $gte: startOfWeek,
-          $lte: endOfWeek
-        };
+        return { $gte: startOfWeek, $lte: endOfWeek };
       case 'this_month':
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         endOfMonth.setHours(23, 59, 59, 999);
-        
-        return {
-          $gte: startOfMonth,
-          $lte: endOfMonth
-        };
+        return { $gte: startOfMonth, $lte: endOfMonth };
       default:
         return {};
     }
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-async receiveGoods(data: GoodsReceivingData, createdBy: Types.ObjectId): Promise<IGoodsReceiving> {
-  const batchId = data.batchId || `BATCH-${Date.now()}`;
+  // In your warehouse.service.ts - update the createPurchaseOrder method
 
-  const qcPassed = data.qcVerification.packaging &&
-                   data.qcVerification.expiry &&
-                   data.qcVerification.label;
-
-  const status = qcPassed ? 'qc_passed' : 'qc_failed';
-
-  const goodsReceiving = await GoodsReceiving.create({
+async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
+  const purchaseOrder = await RaisePurchaseOrder.create({
     ...data,
-    batchId,
-    status,
+    po_raised_date: data.po_raised_date || new Date(),
+    po_status: data.po_status || 'draft',
     createdBy
   });
 
-  if (status === 'qc_passed') {
-    await this.upsertInventory({
-      sku: data.sku,
-      productName: data.productName,
-      batchId,
-      warehouse: data.warehouse,
-      quantity: data.quantity,
-      location: data.storage,
-      createdBy
-    });
-  }
-
-  return goodsReceiving;
-}
-
-
-async getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]> {
-  let query: any = {};
-
-  if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-    query.warehouseId = new Types.ObjectId(warehouseId);
-  }
-
-  if (filters?.startDate || filters?.endDate) {
-    query.createdAt = {};
-    if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
-    if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
-  }
-
-  if (filters?.status) query.status = filters.status;
-  if (filters?.poNumber) query.poNumber = { $regex: filters.poNumber, $options: 'i' };
-  if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
-    query.vendor = new Types.ObjectId(filters.vendor);
-  }
-
-  return await GoodsReceiving.find(query)
-    .populate('warehouse', 'name code') // ✔ fixed field
-    .populate('vendor', 'name code') // better vendor details
-    .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 });
-}
-
-
-async getReceivingById(id: string): Promise<IGoodsReceiving | null> {
-  if (!Types.ObjectId.isValid(id)) return null;
-
-  return await GoodsReceiving.findById(id)
-    .populate('warehouse', 'name code') // ✔ fixed reference
-    .populate('vendor', 'name code contactPerson')
+  // Populate vendor data before returning
+  const populatedPO = await RaisePurchaseOrder.findById(purchaseOrder._id)
+    .populate('vendor', 'vendor_name vendor_billing_name vendor_email vendor_phone vendor_category gst_number verification_status vendor_address vendor_contact vendor_id')
     .populate('createdBy', 'name email');
+
+  return populatedPO!;
 }
 
+  async getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]> {
+    let query: any = {};
 
-async updateQCVerification(
-  id: string,
-  qcData: Partial<GoodsReceivingData['qcVerification']>
-): Promise<IGoodsReceiving | null> {
+    
+    if (filters?.startDate || filters?.endDate) {
+      query.createdAt = {};
+      if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
+      if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
+    }
 
-  if (!Types.ObjectId.isValid(id)) return null;
+    if (filters?.po_status) query.po_status = filters.po_status;
+    if (filters?.po_number) query.po_number = { $regex: filters.po_number, $options: 'i' };
+    if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
+      query.vendor = new Types.ObjectId(filters.vendor);
+    }
 
-  const receiving = await GoodsReceiving.findById(id);
-  if (!receiving) return null;
-
-  const updatedQC = { ...receiving.qcVerification, ...qcData };
-  const qcPassed = updatedQC.packaging && updatedQC.expiry && updatedQC.label;
-
-  const status = qcPassed ? 'qc_passed' : 'qc_failed';
-
-  const updatedReceiving = await GoodsReceiving.findByIdAndUpdate(
-    id,
-    { qcVerification: updatedQC, status },
-    { new: true }
-  )
-  .populate('warehouse', 'name code')
-  .populate('vendor', 'name code')
-  .populate('createdBy', 'name email');
-
-  if (status === 'qc_passed' && receiving.status !== 'qc_passed') {
-    await this.upsertInventory({
-      sku: receiving.sku,
-      productName: receiving.productName,
-      batchId: receiving.batchId,
-      warehouse: receiving.warehouse,
-      quantity: receiving.quantity,
-      location: receiving.storage,
-      createdBy: receiving.createdBy
-    });
+    return await RaisePurchaseOrder.find(query)
+      .populate('vendor', 'vendor_name vendor_email vendor_contact')
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
   }
 
-  return updatedReceiving;
-}
+  async getPurchaseOrderById(id: string): Promise<IRaisePurchaseOrder | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
 
-
-async upsertInventory(data: InventoryUpsertData): Promise<void> {
-  const existingInventory = await Inventory.findOne({
-    sku: data.sku,
-    batchId: data.batchId,
-    warehouse: data.warehouse // FIXED
-  });
-
-  if (existingInventory) {
-    await Inventory.findByIdAndUpdate(existingInventory._id, {
-      $inc: { quantity: data.quantity },
-      location: data.location,
-      updatedAt: new Date()
-    });
-  } else {
-    await Inventory.create({
-      ...data,
-      warehouse: data.warehouse, // FIXED
-      minStockLevel: 0,
-      maxStockLevel: 1000,
-      age: 0,
-      status: 'active'
-    });
+    return await RaisePurchaseOrder.findById(id)
+      .populate('vendor', 'vendor_name vendor_email vendor_contact vendor_phone')
+      .populate('createdBy', 'name email');
   }
-}
 
+  async updatePurchaseOrderStatus(
+    id: string,
+    po_status: 'draft' | 'approved' | 'pending',
+    remarks?: string
+  ): Promise<IRaisePurchaseOrder | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
 
+    const updateData: any = { po_status };
+    if (remarks) {
+      updateData.remarks = remarks;
+    }
+
+    const updatedPO = await RaisePurchaseOrder.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    )
+    .populate('warehouse', 'name code')
+    .populate('vendor', 'vendor_name vendor_email')
+    .populate('createdBy', 'name email');
+
+    return updatedPO;
+  }
+
+  async upsertInventory(data: InventoryUpsertData): Promise<void> {
+    const existingInventory = await Inventory.findOne({
+      sku: data.sku,
+      batchId: data.batchId,
+      warehouse: data.warehouse
+    });
+
+    if (existingInventory) {
+      await Inventory.findByIdAndUpdate(existingInventory._id, {
+        $inc: { quantity: data.quantity },
+        location: data.location,
+        updatedAt: new Date()
+      });
+    } else {
+      await Inventory.create({
+        ...data,
+        minStockLevel: 0,
+        maxStockLevel: 1000,
+        age: 0,
+        status: 'active'
+      });
+    }
+  }
 
   // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
- async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
-  
-  // Validate stock only by SKU now
-  await this.validateSkuStock(data.products);
+  async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
+    await this.validateSkuStock(data.products);
 
-  // Auto-generate Dispatch ID
-  const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
-  const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
-  const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
+    const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
+    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
+    const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
 
-  const formattedProducts = data.products.map(p => ({
-    sku: p.sku,
-    quantity: p.quantity
-  }));
+    const formattedProducts = data.products.map(p => ({
+      sku: p.sku,
+      quantity: p.quantity
+    }));
 
-  const dispatch = await DispatchOrder.create({
-    dispatchId,
-    destination: data.destination,   // merged destination
-    products: formattedProducts,
-    assignedAgent: data.assignedAgent,
-    notes: data.notes,
-    status: 'pending',               // default pending (UI may update later)
-    createdBy
-  });
+    const dispatch = await DispatchOrder.create({
+      dispatchId,
+      destination: data.destination,
+      products: formattedProducts,
+      assignedAgent: data.assignedAgent,
+      notes: data.notes,
+      status: 'pending',
+      createdBy
+    });
 
-  // decrease stock
-  await this.reduceStockBySku(data.products);
-
-  return dispatch;
-}
-
+    await this.reduceStockBySku(data.products);
+    return dispatch;
+  }
 
   async getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
     let query: any = {};
@@ -641,22 +551,13 @@ async upsertInventory(data: InventoryUpsertData): Promise<void> {
       query.status = filters.status;
     }
     
-    if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
-      query.vendor = new Types.ObjectId(filters.vendor);
-    }
-    
     if (filters?.startDate || filters?.endDate) {
       query.createdAt = {};
-      if (filters.startDate) {
-        query.createdAt.$gte = new Date(filters.startDate);
-      }
-      if (filters.endDate) {
-        query.createdAt.$lte = new Date(filters.endDate);
-      }
+      if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
+      if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
     }
     
     return await DispatchOrder.find(query)
-      .populate('vendor', 'name code contactPerson phone')
       .populate('assignedAgent', 'name email phone vehicleType')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
@@ -683,7 +584,7 @@ async upsertInventory(data: InventoryUpsertData): Promise<void> {
       updateData,
       { new: true }
     )
-    .populate('vendor assignedAgent createdBy');
+    .populate('assignedAgent createdBy');
     
     if (!dispatch) {
       throw new Error('Dispatch order not found');
@@ -695,117 +596,101 @@ async upsertInventory(data: InventoryUpsertData): Promise<void> {
   async getDispatchById(dispatchId: string): Promise<IDispatchOrder | null> {
     if (!Types.ObjectId.isValid(dispatchId)) return null;
     return await DispatchOrder.findById(dispatchId)
-      .populate('vendor', 'name code contactPerson phone address')
       .populate('assignedAgent', 'name email phone vehicleType licensePlate')
       .populate('createdBy', 'name email');
   }
 
-// ==================== QC TEMPLATES ====================
-async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
-  return await QCTemplate.create({
-    title: data.title,
-    sku: data.sku,
-    parameters: data.parameters,
-    isActive: true,
-    createdBy
-  });
-}
+  // ==================== QC TEMPLATES ====================
+  async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
+    return await QCTemplate.create({
+      title: data.title,
+      sku: data.sku,
+      parameters: data.parameters,
+      isActive: true,
+      createdBy
+    });
+  }
 
-async getQCTemplates(sku?: string): Promise<IQCTemplate[]> {
-  const query: any = { isActive: true };
+  async getQCTemplates(sku?: string): Promise<IQCTemplate[]> {
+    const query: any = { isActive: true };
+    if (sku) query.sku = sku;
 
-  if (sku) query.sku = sku;
+    return await QCTemplate.find(query)
+      .populate('createdBy', 'name email')
+      .sort({ title: 1 });
+  }
 
-  return await QCTemplate.find(query)
-    .populate('createdBy', 'name email')
-    .sort({ title: 1 });  // 👈 Updated here
-}
+  async updateQCTemplate(templateId: string, updateData: Partial<QCTemplateData>): Promise<IQCTemplate | null> {
+    if (!Types.ObjectId.isValid(templateId)) return null;
 
+    return await QCTemplate.findByIdAndUpdate(
+      templateId,
+      updateData,
+      { new: true }
+    ).populate('createdBy', 'name email');
+  }
 
-async updateQCTemplate(templateId: string, updateData: Partial<QCTemplateData>): Promise<IQCTemplate | null> {
-  if (!Types.ObjectId.isValid(templateId)) return null;
+  async deleteQCTemplate(templateId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(templateId)) return;
 
-  return await QCTemplate.findByIdAndUpdate(
-    templateId,
-    updateData,
-    { new: true }
-  ).populate('createdBy', 'name email');
-}
-
-async deleteQCTemplate(templateId: string): Promise<void> {
-  if (!Types.ObjectId.isValid(templateId)) return;
-
-  await QCTemplate.findByIdAndUpdate(
-    templateId,
-    { isActive: false }
-  );
-}
-
+    await QCTemplate.findByIdAndUpdate(
+      templateId,
+      { isActive: false }
+    );
+  }
 
   // ==================== RETURN MANAGEMENT ====================
-  // ==================== RETURN MANAGEMENT ====================
-async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
-  console.log('=== 📦 CREATING RETURN ORDER ===');
-  console.log('Input data:', data);
+  async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
+    const inventory = await Inventory.findOne({
+      batchId: data.batchId,
+      isArchived: false
+    });
+    
+    if (!inventory) {
+      throw new Error(`Batch ${data.batchId} not found in inventory`);
+    }
 
-  // Find inventory by batchId to auto-populate product details
-  const inventory = await Inventory.findOne({
-    batchId: data.batchId,
-    isArchived: false
-  });
-  
-  if (!inventory) {
-    throw new Error(`Batch ${data.batchId} not found in inventory`);
+    const quantity = data.quantity || Math.min(inventory.quantity, 1);
+    
+    if (inventory.quantity < quantity) {
+      throw new Error(`Insufficient quantity in batch. Available: ${inventory.quantity}, Requested: ${quantity}`);
+    }
+
+    const returnType = this.determineReturnType(data.reason);
+
+    const returnOrderData = {
+      batchId: data.batchId,
+      vendor: data.vendor,
+      reason: data.reason,
+      status: data.status || 'pending',
+      quantity: quantity,
+      sku: inventory.sku,
+      productName: inventory.productName,
+      returnType: returnType,
+      createdBy
+    };
+
+    return await ReturnOrder.create(returnOrderData);
   }
 
-  // Auto-calculate quantity if not provided
-  const quantity = data.quantity || Math.min(inventory.quantity, 1); // Default to 1 or available quantity
-  
-  // Validate quantity
-  if (inventory.quantity < quantity) {
-    throw new Error(`Insufficient quantity in batch. Available: ${inventory.quantity}, Requested: ${quantity}`);
+  private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other' {
+    const lowerReason = reason.toLowerCase();
+    
+    if (lowerReason.includes('damage') || lowerReason.includes('broken') || lowerReason.includes('defective')) {
+      return 'damaged';
+    }
+    if (lowerReason.includes('expir') || lowerReason.includes('date') || lowerReason.includes('spoiled')) {
+      return 'expired';
+    }
+    if (lowerReason.includes('wrong') || lowerReason.includes('incorrect') || lowerReason.includes('mistake')) {
+      return 'wrong_item';
+    }
+    if (lowerReason.includes('overstock') || lowerReason.includes('excess') || lowerReason.includes('surplus')) {
+      return 'overstock';
+    }
+    
+    return 'other';
   }
-
-  // Auto-determine return type based on reason
-  const returnType = this.determineReturnType(data.reason);
-
-  // Create return order with auto-populated fields
-  const returnOrderData = {
-    batchId: data.batchId,
-    vendor: data.vendor,
-    reason: data.reason,
-    status: data.status || 'pending',
-    quantity: quantity,
-    // Auto-populated fields:
-    sku: inventory.sku,
-    productName: inventory.productName,
-    returnType: returnType,
-    createdBy
-  };
-
-  console.log('Auto-populated return order:', returnOrderData);
-
-  return await ReturnOrder.create(returnOrderData);
-}
-
-private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other' {
-  const lowerReason = reason.toLowerCase();
-  
-  if (lowerReason.includes('damage') || lowerReason.includes('broken') || lowerReason.includes('defective')) {
-    return 'damaged';
-  }
-  if (lowerReason.includes('expir') || lowerReason.includes('date') || lowerReason.includes('spoiled')) {
-    return 'expired';
-  }
-  if (lowerReason.includes('wrong') || lowerReason.includes('incorrect') || lowerReason.includes('mistake')) {
-    return 'wrong_item';
-  }
-  if (lowerReason.includes('overstock') || lowerReason.includes('excess') || lowerReason.includes('surplus')) {
-    return 'overstock';
-  }
-  
-  return 'other';
-}
 
   async getReturnQueue(warehouseId?: string, filters?: any): Promise<IReturnOrder[]> {
     let query: any = {};
@@ -823,7 +708,7 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     }
 
     return await ReturnOrder.find(query)
-      .populate('vendor', 'name code contactPerson')
+      .populate('vendor', 'vendor_name vendor_email vendor_contact')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
   }
@@ -852,7 +737,7 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       returnId,
       { status: 'approved' },
       { new: true }
-    ).populate('vendor', 'name code');
+    ).populate('vendor', 'vendor_name vendor_email');
 
     if (!updated) {
       throw new Error('Return order not found');
@@ -870,7 +755,7 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       returnId,
       { status: 'rejected' },
       { new: true }
-    ).populate('vendor', 'name code');
+    ).populate('vendor', 'vendor_name vendor_email');
     
     if (!updated) {
       throw new Error('Return order not found');
@@ -904,10 +789,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
   }
 
   // ==================== INVENTORY DASHBOARD METHODS ====================
-
-  /**
-   * Get inventory dashboard with filtering, pagination, and sorting
-   */
   async getInventoryDashboard(
     warehouseId: string, 
     filters: InventoryDashboardFilters = {}, 
@@ -916,44 +797,35 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
   ): Promise<InventoryDashboardResponse> {
     let query: any = { warehouse: new Types.ObjectId(warehouseId) };
     
-    // Archive filter - default to non-archived
     if (filters.archived !== undefined) {
       query.isArchived = filters.archived;
     } else {
       query.isArchived = false;
     }
 
-    // Status filter
     if (filters.status && filters.status !== 'all') {
       query.status = filters.status;
     }
 
-    // SKU filter
     if (filters.sku) {
       query.sku = { $regex: filters.sku, $options: 'i' };
     }
 
-    // Batch ID filter
     if (filters.batchId) {
       query.batchId = { $regex: filters.batchId, $options: 'i' };
     }
 
-    // Product name filter
     if (filters.productName) {
       query.productName = { $regex: filters.productName, $options: 'i' };
     }
 
-    // Expiry date filters
     if (filters.expiryStatus) {
       const today = new Date();
       switch (filters.expiryStatus) {
         case 'expiring_soon':
           const next30Days = new Date(today);
           next30Days.setDate(today.getDate() + 30);
-          query.expiryDate = { 
-            $gte: today,
-            $lte: next30Days
-          };
+          query.expiryDate = { $gte: today, $lte: next30Days };
           break;
         case 'expired':
           query.expiryDate = { $lt: today };
@@ -967,12 +839,10 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       }
     }
 
-    // Age range filter
     if (filters.ageRange) {
       query.age = this.getAgeFilter(filters.ageRange);
     }
 
-    // Quantity filters
     if (filters.quantityRange) {
       switch (filters.quantityRange) {
         case 'low':
@@ -990,17 +860,11 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       }
     }
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
-
-    // Get total count for pagination
     const total = await Inventory.countDocuments(query);
-
-    // Determine sort field and order
     const sortField = filters.sortBy || 'updatedAt';
     const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
 
-    // Get inventory with pagination and sorting
     const inventory = await Inventory.find(query)
       .populate('warehouse', 'name code')
       .populate('createdBy', 'name email')
@@ -1017,9 +881,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     };
   }
 
-  /**
-   * Get inventory item by ID for editing
-   */
   async getInventoryById(inventoryId: string): Promise<IInventory | null> {
     if (!Types.ObjectId.isValid(inventoryId)) {
       throw new Error('Invalid inventory ID');
@@ -1030,9 +891,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       .populate('createdBy', 'name email');
   }
 
-  /**
-   * Update inventory item with all editable fields
-   */
   async updateInventoryItem(
     inventoryId: string, 
     updateData: {
@@ -1055,7 +913,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       throw new Error('Invalid inventory ID');
     }
 
-    // Get current inventory item
     const inventory = await Inventory.findById(inventoryId);
     if (!inventory) {
       throw new Error('Inventory item not found');
@@ -1073,18 +930,15 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       }
     });
 
-    // Convert expiry date to Date object if provided
     if (updates.expiryDate) {
       updates.expiryDate = new Date(updates.expiryDate);
     }
 
-    // Recalculate age based on creation date
     const now = new Date();
     const createdAt = inventory.createdAt;
     const ageInDays = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
     updates.age = ageInDays;
 
-    // Recalculate status based on updated values
     const finalQuantity = updates.quantity !== undefined ? updates.quantity : inventory.quantity;
     const finalExpiryDate = updates.expiryDate !== undefined ? updates.expiryDate : inventory.expiryDate;
     const finalMinStock = updates.minStockLevel !== undefined ? updates.minStockLevel : inventory.minStockLevel;
@@ -1097,7 +951,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       expiryDate: finalExpiryDate
     });
 
-    // Update the inventory item
     const updated = await Inventory.findByIdAndUpdate(
       inventoryId,
       updates,
@@ -1112,9 +965,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     return updated;
   }
 
-  /**
-   * Archive an inventory item
-   */
   async archiveInventoryItem(inventoryId: string): Promise<IInventory> {
     if (!Types.ObjectId.isValid(inventoryId)) {
       throw new Error('Invalid inventory ID');
@@ -1138,9 +988,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     return updated;
   }
 
-  /**
-   * Unarchive an inventory item
-   */
   async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
     if (!Types.ObjectId.isValid(inventoryId)) {
       throw new Error('Invalid inventory ID');
@@ -1151,7 +998,6 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
       throw new Error('Inventory item not found');
     }
 
-    // Recalculate status when unarchiving
     const status = this.calculateInventoryStatus({
       quantity: inventory.quantity,
       minStockLevel: inventory.minStockLevel,
@@ -1177,246 +1023,152 @@ private determineReturnType(reason: string): 'damaged' | 'expired' | 'wrong_item
     return updated;
   }
 
-  /**
-   * Get archived inventory items
-   */
-  // ==================== INVENTORY STATISTICS ====================
-async getInventoryStats(warehouseId: string): Promise<InventoryStats> {
-  if (!Types.ObjectId.isValid(warehouseId)) {
-    throw new Error('Invalid warehouse ID');
-  }
-
-  const warehouseObjectId = new Types.ObjectId(warehouseId);
-  
-  const [
-    totalItems,
-    activeItems,
-    archivedItems,
-    lowStockItems,
-    expiredItems,
-    nearExpiryItems,
-    statusBreakdown,
-    stockValueResult
-  ] = await Promise.all([
-    // Total items
-    Inventory.countDocuments({ warehouse: warehouseObjectId }),
-    
-    // Active items (non-archived)
-    Inventory.countDocuments({ 
-      warehouse: warehouseObjectId, 
-      isArchived: false 
-    }),
-    
-    // Archived items
-    Inventory.countDocuments({ 
-      warehouse: warehouseObjectId, 
-      isArchived: true 
-    }),
-    
-    // Low stock items
-    Inventory.countDocuments({ 
-      warehouse: warehouseObjectId, 
-      status: 'low_stock',
-      isArchived: false 
-    }),
-    
-    // Expired items
-    Inventory.countDocuments({ 
-      warehouse: warehouseObjectId,
-      expiryDate: { $lt: new Date() },
-      isArchived: false 
-    }),
-    
-    // Near expiry items (next 30 days)
-    Inventory.countDocuments({
-      warehouse: warehouseObjectId,
-      expiryDate: { 
-        $gte: new Date(),
-        $lte: new Date(new Date().setDate(new Date().getDate() + 30))
-      },
-      isArchived: false
-    }),
-    
-    // Status breakdown
-    Inventory.aggregate([
-      {
-        $match: {
-          warehouse: warehouseObjectId,
-          isArchived: false
-        }
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]),
-    
-    // Total stock value (using estimated value)
-    Inventory.aggregate([
-      {
-        $match: {
-          warehouse: warehouseObjectId,
-          isArchived: false
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalValue: { 
-            $sum: { 
-              $multiply: ['$quantity', 100] // Assuming average value of 100 per unit
-            }
-          }
-        }
-      }
-    ])
-  ]);
-
-  // Convert status breakdown to object
-  const statusBreakdownObj: { [key: string]: number } = {};
-  statusBreakdown.forEach((item: any) => {
-    statusBreakdownObj[item._id] = item.count;
-  });
-
-  // Extract total stock value
-  const totalStockValue = stockValueResult.length > 0 ? stockValueResult[0].totalValue : 0;
-
-  return {
-    totalItems,
-    activeItems,
-    archivedItems,
-    lowStockItems,
-    expiredItems,
-    nearExpiryItems,
-    totalStockValue,
-    statusBreakdown: statusBreakdownObj
-  };
-}
-
-// ==================== BULK ARCHIVE INVENTORY ====================
-async bulkArchiveInventory(inventoryIds: string[]): Promise<{ 
-  success: boolean; 
-  message: string;
-  archivedCount: number;
-  failedCount: number;
-  failedIds: string[];
-}> {
-  const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
-  
-  if (validIds.length === 0) {
-    throw new Error('No valid inventory IDs provided');
-  }
-
-  const objectIds = validIds.map(id => new Types.ObjectId(id));
-  
-  const result = await Inventory.updateMany(
-    {
-      _id: { $in: objectIds },
-      isArchived: false
-    },
-    {
-      $set: {
-        isArchived: true,
-        status: 'archived',
-        archivedAt: new Date()
-      }
+  async getInventoryStats(warehouseId: string): Promise<InventoryStats> {
+    if (!Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Invalid warehouse ID');
     }
-  );
 
-  const archivedCount = result.modifiedCount;
-  const failedCount = validIds.length - archivedCount;
-  
-  // Find which IDs failed to archive (likely already archived or not found)
-  let failedIds: string[] = [];
-  if (failedCount > 0) {
-    const archivedItems = await Inventory.find({
-      _id: { $in: objectIds },
-      isArchived: true
-    }).select('_id');
+    const warehouseObjectId = new Types.ObjectId(warehouseId);
     
-    const archivedItemIds = archivedItems.map(item => item._id.toString());
-    failedIds = validIds.filter(id => !archivedItemIds.includes(id));
-  }
+    const [
+      totalItems,
+      activeItems,
+      archivedItems,
+      lowStockItems,
+      expiredItems,
+      nearExpiryItems,
+      statusBreakdown,
+      stockValueResult
+    ] = await Promise.all([
+      Inventory.countDocuments({ warehouse: warehouseObjectId }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: false }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: true }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, status: 'low_stock', isArchived: false }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, expiryDate: { $lt: new Date() }, isArchived: false }),
+      Inventory.countDocuments({
+        warehouse: warehouseObjectId,
+        expiryDate: { $gte: new Date(), $lte: new Date(new Date().setDate(new Date().getDate() + 30)) },
+        isArchived: false
+      }),
+      Inventory.aggregate([
+        { $match: { warehouse: warehouseObjectId, isArchived: false } },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      Inventory.aggregate([
+        { $match: { warehouse: warehouseObjectId, isArchived: false } },
+        { $group: { _id: null, totalValue: { $sum: { $multiply: ['$quantity', 100] } } } }
+      ])
+    ]);
 
-  return {
-    success: archivedCount > 0,
-    message: `Successfully archived ${archivedCount} items. ${failedCount} items failed to archive.`,
-    archivedCount,
-    failedCount,
-    failedIds
-  };
-}
-
-// ==================== BULK UNARCHIVE INVENTORY ====================
-async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{ 
-  success: boolean; 
-  message: string;
-  unarchivedCount: number;
-  failedCount: number;
-  failedIds: string[];
-}> {
-  const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
-  
-  if (validIds.length === 0) {
-    throw new Error('No valid inventory IDs provided');
-  }
-
-  const objectIds = validIds.map(id => new Types.ObjectId(id));
-  
-  // First get the items to unarchive to recalculate their status
-  const itemsToUnarchive = await Inventory.find({
-    _id: { $in: objectIds },
-    isArchived: true
-  });
-
-  // Update each item with recalculated status
-  const updatePromises = itemsToUnarchive.map(async (item) => {
-    const status = this.calculateInventoryStatus({
-      quantity: item.quantity,
-      minStockLevel: item.minStockLevel,
-      maxStockLevel: item.maxStockLevel,
-      expiryDate: item.expiryDate
+    const statusBreakdownObj: { [key: string]: number } = {};
+    statusBreakdown.forEach((item: any) => {
+      statusBreakdownObj[item._id] = item.count;
     });
 
-    return Inventory.findByIdAndUpdate(
-      item._id,
-      {
-        $set: {
-          isArchived: false,
-          status: status,
-          archivedAt: null
-        }
-      }
-    );
-  });
+    const totalStockValue = stockValueResult.length > 0 ? stockValueResult[0].totalValue : 0;
 
-  await Promise.all(updatePromises);
-
-  const unarchivedCount = itemsToUnarchive.length;
-  const failedCount = validIds.length - unarchivedCount;
-  
-  // Find which IDs failed to unarchive (likely not archived or not found)
-  let failedIds: string[] = [];
-  if (failedCount > 0) {
-    const unarchivedItems = await Inventory.find({
-      _id: { $in: objectIds },
-      isArchived: false
-    }).select('_id');
-    
-    const unarchivedItemIds = unarchivedItems.map(item => item._id.toString());
-    failedIds = validIds.filter(id => !unarchivedItemIds.includes(id));
+    return {
+      totalItems,
+      activeItems,
+      archivedItems,
+      lowStockItems,
+      expiredItems,
+      nearExpiryItems,
+      totalStockValue,
+      statusBreakdown: statusBreakdownObj
+    };
   }
 
-  return {
-    success: unarchivedCount > 0,
-    message: `Successfully unarchived ${unarchivedCount} items. ${failedCount} items failed to unarchive.`,
-    unarchivedCount,
-    failedCount,
-    failedIds
-  };
-}
+  async bulkArchiveInventory(inventoryIds: string[]): Promise<{ 
+    success: boolean; 
+    message: string;
+    archivedCount: number;
+    failedCount: number;
+    failedIds: string[];
+  }> {
+    const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      throw new Error('No valid inventory IDs provided');
+    }
+
+    const objectIds = validIds.map(id => new Types.ObjectId(id));
+    
+    const result = await Inventory.updateMany(
+      { _id: { $in: objectIds }, isArchived: false },
+      { $set: { isArchived: true, status: 'archived', archivedAt: new Date() } }
+    );
+
+    const archivedCount = result.modifiedCount;
+    const failedCount = validIds.length - archivedCount;
+    
+    let failedIds: string[] = [];
+    if (failedCount > 0) {
+      const archivedItems = await Inventory.find({ _id: { $in: objectIds }, isArchived: true }).select('_id');
+      const archivedItemIds = archivedItems.map(item => item._id.toString());
+      failedIds = validIds.filter(id => !archivedItemIds.includes(id));
+    }
+
+    return {
+      success: archivedCount > 0,
+      message: `Successfully archived ${archivedCount} items. ${failedCount} items failed to archive.`,
+      archivedCount,
+      failedCount,
+      failedIds
+    };
+  }
+
+  async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{ 
+    success: boolean; 
+    message: string;
+    unarchivedCount: number;
+    failedCount: number;
+    failedIds: string[];
+  }> {
+    const validIds = inventoryIds.filter(id => Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      throw new Error('No valid inventory IDs provided');
+    }
+
+    const objectIds = validIds.map(id => new Types.ObjectId(id));
+    const itemsToUnarchive = await Inventory.find({ _id: { $in: objectIds }, isArchived: true });
+
+    const updatePromises = itemsToUnarchive.map(async (item) => {
+      const status = this.calculateInventoryStatus({
+        quantity: item.quantity,
+        minStockLevel: item.minStockLevel,
+        maxStockLevel: item.maxStockLevel,
+        expiryDate: item.expiryDate
+      });
+
+      return Inventory.findByIdAndUpdate(
+        item._id,
+        { $set: { isArchived: false, status: status, archivedAt: null } }
+      );
+    });
+
+    await Promise.all(updatePromises);
+
+    const unarchivedCount = itemsToUnarchive.length;
+    const failedCount = validIds.length - unarchivedCount;
+    
+    let failedIds: string[] = [];
+    if (failedCount > 0) {
+      const unarchivedItems = await Inventory.find({ _id: { $in: objectIds }, isArchived: false }).select('_id');
+      const unarchivedItemIds = unarchivedItems.map(item => item._id.toString());
+      failedIds = validIds.filter(id => !unarchivedItemIds.includes(id));
+    }
+
+    return {
+      success: unarchivedCount > 0,
+      message: `Successfully unarchived ${unarchivedCount} items. ${failedCount} items failed to unarchive.`,
+      unarchivedCount,
+      failedCount,
+      failedIds
+    };
+  }
+
   async getArchivedInventory(
     warehouseId: string, 
     page: number = 1, 
@@ -1449,7 +1201,8 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       totalPages: Math.ceil(total / limit)
     };
   }
-  // ==================== SCREEN 5: ENHANCED EXPENSE MANAGEMENT ====================
+
+  // ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
   async createExpense(data: {
     category: 'staffing' | 'supplies' | 'equipment' | 'transport';
     amount: number;
@@ -1488,31 +1241,21 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     
     if (filters?.startDate || filters?.endDate) {
       query.date = {};
-      if (filters.startDate) {
-        query.date.$gte = new Date(filters.startDate);
-      }
-      if (filters.endDate) {
-        query.date.$lte = new Date(filters.endDate);
-      }
+      if (filters.startDate) query.date.$gte = new Date(filters.startDate);
+      if (filters.endDate) query.date.$lte = new Date(filters.endDate);
     }
 
     if (filters?.month) {
-        const [year, month] = filters.month.split('-');
-  
-  const startDate = new Date(Number(year), Number(month) - 1, 1);
-  startDate.setHours(0, 0, 0, 0);
-
-  const endDate = new Date(Number(year), Number(month), 0);
-  endDate.setHours(23, 59, 59, 999);
-
-  query.date = {
-    $gte: startDate,
-    $lte: endDate
-  };
+      const [year, month] = filters.month.split('-');
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(Number(year), Number(month), 0);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
     }
     
     return await Expense.find(query)
-      .populate('vendor', 'name code contactPerson')
+      .populate('vendor', 'vendor_name vendor_email vendor_contact')
       .populate('warehouseId', 'name code')
       .populate('createdBy', 'name email')
       .populate('approvedBy', 'name email')
@@ -1542,7 +1285,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       updateData,
       { new: true }
     )
-    .populate('vendor warehouse createdBy approvedBy');
+    .populate('vendor warehouseId createdBy approvedBy');
     
     if (!expense) {
       throw new Error('Expense not found');
@@ -1563,7 +1306,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       { paymentStatus },
       { new: true }
     )
-    .populate('vendor warehouse createdBy approvedBy');
+    .populate('vendor warehouseId createdBy approvedBy');
     
     if (!expense) {
       throw new Error('Expense not found');
@@ -1572,50 +1315,43 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     return expense;
   }
 
-  
-  
   async updateExpense(
-  expenseId: string,
-  updateData: {
-    category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
-    amount?: number;
-    status?: 'approved' | 'pending';
-    date?: Date;
-  }
-): Promise<IExpense> {
-
-  const allowedUpdates = ['category', 'amount', 'date', 'status'];
-  const updates: any = {};
-  
-  Object.keys(updateData).forEach(key => {
-    if (allowedUpdates.includes(key)) {
-      updates[key] = (updateData as any)[key];
+    expenseId: string,
+    updateData: {
+      category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
+      amount?: number;
+      status?: 'approved' | 'pending';
+      date?: Date;
     }
-  });
+  ): Promise<IExpense> {
+    const allowedUpdates = ['category', 'amount', 'date', 'status'];
+    const updates: any = {};
+    
+    Object.keys(updateData).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = (updateData as any)[key];
+      }
+    });
 
-  // Reset approval metadata if modifying key fields
-  if (updates.amount !== undefined ||
-      updates.category !== undefined ||
-      updates.date !== undefined) {
-    updates.status = 'pending';
-    updates.approvedBy = null;
-    updates.approvedAt = null;
+    if (updates.amount !== undefined || updates.category !== undefined || updates.date !== undefined) {
+      updates.status = 'pending';
+      updates.approvedBy = null;
+      updates.approvedAt = null;
+    }
+
+    const expense = await Expense.findByIdAndUpdate(
+      expenseId,
+      updates,
+      { new: true, runValidators: true }
+    )
+    .populate('vendor createdBy approvedBy warehouseId');
+
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+
+    return expense;
   }
-
-  const expense = await Expense.findByIdAndUpdate(
-    expenseId,
-    updates,
-    { new: true, runValidators: true }
-  )
-  .populate('vendor createdBy approvedBy warehouseId');
-
-  if (!expense) {
-    throw new Error('Expense not found');
-  }
-
-  return expense;
-}
-
 
   async deleteExpense(expenseId: string): Promise<void> {
     if (!Types.ObjectId.isValid(expenseId)) {
@@ -1632,7 +1368,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     if (!Types.ObjectId.isValid(expenseId)) return null;
     
     return await Expense.findById(expenseId)
-      .populate('vendor', 'name code contactPerson phone email')
+      .populate('vendor', 'vendor_name vendor_email vendor_contact vendor_phone')
       .populate('warehouseId', 'name code location')
       .populate('createdBy', 'name email')
       .populate('approvedBy', 'name email');
@@ -1658,18 +1394,12 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     }
 
     if (filters?.month) {
-        const [year, month] = filters.month.split('-');
-  
-  const startDate = new Date(Number(year), Number(month) - 1, 1);
-  startDate.setHours(0, 0, 0, 0);
-
-  const endDate = new Date(Number(year), Number(month), 0);
-  endDate.setHours(23, 59, 59, 999);
-
-  matchStage.date = {
-    $gte: startDate,
-    $lte: endDate
-  };
+      const [year, month] = filters.month.split('-');
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(Number(year), Number(month), 0);
+      endDate.setHours(23, 59, 59, 999);
+      matchStage.date = { $gte: startDate, $lte: endDate };
     }
 
     const summary = await Expense.aggregate([
@@ -1678,62 +1408,21 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
         $group: {
           _id: null,
           total: { $sum: '$amount' },
-          approved: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-            }
-          },
-          pending: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-            }
-          },
-          rejected: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0]
-            }
-          },
-          byCategory: {
-            $push: {
-              category: '$category',
-              amount: '$amount'
-            }
-          },
-          byMonth: {
-            $push: {
-              month: { $dateToString: { format: "%Y-%m", date: "$date" } },
-              amount: '$amount'
-            }
-          },
-          paid: {
-            $sum: {
-              $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0]
-            }
-          },
-          unpaid: {
-            $sum: {
-              $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0]
-            }
-          },
-          partially_paid: {
-            $sum: {
-              $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0]
-            }
-          }
+          approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
+          rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0] } },
+          byCategory: { $push: { category: '$category', amount: '$amount' } },
+          byMonth: { $push: { month: { $dateToString: { format: "%Y-%m", date: "$date" } }, amount: '$amount' } },
+          paid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0] } },
+          unpaid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0] } },
+          partially_paid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0] } }
         }
       }
     ]);
 
     const result = summary[0] || { 
-      total: 0, 
-      approved: 0, 
-      pending: 0, 
-      rejected: 0,
-      byCategory: [], 
-      byMonth: [],
-      paid: 0,
-      unpaid: 0,
-      partially_paid: 0
+      total: 0, approved: 0, pending: 0, rejected: 0,
+      byCategory: [], byMonth: [], paid: 0, unpaid: 0, partially_paid: 0
     };
     
     const byCategory: { [key: string]: number } = {};
@@ -1774,29 +1463,15 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       {
         $match: {
           warehouseId: new Types.ObjectId(warehouseId),
-          date: {
-            $gte: startDate,
-            $lte: endDate
-          }
+          date: { $gte: startDate, $lte: endDate }
         }
       },
       {
         $group: {
-          _id: {
-            year: { $year: '$date' },
-            month: { $month: '$date' }
-          },
+          _id: { year: { $year: '$date' }, month: { $month: '$date' } },
           totalAmount: { $sum: '$amount' },
-          approvedAmount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-            }
-          },
-          pendingAmount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-            }
-          },
+          approvedAmount: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
+          pendingAmount: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
           expenseCount: { $sum: 1 }
         }
       },
@@ -1839,12 +1514,12 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
         throw new Error('Invalid report type');
     }
   }
+
   getStockAgeingReport(_warehouse: any): any {
-    // Parameter is intentionally unused for now; kept to match callers.
     throw new Error('Method not implemented.');
   }
 
-  async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
+  private async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
     const warehouseId = filters.warehouse;
     if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
       throw new Error('Valid warehouse ID is required');
@@ -1852,7 +1527,6 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
 
     const dateFilter = this.getDateFilter(filters.dateRange);
     
-    // Get inventory data with filters
     let inventoryQuery: any = { 
       warehouse: new Types.ObjectId(warehouseId),
       isArchived: false 
@@ -1869,7 +1543,6 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     const inventoryData = await Inventory.find(inventoryQuery)
       .populate('warehouse', 'name code');
 
-    // Calculate summary metrics
     const totalSKUs = await Inventory.distinct('sku', { 
       warehouse: new Types.ObjectId(warehouseId),
       isArchived: false 
@@ -1881,7 +1554,6 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       isArchived: false
     });
 
-    // Get purchase order data (using GoodsReceiving as proxy for POs)
     const poQuery: any = { warehouse: new Types.ObjectId(warehouseId) };
     if (Object.keys(dateFilter).length > 0) {
       poQuery.createdAt = dateFilter;
@@ -1891,15 +1563,14 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       poQuery.vendor = new Types.ObjectId(filters.vendor);
     }
 
-    const totalPOs = await GoodsReceiving.countDocuments(poQuery);
-    const pendingPOs = await GoodsReceiving.countDocuments({
+    const totalPOs = await RaisePurchaseOrder.countDocuments(poQuery);
+    const pendingPOs = await RaisePurchaseOrder.countDocuments({
       ...poQuery,
-      status: 'qc_pending'
+      po_status: 'draft'
     });
 
-    // Calculate stock value and other metrics
     const totalStockValue = inventoryData.reduce((sum, item) => {
-      return sum + (item.quantity * 100); // Using estimated value
+      return sum + (item.quantity * 100);
     }, 0);
 
     const lowStockItems = inventoryData.filter(item => 
@@ -1916,10 +1587,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       item.expiryDate >= today
     ).length;
 
-    // Calculate stock accuracy (dummy calculation)
     const stockAccuracy = 89;
-
-    // Dummy functions for machine/refill related metrics
     const { pendingRefills, completedRefills } = await this.getRefillMetrics(warehouseId);
 
     return {
@@ -1941,7 +1609,7 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     };
   }
 
-  async generatePurchaseOrderReport(filters: any): Promise<PurchaseOrderReport> {
+  private async generatePurchaseOrderReport(filters: any): Promise<PurchaseOrderReport> {
     const warehouseId = filters.warehouse;
     if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
       throw new Error('Valid warehouse ID is required');
@@ -1949,7 +1617,6 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
 
     const dateFilter = this.getDateFilter(filters.dateRange);
     
-    // Build query for purchase orders (using GoodsReceiving)
     let poQuery: any = { warehouse: new Types.ObjectId(warehouseId) };
     
     if (Object.keys(dateFilter).length > 0) {
@@ -1960,23 +1627,22 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       poQuery.vendor = new Types.ObjectId(filters.vendor);
     }
 
-    if (filters.status) {
-      poQuery.status = filters.status;
+    if (filters.po_status) {
+      poQuery.po_status = filters.po_status;
     }
 
-    const purchaseOrders = await GoodsReceiving.find(poQuery)
-      .populate('vendor', 'name code contactPerson')
+    const purchaseOrders = await RaisePurchaseOrder.find(poQuery)
+      .populate('vendor', 'vendor_name vendor_email vendor_contact')
       .populate('warehouse', 'name code')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
 
-    // Calculate summary metrics
     const totalPOs = purchaseOrders.length;
-    const pendingPOs = purchaseOrders.filter(po => po.status === 'qc_pending').length;
-    const approvedPOs = purchaseOrders.filter(po => po.status === 'qc_passed').length;
-    const rejectedPOs = purchaseOrders.filter(po => po.status === 'qc_failed').length;
+    const pendingPOs = purchaseOrders.filter(po => po.po_status === 'draft').length;
+    const approvedPOs = purchaseOrders.filter(po => po.po_status === 'approved').length;
+    const rejectedPOs = purchaseOrders.filter(po => po.po_status === 'pending').length;
     
-    const totalPOValue = purchaseOrders.reduce((sum, po) => sum + (po.quantity * 100), 0);
+    const totalPOValue = purchaseOrders.reduce((sum, po) => sum + 1000, 0);
     const averagePOValue = totalPOs > 0 ? totalPOValue / totalPOs : 0;
 
     return {
@@ -1994,19 +1660,16 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     };
   }
 
-  // Dummy function for machine/refill metrics (for future use)
   private async getRefillMetrics(_warehouseId: string): Promise<{
     pendingRefills: number;
     completedRefills: number;
   }> {
-    // These are dummy values - replace with actual refill/machine logic when implemented
     return {
       pendingRefills: 32,
       completedRefills: 77
     };
   }
 
-  // Enhanced inventory turnover report
   private async generateInventoryTurnoverReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate, category } = filters;
     
@@ -2086,7 +1749,6 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
     };
   }
 
-  // Enhanced QC summary report
   private async generateQCSummaryReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate, vendor } = filters;
     
@@ -2109,26 +1771,23 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       matchStage.vendor = new Types.ObjectId(vendor);
     }
 
-    const qcData = await GoodsReceiving.aggregate([
+    const qcData = await RaisePurchaseOrder.aggregate([
       { $match: matchStage },
       {
         $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-          totalQuantity: { $sum: '$quantity' },
-          totalValue: { $sum: { $multiply: ['$quantity', 100] } }
+          _id: '$po_status',
+          count: { $sum: 1 }
         }
       }
     ]);
     
     const totalReceivings = qcData.reduce((acc: number, item: any) => acc + item.count, 0);
     const passRate = totalReceivings > 0 
-      ? (qcData.find((item: any) => item._id === 'qc_passed')?.count || 0) / totalReceivings * 100 
+      ? (qcData.find((item: any) => item._id === 'approved')?.count || 0) / totalReceivings * 100 
       : 0;
     
-    // Get detailed QC data for table
-    const qcDetails = await GoodsReceiving.find(matchStage)
-      .populate('vendor', 'name code')
+    const qcDetails = await RaisePurchaseOrder.find(matchStage)
+      .populate('vendor', 'vendor_name vendor_email')
       .populate('warehouse', 'name code')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
@@ -2140,296 +1799,15 @@ async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{
       summary: {
         totalReceivings,
         passRate: Math.round(passRate * 100) / 100,
-        failedCount: qcData.find((item: any) => item._id === 'qc_failed')?.count || 0,
-        pendingCount: qcData.find((item: any) => item._id === 'qc_pending')?.count || 0,
-        totalValue: qcData.reduce((acc: number, item: any) => acc + item.totalValue, 0)
+        failedCount: qcData.find((item: any) => item._id === 'pending')?.count || 0,
+        pendingCount: qcData.find((item: any) => item._id === 'draft')?.count || 0,
+        totalValue: totalReceivings * 1000
       },
       generatedOn: new Date(),
       filters: filters as ReportFilters
     };
   }
 
-  // Enhanced export with multiple report types
-  async exportReport(type: string, format: string, filters: any): Promise<any> {
-    const reportData = await this.generateReport(type, filters);
-    
-    if (format === 'csv') {
-      return this.convertToCSV(reportData, type);
-    } else if (format === 'pdf') {
-      return this.convertToPDF(reportData, type);
-    }
-    
-    return reportData;
-  }
-
-  // Enhanced CSV export for new report types
-  private convertToCSV(data: any, reportType: string): string {
-    let csv = '';
-    
-    switch (reportType) {
-      case 'inventory_summary':
-        csv = this.convertInventorySummaryToCSV(data);
-        break;
-      case 'purchase_orders':
-        csv = this.convertPurchaseOrdersToCSV(data);
-        break;
-      case 'stock_ageing':
-        csv = this.convertStockAgeingToCSV(data);
-        break;
-      case 'inventory_turnover':
-        csv = this.convertInventoryTurnoverToCSV(data);
-        break;
-      case 'qc_summary':
-        csv = this.convertQCSummaryToCSV(data);
-        break;
-      default:
-        csv = 'Report Type,Data\n';
-        csv += `${reportType},"${JSON.stringify(data)}"`;
-    }
-    
-    return csv;
-  }
-
-  private convertInventorySummaryToCSV(data: any): string {
-    let csv = 'Inventory Summary Report\n';
-    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
-    
-    // Summary section
-    csv += 'SUMMARY METRICS\n';
-    csv += 'Metric,Value\n';
-    csv += `Total SKUs,${data.summary.totalSKUs}\n`;
-    csv += `Stock-Out SKUs,${data.summary.stockOutSKUs}\n`;
-    csv += `Total POs,${data.summary.totalPOs}\n`;
-    csv += `Pending POs,${data.summary.pendingPOs}\n`;
-    csv += `Total Stock Value,${data.summary.totalStockValue}\n`;
-    csv += `Low Stock Items,${data.summary.lowStockItems}\n`;
-    csv += `Near-Expiry SKUs,${data.summary.nearExpirySKUs}\n`;
-    csv += `Stock Accuracy,${data.summary.stockAccuracy}%\n\n`;
-    
-    // Inventory details section
-    csv += 'INVENTORY DETAILS\n';
-    csv += 'SKU ID,Product Name,Category,Current Qty,Threshold,Stock Status,Last Updated\n';
-    
-    data.inventoryDetails.forEach((item: any) => {
-      const threshold = this.getStockThreshold(item.quantity, item.minStockLevel, item.maxStockLevel);
-      const lastUpdated = item.updatedAt.toISOString().split('T')[0];
-      
-      csv += `"${item.sku}","${item.productName}","${this.extractCategory(item.productName)}",${item.quantity},${threshold},"${item.status}","${lastUpdated}"\n`;
-    });
-    
-    return csv;
-  }
-
-  private convertPurchaseOrdersToCSV(data: any): string {
-    let csv = 'Purchase Orders Report\n';
-    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
-    
-    // Summary section
-    csv += 'SUMMARY METRICS\n';
-    csv += 'Metric,Value\n';
-    csv += `Total POs,${data.summary.totalPOs}\n`;
-    csv += `Pending POs,${data.summary.pendingPOs}\n`;
-    csv += `Approved POs,${data.summary.approvedPOs}\n`;
-    csv += `Rejected POs,${data.summary.rejectedPOs}\n`;
-    csv += `Total PO Value,${data.summary.totalPOValue}\n`;
-    csv += `Average PO Value,${data.summary.averagePOValue.toFixed(2)}\n\n`;
-    
-    // Purchase orders details section
-    csv += 'PURCHASE ORDER DETAILS\n';
-    csv += 'PO Number,Vendor,SKU,Product Name,Quantity,Status,Received Date\n';
-    
-    data.purchaseOrders.forEach((po: any) => {
-      const receivedDate = po.createdAt.toISOString().split('T')[0];
-      const vendorName = po.vendor?.name || 'N/A';
-      
-      csv += `"${po.poNumber}","${vendorName}","${po.sku}","${po.productName}",${po.quantity},"${po.status}","${receivedDate}"\n`;
-    });
-    
-    return csv;
-  }
-
-  // Helper methods
-  private getStockThreshold(quantity: number, minStock: number, maxStock: number): string {
-    if (quantity <= minStock) return 'Low';
-    if (quantity >= maxStock * 0.9) return 'High';
-    return 'Normal';
-  }
-
-  private extractCategory(productName: string): string {
-    if (productName.toLowerCase().includes('lays') || productName.toLowerCase().includes('snack')) {
-      return 'Snacks';
-    }
-    if (productName.toLowerCase().includes('beverage') || productName.toLowerCase().includes('drink')) {
-      return 'Beverages';
-    }
-    return 'General';
-  }
-
-  // PDF generation stub
-  private convertToPDF(data: any, reportType: string): any {
-    return {
-      message: 'PDF generation would be implemented here',
-      data: data,
-      format: 'pdf',
-      reportType: reportType
-    };
-  }
-
-  // ==================== PRIVATE HELPER METHODS ====================
-  private getAgeFilter(ageRange: string): any {
-    switch (ageRange) {
-      case '0-30':
-        return { $lte: 30 };
-      case '31-60':
-        return { $gt: 30, $lte: 60 };
-      case '61-90':
-        return { $gt: 60, $lte: 90 };
-      case '90+':
-        return { $gt: 90 };
-      default:
-        return {};
-    }
-  }
-
-  private async generateAlerts(warehouseId?: string): Promise<DashboardData['alerts']> {
-    const alerts: DashboardData['alerts'] = [];
-    
-    try {
-      const baseQuery: any = {};
-      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-        baseQuery.warehouse = new Types.ObjectId(warehouseId);
-      }
-      
-      const qcFailed = await GoodsReceiving.countDocuments({
-        ...baseQuery,
-        status: 'qc_failed'
-      });
-      
-      if (qcFailed > 0) {
-        alerts.push({
-          type: 'qc_failed',
-          message: `${qcFailed} batches failed QC`,
-          count: qcFailed
-        });
-      }
-
-      const lowStock = await Inventory.countDocuments({
-        ...baseQuery,
-        status: 'low_stock',
-        isArchived: false
-      });
-      
-      if (lowStock > 0) {
-        alerts.push({
-          type: 'low_stock',
-          message: `${lowStock} items below safety stock`,
-          count: lowStock
-        });
-      }
-    } catch (error) {
-      console.error('Error generating alerts:', error);
-    }
-
-    return alerts;
-  }
-
-  private async getRecentActivities(warehouseId?: string): Promise<any[]> {
-    try {
-      const baseQuery: any = {};
-      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-        baseQuery.warehouse = new Types.ObjectId(warehouseId);
-      }
-      
-      const [receivingActivities, dispatchActivities] = await Promise.all([
-        GoodsReceiving.find(baseQuery)
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .populate('createdBy', 'name'),
-        DispatchOrder.find(baseQuery)
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .populate('assignedAgent', 'name')
-      ]);
-
-      const activities = [
-        ...receivingActivities.map((item: any) => ({
-          type: 'inbound',
-          message: `Received ${item.quantity} units of ${item.sku}`,
-          timestamp: item.createdAt,
-          user: item.createdBy?.name || 'System'
-        })),
-        
-        ...dispatchActivities.map((item: any) => ({
-          type: 'outbound',
-          message: `Dispatched ${item.products?.length || 0} products to ${item.destination}`,
-          timestamp: item.createdAt,
-          user: item.assignedAgent?.name || 'System'
-        }))
-      ];
-
-      return activities
-        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 8);
-        
-    } catch (error) {
-      console.error('Error getting recent activities:', error);
-      return [];
-    }
-  }
-
-  private async validateSkuStock(products: { sku: string; quantity: number }[]): Promise<void> {
-  for (const product of products) {
-    const inventory = await Inventory.findOne({
-      sku: product.sku,
-      isArchived: false
-    });
-
-    if (!inventory || inventory.quantity < product.quantity) {
-      throw new Error(
-        `Insufficient stock for ${product.sku}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`
-      );
-    }
-  }
-}
-private async reduceStockBySku(products: { sku: string; quantity: number }[]): Promise<void> {
-  for (const product of products) {
-    await Inventory.findOneAndUpdate(
-      { sku: product.sku, isArchived: false },
-      {
-        $inc: { quantity: -product.quantity },
-        $set: { updatedAt: new Date() }
-      }
-    );
-  }
-}
-
-
-  private calculateInventoryStatus(data: {
-    quantity: number;
-    minStockLevel: number;
-    maxStockLevel: number;
-    expiryDate?: Date | undefined;
-  }): string {
-    const today = new Date();
-    
-    // Check expiry first
-    if (data.expiryDate && data.expiryDate < today) {
-      return 'expired';
-    }
-    
-    // Then check stock levels
-    if (data.quantity <= data.minStockLevel) {
-      return 'low_stock';
-    }
-    
-    if (data.quantity >= data.maxStockLevel * 0.9) {
-      return 'overstock';
-    }
-    
-    return 'active';
-  }
-
-  // ==================== REPORT GENERATION METHODS ====================
   private async generateEfficiencyReport(filters: any): Promise<any> {
     const { warehouse, startDate, endDate } = filters;
     
@@ -2542,6 +1920,99 @@ private async reduceStockBySku(products: { sku: string; quantity: number }[]): P
     return Math.round(score);
   }
 
+  async exportReport(type: string, format: string, filters: any): Promise<any> {
+    const reportData = await this.generateReport(type, filters);
+    
+    if (format === 'csv') {
+      return this.convertToCSV(reportData, type);
+    } else if (format === 'pdf') {
+      return this.convertToPDF(reportData, type);
+    }
+    
+    return reportData;
+  }
+
+  private convertToCSV(data: any, reportType: string): string {
+    let csv = '';
+    
+    switch (reportType) {
+      case 'inventory_summary':
+        csv = this.convertInventorySummaryToCSV(data);
+        break;
+      case 'purchase_orders':
+        csv = this.convertPurchaseOrdersToCSV(data);
+        break;
+      case 'stock_ageing':
+        csv = this.convertStockAgeingToCSV(data);
+        break;
+      case 'inventory_turnover':
+        csv = this.convertInventoryTurnoverToCSV(data);
+        break;
+      case 'qc_summary':
+        csv = this.convertQCSummaryToCSV(data);
+        break;
+      default:
+        csv = 'Report Type,Data\n';
+        csv += `${reportType},"${JSON.stringify(data)}"`;
+    }
+    
+    return csv;
+  }
+
+  private convertInventorySummaryToCSV(data: any): string {
+    let csv = 'Inventory Summary Report\n';
+    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
+    
+    csv += 'SUMMARY METRICS\n';
+    csv += 'Metric,Value\n';
+    csv += `Total SKUs,${data.summary.totalSKUs}\n`;
+    csv += `Stock-Out SKUs,${data.summary.stockOutSKUs}\n`;
+    csv += `Total POs,${data.summary.totalPOs}\n`;
+    csv += `Pending POs,${data.summary.pendingPOs}\n`;
+    csv += `Total Stock Value,${data.summary.totalStockValue}\n`;
+    csv += `Low Stock Items,${data.summary.lowStockItems}\n`;
+    csv += `Near-Expiry SKUs,${data.summary.nearExpirySKUs}\n`;
+    csv += `Stock Accuracy,${data.summary.stockAccuracy}%\n\n`;
+    
+    csv += 'INVENTORY DETAILS\n';
+    csv += 'SKU ID,Product Name,Category,Current Qty,Threshold,Stock Status,Last Updated\n';
+    
+    data.inventoryDetails.forEach((item: any) => {
+      const threshold = this.getStockThreshold(item.quantity, item.minStockLevel, item.maxStockLevel);
+      const lastUpdated = item.updatedAt.toISOString().split('T')[0];
+      
+      csv += `"${item.sku}","${item.productName}","${this.extractCategory(item.productName)}",${item.quantity},${threshold},"${item.status}","${lastUpdated}"\n`;
+    });
+    
+    return csv;
+  }
+
+  private convertPurchaseOrdersToCSV(data: any): string {
+    let csv = 'Purchase Orders Report\n';
+    csv += `Generated On: ${data.generatedOn.toISOString().split('T')[0]}\n\n`;
+    
+    csv += 'SUMMARY METRICS\n';
+    csv += 'Metric,Value\n';
+    csv += `Total POs,${data.summary.totalPOs}\n`;
+    csv += `Pending POs,${data.summary.pendingPOs}\n`;
+    csv += `Approved POs,${data.summary.approvedPOs}\n`;
+    csv += `Rejected POs,${data.summary.rejectedPOs}\n`;
+    csv += `Total PO Value,${data.summary.totalPOValue}\n`;
+    csv += `Average PO Value,${data.summary.averagePOValue.toFixed(2)}\n\n`;
+    
+    csv += 'PURCHASE ORDER DETAILS\n';
+    csv += 'PO Number,Vendor,Status,Created Date\n';
+    
+    data.purchaseOrders.forEach((po: any) => {
+      const createdDate = po.createdAt.toISOString().split('T')[0];
+      const vendorName = po.vendor?.vendor_name || 'N/A';
+      
+      csv += `"${po.po_number}","${vendorName}","${po.po_status}","${createdDate}"\n`;
+    });
+    
+    return csv;
+  }
+
   private convertStockAgeingToCSV(data: any): string {
     let csv = 'Stock Ageing Report\n';
     csv += 'Age Range,Count\n';
@@ -2549,13 +2020,6 @@ private async reduceStockBySku(products: { sku: string; quantity: number }[]): P
     if (data.ageingBuckets) {
       Object.entries(data.ageingBuckets).forEach(([range, count]) => {
         csv += `${range},${count}\n`;
-      });
-    }
-    
-    if (data.details && Array.isArray(data.details)) {
-      csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Location\n';
-      data.details.forEach((item: any) => {
-        csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}"\n`;
       });
     }
     
@@ -2577,15 +2041,192 @@ private async reduceStockBySku(products: { sku: string; quantity: number }[]): P
 
   private convertQCSummaryToCSV(data: any): string {
     let csv = 'QC Summary Report\n';
-    csv += 'Status,Count,Total Quantity\n';
+    csv += 'Status,Count\n';
     
     if (data.data && Array.isArray(data.data)) {
       data.data.forEach((item: any) => {
-        csv += `${item._id},${item.count},${item.totalQuantity}\n`;
+        csv += `${item._id},${item.count}\n`;
       });
     }
     
     return csv;
+  }
+
+  private getStockThreshold(quantity: number, minStock: number, maxStock: number): string {
+    if (quantity <= minStock) return 'Low';
+    if (quantity >= maxStock * 0.9) return 'High';
+    return 'Normal';
+  }
+
+  private extractCategory(productName: string): string {
+    if (productName.toLowerCase().includes('lays') || productName.toLowerCase().includes('snack')) {
+      return 'Snacks';
+    }
+    if (productName.toLowerCase().includes('beverage') || productName.toLowerCase().includes('drink')) {
+      return 'Beverages';
+    }
+    return 'General';
+  }
+
+  private convertToPDF(data: any, reportType: string): any {
+    return {
+      message: 'PDF generation would be implemented here',
+      data: data,
+      format: 'pdf',
+      reportType: reportType
+    };
+  }
+
+  // ==================== PRIVATE HELPER METHODS ====================
+  private getAgeFilter(ageRange: string): any {
+    switch (ageRange) {
+      case '0-30':
+        return { $lte: 30 };
+      case '31-60':
+        return { $gt: 30, $lte: 60 };
+      case '61-90':
+        return { $gt: 60, $lte: 90 };
+      case '90+':
+        return { $gt: 90 };
+      default:
+        return {};
+    }
+  }
+
+  private async generateAlerts(warehouseId?: string): Promise<DashboardData['alerts']> {
+    const alerts: DashboardData['alerts'] = [];
+    
+    try {
+      const baseQuery: any = {};
+      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+        baseQuery.warehouse = new Types.ObjectId(warehouseId);
+      }
+      
+      const pendingQC = await RaisePurchaseOrder.countDocuments({
+        ...baseQuery,
+        po_status: 'draft'
+      });
+      
+      if (pendingQC > 0) {
+        alerts.push({
+          type: 'qc_failed',
+          message: `${pendingQC} purchase orders pending approval`,
+          count: pendingQC
+        });
+      }
+
+      const lowStock = await Inventory.countDocuments({
+        ...baseQuery,
+        status: 'low_stock',
+        isArchived: false
+      });
+      
+      if (lowStock > 0) {
+        alerts.push({
+          type: 'low_stock',
+          message: `${lowStock} items below safety stock`,
+          count: lowStock
+        });
+      }
+    } catch (error) {
+      console.error('Error generating alerts:', error);
+    }
+
+    return alerts;
+  }
+
+  private async getRecentActivities(warehouseId?: string): Promise<any[]> {
+    try {
+      const baseQuery: any = {};
+      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+        baseQuery.warehouse = new Types.ObjectId(warehouseId);
+      }
+      
+      const [purchaseActivities, dispatchActivities] = await Promise.all([
+        RaisePurchaseOrder.find(baseQuery)
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .populate('createdBy', 'name'),
+        DispatchOrder.find(baseQuery)
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .populate('assignedAgent', 'name')
+      ]);
+
+      const activities = [
+        ...purchaseActivities.map((item: any) => ({
+          type: 'inbound',
+          message: `Purchase order ${item.po_number} created`,
+          timestamp: item.createdAt,
+          user: item.createdBy?.name || 'System'
+        })),
+        
+        ...dispatchActivities.map((item: any) => ({
+          type: 'outbound',
+          message: `Dispatched ${item.products?.length || 0} products to ${item.destination}`,
+          timestamp: item.createdAt,
+          user: item.assignedAgent?.name || 'System'
+        }))
+      ];
+
+      return activities
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 8);
+        
+    } catch (error) {
+      console.error('Error getting recent activities:', error);
+      return [];
+    }
+  }
+
+  private async validateSkuStock(products: { sku: string; quantity: number }[]): Promise<void> {
+    for (const product of products) {
+      const inventory = await Inventory.findOne({
+        sku: product.sku,
+        isArchived: false
+      });
+
+      if (!inventory || inventory.quantity < product.quantity) {
+        throw new Error(
+          `Insufficient stock for ${product.sku}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`
+        );
+      }
+    }
+  }
+
+  private async reduceStockBySku(products: { sku: string; quantity: number }[]): Promise<void> {
+    for (const product of products) {
+      await Inventory.findOneAndUpdate(
+        { sku: product.sku, isArchived: false },
+        {
+          $inc: { quantity: -product.quantity },
+          $set: { updatedAt: new Date() }
+        }
+      );
+    }
+  }
+
+  private calculateInventoryStatus(data: {
+    quantity: number;
+    minStockLevel: number;
+    maxStockLevel: number;
+    expiryDate?: Date | undefined;
+  }): string {
+    const today = new Date();
+    
+    if (data.expiryDate && data.expiryDate < today) {
+      return 'expired';
+    }
+    
+    if (data.quantity <= data.minStockLevel) {
+      return 'low_stock';
+    }
+    
+    if (data.quantity >= data.maxStockLevel * 0.9) {
+      return 'overstock';
+    }
+    
+    return 'active';
   }
 }
 

@@ -5,12 +5,10 @@ import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 
 // Screen 1: Dashboard
-// Update getDashboard controller to handle the new filters
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { date, category, partner, warehouseId, ...otherFilters } = req.query;
     
-    // Build filters object for the service
     const filters: any = { ...otherFilters };
     
     if (date) filters.dateRange = date as string;
@@ -27,56 +25,78 @@ export const getDashboard = asyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-// Screen 2: Inbound Logistics
-export const receiveGoods = asyncHandler(async (req: Request, res: Response) => {
+// Screen 2: Inbound Logistics - Purchase Orders
+// In your warehouse.controller.ts - update createPurchaseOrder controller
+
+export const createPurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
   try {
-    const result = await warehouseService.receiveGoods(req.body, req.user._id);
-    return sendCreated(res, result, 'Goods received successfully');
+    const result = await warehouseService.createPurchaseOrder(req.body, req.user._id);
+    
+    // Format the response to include complete vendor information
+    const responseData = {
+      ...result.toObject(),
+      vendor: result.vendor ? {
+        _id: (result.vendor as any)._id,
+        vendor_name: (result.vendor as any).vendor_name,
+        vendor_billing_name: (result.vendor as any).vendor_billing_name,
+        vendor_email: (result.vendor as any).vendor_email,
+        vendor_phone: (result.vendor as any).vendor_phone,
+        vendor_category: (result.vendor as any).vendor_category,
+        gst_number: (result.vendor as any).gst_number,
+        verification_status: (result.vendor as any).verification_status,
+        vendor_address: (result.vendor as any).vendor_address,
+        vendor_contact: (result.vendor as any).vendor_contact,
+        vendor_id: (result.vendor as any).vendor_id
+      } : null
+    };
+
+    return sendCreated(res, responseData, 'Purchase order created successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to receive goods', 500);
+    return sendError(res, error instanceof Error ? error.message : 'Failed to create purchase order', 500);
   }
 });
 
-export const getReceivings = asyncHandler(async (req: Request, res: Response) => {
+export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;
-    const result = await warehouseService.getReceivings(
+    const result = await warehouseService.getPurchaseOrders(
       warehouseId as string,
       filters
     );
-    return sendSuccess(res, result, 'Receivings fetched successfully');
+    return sendSuccess(res, result, 'Purchase orders fetched successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to fetch receivings', 500);
+    return sendError(res, error instanceof Error ? error.message : 'Failed to fetch purchase orders', 500);
   }
 });
 
-export const getReceivingById = asyncHandler(async (req: Request, res: Response) => {
+export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Receiving ID is required');
+  if (!id) return sendBadRequest(res, 'Purchase order ID is required');
 
   try {
-    const result = await warehouseService.getReceivingById(id);
-    if (!result) return sendNotFound(res, 'Receiving record not found');
-    return sendSuccess(res, result, 'Receiving record fetched successfully');
+    const result = await warehouseService.getPurchaseOrderById(id);
+    if (!result) return sendNotFound(res, 'Purchase order not found');
+    return sendSuccess(res, result, 'Purchase order fetched successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to fetch receiving record', 500);
+    return sendError(res, error instanceof Error ? error.message : 'Failed to fetch purchase order', 500);
   }
 });
 
-export const updateQCVerification = asyncHandler(async (req: Request, res: Response) => {
+export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  if (!id) return sendBadRequest(res, 'Receiving ID is required');
+  const { po_status, remarks } = req.body;
+
+  if (!id) return sendBadRequest(res, 'Purchase order ID is required');
+  if (!po_status) return sendBadRequest(res, 'Purchase order status is required');
 
   try {
-    const { qcVerification } = req.body;
-    const result = await warehouseService.updateQCVerification(id, qcVerification);
-    if (!result) return sendNotFound(res, 'Receiving record not found');
-
-    return sendSuccess(res, result, 'QC verification updated successfully');
+    const result = await warehouseService.updatePurchaseOrderStatus(id, po_status, remarks);
+    if (!result) return sendNotFound(res, 'Purchase order not found');
+    return sendSuccess(res, result, 'Purchase order status updated successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update QC verification', 500);
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update purchase order status', 500);
   }
 });
 
@@ -94,9 +114,10 @@ export const createDispatch = asyncHandler(async (req: Request, res: Response) =
 
 export const getDispatches = asyncHandler(async (req: Request, res: Response) => {
   try {
+    const { warehouseId, ...filters } = req.query;
     const dispatches = await warehouseService.getDispatches(
-      req.query['warehouseId'] as string,
-      req.query
+      warehouseId as string,
+      filters
     );
     sendSuccess(res, dispatches, 'Dispatches retrieved successfully');
   } catch (error) {
@@ -146,10 +167,8 @@ export const createQCTemplate = asyncHandler(async (req: Request, res: Response)
 
 export const getQCTemplates = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const templates = await warehouseService.getQCTemplates(
-      req.query['sku'] as string // <-- updated filtering
-    );
-    
+    const { sku } = req.query;
+    const templates = await warehouseService.getQCTemplates(sku as string);
     sendSuccess(res, templates, 'QC templates retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get QC templates', 500);
@@ -163,7 +182,6 @@ export const updateQCTemplate = asyncHandler(async (req: Request, res: Response)
   try {
     const template = await warehouseService.updateQCTemplate(id, req.body);
     if (!template) return sendNotFound(res, 'QC template not found');
-  
     return sendSuccess(res, template, 'QC template updated successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to update QC template', 500);
@@ -182,29 +200,12 @@ export const deleteQCTemplate = asyncHandler(async (req: Request, res: Response)
   }
 });
 
-
 // Return Management
 export const createReturnOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
   try {
-    // Extract only the required fields
-    const { batchId, vendor, reason, status, quantity } = req.body;
-
-    // Validate required fields
-    if (!batchId || !vendor || !reason) {
-      return sendError(res, 'Missing required fields: batchId, vendor, and reason are required', 400);
-    }
-
-    const returnOrderData = {
-      batchId,
-      vendor,
-      reason,
-      status: status || 'pending',
-      quantity
-    } as any;
-
-    const returnOrder = await warehouseService.createReturnOrder(returnOrderData, req.user._id);
+    const returnOrder = await warehouseService.createReturnOrder(req.body, req.user._id);
     return sendCreated(res, returnOrder, 'Return order created successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to create return order', 500);
@@ -213,9 +214,10 @@ export const createReturnOrder = asyncHandler(async (req: Request, res: Response
 
 export const getReturnQueue = asyncHandler(async (req: Request, res: Response) => {
   try {
+    const { warehouseId, ...filters } = req.query;
     const returnQueue = await warehouseService.getReturnQueue(
-      req.query['warehouseId'] as string,
-      req.query
+      warehouseId as string,
+      filters
     );
     sendSuccess(res, returnQueue, 'Return queue retrieved successfully');
   } catch (error) {
@@ -270,7 +272,6 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
 });
 
 // Screen 4: Inventory Management
-// Inventory Dashboard Controllers
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
   const { warehouseId } = req.params;
   const { page = 1, limit = 50, ...filters } = req.query;
@@ -286,7 +287,6 @@ export const getInventoryDashboard = asyncHandler(async (req: Request, res: Resp
       parseInt(page as string),
       parseInt(limit as string)
     );
-    
     sendSuccess(res, result, 'Inventory dashboard data retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get inventory dashboard', 500);
@@ -302,11 +302,9 @@ export const getInventoryItem = asyncHandler(async (req: Request, res: Response)
 
   try {
     const inventoryItem = await warehouseService.getInventoryById(id);
-    
     if (!inventoryItem) {
       return sendError(res, 'Inventory item not found', 404);
     }
-    
     sendSuccess(res, inventoryItem, 'Inventory item retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get inventory item', 500);
@@ -373,7 +371,6 @@ export const getArchivedInventory = asyncHandler(async (req: Request, res: Respo
       parseInt(page as string),
       parseInt(limit as string)
     );
-    
     sendSuccess(res, result, 'Archived inventory retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get archived inventory', 500);
@@ -424,6 +421,7 @@ export const bulkUnarchiveInventory = asyncHandler(async (req: Request, res: Res
     sendError(res, error instanceof Error ? error.message : 'Failed to bulk unarchive inventory', 500);
   }
 });
+
 // Screen 5: Expense Management
 export const createExpense = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
@@ -438,9 +436,10 @@ export const createExpense = asyncHandler(async (req: Request, res: Response) =>
 
 export const getExpenses = asyncHandler(async (req: Request, res: Response) => {
   try {
+    const { warehouseId, ...filters } = req.query;
     const expenses = await warehouseService.getExpenses(
-      req.query['warehouseId'] as string,
-      req.query
+      warehouseId as string,
+      filters
     );
     sendSuccess(res, expenses, 'Expenses retrieved successfully');
   } catch (error) {
@@ -448,37 +447,18 @@ export const getExpenses = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
-export const updateExpenseStatus = asyncHandler(async (req, res) => {
+export const updateExpenseStatus = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  if (!id) return sendBadRequest(res, 'ID required');
-
-  const expense = await warehouseService.updateExpense(id, { status } as any);
-
-  sendSuccess(res, expense, 'Status updated');
-});
-
-export const getExpenseSummary = asyncHandler(async (req: Request, res: Response) => {
-  try {
-    const summary = await warehouseService.getExpenseSummary(
-      req.query['warehouseId'] as string,
-      req.query
-    );
-    sendSuccess(res, summary, 'Expense summary retrieved successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to get expense summary', 500);
-  }
-});
-export const updateExpense = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
   if (!id) return sendBadRequest(res, 'Expense ID is required');
+  if (!status) return sendBadRequest(res, 'Expense status is required');
 
   try {
-    const expense = await warehouseService.updateExpense(id, req.body);
-    return sendSuccess(res, expense, 'Expense updated successfully');
+    const expense = await warehouseService.updateExpenseStatus(id, status, req.user?._id);
+    return sendSuccess(res, expense, 'Expense status updated successfully');
   } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense', 500);
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense status', 500);
   }
 });
 
@@ -494,6 +474,18 @@ export const updateExpensePaymentStatus = asyncHandler(async (req: Request, res:
     return sendSuccess(res, expense, 'Expense payment status updated successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to update expense payment status', 500);
+  }
+});
+
+export const updateExpense = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  try {
+    const expense = await warehouseService.updateExpense(id, req.body);
+    return sendSuccess(res, expense, 'Expense updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update expense', 500);
   }
 });
 
@@ -522,12 +514,25 @@ export const getExpenseById = asyncHandler(async (req: Request, res: Response) =
   }
 });
 
+export const getExpenseSummary = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const summary = await warehouseService.getExpenseSummary(
+      warehouseId as string,
+      filters
+    );
+    sendSuccess(res, summary, 'Expense summary retrieved successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to get expense summary', 500);
+  }
+});
+
 export const getMonthlyExpenseTrend = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const months = parseInt(req.query['months'] as string) || 12;
+    const { warehouseId, months = 12 } = req.query;
     const trend = await warehouseService.getMonthlyExpenseTrend(
-      req.query['warehouseId'] as string,
-      months
+      warehouseId as string,
+      parseInt(months as string)
     );
     sendSuccess(res, trend, 'Monthly expense trend retrieved successfully');
   } catch (error) {
@@ -535,8 +540,7 @@ export const getMonthlyExpenseTrend = asyncHandler(async (req: Request, res: Res
   }
 });
 
-// Screen 6: Reports
-// Screen 6: Reports
+// Screen 6: Reports & Analytics
 export const generateReport = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { type, warehouseId, ...filters } = req.query;
@@ -583,11 +587,11 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-// Enhanced Reports & Analytics
+// Enhanced Reports
 export const generateInventorySummary = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;
-    const report = await warehouseService.generateInventorySummaryReport({
+    const report = await warehouseService.generateReport('inventory_summary', {
       warehouse: warehouseId as string,
       ...filters
     });
@@ -600,13 +604,52 @@ export const generateInventorySummary = asyncHandler(async (req: Request, res: R
 export const generatePurchaseOrderReport = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;
-    const report = await warehouseService.generatePurchaseOrderReport({
+    const report = await warehouseService.generateReport('purchase_orders', {
       warehouse: warehouseId as string,
       ...filters
     });
     sendSuccess(res, report, 'Purchase order report generated successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to generate purchase order report', 500);
+  }
+});
+
+export const generateInventoryTurnoverReport = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const report = await warehouseService.generateReport('inventory_turnover', {
+      warehouse: warehouseId as string,
+      ...filters
+    });
+    sendSuccess(res, report, 'Inventory turnover report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate inventory turnover report', 500);
+  }
+});
+
+export const generateQCSummaryReport = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const report = await warehouseService.generateReport('qc_summary', {
+      warehouse: warehouseId as string,
+      ...filters
+    });
+    sendSuccess(res, report, 'QC summary report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate QC summary report', 500);
+  }
+});
+
+export const generateEfficiencyReport = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId, ...filters } = req.query;
+    const report = await warehouseService.generateReport('efficiency', {
+      warehouse: warehouseId as string,
+      ...filters
+    });
+    sendSuccess(res, report, 'Efficiency report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate efficiency report', 500);
   }
 });
 
@@ -621,4 +664,17 @@ export const getReportTypes = asyncHandler(async (_req: Request, res: Response) 
   ];
   
   sendSuccess(res, reportTypes, 'Report types retrieved successfully');
+});
+
+// Additional utility endpoints
+export const getStockAgeingReport = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { warehouseId } = req.query;
+    const report = await warehouseService.generateReport('stock_ageing', {
+      warehouse: warehouseId as string
+    });
+    sendSuccess(res, report, 'Stock ageing report generated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
+  }
 });

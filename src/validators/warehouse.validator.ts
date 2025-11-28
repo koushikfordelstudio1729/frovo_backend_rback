@@ -2,7 +2,27 @@
 import { z } from 'zod';
 
 const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
+// In your warehouse.validator.ts file, add these schemas:
 
+export const createPurchaseOrderSchema = z.object({
+  body: z.object({
+    po_number: z.string().min(1, 'Purchase Order Number is required'),
+    vendor: z.string().min(1, 'Vendor is required'),
+    po_raised_date: z.string().datetime().optional(),
+    po_status: z.enum(['draft', 'approved', 'pending']).default('draft'),
+    remarks: z.string().optional(),
+    warehouse: z.string().optional()
+  })
+});
+
+export const updatePurchaseOrderStatusSchema = z.object({
+  body: z.object({
+    po_status: z.enum(['draft', 'approved', 'pending'], {
+      required_error: 'Purchase order status is required'
+    }),
+    remarks: z.string().optional()
+  })
+});
 export const receiveGoodsSchema = z.object({
   body: z.object({
     poNumber: z.string().min(1, 'PO Number is required'),
