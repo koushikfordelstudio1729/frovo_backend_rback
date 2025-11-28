@@ -76,6 +76,75 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
     return sendError(res, error instanceof Error ? error.message : 'Failed to create purchase order', 500);
   }
 });
+// controllers/warehouse.controller.ts
+
+export const createGRN = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  try {
+    const { purchaseOrderId } = req.params;
+    
+    if (!purchaseOrderId) {
+      return sendBadRequest(res, 'Purchase order ID is required');
+    }
+
+    const result = await warehouseService.createGRN(purchaseOrderId, req.body, req.user._id);
+    return sendCreated(res, result, 'GRN created successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to create GRN', 500);
+  }
+});
+
+export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return sendBadRequest(res, 'GRN ID is required');
+    }
+
+    const grn = await warehouseService.getGRNById(id);
+    
+    if (!grn) {
+      return sendNotFound(res, 'GRN not found');
+    }
+
+    return sendSuccess(res, grn, 'GRN retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to get GRN', 500);
+  }
+});
+
+export const getGRNs = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const grns = await warehouseService.getGRNs(req.query);
+    return sendSuccess(res, grns, 'GRNs retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to get GRNs', 500);
+  }
+});
+
+export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  try {
+    const { id } = req.params;
+    const { qc_status, remarks } = req.body;
+
+    if (!id) {
+      return sendBadRequest(res, 'GRN ID is required');
+    }
+
+    if (!qc_status) {
+      return sendBadRequest(res, 'QC status is required');
+    }
+
+    const result = await warehouseService.updateGRNStatus(id, qc_status, remarks);
+    return sendSuccess(res, result, 'GRN status updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update GRN status', 500);
+  }
+});
 export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;

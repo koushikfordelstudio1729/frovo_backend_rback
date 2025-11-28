@@ -26,6 +26,30 @@ export const createPurchaseOrderSchema = z.object({
     })).optional().default([]) // Make sure this line exists
   })
 });
+// validators/warehouse.validator.ts
+
+export const createGRNSchema = z.object({
+  body: z.object({
+    delivery_challan: z.string().min(1, 'Delivery challan number is required'),
+    transporter_name: z.string().min(1, 'Transporter name is required'),
+    vehicle_number: z.string().min(1, 'Vehicle number is required'),
+    recieved_date: z.string().datetime().optional(),
+    remarks: z.string().optional(),
+    scanned_challan: z.string().url('Valid URL required').optional(),
+    qc_status: z.enum(['bad', 'moderate', 'excellent'], {
+      required_error: 'QC status is required'
+    })
+  })
+});
+
+export const updateGRNStatusSchema = z.object({
+  body: z.object({
+    qc_status: z.enum(['bad', 'moderate', 'excellent'], {
+      required_error: 'QC status is required'
+    }),
+    remarks: z.string().optional()
+  })
+});
 
 export const updatePurchaseOrderStatusSchema = z.object({
   body: z.object({

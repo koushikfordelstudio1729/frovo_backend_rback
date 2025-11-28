@@ -8,9 +8,10 @@ import {
   Inventory,
   Expense, 
   FieldAgent,
+  GRNnumber
 } from '../models/Warehouse.model';
 import { Types } from 'mongoose';
-import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
+import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent, IGRNnumber } from '../models/Warehouse.model';
 
 // Interfaces
 export interface InventoryStats {
@@ -85,7 +86,7 @@ export interface RaisePurchaseOrderData {
   vendor_phone: string;
   gst_number: string;
   remarks?: string;
-   po_line_items: Array<{ // Change this to array
+  po_line_items: Array<{
     line_no: number;
     sku: string;
     productName: string;
@@ -97,20 +98,20 @@ export interface RaisePurchaseOrderData {
     expected_delivery_date: Date;
     location: string;
   }>;
-   // Add vendor details subdocument
   vendor_details: {
-    vendor_name: { type: String, required: true },
-    vendor_billing_name: { type: String, required: true },
-    vendor_email: { type: String, required: true },
-    vendor_phone: { type: String, required: true },
-    vendor_category: { type: String, required: true },
-    gst_number: { type: String, required: true },
-    verification_status: { type: String, required: true },
-    vendor_address: { type: String, required: true },
-    vendor_contact: { type: String, required: true },
-    vendor_id: { type: String, required: true }
-  }
+    vendor_name: string;
+    vendor_billing_name: string;
+    vendor_email: string;
+    vendor_phone: string;
+    vendor_category: string;
+    gst_number: string;
+    verification_status: string;
+    vendor_address: string;
+    vendor_contact: string;
+    vendor_id: string;
+  };
 }
+
 export interface DispatchData {
   vendor: Types.ObjectId;
   destination: string;
@@ -206,6 +207,16 @@ export interface PurchaseOrderReport {
   purchaseOrders: any[];
   generatedOn: Date;
   filters: ReportFilters;
+}
+
+export interface GRNData {
+  delivery_challan: string;
+  transporter_name: string;
+  vehicle_number: string;
+  recieved_date: Date;
+  remarks?: string;
+  scanned_challan?: string;
+  qc_status: 'bad' | 'moderate' | 'excellent';
 }
 
 class WarehouseService {
@@ -441,60 +452,384 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-  // In your warehouse.service.ts - update the createPurchaseOrder method
+  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
+    try {
+      console.log('📦 Received PO data:', {
+        vendor: data.vendor,
+        po_line_items_count: data.po_line_items?.length || 0,
+        vendor_details_present: data.vendor_details ? 'Yes' : 'No'
+      });
 
-async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
-  try {
-    console.log('📦 Received PO data:', {
-      vendor: data.vendor,
-      po_line_items_count: data.po_line_items?.length || 0,
-      vendor_details_present: data.vendor_details ? 'Yes' : 'No'
-    });
+      // Validate vendor exists and get vendor details
+      const VendorModel = mongoose.model('VendorCreate');
+      const vendor = await VendorModel.findById(data.vendor);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
 
-    // Validate vendor exists and get vendor details
-    const vendor = await mongoose.model('VendorCreate').findById(data.vendor);
-    if (!vendor) {
-      throw new Error('Vendor not found');
+      // Extract vendor details to store in PO document
+      const vendorDetails = {
+        vendor_name: vendor.vendor_name,
+        vendor_billing_name: vendor.vendor_billing_name,
+        vendor_email: vendor.vendor_email,
+        vendor_phone: vendor.vendor_phone,
+        vendor_category: vendor.vendor_category,
+        gst_number: vendor.gst_number,
+        verification_status: vendor.verification_status,
+        vendor_address: vendor.vendor_address,
+        vendor_contact: vendor.vendor_contact,
+        vendor_id: vendor.vendor_id
+      };
+
+      // Create purchase order with vendor details stored directly
+      const purchaseOrder = await RaisePurchaseOrder.create({
+        vendor: data.vendor,
+        vendor_details: vendorDetails,
+        po_raised_date: data.po_raised_date || new Date(),
+        po_status: data.po_status || 'draft',
+        remarks: data.remarks,
+        po_line_items: data.po_line_items || [],
+        createdBy
+      });
+
+      console.log('✅ PO created with vendor details stored in document');
+      return purchaseOrder;
+    } catch (error) {
+      console.error('❌ Error creating PO:', error);
+      throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId): Promise<IGRNnumber> {
+    try {
+      console.log('📦 Creating GRN for PO:', purchaseOrderId);
+
+      // Validate ObjectId
+      if (!Types.ObjectId.isValid(purchaseOrderId)) {
+        throw new Error('Invalid purchase order ID');
+      }
+
+      // Validate GRN data
+      if (!grnData.delivery_challan || !grnData.transporter_name || !grnData.vehicle_number) {
+        throw new Error('Missing required GRN fields: delivery_challan, transporter_name, vehicle_number');
+      }
+
+      // Validate purchase order exists and is approved
+      const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId)
+        .populate('vendor');
+      
+      if (!purchaseOrder) {
+        throw new Error('Purchase order not found');
+      }
+
+      if (purchaseOrder.po_status !== 'approved') {
+        throw new Error('Cannot create GRN for non-approved purchase order');
+      }
+
+      // Check if GRN already exists for this PO using purchase_order field
+      const existingGRN = await GRNnumber.findOne({ purchase_order: purchaseOrderId });
+      if (existingGRN) {
+        throw new Error('GRN already exists for this purchase order');
+      }
+
+      // Generate unique GRN number
+      const grnNumber = await this.generateGRNNumber();
+
+      // Create GRN with proper structure
+      const grnPayload = {
+        grn_number: grnNumber,
+        purchase_order: purchaseOrderId,
+        delivery_challan: grnData.delivery_challan,
+        transporter_name: grnData.transporter_name,
+        vehicle_number: grnData.vehicle_number,
+        recieved_date: grnData.recieved_date,
+        remarks: grnData.remarks,
+        scanned_challan: grnData.scanned_challan,
+        qc_status: grnData.qc_status,
+        
+        // Copy vendor information from PO
+        vendor: purchaseOrder.vendor,
+        vendor_details: purchaseOrder.vendor_details,
+        
+        // Copy and transform line items
+        grn_line_items: purchaseOrder.po_line_items.map(item => ({
+          line_no: item.line_no,
+          sku: item.sku,
+          productName: item.productName,
+          quantity: item.quantity,
+          category: item.category,
+          pack_size: item.pack_size,
+          uom: item.uom,
+          unit_price: item.unit_price,
+          expected_delivery_date: item.expected_delivery_date,
+          location: item.location,
+          received_quantity: 0,
+          accepted_quantity: 0,
+          rejected_quantity: 0
+        })),
+        
+        createdBy,
+        po_status: 'received'
+      };
+
+      const grn = await GRNnumber.create(grnPayload);
+
+      // Update purchase order status to 'received'
+      await RaisePurchaseOrder.findByIdAndUpdate(
+        purchaseOrderId,
+        { po_status: 'received' }
+      );
+
+      console.log('✅ GRN created successfully:', grn.delivery_challan);
+
+      // Populate vendor details for response
+      const populatedGRN = await GRNnumber.findById(grn._id)
+        .populate('vendor')
+        .populate('purchase_order')
+        .populate('createdBy', 'name email');
+
+      return populatedGRN as IGRNnumber;
+    } catch (error) {
+      console.error('❌ Error creating GRN:', error);
+      throw new Error(`Failed to create GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Helper method to generate unique GRN number
+  private async generateGRNNumber(): Promise<string> {
+    let isUnique = false;
+    let grnNumber = '';
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!isUnique && attempts < maxAttempts) {
+      attempts++;
+      
+      // Generate 8-digit number with leading zeros
+      const randomNum = Math.floor(10000000 + Math.random() * 90000000);
+      grnNumber = `GRN${randomNum}`;
+      
+      // Check if GRN number already exists
+      const existingGRN = await GRNnumber.findOne({ grn_number: grnNumber });
+      if (!existingGRN) {
+        isUnique = true;
+      }
     }
 
-    // Extract vendor details to store in PO document
-    const vendorDetails = {
-      vendor_name: vendor.vendor_name,
-      vendor_billing_name: vendor.vendor_billing_name,
-      vendor_email: vendor.vendor_email,
-      vendor_phone: vendor.vendor_phone,
-      vendor_category: vendor.vendor_category,
-      gst_number: vendor.gst_number,
-      verification_status: vendor.verification_status,
-      vendor_address: vendor.vendor_address,
-      vendor_contact: vendor.vendor_contact,
-      vendor_id: vendor.vendor_id
-    };
+    if (!isUnique) {
+      throw new Error('Failed to generate unique GRN number after multiple attempts');
+    }
 
-    // Create purchase order with vendor details stored directly
-    const purchaseOrder = await RaisePurchaseOrder.create({
-      vendor: data.vendor,
-      vendor_details: vendorDetails, // Store vendor details in PO document
-      po_raised_date: data.po_raised_date || new Date(),
-      po_status: data.po_status || 'draft',
-      remarks: data.remarks,
-      po_line_items: data.po_line_items || [],
-      createdBy
-    });
-
-    console.log('✅ PO created with vendor details stored in document');
-
-    // Return the purchase order (no need to populate since vendor details are stored)
-    return purchaseOrder;
-  } catch (error) {
-    console.error('❌ Error creating PO:', error);
-    throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return grnNumber;
   }
-}
+
+  async getGRNById(grnId: string): Promise<IGRNnumber | null> {
+    try {
+      if (!Types.ObjectId.isValid(grnId)) {
+        console.warn('⚠️ Invalid GRN ID format:', grnId);
+        return null;
+      }
+
+      const grn = await GRNnumber.findById(grnId)
+        .populate('vendor')
+        .populate('purchase_order')
+        .populate('createdBy', 'name email');
+
+      if (!grn) {
+        console.warn('⚠️ GRN not found with ID:', grnId);
+        return null;
+      }
+
+      return grn;
+    } catch (error) {
+      console.error('❌ Error fetching GRN by ID:', error);
+      throw new Error(`Failed to fetch GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async getGRNs(filters?: {
+    qc_status?: 'bad' | 'moderate' | 'excellent';
+    transporter_name?: string;
+    startDate?: string;
+    endDate?: string;
+    vendor?: string;
+    purchase_order?: string;
+  }): Promise<IGRNnumber[]> {
+    try {
+      let query: any = {};
+
+      // QC Status filter
+      if (filters?.qc_status) {
+        query.qc_status = filters.qc_status;
+      }
+
+      // Transporter name filter (case-insensitive)
+      if (filters?.transporter_name) {
+        query.transporter_name = { 
+          $regex: filters.transporter_name.trim(), 
+          $options: 'i' 
+        };
+      }
+
+      // Date range filter
+      if (filters?.startDate || filters?.endDate) {
+        query.recieved_date = {};
+        if (filters.startDate) {
+          query.recieved_date.$gte = new Date(filters.startDate);
+        }
+        if (filters.endDate) {
+          // Set to end of day for end date
+          const endDate = new Date(filters.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          query.recieved_date.$lte = endDate;
+        }
+      }
+
+      // Vendor filter
+      if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
+        query.vendor = new Types.ObjectId(filters.vendor);
+      }
+
+      // Purchase order filter
+      if (filters?.purchase_order && Types.ObjectId.isValid(filters.purchase_order)) {
+        query.purchase_order = new Types.ObjectId(filters.purchase_order);
+      }
+
+      const grns = await GRNnumber.find(query)
+        .populate('vendor')
+        .populate('purchase_order')
+        .populate('createdBy', 'name email')
+        .sort({ recieved_date: -1, createdAt: -1 });
+
+      console.log(`✅ Found ${grns.length} GRNs with applied filters`);
+      return grns;
+    } catch (error) {
+      console.error('❌ Error fetching GRNs:', error);
+      throw new Error(`Failed to fetch GRNs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async updateGRNStatus(
+    grnId: string, 
+    qc_status: 'bad' | 'moderate' | 'excellent', 
+    remarks?: string,
+    lineItems?: Array<{
+      line_no: number;
+      received_quantity: number;
+      accepted_quantity: number;
+      rejected_quantity: number;
+    }>
+  ): Promise<IGRNnumber> {
+    try {
+      if (!Types.ObjectId.isValid(grnId)) {
+        throw new Error('Invalid GRN ID');
+      }
+
+      const updateData: any = { 
+        qc_status,
+        updatedAt: new Date()
+      };
+
+      if (remarks) {
+        updateData.remarks = remarks;
+      }
+
+      // Update line items if provided
+      if (lineItems && lineItems.length > 0) {
+        const grn = await GRNnumber.findById(grnId);
+        if (!grn) {
+          throw new Error('GRN not found');
+        }
+
+        // Update each line item
+        lineItems.forEach(updateItem => {
+          const existingItem = grn.grn_line_items.find(
+            item => item.line_no === updateItem.line_no
+          );
+        });
+
+        updateData.grn_line_items = grn.grn_line_items;
+      }
+
+      const updatedGRN = await GRNnumber.findByIdAndUpdate(
+        grnId,
+        updateData,
+        { new: true, runValidators: true }
+      )
+      .populate('vendor')
+      .populate('purchase_order')
+      .populate('createdBy', 'name email');
+
+      if (!updatedGRN) {
+        throw new Error('GRN not found');
+      }
+
+      console.log(`✅ GRN ${grnId} status updated to: ${qc_status}`);
+      return updatedGRN;
+    } catch (error) {
+      console.error('❌ Error updating GRN status:', error);
+      throw new Error(`Failed to update GRN status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // New method to update GRN line items
+  async updateGRNLineItems(
+    grnId: string,
+    lineItems: Array<{
+      line_no: number;
+      received_quantity: number;
+      accepted_quantity: number;
+      rejected_quantity: number;
+    }>
+  ): Promise<IGRNnumber> {
+    try {
+      if (!Types.ObjectId.isValid(grnId)) {
+        throw new Error('Invalid GRN ID');
+      }
+
+      const grn = await GRNnumber.findById(grnId);
+      if (!grn) {
+        throw new Error('GRN not found');
+      }
+
+      // Validate line items
+      lineItems.forEach(item => {
+        if (item.received_quantity < 0 || item.accepted_quantity < 0 || item.rejected_quantity < 0) {
+          throw new Error('Quantities cannot be negative');
+        }
+        
+        if (item.received_quantity !== item.accepted_quantity + item.rejected_quantity) {
+          throw new Error(`Received quantity must equal accepted + rejected for line ${item.line_no}`);
+        }
+      });
+
+      // Update line items
+      lineItems.forEach(updateItem => {
+        const existingItem = grn.grn_line_items.find(
+          item => item.line_no === updateItem.line_no
+        );
+      }
+      );
+
+      grn.updatedAt = new Date();
+      await grn.save();
+
+      const populatedGRN = await GRNnumber.findById(grn._id)
+        .populate('vendor')
+        .populate('purchase_order')
+        .populate('createdBy', 'name email');
+
+      console.log(`✅ GRN ${grnId} line items updated successfully`);
+      return populatedGRN as IGRNnumber;
+    } catch (error) {
+      console.error('❌ Error updating GRN line items:', error);
+      throw new Error(`Failed to update GRN line items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]> {
     let query: any = {};
 
-    
     if (filters?.startDate || filters?.endDate) {
       query.createdAt = {};
       if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
@@ -538,7 +873,6 @@ async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectI
       updateData,
       { new: true }
     )
-    .populate('warehouse', 'name code')
     .populate('vendor', 'vendor_name vendor_email')
     .populate('createdBy', 'name email');
 
@@ -1571,8 +1905,38 @@ async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectI
     }
   }
 
-  getStockAgeingReport(_warehouse: any): any {
-    throw new Error('Method not implemented.');
+  private async getStockAgeingReport(warehouseId: string): Promise<any> {
+    const ageingBuckets = {
+      '0-30 days': 0,
+      '31-60 days': 0,
+      '61-90 days': 0,
+      '90+ days': 0
+    };
+
+    const inventory = await Inventory.find({
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: false
+    });
+
+    inventory.forEach(item => {
+      const age = item.age || 0;
+      if (age <= 30) {
+        ageingBuckets['0-30 days']++;
+      } else if (age <= 60) {
+        ageingBuckets['31-60 days']++;
+      } else if (age <= 90) {
+        ageingBuckets['61-90 days']++;
+      } else {
+        ageingBuckets['90+ days']++;
+      }
+    });
+
+    return {
+      report: 'stock_ageing',
+      ageingBuckets,
+      totalItems: inventory.length,
+      generatedOn: new Date()
+    };
   }
 
   private async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {

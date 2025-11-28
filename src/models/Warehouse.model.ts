@@ -14,6 +14,116 @@ export interface IWarehouse extends Document {
   updatedAt: Date;
 }
 
+// models/Warehouse.model.ts
+
+// Update IGRNnumber interface to include vendor reference
+export interface IGRNnumber extends Document {
+  _id: Types.ObjectId;
+  delivery_challan: string;
+  transporter_name: string;
+  vehicle_number: string;
+  recieved_date: Date;
+  remarks?: string;
+  scanned_challan?: string;
+  qc_status: 'bad' | 'moderate' | 'excellent';
+  
+  // Add these fields to link with purchase order and vendor
+  purchase_order: Types.ObjectId; // Reference to the PO
+  vendor: Types.ObjectId; // Reference to vendor
+  vendor_details: {
+    vendor_name: string;
+    vendor_billing_name: string;
+    vendor_email: string;
+    vendor_phone: string;
+    vendor_category: string;
+    gst_number: string;
+    verification_status: string;
+    vendor_address: string;
+    vendor_contact: string;
+    vendor_id: string;
+  };
+  
+  // Add line items from PO
+  grn_line_items: Array<{
+   line_no: number;
+    sku: string;
+    productName: string;
+    quantity: number;
+    category: string;
+    pack_size: string;
+    uom: string;
+    unit_price: number;
+    expected_delivery_date: Date;
+    location: string;
+  }>;
+  
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const grnNumberSchema = new Schema<IGRNnumber>({
+  delivery_challan: { type: String, required: true },
+  transporter_name: { type: String, required: true },
+  vehicle_number: { type: String, required: true },
+  recieved_date: { type: Date, required: true, default: Date.now },
+  remarks: { type: String },
+  scanned_challan: { type: String },
+  qc_status: {
+    type: String,
+    enum: ['bad', 'moderate', 'excellent'],
+    required: true
+  },
+  
+  // Add references to PO and vendor
+  purchase_order: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'RaisePurchaseOrder', 
+    required: true 
+  },
+  vendor: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'VendorCreate', 
+    required: true 
+  },
+  
+  // Add vendor details
+  vendor_details: {
+    vendor_name: { type: String, required: true },
+    vendor_billing_name: { type: String, required: true },
+    vendor_email: { type: String, required: true },
+    vendor_phone: { type: String, required: true },
+    vendor_category: { type: String, required: true },
+    gst_number: { type: String, required: true },
+    verification_status: { type: String, required: true },
+    vendor_address: { type: String, required: true },
+    vendor_contact: { type: String, required: true },
+    vendor_id: { type: String, required: true }
+  },
+  
+  // Add GRN line items
+  grn_line_items: [{
+     line_no: { type: Number, required: true },
+    sku: { type: String, required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    category: { type: String, required: true },
+    pack_size: { type: String, required: true },
+    uom: { type: String, required: true },
+    unit_price: { type: Number, required: true },
+    expected_delivery_date: { type: Date, required: true },
+    location: { type: String, required: true }
+  }],
+  
+  createdBy: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  }
+}, {
+  timestamps: true
+});
+export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);
 export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency

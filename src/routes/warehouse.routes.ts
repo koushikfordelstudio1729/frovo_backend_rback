@@ -13,9 +13,16 @@ import {
   createFieldAgentSchema,
   dashboardQuerySchema,
   createPurchaseOrderSchema,
-  updatePurchaseOrderStatusSchema
+  updatePurchaseOrderStatusSchema,
+  createGRNSchema,
+  updateGRNStatusSchema 
 } from '../validators/warehouse.validator';
-
+import {
+  createGRN,
+  getGRNById,
+  getGRNs,
+  updateGRNStatus
+} from '../controllers/warehouse.controller';
 const router = Router();
 
 // All routes require authentication
@@ -51,7 +58,28 @@ router.patch('/inbound/purchase-orders/:id/status',
   validate({ body: updatePurchaseOrderStatusSchema.shape.body }),
   warehouseController.updatePurchaseOrderStatus
 );
+// ==================== GRN MANAGEMENT ====================
+router.post('/purchase-orders/:purchaseOrderId/grn',
+  requirePermission('grn:create'),
+  validate({ body: createGRNSchema.shape.body }),
+  createGRN
+);
 
+router.get('/grn',
+  requirePermission('grn:view'),
+  getGRNs
+);
+
+router.get('/grn/:id',
+  requirePermission('grn:view'),
+  getGRNById
+);
+
+router.patch('/grn/:id/status',
+  requirePermission('grn:manage'),
+  validate({ body: updateGRNStatusSchema.shape.body }),
+  updateGRNStatus
+);
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
 // Dispatch Orders
 router.post('/outbound/dispatch',
