@@ -6,12 +6,12 @@ const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId f
 
 export const createPurchaseOrderSchema = z.object({
   body: z.object({
-    po_number: z.string().min(1, 'Purchase Order Number is required'),
+    //po_number: z.string().min(1, 'Purchase Order Number is required'),
     vendor: z.string().min(1, 'Vendor is required'),
     po_raised_date: z.string().datetime().optional(),
     po_status: z.enum(['draft', 'approved', 'pending']).default('draft'),
     remarks: z.string().optional(),
-    warehouse: z.string().optional()
+    //warehouse: z.string().optional()
   })
 });
 

@@ -30,7 +30,7 @@ export interface IRaisePurchaseOrder extends Document {
 const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
   po_number: { 
     type: String, 
-    required: true, 
+    required: false, // Will be generated automatically 
     unique: true,
     uppercase: true,
     trim: true
@@ -62,11 +62,18 @@ createdBy: { // Add this field to the schema
   timestamps: true 
 });
 
-// Pre-save middleware to generate 7-digit PO number
+// Pre-save middleware to generate PO number ONLY if it doesn't exist
 raisePurchaseOrderSchema.pre('save', async function(next) {
+  // Only generate PO number if it's a new document and po_number is not provided
   if (this.isNew && !this.po_number) {
     this.po_number = await this.generatePONumber();
   }
+  
+  // If someone tries to manually set po_number, ignore it and generate a new one
+  if (this.isNew && this.po_number) {
+    this.po_number = await this.generatePONumber();
+  }
+  
   next();
 });
 
@@ -76,11 +83,15 @@ raisePurchaseOrderSchema.methods.generatePONumber = async function(): Promise<st
   
   let isUnique = false;
   let poNumber = '';
+  let attempts = 0;
+  const maxAttempts = 10; // Prevent infinite loop
   
-  while (!isUnique) {
+  while (!isUnique && attempts < maxAttempts) {
+    attempts++;
+    
     // Generate 7-digit number with leading zeros
     const randomNum = Math.floor(1000000 + Math.random() * 9000000);
-    poNumber = `PO${randomNum.toString().substring(0, 7)}`;
+    poNumber = `PO${randomNum}`; // This will be PO + 7 digits
     
     // Check if PO number already exists
     const existingPO = await PO.findOne({ po_number: poNumber });
@@ -89,10 +100,12 @@ raisePurchaseOrderSchema.methods.generatePONumber = async function(): Promise<st
     }
   }
   
+  if (!isUnique) {
+    throw new Error('Failed to generate unique PO number after multiple attempts');
+  }
+  
   return poNumber;
 };
-
-
 
 // Index for better performance
 raisePurchaseOrderSchema.index({ po_number: 1 }, { unique: true });

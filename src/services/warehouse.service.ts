@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 // services/warehouse.service.ts
 import { 
   RaisePurchaseOrder,
@@ -420,19 +421,40 @@ class WarehouseService {
   // In your warehouse.service.ts - update the createPurchaseOrder method
 
 async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
-  const purchaseOrder = await RaisePurchaseOrder.create({
-    ...data,
-    po_raised_date: data.po_raised_date || new Date(),
-    po_status: data.po_status || 'draft',
-    createdBy
-  });
+  try {
+    // Validate vendor exists
+    const vendor = await mongoose.model('VendorCreate').findById(data.vendor);
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
 
-  // Populate vendor data before returning
-  const populatedPO = await RaisePurchaseOrder.findById(purchaseOrder._id)
-    .populate('vendor', 'vendor_name vendor_billing_name vendor_email vendor_phone vendor_category gst_number verification_status vendor_address vendor_contact vendor_id')
-    .populate('createdBy', 'name email');
+    // Remove po_number from data to prevent manual assignment
+    const { po_number, ...purchaseOrderData } = data;
 
-  return populatedPO!;
+    // Create purchase order (po_number will be auto-generated)
+    const purchaseOrder = await RaisePurchaseOrder.create({
+      ...purchaseOrderData,
+      po_raised_date: data.po_raised_date || new Date(),
+      po_status: data.po_status || 'draft',
+      createdBy
+    });
+
+    // Populate vendor information
+    const populatedPO = await RaisePurchaseOrder.findById(purchaseOrder._id)
+      .populate({
+        path: 'vendor',
+        model: 'VendorCreate',
+        select: 'vendor_name vendor_billing_name vendor_email vendor_phone vendor_category gst_number verification_status vendor_address vendor_contact vendor_id'
+      });
+
+    if (!populatedPO) {
+      throw new Error('Failed to create purchase order');
+    }
+
+    return populatedPO;
+  } catch (error) {
+    throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
   async getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]> {
