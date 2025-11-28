@@ -21,6 +21,18 @@ export interface IRaisePurchaseOrder extends Document {
   po_status: 'draft' | 'approved' | 'pending';
   po_raised_date: Date;
   remarks?: string;
+  po_line_items:{
+    line_no: number;
+    sku: string;
+    productName: string;
+    quantity: number;
+    category: string;
+    pack_size: string;
+    uom: string;
+    unit_price: number;
+    expected_delivery_date: Date;
+    location: string;
+  }
   createdAt: Date;
   updatedAt: Date;
   createdBy: Types.ObjectId;
@@ -35,6 +47,18 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
     uppercase: true,
     trim: true
   },
+  po_line_items: [{
+    line_no: { type: Number, required: true },
+    sku: { type: String, required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    category: { type: String, required: true },
+    pack_size: { type: String, required: true },
+    uom: { type: String, required: true },
+    unit_price: { type: Number, required: true },
+    expected_delivery_date: { type: Date, required: true },
+    location: { type: String, required: true }
+  }],
   vendor: { 
     type: Schema.Types.ObjectId, 
     ref: 'VendorCreate', 

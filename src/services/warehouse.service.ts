@@ -85,9 +85,19 @@ export interface RaisePurchaseOrderData {
   vendor_phone: string;
   gst_number: string;
   remarks?: string;
-  warehouse?: Types.ObjectId;
+  po_line_items:{
+    line_no: number;
+    sku: string;
+    productName: string;
+    quantity: number;
+    category: string;
+    pack_size: string;
+    uom: string;
+    unit_price: number;
+    expected_delivery_date: Date;
+    location: string;
+  }
 }
-
 export interface DispatchData {
   vendor: Types.ObjectId;
   destination: string;
@@ -428,18 +438,15 @@ async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectI
       throw new Error('Vendor not found');
     }
 
-    // Remove po_number from data to prevent manual assignment
-    const { po_number, ...purchaseOrderData } = data;
-
-    // Create purchase order (po_number will be auto-generated)
+    // Create purchase order
     const purchaseOrder = await RaisePurchaseOrder.create({
-      ...purchaseOrderData,
+      ...data,
       po_raised_date: data.po_raised_date || new Date(),
       po_status: data.po_status || 'draft',
       createdBy
     });
 
-    // Populate vendor information
+    // Populate vendor with complete details
     const populatedPO = await RaisePurchaseOrder.findById(purchaseOrder._id)
       .populate({
         path: 'vendor',
