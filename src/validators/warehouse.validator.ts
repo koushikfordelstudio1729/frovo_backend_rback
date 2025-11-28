@@ -12,6 +12,18 @@ export const createPurchaseOrderSchema = z.object({
     po_status: z.enum(['draft', 'approved', 'pending']).default('draft'),
     remarks: z.string().optional(),
     //warehouse: z.string().optional()
+       po_line_items: z.array(z.object({
+      line_no: z.number().min(1, 'Line number is required'),
+      sku: z.string().min(1, 'SKU is required'),
+      productName: z.string().min(1, 'Product name is required'),
+      quantity: z.number().min(1, 'Quantity must be at least 1'),
+      category: z.string().min(1, 'Category is required'),
+      pack_size: z.string().min(1, 'Pack size is required'),
+      uom: z.string().min(1, 'Unit of measure is required'),
+      unit_price: z.number().min(0, 'Unit price must be positive'),
+      expected_delivery_date: z.string().datetime('Valid delivery date required'),
+      location: z.string().min(1, 'Location is required')
+    })).optional().default([]) // Make sure this line exists
   })
 });
 

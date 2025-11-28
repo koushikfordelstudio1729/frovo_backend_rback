@@ -32,8 +32,21 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
   try {
+    console.log('📥 Request body received:', {
+      vendor: req.body.vendor,
+      po_line_items_count: req.body.po_line_items?.length || 0,
+      po_line_items: req.body.po_line_items,
+      all_fields: Object.keys(req.body)
+    });
+
     const result = await warehouseService.createPurchaseOrder(req.body, req.user._id);
     
+    console.log('📤 Service result:', {
+      po_number: result.po_number,
+      line_items_count: result.po_line_items?.length || 0,
+      line_items: result.po_line_items
+    });
+
     // Format the response to include complete vendor information
     const responseData = {
       ...result.toObject(),
@@ -52,12 +65,17 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       } : null
     };
 
+    console.log('📄 Final response data:', {
+      line_items_count: responseData.po_line_items?.length || 0,
+      line_items: responseData.po_line_items
+    });
+
     return sendCreated(res, responseData, 'Purchase order created successfully');
   } catch (error) {
+    console.error('❌ Controller error:', error);
     return sendError(res, error instanceof Error ? error.message : 'Failed to create purchase order', 500);
   }
 });
-
 export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;

@@ -85,7 +85,7 @@ export interface RaisePurchaseOrderData {
   vendor_phone: string;
   gst_number: string;
   remarks?: string;
-  po_line_items:{
+   po_line_items: Array<{ // Change this to array
     line_no: number;
     sku: string;
     productName: string;
@@ -96,6 +96,19 @@ export interface RaisePurchaseOrderData {
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
+  }>;
+   // Add vendor details subdocument
+  vendor_details: {
+    vendor_name: { type: String, required: true },
+    vendor_billing_name: { type: String, required: true },
+    vendor_email: { type: String, required: true },
+    vendor_phone: { type: String, required: true },
+    vendor_category: { type: String, required: true },
+    gst_number: { type: String, required: true },
+    verification_status: { type: String, required: true },
+    vendor_address: { type: String, required: true },
+    vendor_contact: { type: String, required: true },
+    vendor_id: { type: String, required: true }
   }
 }
 export interface DispatchData {
@@ -432,38 +445,52 @@ class WarehouseService {
 
 async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
   try {
-    // Validate vendor exists
+    console.log('📦 Received PO data:', {
+      vendor: data.vendor,
+      po_line_items_count: data.po_line_items?.length || 0,
+      vendor_details_present: data.vendor_details ? 'Yes' : 'No'
+    });
+
+    // Validate vendor exists and get vendor details
     const vendor = await mongoose.model('VendorCreate').findById(data.vendor);
     if (!vendor) {
       throw new Error('Vendor not found');
     }
 
-    // Create purchase order
+    // Extract vendor details to store in PO document
+    const vendorDetails = {
+      vendor_name: vendor.vendor_name,
+      vendor_billing_name: vendor.vendor_billing_name,
+      vendor_email: vendor.vendor_email,
+      vendor_phone: vendor.vendor_phone,
+      vendor_category: vendor.vendor_category,
+      gst_number: vendor.gst_number,
+      verification_status: vendor.verification_status,
+      vendor_address: vendor.vendor_address,
+      vendor_contact: vendor.vendor_contact,
+      vendor_id: vendor.vendor_id
+    };
+
+    // Create purchase order with vendor details stored directly
     const purchaseOrder = await RaisePurchaseOrder.create({
-      ...data,
+      vendor: data.vendor,
+      vendor_details: vendorDetails, // Store vendor details in PO document
       po_raised_date: data.po_raised_date || new Date(),
       po_status: data.po_status || 'draft',
+      remarks: data.remarks,
+      po_line_items: data.po_line_items || [],
       createdBy
     });
 
-    // Populate vendor with complete details
-    const populatedPO = await RaisePurchaseOrder.findById(purchaseOrder._id)
-      .populate({
-        path: 'vendor',
-        model: 'VendorCreate',
-        select: 'vendor_name vendor_billing_name vendor_email vendor_phone vendor_category gst_number verification_status vendor_address vendor_contact vendor_id'
-      });
+    console.log('✅ PO created with vendor details stored in document');
 
-    if (!populatedPO) {
-      throw new Error('Failed to create purchase order');
-    }
-
-    return populatedPO;
+    // Return the purchase order (no need to populate since vendor details are stored)
+    return purchaseOrder;
   } catch (error) {
+    console.error('❌ Error creating PO:', error);
     throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-
   async getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]> {
     let query: any = {};
 

@@ -21,7 +21,7 @@ export interface IRaisePurchaseOrder extends Document {
   po_status: 'draft' | 'approved' | 'pending';
   po_raised_date: Date;
   remarks?: string;
-  po_line_items:{
+   po_line_items: Array<{ // Should be array here too
     line_no: number;
     sku: string;
     productName: string;
@@ -32,7 +32,19 @@ export interface IRaisePurchaseOrder extends Document {
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
-  }
+  }>;
+    vendor_details: {
+    vendor_name: string;
+    vendor_billing_name: string;
+    vendor_email: string;
+    vendor_phone: string;
+    vendor_category: string;
+    gst_number: string;
+    verification_status: string;
+    vendor_address: string;
+    vendor_contact: string;
+    vendor_id: string;
+  };
   createdAt: Date;
   updatedAt: Date;
   createdBy: Types.ObjectId;
@@ -59,10 +71,24 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
     expected_delivery_date: { type: Date, required: true },
     location: { type: String, required: true }
   }],
+
   vendor: { 
     type: Schema.Types.ObjectId, 
     ref: 'VendorCreate', 
     required: true 
+  },
+    // Add vendor details subdocument
+  vendor_details: {
+    vendor_name: { type: String, required: true },
+    vendor_billing_name: { type: String, required: true },
+    vendor_email: { type: String, required: true },
+    vendor_phone: { type: String, required: true },
+    vendor_category: { type: String, required: true },
+    gst_number: { type: String, required: true },
+    verification_status: { type: String, required: true },
+    vendor_address: { type: String, required: true },
+    vendor_contact: { type: String, required: true },
+    vendor_id: { type: String, required: true }
   },
   po_status: {
     type: String,
