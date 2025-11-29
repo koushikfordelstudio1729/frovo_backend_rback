@@ -11,6 +11,10 @@ import securityRoutes from './security.routes';
 import warehouseRoutes from './warehouse.routes'
 import vendorRoutes from './vendor.routes';
 import auditTrailRoutes from './auditTrail.routes';
+import vendingMachineRoutes from './vendingMachine.routes';
+import cartRoutes from './cart.routes';
+import productRoutes from './product.routes';
+
 const router = Router();
 
 // Health check route
@@ -35,5 +39,8 @@ router.use('/security', securityRoutes);
 router.use('/warehouse', warehouseRoutes);
 router.use('/vendors', vendorRoutes);
 router.use('/audit-trails', auditTrailRoutes);
+router.use('/vending', vendingMachineRoutes);
+router.use('/cart', cartRoutes);
+router.use('/', productRoutes);
 
 export default router;

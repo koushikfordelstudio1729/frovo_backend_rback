@@ -71,7 +71,7 @@ export interface IPayment extends Document {
     notes?: string;
 }
 export declare const Payment: import("mongoose").Model<IPayment, {}, {}, {}, Document<unknown, {}, IPayment, {}, {}> & IPayment & Required<{
-    _id: Types.ObjectId;
+    _id: unknown;
 }> & {
     __v: number;
 }, any>;
