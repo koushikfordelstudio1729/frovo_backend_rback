@@ -52,7 +52,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
 
     // If user is warehouse staff, enforce draft status only
     if (isWarehouseStaff) {
-      req.body.po_status = ['draft','pending']; // Force draft status for warehouse staff
+      req.body.po_status = 'draft'; // Force draft status for warehouse staff
       console.log('🔒 Warehouse staff: PO status forced to draft');
     }
 
