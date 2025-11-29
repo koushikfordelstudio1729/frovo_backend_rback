@@ -622,7 +622,38 @@ class WarehouseService {
 
     return grnNumber;
   }
+// services/warehouse.service.ts - Add this method to your WarehouseService class
 
+async deletePurchaseOrder(id: string): Promise<void> {
+  try {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid purchase order ID');
+    }
+
+    const purchaseOrder = await RaisePurchaseOrder.findById(id);
+    if (!purchaseOrder) {
+      throw new Error('Purchase order not found');
+    }
+
+    // Check if GRN exists for this PO (prevent deletion if GRN exists)
+    const existingGRN = await GRNnumber.findOne({ purchase_order: id });
+    if (existingGRN) {
+      throw new Error('Cannot delete purchase order - GRN already exists for this PO');
+    }
+
+    // Check if PO status allows deletion (you might want to restrict deletion of approved POs)
+    if (purchaseOrder.po_status === 'approved') {
+      throw new Error('Cannot delete approved purchase order');
+    }
+
+    await RaisePurchaseOrder.findByIdAndDelete(id);
+    
+    console.log(`✅ Purchase order ${id} deleted successfully`);
+  } catch (error) {
+    console.error('❌ Error deleting purchase order:', error);
+    throw new Error(`Failed to delete purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
   async getGRNById(grnId: string): Promise<IGRNnumber | null> {
     try {
       if (!Types.ObjectId.isValid(grnId)) {

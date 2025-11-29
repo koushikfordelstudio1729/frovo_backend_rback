@@ -37,6 +37,7 @@ export enum SystemRole {
   FINANCE_MANAGER = 'finance_manager',
   SUPPORT_AGENT = 'support_agent',
   WAREHOUSE_MANAGER = 'warehouse_manager',
+  WAREHOUSE_STAFF = 'warehouse_staff',
   AUDITOR = 'auditor',
   CUSTOMER = 'customer'
 }
@@ -71,7 +72,11 @@ export enum PermissionModule {
   JOB = 'job',
   TICKET = 'ticket',
   BATCH = 'batch',
-  DISPATCH = 'dispatch'
+  DISPATCH = 'dispatch',
+  // New warehouse management modules
+  WAREHOUSE = 'warehouse',
+  PURCHASE_ORDERS = 'purchase_orders',
+  GRN = 'grn'
 }
 
 export enum PermissionAction {
@@ -90,7 +95,11 @@ export enum PermissionAction {
   RECEIVE = 'receive',
   DISPATCH = 'dispatch',
   UPDATE = 'update',
-  LOG = 'log'
+  LOG = 'log',
+  // New warehouse management actions
+  STATUS_UPDATE = 'status_update',
+  MANAGE = 'manage',
+  ADMIN = 'admin'
 }
 
 export enum UIAccess {

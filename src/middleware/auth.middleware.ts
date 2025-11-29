@@ -93,3 +93,47 @@ export const optionalAuth = asyncHandler(async (req: Request, _res: Response, ne
   
   return next();
 });
+// Add this permission checking function
+export const checkPermission = (user: any, requiredPermission: string): boolean => {
+  if (!user || !user.roles) {
+    return false;
+  }
+
+  const userRoles = user.roles || [];
+  
+  // Check if user has the required permission in any of their roles
+  return userRoles.some((role: any) => {
+    // Super admin has all permissions
+    if (role.permissions?.includes('*:*')) {
+      return true;
+    }
+    
+    // Check for exact permission match
+    if (role.permissions?.includes(requiredPermission)) {
+      return true;
+    }
+    
+    // Check for module wildcard (e.g., 'vendors:*')
+    const [module] = requiredPermission.split(':');
+    if (role.permissions?.includes(`${module}:*`)) {
+      return true;
+    }
+    
+    return false;
+  });
+};
+
+// Add this middleware for route-level permission checking
+export const requirePermission = (requiredPermission: string) => {
+  return asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return sendForbidden(res, MESSAGES.UNAUTHORIZED);
+    }
+
+    if (!checkPermission(req.user, requiredPermission)) {
+      return sendForbidden(res, MESSAGES.PERMISSION_DENIED);
+    }
+
+    return next();
+  });
+};
