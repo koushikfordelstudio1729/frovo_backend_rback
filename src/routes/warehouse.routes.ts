@@ -17,12 +17,7 @@ import {
   createGRNSchema,
   updateGRNStatusSchema 
 } from '../validators/warehouse.validator';
-import {
-  createGRN,
-  getGRNById,
-  getGRNs,
-  updateGRNStatus
-} from '../controllers/warehouse.controller';
+
 const router = Router();
 
 // All routes require authentication
@@ -38,48 +33,56 @@ router.get('/dashboard',
 // ==================== SCREEN 2: INBOUND LOGISTICS ====================
 // Purchase Orders
 router.post('/inbound/purchase-orders',
-  requirePermission('purchase:create'),
+  requirePermission('purchase_orders:create'),
   validate({ body: createPurchaseOrderSchema.shape.body }),
   warehouseController.createPurchaseOrder
 );
 
 router.get('/inbound/purchase-orders',
-  requirePermission('purchase:view'),
+  requirePermission('purchase_orders:view'),
   warehouseController.getPurchaseOrders
 );
 
 router.get('/inbound/purchase-orders/:id',
-  requirePermission('purchase:view'),
+  requirePermission('purchase_orders:view'),
   warehouseController.getPurchaseOrderById
 );
 
 router.patch('/inbound/purchase-orders/:id/status',
-  requirePermission('purchase:approve'),
+  requirePermission('purchase_orders:status_update'),
   validate({ body: updatePurchaseOrderStatusSchema.shape.body }),
   warehouseController.updatePurchaseOrderStatus
 );
+
+// Add delete purchase order route
+router.delete('/inbound/purchase-orders/:id',
+  requirePermission('purchase_orders:delete'),
+  warehouseController.deletePurchaseOrder
+);
+
 // ==================== GRN MANAGEMENT ====================
 router.post('/purchase-orders/:purchaseOrderId/grn',
   requirePermission('grn:create'),
   validate({ body: createGRNSchema.shape.body }),
-  createGRN
+  warehouseController.createGRN
 );
 
 router.get('/grn',
   requirePermission('grn:view'),
-  getGRNs
+  warehouseController.getGRNs
 );
 
 router.get('/grn/:id',
   requirePermission('grn:view'),
-  getGRNById
+  warehouseController.getGRNById
 );
 
 router.patch('/grn/:id/status',
-  requirePermission('grn:manage'),
+  requirePermission('grn:edit'),
   validate({ body: updateGRNStatusSchema.shape.body }),
-  updateGRNStatus
+  warehouseController.updateGRNStatus
 );
+
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
 // Dispatch Orders
 router.post('/outbound/dispatch',

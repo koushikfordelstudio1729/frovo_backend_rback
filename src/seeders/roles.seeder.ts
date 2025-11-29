@@ -21,7 +21,45 @@ export const seedRoles = async (
         console.log(`   - ${role.name} (systemRole: ${role.systemRole})`);
       });
       
-      // Return existing role IDs
+      // Check if warehouse_staff role exists
+      const warehouseStaffExists = existingRoles.some(role => role.systemRole === SystemRole.WAREHOUSE_STAFF);
+      
+      if (!warehouseStaffExists) {
+        logger.info('⚠️ Warehouse Staff role missing, creating it now...');
+        
+        // Create only the Warehouse Staff role
+        const warehouseStaffRole = {
+          name: 'Warehouse Staff',
+          key: 'warehouse_staff',
+          systemRole: SystemRole.WAREHOUSE_STAFF,
+          type: RoleType.SYSTEM,
+          department: departmentMap[DepartmentName.WAREHOUSE],
+          permissions: [
+            'warehouse:view',
+            'inventory:receive',
+            'batch:log',
+            'dispatch:assign',
+            'refills:view',
+            'purchase_orders:view', 
+            'purchase_orders:create',
+          ],
+          scope: { level: ScopeLevel.PARTNER },
+          uiAccess: UIAccess.WAREHOUSE_PORTAL,
+          status: RoleStatus.PUBLISHED,
+          description: 'Warehouse staff with limited permissions - can create POs but not update status or create GRNs',
+          createdBy
+        };
+        
+        const createdWarehouseStaff = await Role.create(warehouseStaffRole);
+        logger.info(`✅ Warehouse Staff role created successfully: ${createdWarehouseStaff._id}`);
+        
+        // Add the new role to existing roles array for the role map
+        existingRoles.push(createdWarehouseStaff);
+      } else {
+        logger.info('✅ Warehouse Staff role already exists');
+      }
+      
+      // Return existing role IDs (including newly created warehouse_staff)
       const roleMap: { [key: string]: Types.ObjectId } = {};
       existingRoles.forEach(role => {
         if (role.systemRole) {
@@ -33,6 +71,7 @@ export const seedRoles = async (
       return roleMap;
     }
     
+    // If no roles exist at all, create all roles including warehouse_staff
     const roles = [
       {
         name: 'Super Admin',
@@ -47,22 +86,22 @@ export const seedRoles = async (
         description: 'Full system access with all permissions'
       },
       {
-    name: 'Vendor Admin',
-    key: 'vendor_admin',
-    systemRole: SystemRole.VENDOR_ADMIN,
-    type: RoleType.SYSTEM,
-    department: departmentMap[DepartmentName.OPERATIONS], // Or create a Vendor Management department
-    permissions: [
-      'vendors:view', 'vendors:create', 'vendors:edit', 'vendors:delete', 'vendors:approve',
-      'vendors:financials_view', 'vendors:compliance_view',
-      'users:view', // To view vendor users
-      'roles:view'  // To view roles for vendor assignments
-    ],
-    scope: { level: ScopeLevel.GLOBAL },
-    uiAccess: UIAccess.ADMIN_PANEL,
-    status: RoleStatus.PUBLISHED,
-    description: 'Vendor management with full control over vendor lifecycle'
-  },
+        name: 'Vendor Admin',
+        key: 'vendor_admin',
+        systemRole: SystemRole.VENDOR_ADMIN,
+        type: RoleType.SYSTEM,
+        department: departmentMap[DepartmentName.OPERATIONS],
+        permissions: [
+          'vendors:view', 'vendors:create', 'vendors:edit', 'vendors:delete', 'vendors:approve',
+          'vendors:financials_view', 'vendors:compliance_view',
+          'users:view',
+          'roles:view'
+        ],
+        scope: { level: ScopeLevel.GLOBAL },
+        uiAccess: UIAccess.ADMIN_PANEL,
+        status: RoleStatus.PUBLISHED,
+        description: 'Vendor management with full control over vendor lifecycle'
+      },
       {
         name: 'Ops Manager',
         key: 'ops_manager',
@@ -74,8 +113,9 @@ export const seedRoles = async (
           'planogram:view', 'planogram:edit',
           'refills:view', 'refills:assign',
           'users:view', 'roles:view',
-          'vendors:view', // Can view vendors for operational purposes
-      'vendors:financials_view' // Can view financials for payment processing
+          'vendors:view',
+          'vendors:financials_view',
+          'warehouse:view', 'warehouse:manage'
         ],
         scope: { level: ScopeLevel.PARTNER },
         uiAccess: UIAccess.ADMIN_PANEL,
@@ -126,7 +166,7 @@ export const seedRoles = async (
           'payout:compute',
           'orders:view',
           'vendors:view',
-      'vendors:financials_view'
+          'vendors:financials_view'
         ],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.FINANCE_DASHBOARD,
@@ -159,12 +199,35 @@ export const seedRoles = async (
           'inventory:receive',
           'batch:log',
           'dispatch:assign',
-          'refills:view'
+          'refills:view',
+          'warehouse:view', 'warehouse:manage', 'warehouse:admin',
+          'purchase_orders:view', 'purchase_orders:create', 'purchase_orders:edit', 'purchase_orders:delete', 'purchase_orders:status_update',
+          'grn:view', 'grn:create', 'grn:edit', 'grn:delete'
         ],
         scope: { level: ScopeLevel.PARTNER },
         uiAccess: UIAccess.WAREHOUSE_PORTAL,
         status: RoleStatus.PUBLISHED,
         description: 'Warehouse operations with partner-level access'
+      },
+      {
+        name: 'Warehouse Staff',
+        key: 'warehouse_staff',
+        systemRole: SystemRole.WAREHOUSE_STAFF,
+        type: RoleType.SYSTEM,
+        department: departmentMap[DepartmentName.WAREHOUSE],
+        permissions: [
+          'warehouse:view',
+          'inventory:receive',
+          'batch:log',
+          'dispatch:assign',
+          'refills:view',
+          'purchase_orders:view', 
+          'purchase_orders:create',
+        ],
+        scope: { level: ScopeLevel.PARTNER },
+        uiAccess: UIAccess.WAREHOUSE_PORTAL,
+        status: RoleStatus.PUBLISHED,
+        description: 'Warehouse staff with limited permissions - can create POs but not update status or create GRNs'
       },
       {
         name: 'Auditor',

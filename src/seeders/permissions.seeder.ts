@@ -2,8 +2,7 @@ import { Permission, PermissionModule, PermissionAction } from '../models';
 import { logger } from '../utils/logger.util';
 
 const permissions = [
-  
-   // Vendor Management Permissions
+  // Vendor Management Permissions
   { key: 'vendors:view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View all vendors', group: 'Vendors' },
   { key: 'vendors:create', module: PermissionModule.VENDORS, action: PermissionAction.CREATE, description: 'Create new vendors', group: 'Vendors' },
   { key: 'vendors:edit', module: PermissionModule.VENDORS, action: PermissionAction.EDIT, description: 'Edit vendor details', group: 'Vendors' },
@@ -11,6 +10,7 @@ const permissions = [
   { key: 'vendors:approve', module: PermissionModule.VENDORS, action: PermissionAction.APPROVE, description: 'Approve vendor registrations', group: 'Vendors' },
   { key: 'vendors:financials_view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View vendor financial information', group: 'Vendors' },
   { key: 'vendors:compliance_view', module: PermissionModule.VENDORS, action: PermissionAction.VIEW, description: 'View vendor compliance data', group: 'Vendors' },
+  
   // Machines
   { key: 'machines:view', module: PermissionModule.MACHINES, action: PermissionAction.VIEW, description: 'View all machines', group: 'Machines' },
   { key: 'machines:edit', module: PermissionModule.MACHINES, action: PermissionAction.EDIT, description: 'Edit machine details', group: 'Machines' },
@@ -79,7 +79,25 @@ const permissions = [
   { key: 'departments:view', module: PermissionModule.DEPARTMENTS, action: PermissionAction.VIEW, description: 'View departments', group: 'Departments' },
   { key: 'departments:create', module: PermissionModule.DEPARTMENTS, action: PermissionAction.CREATE, description: 'Create departments', group: 'Departments' },
   { key: 'departments:edit', module: PermissionModule.DEPARTMENTS, action: PermissionAction.EDIT, description: 'Edit departments', group: 'Departments' },
-  { key: 'departments:delete', module: PermissionModule.DEPARTMENTS, action: PermissionAction.DELETE, description: 'Delete departments', group: 'Departments' }
+  { key: 'departments:delete', module: PermissionModule.DEPARTMENTS, action: PermissionAction.DELETE, description: 'Delete departments', group: 'Departments' },
+  
+  // Warehouse Management Permissions
+  { key: 'warehouse:view', module: PermissionModule.WAREHOUSE, action: PermissionAction.VIEW, description: 'View warehouse operations', group: 'Warehouse' },
+  { key: 'warehouse:manage', module: PermissionModule.WAREHOUSE, action: PermissionAction.MANAGE, description: 'Manage warehouse operations', group: 'Warehouse' },
+  { key: 'warehouse:admin', module: PermissionModule.WAREHOUSE, action: PermissionAction.ADMIN, description: 'Full warehouse administration', group: 'Warehouse' },
+  
+  // Purchase Orders Permissions
+  { key: 'purchase_orders:view', module: PermissionModule.PURCHASE_ORDERS, action: PermissionAction.VIEW, description: 'View purchase orders', group: 'Purchase Orders' },
+  { key: 'purchase_orders:create', module: PermissionModule.PURCHASE_ORDERS, action: PermissionAction.CREATE, description: 'Create purchase orders', group: 'Purchase Orders' },
+  { key: 'purchase_orders:edit', module: PermissionModule.PURCHASE_ORDERS, action: PermissionAction.EDIT, description: 'Edit purchase orders', group: 'Purchase Orders' },
+  { key: 'purchase_orders:delete', module: PermissionModule.PURCHASE_ORDERS, action: PermissionAction.DELETE, description: 'Delete purchase orders', group: 'Purchase Orders' },
+  { key: 'purchase_orders:status_update', module: PermissionModule.PURCHASE_ORDERS, action: PermissionAction.STATUS_UPDATE, description: 'Update purchase order status', group: 'Purchase Orders' },
+  
+  // GRN (Goods Received Note) Permissions
+  { key: 'grn:view', module: PermissionModule.GRN, action: PermissionAction.VIEW, description: 'View GRN records', group: 'GRN' },
+  { key: 'grn:create', module: PermissionModule.GRN, action: PermissionAction.CREATE, description: 'Create GRN records', group: 'GRN' },
+  { key: 'grn:edit', module: PermissionModule.GRN, action: PermissionAction.EDIT, description: 'Edit GRN records', group: 'GRN' },
+  { key: 'grn:delete', module: PermissionModule.GRN, action: PermissionAction.DELETE, description: 'Delete GRN records', group: 'GRN' }
 ];
 
 export const seedPermissions = async (): Promise<void> => {

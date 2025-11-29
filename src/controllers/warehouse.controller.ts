@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import asyncHandler from 'express-async-handler';
 import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
+import { checkPermission } from '../middleware/auth.middleware';
 
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -26,10 +27,14 @@ export const getDashboard = asyncHandler(async (req: Request, res: Response) => 
 });
 
 // Screen 2: Inbound Logistics - Purchase Orders
-// In your warehouse.controller.ts - update createPurchaseOrder controller
-
+// controllers/warehouse.controller.ts
 export const createPurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for creating purchase orders
+  if (!checkPermission(req.user, 'purchase_orders:create')) {
+    return sendError(res, 'Insufficient permissions to create purchase orders', 403);
+  }
 
   try {
     console.log('📥 Request body received:', {
@@ -38,6 +43,18 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       po_line_items: req.body.po_line_items,
       all_fields: Object.keys(req.body)
     });
+
+    // Check if user is warehouse staff by checking roles array
+    const isWarehouseStaff = req.user.roles?.some((role: any) => {
+      // Check if role has systemRole property and it's warehouse_staff
+      return role.systemRole === 'warehouse_staff';
+    });
+
+    // If user is warehouse staff, enforce draft status only
+    if (isWarehouseStaff) {
+      req.body.po_status = ['draft','pending']; // Force draft status for warehouse staff
+      console.log('🔒 Warehouse staff: PO status forced to draft');
+    }
 
     const result = await warehouseService.createPurchaseOrder(req.body, req.user._id);
     
@@ -76,10 +93,14 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
     return sendError(res, error instanceof Error ? error.message : 'Failed to create purchase order', 500);
   }
 });
-// controllers/warehouse.controller.ts
-
+// GRN Management
 export const createGRN = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for creating GRN
+  if (!checkPermission(req.user, 'grn:create')) {
+    return sendError(res, 'Insufficient permissions to create GRN', 403);
+  }
 
   try {
     const { purchaseOrderId } = req.params;
@@ -96,6 +117,11 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
+  // Check permission for viewing GRN
+  if (!req.user || !checkPermission(req.user, 'grn:view')) {
+    return sendError(res, 'Insufficient permissions to view GRN', 403);
+  }
+
   try {
     const { id } = req.params;
     
@@ -116,6 +142,11 @@ export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getGRNs = asyncHandler(async (req: Request, res: Response) => {
+  // Check permission for viewing GRNs
+  if (!req.user || !checkPermission(req.user, 'grn:view')) {
+    return sendError(res, 'Insufficient permissions to view GRNs', 403);
+  }
+
   try {
     const grns = await warehouseService.getGRNs(req.query);
     return sendSuccess(res, grns, 'GRNs retrieved successfully');
@@ -126,6 +157,11 @@ export const getGRNs = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for editing GRN
+  if (!checkPermission(req.user, 'grn:edit')) {
+    return sendError(res, 'Insufficient permissions to update GRN status', 403);
+  }
 
   try {
     const { id } = req.params;
@@ -145,7 +181,13 @@ export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) 
     return sendError(res, error instanceof Error ? error.message : 'Failed to update GRN status', 500);
   }
 });
+
 export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
+  // Check permission for viewing purchase orders
+  if (!req.user || !checkPermission(req.user, 'purchase_orders:view')) {
+    return sendError(res, 'Insufficient permissions to view purchase orders', 403);
+  }
+
   try {
     const { warehouseId, ...filters } = req.query;
     const result = await warehouseService.getPurchaseOrders(
@@ -159,6 +201,11 @@ export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response
 });
 
 export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Response) => {
+  // Check permission for viewing purchase orders
+  if (!req.user || !checkPermission(req.user, 'purchase_orders:view')) {
+    return sendError(res, 'Insufficient permissions to view purchase orders', 403);
+  }
+
   const { id } = req.params;
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
 
@@ -172,6 +219,13 @@ export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Respo
 });
 
 export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for updating PO status
+  if (!checkPermission(req.user, 'purchase_orders:status_update')) {
+    return sendError(res, 'Insufficient permissions to update purchase order status', 403);
+  }
+
   const { id } = req.params;
   const { po_status, remarks } = req.body;
 
@@ -184,6 +238,26 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
     return sendSuccess(res, result, 'Purchase order status updated successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to update purchase order status', 500);
+  }
+});
+
+export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for deleting purchase orders
+  if (!checkPermission(req.user, 'purchase_orders:delete')) {
+    return sendError(res, 'Insufficient permissions to delete purchase orders', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Purchase order ID is required');
+
+  try {
+    // You'll need to add this method to your warehouse service
+    await warehouseService.deletePurchaseOrder(id);
+    return sendSuccess(res, null, 'Purchase order deleted successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to delete purchase order', 500);
   }
 });
 

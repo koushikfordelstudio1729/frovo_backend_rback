@@ -203,7 +203,7 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
   po_status: {
     type: String,
     enum: ['draft', 'approved', 'pending'],
-    default: 'draft'
+    default: 'draft',
   },
   po_raised_date: { 
     type: Date, 
