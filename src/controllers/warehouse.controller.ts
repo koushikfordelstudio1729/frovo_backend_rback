@@ -115,7 +115,74 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
     return sendError(res, error instanceof Error ? error.message : 'Failed to create GRN', 500);
   }
 });
+// In controllers/warehouse.controller.ts - Add new GRN methods
 
+// Update GRN quantities
+export const updateGRNQuantities = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for editing GRN
+  if (!checkPermission(req.user, 'grn:edit')) {
+    return sendError(res, 'Insufficient permissions to update GRN quantities', 403);
+  }
+
+  try {
+    const { id } = req.params;
+    const { lineItems } = req.body;
+
+    if (!id) {
+      return sendBadRequest(res, 'GRN ID is required');
+    }
+
+    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
+      return sendBadRequest(res, 'Line items array is required');
+    }
+
+    const result = await warehouseService.updateGRNQuantities(id, lineItems);
+    return sendSuccess(res, result, 'GRN quantities updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update GRN quantities', 500);
+  }
+});
+
+// Get GRN with summary
+export const getGRNWithSummary = asyncHandler(async (req: Request, res: Response) => {
+  // Check permission for viewing GRN
+  if (!req.user || !checkPermission(req.user, 'grn:view')) {
+    return sendError(res, 'Insufficient permissions to view GRN', 403);
+  }
+
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return sendBadRequest(res, 'GRN ID is required');
+    }
+
+    const grn = await warehouseService.getGRNById(id);
+    
+    if (!grn) {
+      return sendNotFound(res, 'GRN not found');
+    }
+
+    // Calculate summary
+    const summary = {
+      total_ordered: grn.grn_line_items.reduce((sum, item) => sum + item.ordered_quantity, 0),
+      total_received: grn.grn_line_items.reduce((sum, item) => sum + item.received_quantity, 0),
+      total_accepted: grn.grn_line_items.reduce((sum, item) => sum + item.accepted_quantity, 0),
+      total_rejected: grn.grn_line_items.reduce((sum, item) => sum + item.rejected_quantity, 0)
+    };
+
+    const response = {
+      grn,
+      summary
+    };
+
+    return sendSuccess(res, response, 'GRN with summary retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to get GRN with summary', 500);
+  }
+});
 export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
   // Check permission for viewing GRN
   if (!req.user || !checkPermission(req.user, 'grn:view')) {
@@ -218,6 +285,8 @@ export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Respo
   }
 });
 
+// In controllers/warehouse.controller.ts - update the updatePurchaseOrderStatus function
+
 export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
@@ -232,6 +301,12 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
   if (!po_status) return sendBadRequest(res, 'Purchase order status is required');
 
+  // Validate the status against the new enum values
+  const validStatuses = ['draft', 'approved', 'delivered'];
+  if (!validStatuses.includes(po_status)) {
+    return sendBadRequest(res, `Invalid PO status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
   try {
     const result = await warehouseService.updatePurchaseOrderStatus(id, po_status, remarks);
     if (!result) return sendNotFound(res, 'Purchase order not found');
@@ -240,7 +315,6 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
     return sendError(res, error instanceof Error ? error.message : 'Failed to update purchase order status', 500);
   }
 });
-
 export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 

@@ -83,6 +83,18 @@ router.patch('/grn/:id/status',
   warehouseController.updateGRNStatus
 );
 
+// NEW: Update GRN quantities
+router.patch('/grn/:id/quantities',
+  requirePermission('grn:edit'),
+ 
+  warehouseController.updateGRNQuantities
+);
+
+// NEW: Get GRN with summary
+router.get('/grn/:id/summary',
+  requirePermission('grn:view'),
+  warehouseController.getGRNWithSummary
+);
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
 // Dispatch Orders
 router.post('/outbound/dispatch',

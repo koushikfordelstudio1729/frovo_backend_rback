@@ -28,20 +28,30 @@ export const createPurchaseOrderSchema = z.object({
 });
 // validators/warehouse.validator.ts
 
+// validation/warehouse.schemas.ts - Update createGRNSchema
+
 export const createGRNSchema = z.object({
   body: z.object({
     delivery_challan: z.string().min(1, 'Delivery challan number is required'),
     transporter_name: z.string().min(1, 'Transporter name is required'),
     vehicle_number: z.string().min(1, 'Vehicle number is required'),
-    recieved_date: z.string().datetime().optional(),
+    received_date: z.string().datetime().optional(), // Fixed spelling: received_date
     remarks: z.string().optional(),
     scanned_challan: z.string().url('Valid URL required').optional(),
     qc_status: z.enum(['bad', 'moderate', 'excellent'], {
       required_error: 'QC status is required'
-    })
+    }),
+    // Add quantities field to validation
+    quantities: z.array(z.object({
+      sku: z.string().min(1, 'SKU is required'),
+      received_quantity: z.number().min(0, 'Received quantity must be positive'),
+      accepted_quantity: z.number().min(0, 'Accepted quantity must be positive'),
+      rejected_quantity: z.number().min(0, 'Rejected quantity must be positive'),
+      expiry_date: z.string().datetime().optional(),
+      item_remarks: z.string().optional()
+    })).optional() // Make it optional in validation
   })
 });
-
 export const updateGRNStatusSchema = z.object({
   body: z.object({
     qc_status: z.enum(['bad', 'moderate', 'excellent'], {
@@ -53,7 +63,7 @@ export const updateGRNStatusSchema = z.object({
 
 export const updatePurchaseOrderStatusSchema = z.object({
   body: z.object({
-    po_status: z.enum(['draft', 'approved', 'pending'], {
+    po_status: z.enum(['draft', 'approved', 'delivered'], {
       required_error: 'Purchase order status is required'
     }),
     remarks: z.string().optional()

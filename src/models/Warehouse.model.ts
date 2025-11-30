@@ -15,21 +15,21 @@ export interface IWarehouse extends Document {
 }
 
 // models/Warehouse.model.ts
+// models/Warehouse.model.ts - Complete fixed GRN schema
 
-// Update IGRNnumber interface to include vendor reference
 export interface IGRNnumber extends Document {
   _id: Types.ObjectId;
+  grn_number: string;
   delivery_challan: string;
   transporter_name: string;
   vehicle_number: string;
-  recieved_date: Date;
+  received_date: Date;
   remarks?: string;
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
   
-  // Add these fields to link with purchase order and vendor
-  purchase_order: Types.ObjectId; // Reference to the PO
-  vendor: Types.ObjectId; // Reference to vendor
+  purchase_order: Types.ObjectId;
+  vendor: Types.ObjectId;
   vendor_details: {
     vendor_name: string;
     vendor_billing_name: string;
@@ -43,18 +43,18 @@ export interface IGRNnumber extends Document {
     vendor_id: string;
   };
   
-  // Add line items from PO
   grn_line_items: Array<{
-   line_no: number;
     sku: string;
     productName: string;
-    quantity: number;
-    category: string;
-    pack_size: string;
-    uom: string;
+    ordered_quantity: number;
+    received_quantity: number;
+    accepted_quantity: number;
+    rejected_quantity: number;
     unit_price: number;
-    expected_delivery_date: Date;
-    location: string;
+    category: string;
+    uom: string;
+    expiry_date?: Date;
+    item_remarks?: string;
   }>;
   
   createdBy: Types.ObjectId;
@@ -63,10 +63,17 @@ export interface IGRNnumber extends Document {
 }
 
 const grnNumberSchema = new Schema<IGRNnumber>({
+  grn_number: { 
+    type: String, 
+    required: false,
+    unique: true,
+    uppercase: true,
+    trim: true
+  },
   delivery_challan: { type: String, required: true },
   transporter_name: { type: String, required: true },
   vehicle_number: { type: String, required: true },
-  recieved_date: { type: Date, required: true, default: Date.now },
+  received_date: { type: Date, required: true, default: Date.now },
   remarks: { type: String },
   scanned_challan: { type: String },
   qc_status: {
@@ -75,7 +82,6 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     required: true
   },
   
-  // Add references to PO and vendor
   purchase_order: { 
     type: Schema.Types.ObjectId, 
     ref: 'RaisePurchaseOrder', 
@@ -87,7 +93,6 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     required: true 
   },
   
-  // Add vendor details
   vendor_details: {
     vendor_name: { type: String, required: true },
     vendor_billing_name: { type: String, required: true },
@@ -101,18 +106,18 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     vendor_id: { type: String, required: true }
   },
   
-  // Add GRN line items
   grn_line_items: [{
-     line_no: { type: Number, required: true },
     sku: { type: String, required: true },
     productName: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    category: { type: String, required: true },
-    pack_size: { type: String, required: true },
-    uom: { type: String, required: true },
+    ordered_quantity: { type: Number, required: true },
     unit_price: { type: Number, required: true },
-    expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true }
+    received_quantity: { type: Number, required: true, default: 0 },
+    accepted_quantity: { type: Number, required: true, default: 0 },
+    rejected_quantity: { type: Number, required: true, default: 0 },
+    category: { type: String, required: true },
+    uom: { type: String, required: true },
+    expiry_date: { type: Date },
+    item_remarks: { type: String }
   }],
   
   createdBy: { 
@@ -123,16 +128,66 @@ const grnNumberSchema = new Schema<IGRNnumber>({
 }, {
   timestamps: true
 });
-export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);
-export interface IRaisePurchaseOrder extends Document {
+
+// FIXED: Pre-save middleware for GRN number generation
+grnNumberSchema.pre('save', async function(next) {
+  try {
+    console.log('🔧 GRN Pre-save middleware running...');
+    
+    // Only generate GRN number if it's a new document
+    if (this.isNew) {
+      console.log('📦 Generating GRN number for new document...');
+      
+      // Get the PO to get the PO number
+      const PO = mongoose.model('RaisePurchaseOrder');
+      const purchaseOrder = await PO.findById(this.purchase_order);
+      
+      if (!purchaseOrder) {
+        throw new Error('Purchase order not found');
+      }
+      
+      // Format: PO12345678-20231215 (PO number + received date)
+      const poNumber = (purchaseOrder as any).po_number;
+      const dateStr = this.received_date.toISOString().split('T')[0].replace(/-/g, '');
+      this.grn_number = `${poNumber}-${dateStr}`;
+      
+      console.log(`✅ GRN number generated: ${this.grn_number}`);
+    }
+    
+    next();
+  } catch (error) {
+    console.error('❌ Error in GRN pre-save middleware:', error);
+    next(error as Error);
+  }
+});
+
+// Post-save middleware to update PO status
+grnNumberSchema.post('save', async function(doc: IGRNnumber, next) {
+  try {
+    console.log('🔧 GRN Post-save middleware running...');
+    
+    // Update PO status to 'delivered' when GRN is created
+    const PO = mongoose.model('RaisePurchaseOrder');
+    await PO.findByIdAndUpdate(doc.purchase_order, {
+      po_status: 'delivered'
+    });
+    
+    console.log(`✅ PO ${doc.purchase_order} status updated to 'delivered'`);
+    next();
+  } catch (error) {
+    console.error('❌ Error updating PO status:', error);
+    next(error as Error);
+  }
+});
+
+export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
-  po_status: 'draft' | 'approved' | 'pending';
+  po_status: 'draft' | 'approved' | 'delivered';
   po_raised_date: Date;
   remarks?: string;
    po_line_items: Array<{ // Should be array here too
-    line_no: number;
     sku: string;
     productName: string;
     quantity: number;
@@ -202,8 +257,8 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
   },
   po_status: {
     type: String,
-    enum: ['draft', 'approved', 'pending'],
-    default: 'draft' // Allow both draft and pending as default,
+    enum: ['draft', 'approved', 'delivered'],
+    default: 'draft'
   },
   po_raised_date: { 
     type: Date, 
@@ -344,20 +399,11 @@ export interface IInventory extends Document {
   _id: Types.ObjectId;
   sku: string;
   productName: string;
-  batchId: string;
+  po_number: string;
   warehouse: Types.ObjectId;
   quantity: number;
   minStockLevel: number;
   maxStockLevel: number;
-  age: number;
-  expiryDate?: Date;
-  location: {
-    zone: string;
-    aisle: string;
-    rack: string;
-    bin: string;
-  };
-  status: 'active' | 'low_stock' | 'overstock' | 'expired' | 'quarantine' | 'archived';
   isArchived: boolean;
   archivedAt?: Date;
   createdBy: Types.ObjectId;
@@ -408,7 +454,7 @@ const dispatchOrderSchema = new Schema({
   destination: { type: String, required: true },
 
   products: [{
-    sku: { type: String, required: true },
+    sku: { type: String, required: true},
     quantity: { type: Number, required: true, min: 1 }
   }],
 
@@ -497,28 +543,66 @@ const fieldAgentSchema = new Schema<IFieldAgent>({
 const inventorySchema = new Schema<IInventory>({
   sku: { type: String, required: true },
   productName: { type: String, required: true },
-  batchId: { type: String, required: true },
+  po_number: { type: String, required: true }, // PO number from purchase order
   warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   quantity: { type: Number, required: true, min: 0 },
   minStockLevel: { type: Number, default: 0 },
   maxStockLevel: { type: Number, default: 1000 },
-  age: { type: Number, default: 0 },
-  expiryDate: { type: Date },
-  location: {
-    zone: { type: String, required: true },
-    aisle: { type: String, required: true },
-    rack: { type: String, required: true },
-    bin: { type: String, required: true }
-  },
-  status: {
-    type: String,
-    enum: ['active', 'low_stock', 'overstock', 'expired', 'quarantine', 'archived'],
-    default: 'active'
-  },
   isArchived: { type: Boolean, default: false },
   archivedAt: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
+// Post-save middleware to create inventory when PO status becomes 'delivered'
+raisePurchaseOrderSchema.post('save', async function(doc: IRaisePurchaseOrder, next) {
+  try {
+    // Only proceed if status changed to 'delivered'
+    if (doc.po_status === 'delivered' && doc.isModified('po_status')) {
+      console.log(`📦 PO ${doc.po_number} delivered, creating inventory entries...`);
+      
+      // Get the Inventory model
+      const Inventory = mongoose.model<IInventory>('Inventory');
+      
+      // Process each line item
+      for (const lineItem of doc.po_line_items) {
+        // Check if inventory item already exists for this SKU and PO
+        const existingInventory = await Inventory.findOne({
+          sku: lineItem.sku,
+          po_number: doc.po_number
+        });
+        
+        if (!existingInventory) {
+          // Create new inventory entry with only PO line item data
+          await Inventory.create({
+            sku: lineItem.sku,
+            productName: lineItem.productName,
+            po_number: doc.po_number,
+            warehouse: doc.vendor, // Using vendor as warehouse, adjust as needed
+            quantity: lineItem.quantity,
+            minStockLevel: 0, // Default values
+            maxStockLevel: 1000, // Default values
+            isArchived: false,
+            createdBy: doc.createdBy
+          });
+          
+          console.log(`✅ Created inventory for ${lineItem.sku} (Qty: ${lineItem.quantity}) from PO ${doc.po_number}`);
+        } else {
+          // Update existing inventory quantity
+          await Inventory.findByIdAndUpdate(existingInventory._id, {
+            $inc: { quantity: lineItem.quantity }
+          });
+          console.log(`📈 Updated inventory for ${lineItem.sku} - Added ${lineItem.quantity} units`);
+        }
+      }
+      
+      console.log(`✅ All inventory entries processed for PO ${doc.po_number}`);
+    }
+    
+    next();
+  } catch (error) {
+    console.error('❌ Error creating inventory from PO:', error);
+    next(error);
+  }
+});
 // Update the expense schema
 const expenseSchema = new Schema<IExpense>({
   category: {
