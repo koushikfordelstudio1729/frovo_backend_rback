@@ -541,6 +541,34 @@ export const getInventoryDashboard = asyncHandler(async (req: Request, res: Resp
   }
 });
 
+// controllers/warehouse.controller.ts - Add this method
+
+export const approvePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check if user is warehouse manager
+  const isWarehouseManager = req.user.roles?.some((role: any) => {
+    return role.systemRole === 'warehouse_manager' || role.systemRole === 'admin';
+  });
+
+  if (!isWarehouseManager && !req.user.roles?.some((role: any) => role.systemRole === 'super_admin')) {
+    return sendError(res, 'Only warehouse managers can directly approve purchase orders', 403);
+  }
+
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return sendBadRequest(res, 'Purchase order ID is required');
+    }
+
+    const result = await warehouseService.approvePurchaseOrder(id, req.user._id);
+    return sendSuccess(res, result, 'Purchase order approved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to approve purchase order', 500);
+  }
+});
+
 export const getInventoryItem = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 

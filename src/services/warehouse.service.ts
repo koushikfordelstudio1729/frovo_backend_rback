@@ -727,6 +727,59 @@ private async createInventoryFromGRN(grn: IGRNnumber): Promise<void> {
   }
 }
 // New method to update GRN quantities
+// services/warehouse.service.ts - Alternative flexible version
+
+async approvePurchaseOrder(purchaseOrderId: string, approvedBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
+  try {
+    console.log('✅ Approving purchase order:', purchaseOrderId);
+
+    // Validate ObjectId
+    if (!Types.ObjectId.isValid(purchaseOrderId)) {
+      throw new Error('Invalid purchase order ID');
+    }
+
+    // Find the purchase order
+    const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId);
+    
+    if (!purchaseOrder) {
+      throw new Error('Purchase order not found');
+    }
+
+    // Check if PO is already approved
+    if (purchaseOrder.po_status === 'approved') {
+      throw new Error('Purchase order is already approved');
+    }
+
+    // Check if PO can be approved (not delivered)
+    if (purchaseOrder.po_status === 'delivered') {
+      throw new Error('Cannot approve a delivered purchase order');
+    }
+
+    // Update PO status to approved
+    const updatedPO = await RaisePurchaseOrder.findByIdAndUpdate(
+      purchaseOrderId,
+      {
+        po_status: 'approved',
+        remarks: purchaseOrder.remarks ? 
+          `${purchaseOrder.remarks} | Approved by manager on ${new Date().toLocaleDateString()}` : 
+          `Approved by warehouse manager on ${new Date().toLocaleDateString()}`
+      },
+      { new: true, runValidators: true }
+    )
+    .populate('vendor', 'vendor_name vendor_email vendor_contact')
+    .populate('createdBy', 'name email');
+
+    if (!updatedPO) {
+      throw new Error('Failed to update purchase order');
+    }
+
+    console.log(`✅ Purchase order ${purchaseOrderId} approved successfully. Previous status: ${purchaseOrder.po_status}`);
+    return updatedPO;
+  } catch (error) {
+    console.error('❌ Error approving purchase order:', error);
+    throw new Error(`Failed to approve purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
 async updateGRNQuantities(
   grnId: string,
   lineItems: Array<{

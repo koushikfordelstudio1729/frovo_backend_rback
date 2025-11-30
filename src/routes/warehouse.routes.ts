@@ -67,6 +67,12 @@ router.post('/purchase-orders/:purchaseOrderId/grn',
   validate({ body: createGRNSchema.shape.body }),
   warehouseController.createGRN
 );
+// Direct PO approval for warehouse managers (no JSON body needed)
+router.patch('/inbound/purchase-orders/:id/approve',
+  authenticate,
+  requirePermission('purchase_orders:approve'),
+  warehouseController.approvePurchaseOrder
+);
 
 router.get('/grn',
   requirePermission('grn:view'),
