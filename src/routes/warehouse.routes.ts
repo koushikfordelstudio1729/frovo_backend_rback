@@ -15,7 +15,8 @@ import {
   createPurchaseOrderSchema,
   updatePurchaseOrderStatusSchema,
   createGRNSchema,
-  updateGRNStatusSchema 
+  updateGRNStatusSchema, 
+  createInventorySchema
 } from '../validators/warehouse.validator';
 
 const router = Router();
@@ -178,12 +179,12 @@ router.post('/field-agents',
 
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
 // Inventory Dashboard Routes
-router.get('/inventory/dashboard/:warehouseId',
+router.get('/inventory/dashboard/',
   requirePermission('inventory:view'),
   warehouseController.getInventoryDashboard
 );
 
-router.get('/inventory/stats/:warehouseId',
+router.get('/inventory/stats/',
   requirePermission('inventory:view'),
   warehouseController.getInventoryStats
 );
@@ -193,9 +194,11 @@ router.get('/inventory/:id',
   warehouseController.getInventoryItem
 );
 
-router.put('/inventory/:id',
-  requirePermission('inventory:manage'),
-  warehouseController.updateInventoryItem
+// routes/warehouse.routes.ts
+router.post('/inventory',
+  requirePermission('inventory:create'),
+  validate({ body: createInventorySchema.shape.body }),
+  warehouseController.createInventoryItem
 );
 
 router.patch('/inventory/:id/archive',

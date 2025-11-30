@@ -3,7 +3,18 @@ import { z } from 'zod';
 
 const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
 // In your warehouse.validator.ts file, add these schemas:
-
+// validation/warehouse.schemas.ts
+export const createInventorySchema = z.object({
+  body: z.object({
+    sku: z.string().min(1, 'SKU is required'),
+    productName: z.string().min(1, 'Product name is required'),
+    po_number: z.string().min(1, 'PO number is required'),
+    quantity: z.number().min(0, 'Quantity must be positive'),
+    expiry_date: z.string().datetime().optional(),
+    minStockLevel: z.number().min(0).optional(),
+    maxStockLevel: z.number().min(0).optional()
+  })
+});
 export const createPurchaseOrderSchema = z.object({
   body: z.object({
     //po_number: z.string().min(1, 'Purchase Order Number is required'),
@@ -67,29 +78,6 @@ export const updatePurchaseOrderStatusSchema = z.object({
       required_error: 'Purchase order status is required'
     }),
     remarks: z.string().optional()
-  })
-});
-export const receiveGoodsSchema = z.object({
-  body: z.object({
-    poNumber: z.string().min(1, 'PO Number is required'),
-    vendor: objectIdSchema,
-    sku: z.string().min(1, 'SKU is required'),
-    productName: z.string().min(1, 'Product name is required'),
-    quantity: z.number().min(1, 'Quantity must be at least 1'),
-    batchId: z.string().min(1, 'Batch ID is required').optional(),
-    warehouse: objectIdSchema,
-    qcVerification: z.object({
-      packaging: z.boolean(),
-      expiry: z.boolean(),
-      label: z.boolean()
-    }),
-    storage: z.object({
-      zone: z.string().min(1, 'Zone is required'),
-      aisle: z.string().min(1, 'Aisle is required'),
-      rack: z.string().min(1, 'Rack is required'),
-      bin: z.string().min(1, 'Bin is required')
-    }),
-    documents: z.array(z.string()).optional()
   })
 });
 

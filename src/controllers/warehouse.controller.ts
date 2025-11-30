@@ -4,6 +4,8 @@ import asyncHandler from 'express-async-handler';
 import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 import { checkPermission } from '../middleware/auth.middleware';
+import { Inventory } from '../models/Warehouse.model';
+import mongoose from 'mongoose';
 
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -505,19 +507,30 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
     return sendError(res, error instanceof Error ? error.message : 'Failed to create field agent', 500);
   }
 });
+// controllers/warehouse.controller.ts
+export const createInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  try {
+    const inventoryData = {
+      ...req.body,
+      createdBy: req.user._id
+    };
+
+    const inventory = await Inventory.create(inventoryData);
+    
+    sendSuccess(res, inventory, 'Inventory item created successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to create inventory item', 500);
+  }
+});
 
 // Screen 4: Inventory Management
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
-  const { warehouseId } = req.params;
   const { page = 1, limit = 50, ...filters } = req.query;
-
-  if (!warehouseId) {
-    return sendBadRequest(res, 'Warehouse ID is required');
-  }
 
   try {
     const result = await warehouseService.getInventoryDashboard(
-      warehouseId,
       filters,
       parseInt(page as string),
       parseInt(limit as string)
@@ -546,21 +559,6 @@ export const getInventoryItem = asyncHandler(async (req: Request, res: Response)
   }
 });
 
-export const updateInventoryItem = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const updateData = req.body;
-
-  if (!id) {
-    return sendBadRequest(res, 'Inventory ID is required');
-  }
-
-  try {
-    const updatedItem = await warehouseService.updateInventoryItem(id, updateData);
-    sendSuccess(res, updatedItem, 'Inventory item updated successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to update inventory item', 500);
-  }
-});
 
 export const archiveInventory = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -612,15 +610,12 @@ export const getArchivedInventory = asyncHandler(async (req: Request, res: Respo
   }
 });
 
+// controllers/warehouse.controller.ts - Remove warehouseId from getInventoryStats
+
 export const getInventoryStats = asyncHandler(async (req: Request, res: Response) => {
-  const { warehouseId } = req.params;
-
-  if (!warehouseId) {
-    return sendBadRequest(res, 'Warehouse ID is required');
-  }
-
   try {
-    const stats = await warehouseService.getInventoryStats(warehouseId);
+    // Remove warehouseId parameter completely
+    const stats = await warehouseService.getInventoryStats();
     sendSuccess(res, stats, 'Inventory statistics retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get inventory statistics', 500);
@@ -848,6 +843,8 @@ export const generatePurchaseOrderReport = asyncHandler(async (req: Request, res
     sendError(res, error instanceof Error ? error.message : 'Failed to generate purchase order report', 500);
   }
 });
+// controllers/warehouse.controller.ts
+// This function is already declared above, so it should be removed to avoid redeclaration error.
 
 export const generateInventoryTurnoverReport = asyncHandler(async (req: Request, res: Response) => {
   try {
@@ -913,3 +910,7 @@ export const getStockAgeingReport = asyncHandler(async (req: Request, res: Respo
     sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
   }
 });
+
+function createInventoryFromGRN(grn: any) {
+  throw new Error('Function not implemented.');
+}
