@@ -1,9 +1,11 @@
-import { VendorCreate, IVendorCreate, VendorDashboard, IVendorDashboard } from '../models/Vendor.model';
+import { VendorCreate, IVendorCreate, VendorDashboard, IVendorDashboard, IVendorDocument } from '../models/Vendor.model';
 import { Types } from 'mongoose';
 import { AuditTrailService } from './auditTrail.service';
+import { DocumentUploadService } from './documentUpload.service';
 
 export class VendorService {
   private auditTrailService = new AuditTrailService();
+  private documentUploadService = new DocumentUploadService();
 
   // Create Complete Vendor with Audit Trail
   async createCompleteVendor(
@@ -1051,6 +1053,197 @@ export class VendorService {
       // Don't throw error - audit failure shouldn't break main functionality
     }
   }
+
+  // ==================== DOCUMENT MANAGEMENT METHODS ====================
+
+  /**
+   * Upload document to vendor
+   * @param vendorId - Vendor MongoDB ID
+   * @param file - Multer file object
+   * @param documentType - Type of document
+   * @param expiryDate - Optional expiry date
+   * @param userId - User performing the action
+   * @param userEmail - User email
+   * @param userRole - User role
+   * @param req - Request object for audit
+   * @returns Updated vendor document
+   */
+  async uploadVendorDocument(
+    vendorId: string,
+    file: Express.Multer.File,
+    documentType: IVendorDocument['document_type'],
+    expiryDate: Date | undefined,
+    userId: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: any
+  ): Promise<IVendorCreate | null> {
+    try {
+      // Find vendor
+      const vendor = await VendorCreate.findById(vendorId);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
+
+      // Validate document type
+      if (!this.documentUploadService.validateDocumentType(documentType)) {
+        throw new Error('Invalid document type');
+      }
+
+      // Upload to Cloudinary
+      const { url, publicId } = await this.documentUploadService.uploadToCloudinary(
+        file.buffer,
+        file.originalname,
+        `frovo/vendors/${vendor.vendor_id}`
+      );
+
+      // Create document metadata
+      const documentMetadata = this.documentUploadService.createDocumentMetadata(
+        file,
+        documentType,
+        url,
+        publicId,
+        expiryDate
+      );
+
+      // Add document to vendor
+      const beforeState = vendor.toObject();
+      vendor.documents.push(documentMetadata as any);
+      await vendor.save();
+
+      // Create audit trail
+      await this.createVendorAuditRecord(
+        userId,
+        userEmail,
+        userRole,
+        'document_upload',
+        `Uploaded document: ${file.originalname} (${documentType})`,
+        vendor._id as Types.ObjectId,
+        vendor.vendor_name,
+        vendor.vendor_id,
+        beforeState,
+        vendor.toObject(),
+        req
+      );
+
+      return vendor;
+    } catch (error: any) {
+      throw new Error(`Error uploading vendor document: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete vendor document
+   * @param vendorId - Vendor MongoDB ID
+   * @param documentId - Document MongoDB ID
+   * @param userId - User performing the action
+   * @param userEmail - User email
+   * @param userRole - User role
+   * @param req - Request object for audit
+   * @returns Updated vendor document
+   */
+  async deleteVendorDocument(
+    vendorId: string,
+    documentId: string,
+    userId: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: any
+  ): Promise<IVendorCreate | null> {
+    try {
+      // Find vendor
+      const vendor = await VendorCreate.findById(vendorId);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
+
+      // Find document by _id
+      const documentIndex = vendor.documents.findIndex(
+        (doc: any) => doc._id.toString() === documentId
+      );
+
+      if (documentIndex === -1) {
+        throw new Error('Document not found');
+      }
+
+      const document = vendor.documents[documentIndex];
+
+      // Delete from Cloudinary
+      await this.documentUploadService.deleteFromCloudinary(document.cloudinary_public_id);
+
+      // Remove document from vendor
+      const beforeState = vendor.toObject();
+      const documentName = document.document_name;
+      const documentType = document.document_type;
+
+      vendor.documents.splice(documentIndex, 1);
+      await vendor.save();
+
+      // Create audit trail
+      await this.createVendorAuditRecord(
+        userId,
+        userEmail,
+        userRole,
+        'document_delete',
+        `Deleted document: ${documentName} (${documentType})`,
+        vendor._id as Types.ObjectId,
+        vendor.vendor_name,
+        vendor.vendor_id,
+        beforeState,
+        vendor.toObject(),
+        req
+      );
+
+      return vendor;
+    } catch (error: any) {
+      throw new Error(`Error deleting vendor document: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get vendor documents
+   * @param vendorId - Vendor MongoDB ID
+   * @returns Array of vendor documents
+   */
+  async getVendorDocuments(vendorId: string): Promise<IVendorDocument[]> {
+    try {
+      const vendor = await VendorCreate.findById(vendorId);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
+      return vendor.documents;
+    } catch (error: any) {
+      throw new Error(`Error fetching vendor documents: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get single vendor document
+   * @param vendorId - Vendor MongoDB ID
+   * @param documentId - Document MongoDB ID
+   * @returns Single vendor document
+   */
+  async getVendorDocument(vendorId: string, documentId: string): Promise<IVendorDocument | null> {
+    try {
+      const vendor = await VendorCreate.findById(vendorId);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
+
+      // Find document by _id
+      const document = vendor.documents.find(
+        (doc: any) => doc._id.toString() === documentId
+      );
+
+      if (!document) {
+        return null;
+      }
+
+      return document;
+    } catch (error: any) {
+      throw new Error(`Error fetching vendor document: ${error.message}`);
+    }
+  }
 }
 
 // Validation Service
@@ -1077,8 +1270,8 @@ class VendorValidationService {
       throw new Error('Vendor address is required');
     }
 
-    if (!data.vendor_contact) {
-      throw new Error('Vendor contact is required');
+    if (!data.contact_phone) {
+      throw new Error('Contact phone is required');
     }
 
     if (!data.vendor_email) {
@@ -1090,8 +1283,8 @@ class VendorValidationService {
       throw new Error('Invalid vendor email format');
     }
 
-    if (!data.vendor_phone) {
-      throw new Error('Vendor phone is required');
+    if (!data.vendor_type || data.vendor_type.length === 0) {
+      throw new Error('At least one vendor type is required');
     }
 
     // Financial Information Validation

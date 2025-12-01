@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { VendorController } from '../controllers/vendor.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { authorize } from '../middleware/authorize.middleware';
+import { uploadSingle } from '../middleware/upload.middleware';
 
 const router = Router();
 const vendorController = new VendorController();
@@ -35,9 +36,16 @@ router.get('/:id', authorize(READ_ACCESS), vendorController.getVendorById.bind(v
 router.get('/vendor-id/:vendorId', authorize(READ_ACCESS), vendorController.getVendorByVendorId.bind(vendorController));
 router.put('/:id', authorize(VENDOR_MANAGEMENT), vendorController.updateVendor.bind(vendorController));
 router.delete('/:id', authorize(VENDOR_MANAGEMENT), vendorController.deleteVendor.bind(vendorController));
-// Vendor Admin Dashboard Routes
-router.get('/vendor-admin/dashboard', authorize(['vendor_admin']), vendorController.getVendorAdminDashboard.bind(vendorController));
-router.get('/vendor-admin/vendors/:id/edit', authorize(['vendor_admin']), vendorController.getVendorForEdit.bind(vendorController));
-router.put('/vendor-admin/vendors/:id', authorize(['vendor_admin']), vendorController.updateVendorForAdmin.bind(vendorController));
-router.delete('/vendor-admin/vendors/:id', authorize(['vendor_admin']), vendorController.deleteVendorForAdmin.bind(vendorController));
+// Vendor Admin Dashboard Routes (Super Admin can also access)
+router.get('/vendor-admin/dashboard', authorize(VENDOR_MANAGEMENT), vendorController.getVendorAdminDashboard.bind(vendorController));
+router.get('/vendor-admin/vendors/:id/edit', authorize(VENDOR_MANAGEMENT), vendorController.getVendorForEdit.bind(vendorController));
+router.put('/vendor-admin/vendors/:id', authorize(VENDOR_MANAGEMENT), vendorController.updateVendorForAdmin.bind(vendorController));
+router.delete('/vendor-admin/vendors/:id', authorize(VENDOR_MANAGEMENT), vendorController.deleteVendorForAdmin.bind(vendorController));
+
+// Document Management Routes
+router.post('/:id/documents', authorize(VENDOR_MANAGEMENT), uploadSingle, vendorController.uploadVendorDocument.bind(vendorController));
+router.get('/:id/documents', authorize(READ_ACCESS), vendorController.getVendorDocuments.bind(vendorController));
+router.get('/:id/documents/:documentId', authorize(READ_ACCESS), vendorController.getVendorDocument.bind(vendorController));
+router.delete('/:id/documents/:documentId', authorize(VENDOR_MANAGEMENT), vendorController.deleteVendorDocument.bind(vendorController));
+
 export default router;
