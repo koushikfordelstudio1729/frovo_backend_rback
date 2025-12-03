@@ -1,0 +1,1684 @@
+{
+  "info": {
+    "name": "Frovo Warehouse Management API",
+    "description": "Complete Postman collection for Warehouse Management module with all 52 endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "warehouseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "poId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "grnId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dispatchId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fieldAgentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expenseId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "    console.log('Access token saved:', jsonData.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nkoushikpanda123@gmail.com\",\n  \"password\": \"SuperAdmin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login to get access token. Token is automatically saved to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if server is running"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "dashboard"]
+            },
+            "description": "Get dashboard with KPIs, alerts, and analytics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dashboard with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/dashboard?date=this_week&category=Snacks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "dashboard"],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "this_week",
+                  "description": "Options: today, this_week, this_month, or DD-MM-YYYY"
+                },
+                {
+                  "key": "category",
+                  "value": "Snacks",
+                  "description": "Filter by product category"
+                },
+                {
+                  "key": "partner",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get dashboard with date and category filters"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Purchase Orders",
+      "item": [
+        {
+          "name": "Create Purchase Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('poId', jsonData.data._id);",
+                  "    console.log('PO ID saved:', jsonData.data._id);",
+                  "    console.log('PO Number:', jsonData.data.po_number);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor\": \"{{vendorId}}\",\n  \"po_raised_date\": \"{{$isoTimestamp}}\",\n  \"po_status\": \"draft\",\n  \"remarks\": \"Urgent order for upcoming promotion\",\n  \"po_line_items\": [\n    {\n      \"line_no\": 1,\n      \"sku\": \"LAY-CLASSIC-25G\",\n      \"productName\": \"Lays Classic 25g\",\n      \"quantity\": 500,\n      \"category\": \"Snacks\",\n      \"pack_size\": \"25g\",\n      \"uom\": \"Pack\",\n      \"unit_price\": 10,\n      \"expected_delivery_date\": \"2025-12-10T10:00:00.000Z\",\n      \"location\": \"Warehouse A\"\n    },\n    {\n      \"line_no\": 2,\n      \"sku\": \"LAY-MASALA-25G\",\n      \"productName\": \"Lays Masala Magic 25g\",\n      \"quantity\": 300,\n      \"category\": \"Snacks\",\n      \"pack_size\": \"25g\",\n      \"uom\": \"Pack\",\n      \"unit_price\": 10,\n      \"expected_delivery_date\": \"2025-12-10T10:00:00.000Z\",\n      \"location\": \"Warehouse A\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders"]
+            },
+            "description": "Create new purchase order. PO number is auto-generated."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Purchase Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders"]
+            },
+            "description": "Get list of all purchase orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Purchase Orders with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders?po_status=approved&startDate=2025-01-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders"],
+              "query": [
+                {
+                  "key": "po_status",
+                  "value": "approved",
+                  "description": "Options: draft, pending, approved"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "po_number",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get filtered purchase orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Purchase Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders/{{poId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders", "{{poId}}"]
+            },
+            "description": "Get single purchase order details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update PO Status to Approved",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"po_status\": \"approved\",\n  \"remarks\": \"All items verified and approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders/{{poId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders", "{{poId}}", "status"]
+            },
+            "description": "Update PO status. Valid values: draft, pending, approved"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Purchase Order",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders/{{poId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders", "{{poId}}"]
+            },
+            "description": "Delete purchase order (only draft or pending status)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. GRN (Goods Receipt Note)",
+      "item": [
+        {
+          "name": "Create GRN from PO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('grnId', jsonData.data._id);",
+                  "    console.log('GRN ID saved:', jsonData.data._id);",
+                  "    console.log('GRN Number:', jsonData.data.grn_number);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"delivery_challan\": \"DC-998877\",\n  \"transporter_name\": \"DHL Logistics\",\n  \"vehicle_number\": \"MH-04-AB-1234\",\n  \"recieved_date\": \"{{$isoTimestamp}}\",\n  \"remarks\": \"All boxes in good condition\",\n  \"scanned_challan\": \"https://example.com/challan.pdf\",\n  \"qc_status\": \"excellent\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/purchase-orders/{{poId}}/grn",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "purchase-orders", "{{poId}}", "grn"]
+            },
+            "description": "Create GRN from approved PO. GRN number is auto-generated."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All GRNs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/grn",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "grn"]
+            },
+            "description": "Get list of all GRNs"
+          },
+          "response": []
+        },
+        {
+          "name": "Get GRNs with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/grn?qc_status=excellent&startDate=2025-01-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "grn"],
+              "query": [
+                {
+                  "key": "qc_status",
+                  "value": "excellent",
+                  "description": "Options: bad, moderate, excellent"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "transporter_name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get filtered GRNs"
+          },
+          "response": []
+        },
+        {
+          "name": "Get GRN by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/grn/{{grnId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "grn", "{{grnId}}"]
+            },
+            "description": "Get single GRN details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update GRN Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qc_status\": \"moderate\",\n  \"remarks\": \"Some minor packaging issues found\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/grn/{{grnId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "grn", "{{grnId}}", "status"]
+            },
+            "description": "Update GRN QC status"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Dispatch Orders",
+      "item": [
+        {
+          "name": "Create Dispatch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('dispatchId', jsonData.data._id);",
+                  "    console.log('Dispatch ID saved:', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dispatchId\": \"DO-0001\",\n  \"destination\": \"123 Main Street, Mumbai, Maharashtra 400001\",\n  \"products\": [\n    {\n      \"sku\": \"LAY-CLASSIC-25G\",\n      \"quantity\": 100\n    },\n    {\n      \"sku\": \"LAY-MASALA-25G\",\n      \"quantity\": 50\n    }\n  ],\n  \"assignedAgent\": \"{{fieldAgentId}}\",\n  \"notes\": \"Urgent delivery - customer priority\",\n  \"status\": \"pending\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/outbound/dispatch",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "outbound", "dispatch"]
+            },
+            "description": "Create dispatch order. Stock is validated and reduced automatically."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Dispatches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/outbound/dispatches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "outbound", "dispatches"]
+            },
+            "description": "Get list of all dispatches"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dispatches with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/outbound/dispatches?status=in_transit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "outbound", "dispatches"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "in_transit",
+                  "description": "Options: pending, assigned, in_transit, delivered, cancelled"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get filtered dispatches"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dispatch by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/outbound/dispatches/{{dispatchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "outbound", "dispatches", "{{dispatchId}}"]
+            },
+            "description": "Get single dispatch details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Dispatch Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"delivered\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/outbound/dispatches/{{dispatchId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "outbound", "dispatches", "{{dispatchId}}", "status"]
+            },
+            "description": "Update dispatch status through workflow: pending → assigned → in_transit → delivered"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. QC Templates",
+      "item": [
+        {
+          "name": "Create QC Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Perishable Items QC\",\n  \"sku\": \"LAY-CLASSIC-25G\",\n  \"parameters\": [\n    {\n      \"name\": \"Packaging Intact\",\n      \"value\": \"Yes\"\n    },\n    {\n      \"name\": \"Expiry Date Valid\",\n      \"value\": \"More than 30 days\"\n    },\n    {\n      \"name\": \"Label Correct\",\n      \"value\": \"Yes\"\n    },\n    {\n      \"name\": \"No Damage\",\n      \"value\": \"Yes\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/qc/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "qc", "templates"]
+            },
+            "description": "Create reusable QC template for products"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All QC Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/qc/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "qc", "templates"]
+            },
+            "description": "Get list of all QC templates"
+          },
+          "response": []
+        },
+        {
+          "name": "Get QC Templates by SKU",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/qc/templates?sku=LAY-CLASSIC-25G",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "qc", "templates"],
+              "query": [
+                {
+                  "key": "sku",
+                  "value": "LAY-CLASSIC-25G"
+                }
+              ]
+            },
+            "description": "Get QC templates for specific SKU"
+          },
+          "response": []
+        },
+        {
+          "name": "Update QC Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Perishable Items QC\",\n  \"sku\": \"LAY-CLASSIC-25G\",\n  \"parameters\": [\n    {\n      \"name\": \"Packaging Intact\",\n      \"value\": \"Yes\"\n    },\n    {\n      \"name\": \"Expiry Date Valid\",\n      \"value\": \"More than 60 days\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/qc/templates/:templateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "qc", "templates", ":templateId"],
+              "variable": [
+                {
+                  "key": "templateId",
+                  "value": "TEMPLATE_ID_HERE"
+                }
+              ]
+            },
+            "description": "Update existing QC template"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete QC Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/qc/templates/:templateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "qc", "templates", ":templateId"],
+              "variable": [
+                {
+                  "key": "templateId",
+                  "value": "TEMPLATE_ID_HERE"
+                }
+              ]
+            },
+            "description": "Delete QC template (soft delete - sets isActive to false)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Returns Management",
+      "item": [
+        {
+          "name": "Create Return Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batchId\": \"BATCH-001\",\n  \"vendor\": \"{{vendorId}}\",\n  \"reason\": \"Damaged packaging found during inspection\",\n  \"quantity\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/returns",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "returns"]
+            },
+            "description": "Create return order. Return type is auto-detected from reason."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Return Queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/returns/queue",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "returns", "queue"]
+            },
+            "description": "Get list of all return orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Returns with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/returns/queue?status=pending&returnType=damaged",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "returns", "queue"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "Options: pending, approved, returned, rejected"
+                },
+                {
+                  "key": "returnType",
+                  "value": "damaged",
+                  "description": "Options: damaged, expired, wrong_item, overstock, other"
+                }
+              ]
+            },
+            "description": "Get filtered return orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Return",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/returns/:returnId/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "returns", ":returnId", "approve"],
+              "variable": [
+                {
+                  "key": "returnId",
+                  "value": "RETURN_ID_HERE"
+                }
+              ]
+            },
+            "description": "Approve return order. Inventory is automatically reduced."
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Return",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/returns/:returnId/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "returns", ":returnId", "reject"],
+              "variable": [
+                {
+                  "key": "returnId",
+                  "value": "RETURN_ID_HERE"
+                }
+              ]
+            },
+            "description": "Reject return order"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Field Agents",
+      "item": [
+        {
+          "name": "Get All Field Agents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/field-agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "field-agents"]
+            },
+            "description": "Get list of all field agents"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Field Agents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/field-agents?isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "field-agents"],
+              "query": [
+                {
+                  "key": "isActive",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Get only active field agents"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Field Agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('fieldAgentId', jsonData.data._id);",
+                  "    console.log('Field Agent ID saved:', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ramesh Kumar\",\n  \"assignedRoutes\": [\"Route-34\", \"Route-45\", \"Route-67\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/field-agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "field-agents"]
+            },
+            "description": "Create new field agent"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Inventory Management",
+      "item": [
+        {
+          "name": "Get Inventory Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/dashboard/{{warehouseId}}?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "dashboard", "{{warehouseId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get inventory dashboard with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Inventory with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/dashboard/{{warehouseId}}?status=low_stock&expiryStatus=expiring_soon&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "dashboard", "{{warehouseId}}"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "low_stock",
+                  "description": "Options: active, low_stock, overstock, expired, quarantine, archived"
+                },
+                {
+                  "key": "expiryStatus",
+                  "value": "expiring_soon",
+                  "description": "Options: expiring_soon, expired, not_expired, no_expiry"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "sku",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "batchId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "productName",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "ageRange",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Options: 0-30, 31-60, 61-90, 90+"
+                },
+                {
+                  "key": "quantityRange",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Options: low, medium, high, out_of_stock"
+                }
+              ]
+            },
+            "description": "Get inventory with advanced filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Inventory Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/stats/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "stats", "{{warehouseId}}"]
+            },
+            "description": "Get inventory statistics for warehouse"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Inventory Item by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/{{inventoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "{{inventoryId}}"]
+            },
+            "description": "Get single inventory item details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Inventory Item",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 150,\n  \"minStockLevel\": 20,\n  \"maxStockLevel\": 500,\n  \"expiryDate\": \"2026-12-31T00:00:00.000Z\",\n  \"location\": {\n    \"zone\": \"A\",\n    \"aisle\": \"2\",\n    \"rack\": \"3\",\n    \"bin\": \"4\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/{{inventoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "{{inventoryId}}"]
+            },
+            "description": "Update inventory item. Status and age are auto-calculated."
+          },
+          "response": []
+        },
+        {
+          "name": "Archive Inventory Item",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/{{inventoryId}}/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "{{inventoryId}}", "archive"]
+            },
+            "description": "Archive single inventory item"
+          },
+          "response": []
+        },
+        {
+          "name": "Unarchive Inventory Item",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/{{inventoryId}}/unarchive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "{{inventoryId}}", "unarchive"]
+            },
+            "description": "Unarchive inventory item"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Archived Inventory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/archived/{{warehouseId}}?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "archived", "{{warehouseId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get list of archived inventory items"
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Archive Inventory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inventoryIds\": [\n    \"INVENTORY_ID_1\",\n    \"INVENTORY_ID_2\",\n    \"INVENTORY_ID_3\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/bulk-archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "bulk-archive"]
+            },
+            "description": "Archive multiple inventory items at once"
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Unarchive Inventory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inventoryIds\": [\n    \"INVENTORY_ID_1\",\n    \"INVENTORY_ID_2\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inventory/bulk-unarchive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inventory", "bulk-unarchive"]
+            },
+            "description": "Unarchive multiple inventory items at once"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Expense Management",
+      "item": [
+        {
+          "name": "Create Expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('expenseId', jsonData.data._id);",
+                  "    console.log('Expense ID saved:', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"transport\",\n  \"amount\": 12000,\n  \"vendor\": \"{{vendorId}}\",\n  \"date\": \"{{$isoTimestamp}}\",\n  \"description\": \"Monthly transportation costs for stock delivery\",\n  \"billUrl\": \"https://example.com/bill123.pdf\",\n  \"assignedAgent\": \"{{fieldAgentId}}\",\n  \"warehouseId\": \"{{warehouseId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses"]
+            },
+            "description": "Create new expense record"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Expenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            },
+            "description": "Get list of all expenses"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expenses with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses?warehouseId={{warehouseId}}&category=transport&status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "category",
+                  "value": "transport",
+                  "description": "Options: staffing, supplies, equipment, transport"
+                },
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "Options: approved, pending"
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Options: paid, unpaid, partially_paid"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "month",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Format: YYYY-MM"
+                }
+              ]
+            },
+            "description": "Get filtered expenses"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/summary?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "summary"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            },
+            "description": "Get expense summary with category breakdown and payment status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}"]
+            },
+            "description": "Get single expense details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"supplies\",\n  \"amount\": 15000,\n  \"date\": \"{{$isoTimestamp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}"]
+            },
+            "description": "Update expense. Note: Updating amount/category/date resets status to pending."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}", "status"]
+            },
+            "description": "Approve or reject expense"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Payment Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentStatus\": \"paid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}/payment-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}", "payment-status"]
+            },
+            "description": "Update payment status: paid, unpaid, partially_paid"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}"]
+            },
+            "description": "Delete expense permanently"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Monthly Expense Trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/trend/monthly?warehouseId={{warehouseId}}&months=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "trend", "monthly"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "months",
+                  "value": "12",
+                  "description": "Number of months to retrieve (default: 12)"
+                }
+              ]
+            },
+            "description": "Get monthly expense trend data for charts"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Reports & Analytics",
+      "item": [
+        {
+          "name": "Get Report Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/types",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "types"]
+            },
+            "description": "Get list of available report types"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Inventory Summary Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/inventory-summary?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "inventory-summary"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate comprehensive inventory summary report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Purchase Orders Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/purchase-orders?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "purchase-orders"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate purchase orders report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Inventory Turnover Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/inventory-turnover?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "inventory-turnover"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate inventory turnover analysis report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate QC Summary Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/qc-summary?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "qc-summary"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate quality control summary report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Efficiency Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/efficiency?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "efficiency"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate warehouse efficiency report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Stock Ageing Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/stock-ageing?warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "stock-ageing"],
+              "query": [
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            },
+            "description": "Generate stock ageing analysis report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Report (Generic)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports?type=inventory_summary&warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "inventory_summary",
+                  "description": "Options: inventory_summary, purchase_orders, inventory_turnover, qc_summary, efficiency, stock_ageing"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate any report type using generic endpoint"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Report as CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/export?type=inventory_summary&format=csv&warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "export"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "inventory_summary"
+                },
+                {
+                  "key": "format",
+                  "value": "csv",
+                  "description": "Options: csv, json"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            },
+            "description": "Export report as CSV file"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Report as JSON",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/reports/export?type=purchase_orders&format=json&warehouseId={{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "reports", "export"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "purchase_orders"
+                },
+                {
+                  "key": "format",
+                  "value": "json"
+                },
+                {
+                  "key": "warehouseId",
+                  "value": "{{warehouseId}}"
+                }
+              ]
+            },
+            "description": "Export report as JSON"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

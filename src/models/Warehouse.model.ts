@@ -19,6 +19,7 @@ export interface IWarehouse extends Document {
 // Update IGRNnumber interface to include vendor reference
 export interface IGRNnumber extends Document {
   _id: Types.ObjectId;
+  grn_number: string; // Auto-generated GRN number
   delivery_challan: string;
   transporter_name: string;
   vehicle_number: string;
@@ -26,7 +27,7 @@ export interface IGRNnumber extends Document {
   remarks?: string;
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
-  
+
   // Add these fields to link with purchase order and vendor
   purchase_order: Types.ObjectId; // Reference to the PO
   vendor: Types.ObjectId; // Reference to vendor
@@ -42,27 +43,37 @@ export interface IGRNnumber extends Document {
     vendor_contact: string;
     vendor_id: string;
   };
-  
-  // Add line items from PO
+
+  // Add line items from PO with quantity tracking
   grn_line_items: Array<{
-   line_no: number;
+    line_no: number;
     sku: string;
     productName: string;
-    quantity: number;
+    quantity: number; // Expected quantity from PO
     category: string;
     pack_size: string;
     uom: string;
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
+    received_quantity?: number; // Actual quantity received
+    accepted_quantity?: number; // Quantity that passed QC
+    rejected_quantity?: number; // Quantity that failed QC
   }>;
-  
+
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const grnNumberSchema = new Schema<IGRNnumber>({
+  grn_number: {
+    type: String,
+    required: true,
+    unique: true,
+    uppercase: true,
+    trim: true
+  },
   delivery_challan: { type: String, required: true },
   transporter_name: { type: String, required: true },
   vehicle_number: { type: String, required: true },
@@ -74,19 +85,19 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     enum: ['bad', 'moderate', 'excellent'],
     required: true
   },
-  
+
   // Add references to PO and vendor
-  purchase_order: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'RaisePurchaseOrder', 
-    required: true 
+  purchase_order: {
+    type: Schema.Types.ObjectId,
+    ref: 'RaisePurchaseOrder',
+    required: true
   },
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorCreate', 
-    required: true 
+  vendor: {
+    type: Schema.Types.ObjectId,
+    ref: 'VendorCreate',
+    required: true
   },
-  
+
   // Add vendor details
   vendor_details: {
     vendor_name: { type: String, required: true },
@@ -100,10 +111,10 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     vendor_contact: { type: String, required: true },
     vendor_id: { type: String, required: true }
   },
-  
-  // Add GRN line items
+
+  // Add GRN line items with quantity tracking
   grn_line_items: [{
-     line_no: { type: Number, required: true },
+    line_no: { type: Number, required: true },
     sku: { type: String, required: true },
     productName: { type: String, required: true },
     quantity: { type: Number, required: true },
@@ -112,17 +123,25 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     uom: { type: String, required: true },
     unit_price: { type: Number, required: true },
     expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true }
+    location: { type: String, required: true },
+    received_quantity: { type: Number, default: 0 },
+    accepted_quantity: { type: Number, default: 0 },
+    rejected_quantity: { type: Number, default: 0 }
   }],
-  
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 }, {
   timestamps: true
 });
+
+// Add index for GRN number
+grnNumberSchema.index({ grn_number: 1 }, { unique: true });
+grnNumberSchema.index({ purchase_order: 1 });
+grnNumberSchema.index({ vendor: 1 });
 export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);
 export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;

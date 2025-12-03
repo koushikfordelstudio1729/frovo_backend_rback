@@ -1,1 +1,63 @@
+# Node modules
 node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# dotenv environment variables
+.env
+.env.*
+!.env.example
+
+# Output of builds
+dist/
+build/
+tmp/
+temp/
+
+# Debug
+.DS_Store
+*.swp
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# TypeScript
+*.tsbuildinfo
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# IDE folders
+.vscode/
+.idea/
+
+# Logs from PM2
+.pids
+.pm2/logs/
+.pm2/pids/
+
+# MacOS system files
+.DS_Store
+
+# Lock files (optional – depending on team decision)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
