@@ -1,222 +1,272 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
+// Document Interface
+export interface IVendorDocument {
+  document_name: string;
+  document_type: 'signed_contract' | 'gst_certificate' | 'msme_certificate' | 'tds_exemption' | 'pan_card' | 'bank_proof' | 'other';
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  expiry_date?: Date;
+  uploaded_at: Date;
+}
+
 export interface IVendorCreate extends Document {
   // Basic Information
   vendor_name: string;
   vendor_billing_name: string;
-  primary_contact_name: string;
+  vendor_type: string[];  // Multi-select: snacks, beverages, packaging, services
   vendor_category: string;
-  vendor_address: string;
-  vendor_contact: string;
+  primary_contact_name: string;
+  contact_phone: string;
   vendor_email: string;
+  vendor_address: string;
   vendor_id: string;
-  vendor_phone: string;
-  
+
   // Financial Information
   bank_account_number: string;
   ifsc_code: string;
   payment_terms: string;
-  
+  payment_methods: string;
+
   // Compliance Information
   gst_number: string;
   pan_number: string;
   tds_rate: number;
   billing_cycle: string;
-  
+
   // Status & Risk Information
   vendor_status_cycle: string;
+  verification_status: 'pending' | 'verified' | 'failed' | 'rejected';
   risk_rating: 'low' | 'medium' | 'high';
   risk_notes: string;
-  verification_status: 'verified' | 'rejected' | 'pending';
   verified_by?: Types.ObjectId;
-  
-  // System Information
-  payment_methods: string;
-  internal_notes: string;
-  
+
   // Contract Information
+  contract_terms: string;
   contract_expiry_date: Date;
   contract_renewal_date: Date;
-  
+
   // Documents
-  document_names: string;
-  documents_uploaded: string[];
-  
+  documents: IVendorDocument[];
+
+  // System Information
+  internal_notes: string;
+
   // Audit Fields
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
+// Document Sub-Schema
+const vendorDocumentSchema = new Schema<IVendorDocument>({
+  document_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  document_type: {
+    type: String,
+    enum: ['signed_contract', 'gst_certificate', 'msme_certificate', 'tds_exemption', 'pan_card', 'bank_proof', 'other'],
+    required: true
+  },
+  file_url: {
+    type: String,
+    required: true
+  },
+  cloudinary_public_id: {
+    type: String,
+    required: true
+  },
+  file_size: {
+    type: Number,
+    required: true
+  },
+  mime_type: {
+    type: String,
+    required: true
+  },
+  expiry_date: {
+    type: Date,
+    required: false
+  },
+  uploaded_at: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
 const vendorCreateSchema = new Schema<IVendorCreate>({
   // Basic Information
-  vendor_name: { 
-    type: String, 
+  vendor_name: {
+    type: String,
     required: true,
-    trim: true 
+    trim: true
   },
-  vendor_billing_name: { 
-    type: String, 
+  vendor_billing_name: {
+    type: String,
     required: true,
-    trim: true 
+    trim: true
   },
-  primary_contact_name: { 
-    type: String, 
+  vendor_type: [{
+    type: String,
+    enum: ['snacks', 'beverages', 'packaging', 'services', 'raw_materials', 'equipment', 'maintenance'],
+    required: true
+  }],
+  vendor_category: {
+    type: String,
     required: true,
-    trim: true 
+    enum: ['consumables', 'packaging', 'logistics', 'maintenance', 'services', 'equipment'],
+    trim: true
   },
-  vendor_category: { 
-    type: String, 
+  primary_contact_name: {
+    type: String,
     required: true,
-    trim: true 
+    trim: true
   },
-  vendor_address: { 
-    type: String, 
+  contact_phone: {
+    type: String,
     required: true,
-    trim: true 
+    trim: true
   },
-  vendor_contact: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  vendor_email: { 
-    type: String, 
+  vendor_email: {
+    type: String,
     required: true,
     lowercase: true,
     trim: true,
     unique: true
   },
-  vendor_id: { 
-    type: String, 
+  vendor_address: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  vendor_id: {
+    type: String,
     required: true,
     unique: true,
-    trim: true 
+    trim: true
   },
-  vendor_phone: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  
+
   // Financial Information
-  bank_account_number: { 
-    type: String, 
+  bank_account_number: {
+    type: String,
     required: true,
-    trim: true 
+    trim: true
   },
-  ifsc_code: { 
-    type: String, 
+  ifsc_code: {
+    type: String,
     required: true,
     uppercase: true,
-    trim: true 
+    trim: true
   },
-  payment_terms: { 
-    type: String, 
+  payment_terms: {
+    type: String,
     required: true,
-    default: 'Net 30',
-    trim: true 
+    enum: ['net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'immediate'],
+    default: 'net_30',
+    trim: true
   },
-  
+  payment_methods: {
+    type: String,
+    required: true,
+    enum: ['neft', 'imps', 'upi', 'cheque', 'rtgs', 'multiple'],
+    default: 'neft'
+  },
+
   // Compliance Information
-  gst_number: { 
-    type: String, 
+  gst_number: {
+    type: String,
     required: true,
     uppercase: true,
-    trim: true 
+    trim: true
   },
-  pan_number: { 
-    type: String, 
+  pan_number: {
+    type: String,
     required: true,
     uppercase: true,
-    trim: true 
+    trim: true
   },
-  tds_rate: { 
-    type: Number, 
+  tds_rate: {
+    type: Number,
     required: true,
     min: 0,
     max: 100,
-    default: 10 
+    default: 1
   },
-  billing_cycle: { 
-    type: String, 
+  billing_cycle: {
+    type: String,
     required: true,
-    enum: ['monthly', 'weekly', 'quarterly', 'annually', 'per_order'],
+    enum: ['weekly', 'monthly', 'per_po', 'quarterly'],
     default: 'monthly'
   },
-  
+
   // Status & Risk Information
-  vendor_status_cycle: { 
-    type: String, 
+  vendor_status_cycle: {
+    type: String,
     required: true,
-    enum: ['Procurement', 'Restocking', 'Finance Reconciliation', 'Audit', 'Onboarding'],
-    default: 'Onboarding'
+    enum: ['procurement', 'restocking', 'finance_reconciliation', 'audit'],
+    default: 'procurement'
   },
-  risk_rating: { 
-    type: String, 
-    enum: ['low', 'medium', 'high'], 
-    required: true,
-    default: 'medium'
-  },
-  risk_notes: { 
-    type: String, 
-    required: true,
-    trim: true,
-    default: 'New vendor - requires assessment'
-  },
-  verification_status: { 
-    type: String, 
-    enum: ['verified', 'rejected', 'pending'], 
+  verification_status: {
+    type: String,
+    enum: ['pending', 'verified', 'failed', 'rejected'],
     required: true,
     default: 'pending'
   },
-  verified_by: { 
-    type: Schema.Types.ObjectId, 
+  risk_rating: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    required: true,
+    default: 'medium'
+  },
+  risk_notes: {
+    type: String,
+    required: false,
+    trim: true,
+    default: ''
+  },
+  verified_by: {
+    type: Schema.Types.ObjectId,
     ref: 'User'
   },
-  
-  // System Information
-  payment_methods: { 
-    type: String, 
-    required: true,
-    enum: ['Bank Transfer', 'Credit Card', 'Cheque', 'UPI', 'Multiple'],
-    default: 'Bank Transfer'
-  },
-  internal_notes: { 
-    type: String, 
-    required: true,
-    trim: true,
-    default: 'No internal notes'
-  },
-  
+
   // Contract Information
-  contract_expiry_date: { 
-    type: Date, 
-    required: true 
-  },
-  contract_renewal_date: { 
-    type: Date, 
-    required: true 
-  },
-  
-  // Documents
-  document_names: { 
-    type: String, 
+  contract_terms: {
+    type: String,
     required: false,
-    trim: true 
+    trim: true,
+    default: ''
   },
-  documents_uploaded: [{ 
-    type: String, 
-    trim: true 
-  }],
-  
+  contract_expiry_date: {
+    type: Date,
+    required: true
+  },
+  contract_renewal_date: {
+    type: Date,
+    required: true
+  },
+
+  // Documents
+  documents: [vendorDocumentSchema],
+
+  // System Information
+  internal_notes: {
+    type: String,
+    required: false,
+    trim: true,
+    default: ''
+  },
+
   // Audit Fields
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
-}, { 
+}, {
   timestamps: true,
   collection: 'vendors'
 });
@@ -229,21 +279,21 @@ vendorCreateSchema.pre('save', function(next) {
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     this.vendor_id = `VEND-${timestamp}-${random}`;
   }
-  
+
   // Validate contract dates
   if (this.contract_expiry_date <= this.contract_renewal_date) {
     return next(new Error('Contract expiry date must be after renewal date'));
   }
-  
-  // Auto-set verification date when status changes to verified/rejected
-  if (this.isModified('verification_status') && 
-      (this.verification_status === 'verified' || this.verification_status === 'rejected')) {
-    
+
+  // Auto-set verification date when status changes to verified/rejected/failed
+  if (this.isModified('verification_status') &&
+      (this.verification_status === 'verified' || this.verification_status === 'rejected' || this.verification_status === 'failed')) {
+
     if (!this.verified_by) {
       return next(new Error('Verified_by field is required when verification status is changed'));
     }
   }
-  
+
   next();
 });
 
@@ -266,7 +316,7 @@ export interface IVendorDashboard extends Document {
   vendors: {
     vendor_name: string;
     vendor_category: string;
-    verification_status: 'verified' | 'rejected' | 'pending';
+    verification_status: 'pending' | 'verified' | 'failed' | 'rejected';
     risk_level: 'low' | 'medium' | 'high';
     contract_expiry_date: Date;
     action: 'edit' | 'delete' | 'view';
@@ -277,70 +327,70 @@ export interface IVendorDashboard extends Document {
 }
 
 const vendorDashboardSchema = new Schema<IVendorDashboard>({
-  total_vendors: { 
-    type: Number, 
-    required: true, 
+  total_vendors: {
+    type: Number,
+    required: true,
     default: 0,
-    min: 0 
+    min: 0
   },
-  pending_approvals: { 
-    type: Number, 
-    required: true, 
+  pending_approvals: {
+    type: Number,
+    required: true,
     default: 0,
-    min: 0 
+    min: 0
   },
-  active_vendors: { 
-    type: Number, 
-    required: true, 
+  active_vendors: {
+    type: Number,
+    required: true,
     default: 0,
-    min: 0 
+    min: 0
   },
-  rejected_vendors: { 
-    type: Number, 
-    required: true, 
+  rejected_vendors: {
+    type: Number,
+    required: true,
     default: 0,
-    min: 0 
+    min: 0
   },
   vendors: [{
-    vendor_name: { 
-      type: String, 
+    vendor_name: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true
     },
-    vendor_category: { 
-      type: String, 
+    vendor_category: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true
     },
     verification_status: {
       type: String,
-      enum: ['verified', 'rejected', 'pending'],
+      enum: ['pending', 'verified', 'failed', 'rejected'],
       required: true,
       default: 'pending'
     },
-    risk_level: { 
-      type: String, 
-      enum: ['low', 'medium', 'high'], 
+    risk_level: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
       required: true,
       default: 'medium'
     },
-    contract_expiry_date: { 
-      type: Date, 
-      required: true 
+    contract_expiry_date: {
+      type: Date,
+      required: true
     },
-    action: { 
-      type: String, 
-      enum: ['edit', 'delete'], 
+    action: {
+      type: String,
+      enum: ['edit', 'delete'],
       required: true,
       default: 'edit'
     }
   }],
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
-}, { 
+}, {
   timestamps: true,
   collection: 'vendordashboards'
 });

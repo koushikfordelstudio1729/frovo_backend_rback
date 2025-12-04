@@ -1,0 +1,499 @@
+{
+  "info": {
+    "name": "Frovo Vendor Management API",
+    "_postman_id": "frovo-vendor-api-collection",
+    "description": "Complete API collection for Frovo Vendor Management with Document Upload",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Create Vendor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vendor_name\": \"Too Yumm Foods\",\n  \"vendor_billing_name\": \"Too Yumm Private Limited\",\n  \"vendor_type\": [\"snacks\", \"beverages\"],\n  \"vendor_category\": \"consumables\",\n  \"primary_contact_name\": \"Rajesh Verma\",\n  \"contact_phone\": \"+91 9876543210\",\n  \"vendor_email\": \"contact@tooyumm.in\",\n  \"vendor_address\": \"123, 5th Main Road, Koramangala, Bangalore - 560034\",\n  \"bank_account_number\": \"123456789012345\",\n  \"ifsc_code\": \"HDFC0000123\",\n  \"payment_terms\": \"net_30\",\n  \"payment_methods\": \"neft\",\n  \"gst_number\": \"12ABCDE1234F1Z5\",\n  \"pan_number\": \"ABCDE1234F\",\n  \"tds_rate\": 1,\n  \"billing_cycle\": \"monthly\",\n  \"vendor_status_cycle\": \"procurement\",\n  \"risk_rating\": \"medium\",\n  \"risk_notes\": \"New vendor - requires assessment\",\n  \"contract_terms\": \"SLA: 48hr delivery. Cost: Rs 2.5/unit. Min order: 1000 units\",\n  \"contract_expiry_date\": \"2025-12-31\",\n  \"contract_renewal_date\": \"2025-12-01\",\n  \"internal_notes\": \"Preferred vendor for snacks category\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/create",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "create"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Get All Vendors",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors?page=1&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            },
+            {
+              "key": "verification_status",
+              "value": "pending",
+              "disabled": true
+            },
+            {
+              "key": "risk_rating",
+              "value": "high",
+              "disabled": true
+            },
+            {
+              "key": "vendor_category",
+              "value": "consumables",
+              "disabled": true
+            },
+            {
+              "key": "search",
+              "value": "yumm",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. Get Vendor by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4. Get Vendor by Vendor ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/vendor-id/VEND-123456-ABC",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "vendor-id", "VEND-123456-ABC"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5. Update Vendor",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contact_phone\": \"+91 9988776655\",\n  \"vendor_address\": \"New Address, Bangalore - 560001\",\n  \"risk_rating\": \"low\",\n  \"risk_notes\": \"Vendor performance improved\",\n  \"internal_notes\": \"Upgraded to preferred vendor status\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6. Delete Vendor",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7. Bulk Create Vendors",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vendors\": [\n    {\n      \"vendor_name\": \"Vendor 1\",\n      \"vendor_billing_name\": \"Vendor 1 Ltd\",\n      \"vendor_type\": [\"snacks\"],\n      \"vendor_category\": \"consumables\",\n      \"primary_contact_name\": \"Contact 1\",\n      \"contact_phone\": \"+91 9876543210\",\n      \"vendor_email\": \"vendor1@example.com\",\n      \"vendor_address\": \"Address 1\",\n      \"bank_account_number\": \"123456789012345\",\n      \"ifsc_code\": \"HDFC0000123\",\n      \"payment_terms\": \"net_30\",\n      \"payment_methods\": \"neft\",\n      \"gst_number\": \"12ABCDE1234F1Z5\",\n      \"pan_number\": \"ABCDE1234F\",\n      \"tds_rate\": 1,\n      \"billing_cycle\": \"monthly\",\n      \"vendor_status_cycle\": \"procurement\",\n      \"risk_rating\": \"medium\",\n      \"risk_notes\": \"New vendor\",\n      \"contract_terms\": \"Standard terms\",\n      \"contract_expiry_date\": \"2025-12-31\",\n      \"contract_renewal_date\": \"2025-12-01\",\n      \"internal_notes\": \"Bulk import\"\n    },\n    {\n      \"vendor_name\": \"Vendor 2\",\n      \"vendor_billing_name\": \"Vendor 2 Ltd\",\n      \"vendor_type\": [\"beverages\"],\n      \"vendor_category\": \"consumables\",\n      \"primary_contact_name\": \"Contact 2\",\n      \"contact_phone\": \"+91 9876543211\",\n      \"vendor_email\": \"vendor2@example.com\",\n      \"vendor_address\": \"Address 2\",\n      \"bank_account_number\": \"123456789012346\",\n      \"ifsc_code\": \"HDFC0000124\",\n      \"payment_terms\": \"net_15\",\n      \"payment_methods\": \"upi\",\n      \"gst_number\": \"12ABCDE1234F1Z6\",\n      \"pan_number\": \"ABCDE1234G\",\n      \"tds_rate\": 2,\n      \"billing_cycle\": \"weekly\",\n      \"vendor_status_cycle\": \"procurement\",\n      \"risk_rating\": \"low\",\n      \"risk_notes\": \"New vendor\",\n      \"contract_terms\": \"Standard terms\",\n      \"contract_expiry_date\": \"2025-12-31\",\n      \"contract_renewal_date\": \"2025-12-01\",\n      \"internal_notes\": \"Bulk import\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/bulk-create",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "bulk-create"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8. Super Admin Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/super-admin/dashboard?page=1&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "super-admin", "dashboard"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            },
+            {
+              "key": "verification_status",
+              "value": "pending",
+              "disabled": true
+            },
+            {
+              "key": "risk_rating",
+              "value": "high",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "9. Vendor Admin Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/vendor-admin/dashboard?page=1&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "vendor-admin", "dashboard"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10. Get Vendor Statistics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/super-admin/statistics",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "super-admin", "statistics"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "11. Get Pending Approvals",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/super-admin/pending-approvals",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "super-admin", "pending-approvals"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "12. Update Vendor Verification",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"verification_status\": \"verified\",\n  \"notes\": \"All documents verified. Approved for operations.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/verify",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "verify"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "13. Toggle Vendor Verification",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/toggle-verification",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "toggle-verification"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "14. Bulk Update Verification",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vendor_ids\": [\n    \"674c1a2b3d4e5f6g7h8i9j0k\",\n    \"674c1a2b3d4e5f6g7h8i9j0l\"\n  ],\n  \"verification_status\": \"verified\",\n  \"rejection_reason\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/bulk-verify",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "bulk-verify"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "15. Upload Vendor Document",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "document",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "document_type",
+              "value": "gst_certificate",
+              "type": "text"
+            },
+            {
+              "key": "expiry_date",
+              "value": "2026-03-31",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/documents",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "documents"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "16. Get All Vendor Documents",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/documents",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "documents"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "17. Get Single Vendor Document",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/documents/{{document_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "documents", "{{document_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "18. Delete Vendor Document",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/vendors/{{vendor_id}}/documents/{{document_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "vendors", "{{vendor_id}}", "documents", "{{document_id}}"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

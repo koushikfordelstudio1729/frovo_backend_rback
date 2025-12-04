@@ -63,12 +63,12 @@ export class VendorController {
   async getVendorAdminDashboard(req: Request, res: Response) {
     try {
       const { _id: userId, roles } = this.getLoggedInUser(req);
-      
-      // Validate user is Vendor Admin
-      if (!roles.some(role => role.key === 'vendor_admin')) {
+
+      // Validate user is Vendor Admin or Super Admin
+      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
         return res.status(403).json({
           success: false,
-          message: 'Only Vendor Admin can access this dashboard'
+          message: 'Only Super Admin or Vendor Admin can access this dashboard'
         });
       }
 
@@ -694,6 +694,132 @@ export class VendorController {
       res.status(200).json({
         success: true,
         message: 'Test audit data generated successfully'
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // ==================== DOCUMENT MANAGEMENT ENDPOINTS ====================
+
+  // Upload vendor document
+  async uploadVendorDocument(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { document_type, expiry_date } = req.body;
+      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const userRole = roles[0]?.key;
+
+      // Check if file exists
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded'
+        });
+      }
+
+      // Validate document type
+      if (!document_type) {
+        return res.status(400).json({
+          success: false,
+          message: 'Document type is required'
+        });
+      }
+
+      const expiryDate = expiry_date ? new Date(expiry_date) : undefined;
+
+      const vendor = await vendorService.uploadVendorDocument(
+        id,
+        req.file,
+        document_type,
+        expiryDate,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Document uploaded successfully',
+        data: vendor
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Delete vendor document
+  async deleteVendorDocument(req: Request, res: Response) {
+    try {
+      const { id, documentId } = req.params;
+      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const userRole = roles[0]?.key;
+
+      const vendor = await vendorService.deleteVendorDocument(
+        id,
+        documentId,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Document deleted successfully',
+        data: vendor
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get all vendor documents
+  async getVendorDocuments(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const documents = await vendorService.getVendorDocuments(id);
+
+      res.status(200).json({
+        success: true,
+        data: documents
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get single vendor document
+  async getVendorDocument(req: Request, res: Response) {
+    try {
+      const { id, documentId } = req.params;
+
+      const document = await vendorService.getVendorDocument(id, documentId);
+
+      if (!document) {
+        return res.status(404).json({
+          success: false,
+          message: 'Document not found'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: document
       });
     } catch (error: any) {
       res.status(400).json({

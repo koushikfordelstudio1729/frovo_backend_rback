@@ -19,7 +19,6 @@ export interface IWarehouse extends Document {
 
 export interface IGRNnumber extends Document {
   _id: Types.ObjectId;
-  grn_number: string;
   delivery_challan: string;
   transporter_name: string;
   vehicle_number: string;
@@ -28,8 +27,9 @@ export interface IGRNnumber extends Document {
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
   
-  purchase_order: Types.ObjectId;
-  vendor: Types.ObjectId;
+  // Add these fields to link with purchase order and vendor
+  purchase_order: Types.ObjectId; // Reference to the PO
+  vendor: Types.ObjectId; // Reference to vendor
   vendor_details: {
     vendor_name: string;
     vendor_billing_name: string;
@@ -43,33 +43,25 @@ export interface IGRNnumber extends Document {
     vendor_id: string;
   };
   
+  // Add line items from PO
   grn_line_items: Array<{
+   line_no: number;
     sku: string;
     productName: string;
-    ordered_quantity: number;
-    received_quantity: number;
-    accepted_quantity: number;
-    rejected_quantity: number;
-    unit_price: number;
+    quantity: number;
     category: string;
     uom: string;
-    expiry_date?: Date;
-    item_remarks?: string;
+    unit_price: number;
+    expected_delivery_date: Date;
+    location: string;
   }>;
-  
+
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const grnNumberSchema = new Schema<IGRNnumber>({
-  grn_number: { 
-    type: String, 
-    required: false,
-    unique: true,
-    uppercase: true,
-    trim: true
-  },
   delivery_challan: { type: String, required: true },
   transporter_name: { type: String, required: true },
   vehicle_number: { type: String, required: true },
@@ -82,17 +74,19 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     required: true
   },
   
+  // Add references to PO and vendor
   purchase_order: { 
     type: Schema.Types.ObjectId, 
     ref: 'RaisePurchaseOrder', 
     required: true 
   },
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorCreate', 
-    required: true 
+  vendor: {
+    type: Schema.Types.ObjectId,
+    ref: 'VendorCreate',
+    required: true
   },
   
+  // Add vendor details
   vendor_details: {
     vendor_name: { type: String, required: true },
     vendor_billing_name: { type: String, required: true },
@@ -106,7 +100,9 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     vendor_id: { type: String, required: true }
   },
   
+  // Add GRN line items
   grn_line_items: [{
+     line_no: { type: Number, required: true },
     sku: { type: String, required: true },
     productName: { type: String, required: true },
     ordered_quantity: { type: Number, required: true },
@@ -116,71 +112,21 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     rejected_quantity: { type: Number, required: true, default: 0 },
     category: { type: String, required: true },
     uom: { type: String, required: true },
-    expiry_date: { type: Date },
-    item_remarks: { type: String }
+    unit_price: { type: Number, required: true },
+    expected_delivery_date: { type: Date, required: true },
+    location: { type: String, required: true }
   }],
-  
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 }, {
   timestamps: true
 });
-
-// FIXED: Pre-save middleware for GRN number generation
-grnNumberSchema.pre('save', async function(next) {
-  try {
-    console.log('🔧 GRN Pre-save middleware running...');
-    
-    // Only generate GRN number if it's a new document
-    if (this.isNew) {
-      console.log('📦 Generating GRN number for new document...');
-      
-      // Get the PO to get the PO number
-      const PO = mongoose.model('RaisePurchaseOrder');
-      const purchaseOrder = await PO.findById(this.purchase_order);
-      
-      if (!purchaseOrder) {
-        throw new Error('Purchase order not found');
-      }
-      
-      // Format: PO12345678-20231215 (PO number + received date)
-      const poNumber = (purchaseOrder as any).po_number;
-      const dateStr = this.received_date.toISOString().split('T')[0].replace(/-/g, '');
-      this.grn_number = `${poNumber}-${dateStr}`;
-      
-      console.log(`✅ GRN number generated: ${this.grn_number}`);
-    }
-    
-    next();
-  } catch (error) {
-    console.error('❌ Error in GRN pre-save middleware:', error);
-    next(error as Error);
-  }
-});
-
-// Post-save middleware to update PO status
-grnNumberSchema.post('save', async function(doc: IGRNnumber, next) {
-  try {
-    console.log('🔧 GRN Post-save middleware running...');
-    
-    // Update PO status to 'delivered' when GRN is created
-    const PO = mongoose.model('RaisePurchaseOrder');
-    await PO.findByIdAndUpdate(doc.purchase_order, {
-      po_status: 'delivered'
-    });
-    
-    console.log(`✅ PO ${doc.purchase_order} status updated to 'delivered'`);
-    next();
-  } catch (error) {
-    console.error('❌ Error updating PO status:', error);
-    next(error as Error);
-  }
-});
-
-export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);export interface IRaisePurchaseOrder extends Document {
+export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);
+export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
