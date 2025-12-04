@@ -15,8 +15,7 @@ import {
   createPurchaseOrderSchema,
   updatePurchaseOrderStatusSchema,
   createGRNSchema,
-  updateGRNStatusSchema, 
-  createInventorySchema
+  updateGRNStatusSchema 
 } from '../validators/warehouse.validator';
 
 const router = Router();
@@ -67,12 +66,6 @@ router.post('/purchase-orders/:purchaseOrderId/grn',
   validate({ body: createGRNSchema.shape.body }),
   warehouseController.createGRN
 );
-// Direct PO approval for warehouse managers (no JSON body needed)
-router.patch('/inbound/purchase-orders/:id/approve',
-  authenticate,
-  requirePermission('purchase_orders:approve'),
-  warehouseController.approvePurchaseOrder
-);
 
 router.get('/grn',
   requirePermission('grn:view'),
@@ -90,18 +83,6 @@ router.patch('/grn/:id/status',
   warehouseController.updateGRNStatus
 );
 
-// NEW: Update GRN quantities
-router.patch('/grn/:id/quantities',
-  requirePermission('grn:edit'),
- 
-  warehouseController.updateGRNQuantities
-);
-
-// NEW: Get GRN with summary
-router.get('/grn/:id/summary',
-  requirePermission('grn:view'),
-  warehouseController.getGRNWithSummary
-);
 // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
 // Dispatch Orders
 router.post('/outbound/dispatch',
@@ -185,12 +166,12 @@ router.post('/field-agents',
 
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
 // Inventory Dashboard Routes
-router.get('/inventory/dashboard/',
+router.get('/inventory/dashboard/:warehouseId',
   requirePermission('inventory:view'),
   warehouseController.getInventoryDashboard
 );
 
-router.get('/inventory/stats/',
+router.get('/inventory/stats/:warehouseId',
   requirePermission('inventory:view'),
   warehouseController.getInventoryStats
 );
@@ -200,11 +181,9 @@ router.get('/inventory/:id',
   warehouseController.getInventoryItem
 );
 
-// routes/warehouse.routes.ts
-router.post('/inventory',
-  requirePermission('inventory:create'),
-  validate({ body: createInventorySchema.shape.body }),
-  warehouseController.createInventoryItem
+router.put('/inventory/:id',
+  requirePermission('inventory:manage'),
+  warehouseController.updateInventoryItem
 );
 
 router.patch('/inventory/:id/archive',

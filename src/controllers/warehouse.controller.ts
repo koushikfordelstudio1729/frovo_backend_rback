@@ -4,8 +4,6 @@ import asyncHandler from 'express-async-handler';
 import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 import { checkPermission } from '../middleware/auth.middleware';
-import { Inventory } from '../models/Warehouse.model';
-import mongoose from 'mongoose';
 
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -117,74 +115,7 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
     return sendError(res, error instanceof Error ? error.message : 'Failed to create GRN', 500);
   }
 });
-// In controllers/warehouse.controller.ts - Add new GRN methods
 
-// Update GRN quantities
-export const updateGRNQuantities = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.user) return sendError(res, 'Unauthorized', 401);
-
-  // Check permission for editing GRN
-  if (!checkPermission(req.user, 'grn:edit')) {
-    return sendError(res, 'Insufficient permissions to update GRN quantities', 403);
-  }
-
-  try {
-    const { id } = req.params;
-    const { lineItems } = req.body;
-
-    if (!id) {
-      return sendBadRequest(res, 'GRN ID is required');
-    }
-
-    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
-      return sendBadRequest(res, 'Line items array is required');
-    }
-
-    const result = await warehouseService.updateGRNQuantities(id, lineItems);
-    return sendSuccess(res, result, 'GRN quantities updated successfully');
-  } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to update GRN quantities', 500);
-  }
-});
-
-// Get GRN with summary
-export const getGRNWithSummary = asyncHandler(async (req: Request, res: Response) => {
-  // Check permission for viewing GRN
-  if (!req.user || !checkPermission(req.user, 'grn:view')) {
-    return sendError(res, 'Insufficient permissions to view GRN', 403);
-  }
-
-  try {
-    const { id } = req.params;
-    
-    if (!id) {
-      return sendBadRequest(res, 'GRN ID is required');
-    }
-
-    const grn = await warehouseService.getGRNById(id);
-    
-    if (!grn) {
-      return sendNotFound(res, 'GRN not found');
-    }
-
-    // Calculate summary
-    const summary = {
-      total_ordered: grn.grn_line_items.reduce((sum, item) => sum + item.ordered_quantity, 0),
-      total_received: grn.grn_line_items.reduce((sum, item) => sum + item.received_quantity, 0),
-      total_accepted: grn.grn_line_items.reduce((sum, item) => sum + item.accepted_quantity, 0),
-      total_rejected: grn.grn_line_items.reduce((sum, item) => sum + item.rejected_quantity, 0)
-    };
-
-    const response = {
-      grn,
-      summary
-    };
-
-    return sendSuccess(res, response, 'GRN with summary retrieved successfully');
-  } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to get GRN with summary', 500);
-  }
-});
 export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
   // Check permission for viewing GRN
   if (!req.user || !checkPermission(req.user, 'grn:view')) {
@@ -287,8 +218,6 @@ export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Respo
   }
 });
 
-// In controllers/warehouse.controller.ts - update the updatePurchaseOrderStatus function
-
 export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
@@ -303,12 +232,6 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
   if (!po_status) return sendBadRequest(res, 'Purchase order status is required');
 
-  // Validate the status against the new enum values
-  const validStatuses = ['draft', 'approved', 'delivered'];
-  if (!validStatuses.includes(po_status)) {
-    return sendBadRequest(res, `Invalid PO status. Must be one of: ${validStatuses.join(', ')}`);
-  }
-
   try {
     const result = await warehouseService.updatePurchaseOrderStatus(id, po_status, remarks);
     if (!result) return sendNotFound(res, 'Purchase order not found');
@@ -317,6 +240,7 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
     return sendError(res, error instanceof Error ? error.message : 'Failed to update purchase order status', 500);
   }
 });
+
 export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
@@ -507,30 +431,19 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
     return sendError(res, error instanceof Error ? error.message : 'Failed to create field agent', 500);
   }
 });
-// controllers/warehouse.controller.ts
-export const createInventoryItem = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.user) return sendError(res, 'Unauthorized', 401);
-
-  try {
-    const inventoryData = {
-      ...req.body,
-      createdBy: req.user._id
-    };
-
-    const inventory = await Inventory.create(inventoryData);
-    
-    sendSuccess(res, inventory, 'Inventory item created successfully');
-  } catch (error) {
-    sendError(res, error instanceof Error ? error.message : 'Failed to create inventory item', 500);
-  }
-});
 
 // Screen 4: Inventory Management
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
+  const { warehouseId } = req.params;
   const { page = 1, limit = 50, ...filters } = req.query;
+
+  if (!warehouseId) {
+    return sendBadRequest(res, 'Warehouse ID is required');
+  }
 
   try {
     const result = await warehouseService.getInventoryDashboard(
+      warehouseId,
       filters,
       parseInt(page as string),
       parseInt(limit as string)
@@ -538,34 +451,6 @@ export const getInventoryDashboard = asyncHandler(async (req: Request, res: Resp
     sendSuccess(res, result, 'Inventory dashboard data retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get inventory dashboard', 500);
-  }
-});
-
-// controllers/warehouse.controller.ts - Add this method
-
-export const approvePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.user) return sendError(res, 'Unauthorized', 401);
-
-  // Check if user is warehouse manager
-  const isWarehouseManager = req.user.roles?.some((role: any) => {
-    return role.systemRole === 'warehouse_manager' || role.systemRole === 'admin';
-  });
-
-  if (!isWarehouseManager && !req.user.roles?.some((role: any) => role.systemRole === 'super_admin')) {
-    return sendError(res, 'Only warehouse managers can directly approve purchase orders', 403);
-  }
-
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return sendBadRequest(res, 'Purchase order ID is required');
-    }
-
-    const result = await warehouseService.approvePurchaseOrder(id, req.user._id);
-    return sendSuccess(res, result, 'Purchase order approved successfully');
-  } catch (error) {
-    return sendError(res, error instanceof Error ? error.message : 'Failed to approve purchase order', 500);
   }
 });
 
@@ -587,6 +472,21 @@ export const getInventoryItem = asyncHandler(async (req: Request, res: Response)
   }
 });
 
+export const updateInventoryItem = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updateData = req.body;
+
+  if (!id) {
+    return sendBadRequest(res, 'Inventory ID is required');
+  }
+
+  try {
+    const updatedItem = await warehouseService.updateInventoryItem(id, updateData);
+    sendSuccess(res, updatedItem, 'Inventory item updated successfully');
+  } catch (error) {
+    sendError(res, error instanceof Error ? error.message : 'Failed to update inventory item', 500);
+  }
+});
 
 export const archiveInventory = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -638,12 +538,15 @@ export const getArchivedInventory = asyncHandler(async (req: Request, res: Respo
   }
 });
 
-// controllers/warehouse.controller.ts - Remove warehouseId from getInventoryStats
-
 export const getInventoryStats = asyncHandler(async (req: Request, res: Response) => {
+  const { warehouseId } = req.params;
+
+  if (!warehouseId) {
+    return sendBadRequest(res, 'Warehouse ID is required');
+  }
+
   try {
-    // Remove warehouseId parameter completely
-    const stats = await warehouseService.getInventoryStats();
+    const stats = await warehouseService.getInventoryStats(warehouseId);
     sendSuccess(res, stats, 'Inventory statistics retrieved successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to get inventory statistics', 500);
@@ -871,8 +774,6 @@ export const generatePurchaseOrderReport = asyncHandler(async (req: Request, res
     sendError(res, error instanceof Error ? error.message : 'Failed to generate purchase order report', 500);
   }
 });
-// controllers/warehouse.controller.ts
-// This function is already declared above, so it should be removed to avoid redeclaration error.
 
 export const generateInventoryTurnoverReport = asyncHandler(async (req: Request, res: Response) => {
   try {
@@ -938,7 +839,3 @@ export const getStockAgeingReport = asyncHandler(async (req: Request, res: Respo
     sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
   }
 });
-
-function createInventoryFromGRN(grn: any) {
-  throw new Error('Function not implemented.');
-}

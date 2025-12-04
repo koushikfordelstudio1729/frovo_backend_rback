@@ -15,14 +15,14 @@ export interface IWarehouse extends Document {
 }
 
 // models/Warehouse.model.ts
-// models/Warehouse.model.ts - Complete fixed GRN schema
 
+// Update IGRNnumber interface to include vendor reference
 export interface IGRNnumber extends Document {
   _id: Types.ObjectId;
   delivery_challan: string;
   transporter_name: string;
   vehicle_number: string;
-  received_date: Date;
+  recieved_date: Date;
   remarks?: string;
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
@@ -50,12 +50,13 @@ export interface IGRNnumber extends Document {
     productName: string;
     quantity: number;
     category: string;
+    pack_size: string;
     uom: string;
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
   }>;
-
+  
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -65,7 +66,7 @@ const grnNumberSchema = new Schema<IGRNnumber>({
   delivery_challan: { type: String, required: true },
   transporter_name: { type: String, required: true },
   vehicle_number: { type: String, required: true },
-  received_date: { type: Date, required: true, default: Date.now },
+  recieved_date: { type: Date, required: true, default: Date.now },
   remarks: { type: String },
   scanned_challan: { type: String },
   qc_status: {
@@ -80,10 +81,10 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     ref: 'RaisePurchaseOrder', 
     required: true 
   },
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorCreate',
-    required: true
+  vendor: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'VendorCreate', 
+    required: true 
   },
   
   // Add vendor details
@@ -105,22 +106,19 @@ const grnNumberSchema = new Schema<IGRNnumber>({
      line_no: { type: Number, required: true },
     sku: { type: String, required: true },
     productName: { type: String, required: true },
-    ordered_quantity: { type: Number, required: true },
-    unit_price: { type: Number, required: true },
-    received_quantity: { type: Number, required: true, default: 0 },
-    accepted_quantity: { type: Number, required: true, default: 0 },
-    rejected_quantity: { type: Number, required: true, default: 0 },
+    quantity: { type: Number, required: true },
     category: { type: String, required: true },
+    pack_size: { type: String, required: true },
     uom: { type: String, required: true },
     unit_price: { type: Number, required: true },
     expected_delivery_date: { type: Date, required: true },
     location: { type: String, required: true }
   }],
-
-  createdBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  
+  createdBy: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
   }
 }, {
   timestamps: true
@@ -130,10 +128,11 @@ export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
-  po_status: 'draft' | 'approved' | 'delivered';
+  po_status: 'draft' | 'approved' | 'pending';
   po_raised_date: Date;
   remarks?: string;
    po_line_items: Array<{ // Should be array here too
+    line_no: number;
     sku: string;
     productName: string;
     quantity: number;
@@ -203,8 +202,8 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
   },
   po_status: {
     type: String,
-    enum: ['draft', 'approved', 'delivered'],
-    default: 'draft'
+    enum: ['draft', 'approved', 'pending'],
+    default: 'draft' // Allow both draft and pending as default,
   },
   po_raised_date: { 
     type: Date, 
@@ -341,7 +340,30 @@ export interface IFieldAgent extends Document {
   updatedAt: Date;
 }
 // In Warehouse.model.ts
-
+export interface IInventory extends Document {
+  _id: Types.ObjectId;
+  sku: string;
+  productName: string;
+  batchId: string;
+  warehouse: Types.ObjectId;
+  quantity: number;
+  minStockLevel: number;
+  maxStockLevel: number;
+  age: number;
+  expiryDate?: Date;
+  location: {
+    zone: string;
+    aisle: string;
+    rack: string;
+    bin: string;
+  };
+  status: 'active' | 'low_stock' | 'overstock' | 'expired' | 'quarantine' | 'archived';
+  isArchived: boolean;
+  archivedAt?: Date;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
 export interface IExpense extends Document {
   _id: Types.ObjectId;
   category: 'staffing' | 'supplies' | 'equipment' | 'transport';
@@ -386,7 +408,7 @@ const dispatchOrderSchema = new Schema({
   destination: { type: String, required: true },
 
   products: [{
-    sku: { type: String, required: true},
+    sku: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 }
   }],
 
@@ -472,294 +494,31 @@ const fieldAgentSchema = new Schema<IFieldAgent>({
 }, { timestamps: true });
 
 // Update the inventory schema
-// models/Warehouse.model.ts - Update Inventory interface and schema
-
-export interface IInventory extends Document {
-  _id: Types.ObjectId;
-  sku: string;
-  productName: string;
-  po_number: string;
-  quantity: number;
-  minStockLevel: number;
-  maxStockLevel: number;
-  expiry_date?: Date;
-  age: number; // days until expiry (negative = expired)
-  isArchived: boolean;
-  archivedAt?: Date;
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 const inventorySchema = new Schema<IInventory>({
   sku: { type: String, required: true },
   productName: { type: String, required: true },
-  po_number: { type: String, required: true },
-  
+  batchId: { type: String, required: true },
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   quantity: { type: Number, required: true, min: 0 },
   minStockLevel: { type: Number, default: 0 },
   maxStockLevel: { type: Number, default: 1000 },
-  expiry_date: { type: Date }, // New field
-  age: { type: Number, default: 0 }, // New field - days until expiry
+  age: { type: Number, default: 0 },
+  expiryDate: { type: Date },
+  location: {
+    zone: { type: String, required: true },
+    aisle: { type: String, required: true },
+    rack: { type: String, required: true },
+    bin: { type: String, required: true }
+  },
+  status: {
+    type: String,
+    enum: ['active', 'low_stock', 'overstock', 'expired', 'quarantine', 'archived'],
+    default: 'active'
+  },
   isArchived: { type: Boolean, default: false },
   archivedAt: { type: Date },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, {
-  timestamps: true
-});
-// In GRN post-save middleware - Update the createInventoryFromGRN function
-// In models/Warehouse.model.ts - Replace the entire GRN post-save middleware with this:
-
-// Post-save middleware to update PO status and create inventory when GRN is created
-grnNumberSchema.post('save', async function(doc: IGRNnumber, next) {
-  try {
-    console.log('🚀 GRN POST-SAVE MIDDLEWARE TRIGGERED');
-    console.log('📦 GRN Document:', {
-      _id: doc._id,
-      grn_number: doc.grn_number,
-      purchase_order: doc.purchase_order,
-      line_items_count: doc.grn_line_items?.length || 0,
-      line_items: doc.grn_line_items
-    });
-
-    // Update PO status to 'delivered'
-    const PO = mongoose.model('RaisePurchaseOrder');
-    const poUpdate = await PO.findByIdAndUpdate(
-      doc.purchase_order, 
-      { po_status: 'delivered' },
-      { new: true }
-    );
-    
-    console.log('✅ PO Status Updated:', {
-      po_id: doc.purchase_order,
-      new_status: 'delivered',
-      po_update_result: poUpdate ? 'Success' : 'Failed'
-    });
-    
-    // Create inventory entries
-    await createInventoryFromGRN(doc);
-    
-    console.log('🎉 GRN Post-save middleware completed successfully');
-    next();
-  } catch (error) {
-    console.error('💥 ERROR in GRN post-save middleware:', error);
-    next(error as Error);
-  }
-});
-
-// Enhanced createInventoryFromGRN function with detailed logging
-
-// In models/Warehouse.model.ts - Replace the entire GRN post-save middleware with this:
-
-// Post-save middleware to update PO status and create inventory when GRN is created
-grnNumberSchema.post('save', async function(doc) {
-  console.log('🎯 GRN POST-SAVE MIDDLEWARE FIRED!');
-  console.log('GRN Document ID:', doc._id);
-  
-  try {
-    // Import models inside the function to avoid circular dependencies
-    const PO = mongoose.model('RaisePurchaseOrder');
-    const Inventory = mongoose.model('Inventory');
-    
-    // Update PO status
-    await PO.findByIdAndUpdate(doc.purchase_order, {
-      po_status: 'delivered'
-    });
-    console.log('✅ PO status updated to delivered');
-    
-    // Create inventory from GRN
-    const poNumber = doc.grn_number.split('-')[0];
-    console.log('📦 Creating inventory for PO:', poNumber);
-    
-    for (const lineItem of doc.grn_line_items) {
-      if (lineItem.accepted_quantity > 0) {
-        console.log(`Processing: ${lineItem.sku} - Qty: ${lineItem.accepted_quantity}`);
-        
-        const existingInventory = await Inventory.findOne({
-          sku: lineItem.sku,
-          po_number: poNumber
-        });
-        
-        if (!existingInventory) {
-          await Inventory.create({
-            sku: lineItem.sku,
-            productName: lineItem.productName,
-            po_number: poNumber,
-            quantity: lineItem.accepted_quantity,
-            expiry_date: lineItem.expiry_date,
-            minStockLevel: 0,
-            maxStockLevel: 1000,
-            isArchived: false,
-            createdBy: doc.createdBy
-          });
-          console.log(`✅ Created inventory for ${lineItem.sku}`);
-        } else {
-          await Inventory.findByIdAndUpdate(existingInventory._id, {
-            $inc: { quantity: lineItem.accepted_quantity },
-            ...(lineItem.expiry_date && { expiry_date: lineItem.expiry_date }),
-            updatedAt: new Date()
-          });
-          console.log(`📈 Updated inventory for ${lineItem.sku}`);
-        }
-      }
-    }
-    
-    console.log('🎉 GRN to inventory conversion completed!');
-  } catch (error) {
-    console.error('💥 Error in GRN post-save:', error);
-  }
-});
-
-
-// Enhanced createInventoryFromGRN function with detailed logging
-async function createInventoryFromGRN(grn: IGRNnumber): Promise<void> {
-  try {
-    console.log('🏗️ Starting inventory creation from GRN:', grn.grn_number);
-    
-    const Inventory = mongoose.model<IInventory>('Inventory');
-    const poNumber = grn.grn_number.split('-')[0];
-    
-    console.log('📋 Processing GRN line items:', grn.grn_line_items.length);
-    
-    let createdCount = 0;
-    let updatedCount = 0;
-    
-    // Process each line item that has accepted quantity > 0
-    for (const [index, lineItem] of grn.grn_line_items.entries()) {
-      console.log(`\n📦 Processing line item ${index + 1}:`, {
-        sku: lineItem.sku,
-        accepted_quantity: lineItem.accepted_quantity,
-        received_quantity: lineItem.received_quantity,
-        rejected_quantity: lineItem.rejected_quantity,
-        expiry_date: lineItem.expiry_date
-      });
-      
-      if (lineItem.accepted_quantity > 0) {
-        // Check if inventory item already exists for this SKU and PO
-        const existingInventory = await Inventory.findOne({
-          sku: lineItem.sku,
-          po_number: poNumber
-        });
-        
-        console.log('🔍 Inventory check result:', {
-          exists: !!existingInventory,
-          existing_quantity: existingInventory?.quantity || 0
-        });
-        
-        if (!existingInventory) {
-          // Create new inventory entry
-          const inventoryData = {
-            sku: lineItem.sku,
-            productName: lineItem.productName,
-            po_number: poNumber,
-            quantity: lineItem.accepted_quantity,
-            expiry_date: lineItem.expiry_date,
-            minStockLevel: 0,
-            maxStockLevel: 1000,
-            isArchived: false,
-            createdBy: grn.createdBy
-          };
-          
-          console.log('🆕 Creating new inventory:', inventoryData);
-          
-          const newInventory = await Inventory.create(inventoryData);
-          createdCount++;
-          console.log('✅ New inventory created:', newInventory._id);
-        } else {
-          // Update existing inventory quantity
-          console.log('🔄 Updating existing inventory:', {
-            inventory_id: existingInventory._id,
-            current_quantity: existingInventory.quantity,
-            adding_quantity: lineItem.accepted_quantity,
-            new_quantity: existingInventory.quantity + lineItem.accepted_quantity
-          });
-          
-          await Inventory.findByIdAndUpdate(existingInventory._id, {
-            $inc: { quantity: lineItem.accepted_quantity },
-            ...(lineItem.expiry_date && { expiry_date: lineItem.expiry_date }),
-            updatedAt: new Date()
-          });
-          updatedCount++;
-          console.log('✅ Inventory updated successfully');
-        }
-      } else {
-        console.log('⏭️ Skipping - accepted quantity is 0');
-      }
-    }
-    
-    console.log(`\n🎯 Inventory creation summary for GRN ${grn.grn_number}:`);
-    console.log(`   Created: ${createdCount} new items`);
-    console.log(`   Updated: ${updatedCount} existing items`);
-    console.log(`   Total processed: ${createdCount + updatedCount} items`);
-    
-  } catch (error) {
-    console.error('💥 ERROR creating inventory from GRN:', error);
-    throw error;
-  }
-}
-// Pre-save middleware to calculate age
-inventorySchema.pre('save', function(next) {
-  if (this.expiry_date) {
-    const today = new Date();
-    const expiry = new Date(this.expiry_date);
-    const timeDiff = expiry.getTime() - today.getTime();
-    this.age = Math.ceil(timeDiff / (1000 * 3600 * 24)); // days until expiry
-  } else {
-    this.age = 999; // No expiry date = very high age
-  }
-  next();
-});
-// Post-save middleware to create inventory when PO status becomes 'delivered'
-raisePurchaseOrderSchema.post('save', async function(doc: IRaisePurchaseOrder, next) {
-  try {
-    // Only proceed if status changed to 'delivered'
-    if (doc.po_status === 'delivered' && doc.isModified('po_status')) {
-      console.log(`📦 PO ${doc.po_number} delivered, creating inventory entries...`);
-      
-      // Get the Inventory model
-      const Inventory = mongoose.model<IInventory>('Inventory');
-      
-      // Process each line item
-      for (const lineItem of doc.po_line_items) {
-        // Check if inventory item already exists for this SKU and PO
-        const existingInventory = await Inventory.findOne({
-          sku: lineItem.sku,
-          po_number: doc.po_number
-        });
-        
-        if (!existingInventory) {
-          // Create new inventory entry with only PO line item data
-          await Inventory.create({
-            sku: lineItem.sku,
-            productName: lineItem.productName,
-            po_number: doc.po_number,
-            warehouse: doc.vendor, // Using vendor as warehouse, adjust as needed
-            quantity: lineItem.quantity,
-            minStockLevel: 0, // Default values
-            maxStockLevel: 1000, // Default values
-            isArchived: false,
-            createdBy: doc.createdBy
-          });
-          
-          console.log(`✅ Created inventory for ${lineItem.sku} (Qty: ${lineItem.quantity}) from PO ${doc.po_number}`);
-        } else {
-          // Update existing inventory quantity
-          await Inventory.findByIdAndUpdate(existingInventory._id, {
-            $inc: { quantity: lineItem.quantity }
-          });
-          console.log(`📈 Updated inventory for ${lineItem.sku} - Added ${lineItem.quantity} units`);
-        }
-      }
-      
-      console.log(`✅ All inventory entries processed for PO ${doc.po_number}`);
-    }
-    
-    next();
-  } catch (error) {
-    console.error('❌ Error creating inventory from PO:', error);
-    next(error);
-  }
-});
+}, { timestamps: true });
 // Update the expense schema
 const expenseSchema = new Schema<IExpense>({
   category: {

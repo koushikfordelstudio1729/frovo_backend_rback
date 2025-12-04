@@ -26,11 +26,12 @@ export interface InventoryStats {
 }
 
 export interface InventoryDashboardFilters {
-  status?: 'active' | 'expired' | 'expiring_soon' | 'archived';
+  status?: string;
   sku?: string;
+  batchId?: string;
   productName?: string;
-  po_number?: string;
   expiryStatus?: 'expiring_soon' | 'expired' | 'not_expired' | 'no_expiry';
+  ageRange?: '0-30' | '31-60' | '61-90' | '90+';
   quantityRange?: 'low' | 'medium' | 'high' | 'out_of_stock';
   archived?: boolean;
   sortBy?: string;
@@ -151,9 +152,15 @@ export interface ReturnOrderData {
 export interface InventoryUpsertData {
   sku: string;
   productName: string;
-  po_number: string; // Changed from batchId to po_number
+  batchId: string;
   warehouse: Types.ObjectId;
   quantity: number;
+  location: {
+    zone: string;
+    aisle: string;
+    rack: string;
+    bin: string;
+  };
   createdBy: Types.ObjectId;
 }
 
@@ -202,23 +209,14 @@ export interface PurchaseOrderReport {
   filters: ReportFilters;
 }
 
-// Update the GRNData interface in your types
 export interface GRNData {
   delivery_challan: string;
   transporter_name: string;
   vehicle_number: string;
-  received_date?: Date;
+  recieved_date: Date;
   remarks?: string;
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
-  quantities?: Array<{ // Make it optional
-    sku: string;
-    received_quantity: number;
-    accepted_quantity: number;
-    rejected_quantity: number;
-    expiry_date?: Date;
-    item_remarks?: string;
-  }>;
 }
 
 class WarehouseService {
@@ -454,381 +452,149 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-  // In WarehouseService class - update the createPurchaseOrder method
-async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
-  try {
-    console.log('📦 Received PO data:', {
-      vendor: data.vendor,
-      po_line_items_count: data.po_line_items?.length || 0,
-      vendor_details_present: data.vendor_details ? 'Yes' : 'No'
-    });
+  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
+    try {
+      console.log('📦 Received PO data:', {
+        vendor: data.vendor,
+        po_line_items_count: data.po_line_items?.length || 0,
+        vendor_details_present: data.vendor_details ? 'Yes' : 'No'
+      });
 
-    // Validate vendor exists and get vendor details
-    const VendorModel = mongoose.model('VendorCreate');
-    const vendor = await VendorModel.findById(data.vendor);
-    if (!vendor) {
-      throw new Error('Vendor not found');
+      // Validate vendor exists and get vendor details
+      const VendorModel = mongoose.model('VendorCreate');
+      const vendor = await VendorModel.findById(data.vendor);
+      if (!vendor) {
+        throw new Error('Vendor not found');
+      }
+
+      // Extract vendor details to store in PO document
+      const vendorDetails = {
+        vendor_name: vendor.vendor_name,
+        vendor_billing_name: vendor.vendor_billing_name,
+        vendor_email: vendor.vendor_email,
+        vendor_phone: vendor.vendor_phone,
+        vendor_category: vendor.vendor_category,
+        gst_number: vendor.gst_number,
+        verification_status: vendor.verification_status,
+        vendor_address: vendor.vendor_address,
+        vendor_contact: vendor.vendor_contact,
+        vendor_id: vendor.vendor_id
+      };
+
+      // Create purchase order with vendor details stored directly
+      const purchaseOrder = await RaisePurchaseOrder.create({
+        vendor: data.vendor,
+        vendor_details: vendorDetails,
+        po_raised_date: data.po_raised_date || new Date(),
+        po_status: data.po_status || 'draft',
+        remarks: data.remarks,
+        po_line_items: data.po_line_items || [],
+        createdBy
+      });
+
+      console.log('✅ PO created with vendor details stored in document');
+      return purchaseOrder;
+    } catch (error) {
+      console.error('❌ Error creating PO:', error);
+      throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // Extract vendor details to store in PO document
-    const vendorDetails = {
-      vendor_name: vendor.vendor_name,
-      vendor_billing_name: vendor.vendor_billing_name,
-      vendor_email: vendor.vendor_email,
-      vendor_phone: vendor.vendor_phone,
-      vendor_category: vendor.vendor_category,
-      gst_number: vendor.gst_number,
-      verification_status: vendor.verification_status,
-      vendor_address: vendor.vendor_address,
-      vendor_contact: vendor.vendor_contact,
-      vendor_id: vendor.vendor_id
-    };
-
-    // Create purchase order with vendor details stored directly
-    const purchaseOrder = await RaisePurchaseOrder.create({
-      vendor: data.vendor,
-      vendor_details: vendorDetails,
-      po_raised_date: data.po_raised_date || new Date(),
-      po_status: data.po_status || 'draft',
-      remarks: data.remarks,
-      po_line_items: data.po_line_items || [],
-      createdBy
-    });
-
-    console.log('✅ PO created with vendor details stored in document');
-    return purchaseOrder;
-  } catch (error) {
-    console.error('❌ Error creating PO:', error);
-    throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-// Update the updatePurchaseOrderStatus method
-async updatePurchaseOrderStatus(
-  id: string,
-  po_status: 'draft' | 'approved' | 'delivered', // Updated to match new enum
-  remarks?: string
-): Promise<IRaisePurchaseOrder | null> {
-  if (!Types.ObjectId.isValid(id)) return null;
-
-  const updateData: any = { po_status };
-  if (remarks) {
-    updateData.remarks = remarks;
   }
 
-  const updatedPO = await RaisePurchaseOrder.findByIdAndUpdate(
-    id,
-    updateData,
-    { new: true }
-  )
-  .populate('vendor', 'vendor_name vendor_email')
-  .populate('createdBy', 'name email');
+  async createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId): Promise<IGRNnumber> {
+    try {
+      console.log('📦 Creating GRN for PO:', purchaseOrderId);
 
-  // If status is updated to 'delivered', inventory will be automatically created via the post-save middleware
+      // Validate ObjectId
+      if (!Types.ObjectId.isValid(purchaseOrderId)) {
+        throw new Error('Invalid purchase order ID');
+      }
 
-  return updatedPO;
-}
+      // Validate GRN data
+      if (!grnData.delivery_challan || !grnData.transporter_name || !grnData.vehicle_number) {
+        throw new Error('Missing required GRN fields: delivery_challan, transporter_name, vehicle_number');
+      }
 
-  // In createGRN method - update the status check
-// In services/warehouse.service.ts - Update GRN methods
-
-// Update the createGRN method to handle the new workflow
-// In services/warehouse.service.ts - Update createGRN method
-
-// services/warehouse.service.ts - COMPLETELY REPLACE the createGRN method
-// services/warehouse.service.ts - FIX the createGRN method
-
-async createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId): Promise<IGRNnumber> {
-  try {
-    console.log('📦 Creating GRN for PO:', purchaseOrderId);
-
-    // Validate ObjectId
-    if (!Types.ObjectId.isValid(purchaseOrderId)) {
-      throw new Error('Invalid purchase order ID');
-    }
-
-    // Validate GRN data
-    if (!grnData.delivery_challan || !grnData.transporter_name || !grnData.vehicle_number) {
-      throw new Error('Missing required GRN fields: delivery_challan, transporter_name, vehicle_number');
-    }
-
-    // Validate purchase order exists and is approved
-    const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId)
-      .populate('vendor');
-    
-    if (!purchaseOrder) {
-      throw new Error('Purchase order not found');
-    }
-
-    // Only allow GRN creation for approved POs
-    if (purchaseOrder.po_status !== 'approved') {
-      throw new Error('Cannot create GRN for non-approved purchase order. PO must be approved first.');
-    }
-
-    // Check if GRN already exists for this PO
-    const existingGRN = await GRNnumber.findOne({ purchase_order: purchaseOrderId });
-    if (existingGRN) {
-      throw new Error('GRN already exists for this purchase order');
-    }
-
-    // FIX: Proper date handling
-    const receivedDate = grnData.received_date ? new Date(grnData.received_date) : new Date();
-    
-    // Generate GRN number manually (PO number + date)
-    const poNumber = purchaseOrder.po_number;
-    const dateStr = receivedDate.toISOString().split('T')[0].replace(/-/g, '');
-    const grnNumber = `${poNumber}-${dateStr}`;
-
-    console.log('🔢 Generated GRN number:', grnNumber);
-
-    // Create GRN with quantities
-    const grnPayload = {
-      grn_number: grnNumber,
-      purchase_order: purchaseOrderId,
-      delivery_challan: grnData.delivery_challan,
-      transporter_name: grnData.transporter_name,
-      vehicle_number: grnData.vehicle_number,
-      received_date: receivedDate, // Use the Date object
-      remarks: grnData.remarks,
-      scanned_challan: grnData.scanned_challan,
-      qc_status: grnData.qc_status,
+      // Validate purchase order exists and is approved
+      const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId)
+        .populate('vendor');
       
-      vendor: purchaseOrder.vendor,
-      vendor_details: purchaseOrder.vendor_details,
-      
-      // Build line items with quantities
-      grn_line_items: purchaseOrder.po_line_items.map(item => {
-        // Find quantity data for this SKU if provided
-        const quantityData = grnData.quantities?.find(q => q.sku === item.sku);
+      if (!purchaseOrder) {
+        throw new Error('Purchase order not found');
+      }
+
+      if (purchaseOrder.po_status !== 'approved') {
+        throw new Error('Cannot create GRN for non-approved purchase order');
+      }
+
+      // Check if GRN already exists for this PO using purchase_order field
+      const existingGRN = await GRNnumber.findOne({ purchase_order: purchaseOrderId });
+      if (existingGRN) {
+        throw new Error('GRN already exists for this purchase order');
+      }
+
+      // Generate unique GRN number
+      const grnNumber = await this.generateGRNNumber();
+
+      // Create GRN with proper structure
+      const grnPayload = {
+        grn_number: grnNumber,
+        purchase_order: purchaseOrderId,
+        delivery_challan: grnData.delivery_challan,
+        transporter_name: grnData.transporter_name,
+        vehicle_number: grnData.vehicle_number,
+        recieved_date: grnData.recieved_date,
+        remarks: grnData.remarks,
+        scanned_challan: grnData.scanned_challan,
+        qc_status: grnData.qc_status,
         
-        // FIX: Handle expiry_date conversion if it's a string
-        let expiryDate = quantityData?.expiry_date;
-        if (expiryDate && typeof expiryDate === 'string') {
-          expiryDate = new Date(expiryDate);
-        }
+        // Copy vendor information from PO
+        vendor: purchaseOrder.vendor,
+        vendor_details: purchaseOrder.vendor_details,
         
-        return {
+        // Copy and transform line items
+        grn_line_items: purchaseOrder.po_line_items.map(item => ({
+          line_no: item.line_no,
           sku: item.sku,
           productName: item.productName,
-          ordered_quantity: item.quantity,
-          unit_price: item.unit_price,
-          
-          // Use provided quantities or default to 0
-          received_quantity: quantityData?.received_quantity || 0,
-          accepted_quantity: quantityData?.accepted_quantity || 0,
-          rejected_quantity: quantityData?.rejected_quantity || 0,
-          
+          quantity: item.quantity,
           category: item.category,
+          pack_size: item.pack_size,
           uom: item.uom,
-          
-          // Use the converted date
-          expiry_date: expiryDate,
-          item_remarks: quantityData?.item_remarks
-        };
-      }),
-      
-      createdBy
-    };
-
-    console.log('📦 Creating GRN with payload...');
-
-    // STEP 1: Create the GRN
-    const grn = await GRNnumber.create(grnPayload);
-    console.log('✅ GRN created:', grn.grn_number);
-
-    // STEP 2: Update PO status to 'delivered'
-    await RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, {
-      po_status: 'delivered'
-    });
-    console.log('✅ PO status updated to delivered');
-
-    // STEP 3: MANUALLY CREATE INVENTORY ITEMS
-    console.log('🏗️ Creating inventory items from GRN...');
-    await this.createInventoryFromGRN(grn);
-
-    // Populate for response
-    const populatedGRN = await GRNnumber.findById(grn._id)
-      .populate('vendor')
-      .populate('purchase_order')
-      .populate('createdBy', 'name email');
-
-    console.log('🎉 GRN creation process completed successfully!');
-    return populatedGRN as IGRNnumber;
-  } catch (error) {
-    console.error('❌ Error creating GRN:', error);
-    throw new Error(`Failed to create GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-// services/warehouse.service.ts - ADD this method
-
-// services/warehouse.service.ts - FIX the createInventoryFromGRN method
-
-private async createInventoryFromGRN(grn: IGRNnumber): Promise<void> {
-  try {
-    console.log('📦 Creating inventory from GRN:', grn.grn_number);
-    
-    const poNumber = grn.grn_number.split('-')[0];
-    let createdCount = 0;
-    let updatedCount = 0;
-
-    // Process each line item that has accepted quantity > 0
-    for (const lineItem of grn.grn_line_items) {
-      if (lineItem.accepted_quantity > 0) {
-        console.log(`Processing: ${lineItem.sku} - Accepted Qty: ${lineItem.accepted_quantity}`);
+          unit_price: item.unit_price,
+          expected_delivery_date: item.expected_delivery_date,
+          location: item.location,
+          received_quantity: 0,
+          accepted_quantity: 0,
+          rejected_quantity: 0
+        })),
         
-        // FIX: Handle expiry_date conversion
-        let expiryDate = lineItem.expiry_date;
-        if (expiryDate && typeof expiryDate === 'string') {
-          expiryDate = new Date(expiryDate);
-        }
-        
-        // Check if inventory item already exists for this SKU and PO
-        const existingInventory = await Inventory.findOne({
-          sku: lineItem.sku,
-          po_number: poNumber
-        });
-        
-        if (!existingInventory) {
-          // Create new inventory entry
-          await Inventory.create({
-            sku: lineItem.sku,
-            productName: lineItem.productName,
-            po_number: poNumber,
-            quantity: lineItem.accepted_quantity,
-            expiry_date: expiryDate, // Use the converted date
-            minStockLevel: 0,
-            maxStockLevel: 1000,
-            isArchived: false,
-            createdBy: grn.createdBy
-          });
-          createdCount++;
-          console.log(`✅ Created NEW inventory for ${lineItem.sku}`);
-        } else {
-          // Update existing inventory quantity
-          await Inventory.findByIdAndUpdate(existingInventory._id, {
-            $inc: { quantity: lineItem.accepted_quantity },
-            ...(expiryDate && { expiry_date: expiryDate }),
-            updatedAt: new Date()
-          });
-          updatedCount++;
-          console.log(`📈 Updated EXISTING inventory for ${lineItem.sku}`);
-        }
-      }
+        createdBy,
+        po_status: 'received'
+      };
+
+      const grn = await GRNnumber.create(grnPayload);
+
+      // Update purchase order status to 'received'
+      await RaisePurchaseOrder.findByIdAndUpdate(
+        purchaseOrderId,
+        { po_status: 'received' }
+      );
+
+      console.log('✅ GRN created successfully:', grn.delivery_challan);
+
+      // Populate vendor details for response
+      const populatedGRN = await GRNnumber.findById(grn._id)
+        .populate('vendor')
+        .populate('purchase_order')
+        .populate('createdBy', 'name email');
+
+      return populatedGRN as IGRNnumber;
+    } catch (error) {
+      console.error('❌ Error creating GRN:', error);
+      throw new Error(`Failed to create GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    console.log(`🎯 Inventory creation summary:`);
-    console.log(`   New items created: ${createdCount}`);
-    console.log(`   Existing items updated: ${updatedCount}`);
-    console.log(`   Total processed: ${createdCount + updatedCount}`);
-    
-  } catch (error) {
-    console.error('❌ Error creating inventory from GRN:', error);
-    throw error;
   }
-}
-// New method to update GRN quantities
-// services/warehouse.service.ts - Alternative flexible version
 
-async approvePurchaseOrder(purchaseOrderId: string, approvedBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
-  try {
-    console.log('✅ Approving purchase order:', purchaseOrderId);
-
-    // Validate ObjectId
-    if (!Types.ObjectId.isValid(purchaseOrderId)) {
-      throw new Error('Invalid purchase order ID');
-    }
-
-    // Find the purchase order
-    const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId);
-    
-    if (!purchaseOrder) {
-      throw new Error('Purchase order not found');
-    }
-
-    // Check if PO is already approved
-    if (purchaseOrder.po_status === 'approved') {
-      throw new Error('Purchase order is already approved');
-    }
-
-    // Check if PO can be approved (not delivered)
-    if (purchaseOrder.po_status === 'delivered') {
-      throw new Error('Cannot approve a delivered purchase order');
-    }
-
-    // Update PO status to approved
-    const updatedPO = await RaisePurchaseOrder.findByIdAndUpdate(
-      purchaseOrderId,
-      {
-        po_status: 'approved',
-        remarks: purchaseOrder.remarks ? 
-          `${purchaseOrder.remarks} | Approved by manager on ${new Date().toLocaleDateString()}` : 
-          `Approved by warehouse manager on ${new Date().toLocaleDateString()}`
-      },
-      { new: true, runValidators: true }
-    )
-    .populate('vendor', 'vendor_name vendor_email vendor_contact')
-    .populate('createdBy', 'name email');
-
-    if (!updatedPO) {
-      throw new Error('Failed to update purchase order');
-    }
-
-    console.log(`✅ Purchase order ${purchaseOrderId} approved successfully. Previous status: ${purchaseOrder.po_status}`);
-    return updatedPO;
-  } catch (error) {
-    console.error('❌ Error approving purchase order:', error);
-    throw new Error(`Failed to approve purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-async updateGRNQuantities(
-  grnId: string,
-  lineItems: Array<{
-    line_no: number;
-    received_quantity: number;
-    accepted_quantity: number;
-    rejected_quantity: number;
-  }>
-): Promise<IGRNnumber> {
-  try {
-    if (!Types.ObjectId.isValid(grnId)) {
-      throw new Error('Invalid GRN ID');
-    }
-
-    const grn = await GRNnumber.findById(grnId);
-    if (!grn) {
-      throw new Error('GRN not found');
-    }
-
-    // Update each line item
-    lineItems.forEach(item => {
-      const lineItem = grn.grn_line_items.find((li: any) => li.line_no === item.line_no);
-      
-      if (lineItem) {
-        lineItem.received_quantity = item.received_quantity;
-        lineItem.accepted_quantity = item.accepted_quantity;
-        lineItem.rejected_quantity = item.rejected_quantity;
-        
-        // Validate that received = accepted + rejected
-        if (item.received_quantity !== item.accepted_quantity + item.rejected_quantity) {
-          throw new Error(`Received quantity (${item.received_quantity}) must equal accepted (${item.accepted_quantity}) + rejected (${item.rejected_quantity}) for line ${item.line_no}`);
-        }
-      }
-    });
-
-    await grn.save();
-
-    const populatedGRN = await GRNnumber.findById(grn._id)
-      .populate('vendor')
-      .populate('purchase_order')
-      .populate('createdBy', 'name email');
-
-    console.log(`✅ GRN ${grnId} quantities updated successfully`);
-    return populatedGRN as IGRNnumber;
-  } catch (error) {
-    console.error('❌ Error updating GRN quantities:', error);
-    throw new Error(`Failed to update GRN quantities: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
   // Helper method to generate unique GRN number
   private async generateGRNNumber(): Promise<string> {
     let isUnique = false;
@@ -1005,7 +771,13 @@ async deletePurchaseOrder(id: string): Promise<void> {
         if (!grn) {
           throw new Error('GRN not found');
         }
-;
+
+        // Update each line item
+        lineItems.forEach(updateItem => {
+          const existingItem = grn.grn_line_items.find(
+            item => item.line_no === updateItem.line_no
+          );
+        });
 
         updateData.grn_line_items = grn.grn_line_items;
       }
@@ -1062,6 +834,14 @@ async deletePurchaseOrder(id: string): Promise<void> {
         }
       });
 
+      // Update line items
+      lineItems.forEach(updateItem => {
+        const existingItem = grn.grn_line_items.find(
+          item => item.line_no === updateItem.line_no
+        );
+      }
+      );
+
       grn.updatedAt = new Date();
       await grn.save();
 
@@ -1107,204 +887,79 @@ async deletePurchaseOrder(id: string): Promise<void> {
       .populate('createdBy', 'name email');
   }
 
+  async updatePurchaseOrderStatus(
+    id: string,
+    po_status: 'draft' | 'approved' | 'pending',
+    remarks?: string
+  ): Promise<IRaisePurchaseOrder | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
 
- // Update inventory upsert method to handle new schema
-async upsertInventory(data: {
-  sku: string;
-  productName: string;
-  po_number: string;
-  warehouse: Types.ObjectId;
-  quantity: number;
-  createdBy: Types.ObjectId;
-}): Promise<void> {
-  const existingInventory = await Inventory.findOne({
-    sku: data.sku,
-    po_number: data.po_number,
-    warehouse: data.warehouse
-  });
+    const updateData: any = { po_status };
+    if (remarks) {
+      updateData.remarks = remarks;
+    }
 
-  if (existingInventory) {
-    await Inventory.findByIdAndUpdate(existingInventory._id, {
-      $inc: { quantity: data.quantity },
-      updatedAt: new Date()
+    const updatedPO = await RaisePurchaseOrder.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    )
+    .populate('vendor', 'vendor_name vendor_email')
+    .populate('createdBy', 'name email');
+
+    return updatedPO;
+  }
+
+  async upsertInventory(data: InventoryUpsertData): Promise<void> {
+    const existingInventory = await Inventory.findOne({
+      sku: data.sku,
+      batchId: data.batchId,
+      warehouse: data.warehouse
     });
-  } else {
-    await Inventory.create({
-      ...data,
-      minStockLevel: 0,
-      maxStockLevel: 1000,
-      isArchived: false
-    });
-  }
-}
-// services/warehouse.service.ts - Remove all warehouse references
 
-async getInventoryDashboard(
-  filters: InventoryDashboardFilters = {}, 
-  page: number = 1, 
-  limit: number = 50
-): Promise<InventoryDashboardResponse> {
-  let query: any = {};
-  
-  if (filters.archived !== undefined) {
-    query.isArchived = filters.archived;
-  } else {
-    query.isArchived = false;
-  }
-
-  // SKU filter
-  if (filters.sku) {
-    query.sku = { $regex: filters.sku, $options: 'i' };
-  }
-
-  // Product name filter
-  if (filters.productName) {
-    query.productName = { $regex: filters.productName, $options: 'i' };
-  }
-
-  // PO number filter
-  if (filters.po_number) {
-    query.po_number = { $regex: filters.po_number, $options: 'i' };
-  }
-
-  // Expiry status filter
-  if (filters.expiryStatus) {
-    switch (filters.expiryStatus) {
-      case 'expiring_soon':
-        query.age = { $lte: 30, $gte: 0 };
-        break;
-      case 'expired':
-        query.age = { $lt: 0 };
-        break;
-      case 'not_expired':
-        query.age = { $gte: 0 };
-        break;
-      case 'no_expiry':
-        query.expiry_date = { $exists: false };
-        break;
+    if (existingInventory) {
+      await Inventory.findByIdAndUpdate(existingInventory._id, {
+        $inc: { quantity: data.quantity },
+        location: data.location,
+        updatedAt: new Date()
+      });
+    } else {
+      await Inventory.create({
+        ...data,
+        minStockLevel: 0,
+        maxStockLevel: 1000,
+        age: 0,
+        status: 'active'
+      });
     }
   }
 
-  // Quantity range filter
-  if (filters.quantityRange) {
-    switch (filters.quantityRange) {
-      case 'low':
-        query.quantity = { $lte: 10 };
-        break;
-      case 'medium':
-        query.quantity = { $gt: 10, $lte: 50 };
-        break;
-      case 'high':
-        query.quantity = { $gt: 50 };
-        break;
-      case 'out_of_stock':
-        query.quantity = { $lte: 0 };
-        break;
-    }
+  // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
+  async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
+    await this.validateSkuStock(data.products);
+
+    const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
+    const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
+    const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
+
+    const formattedProducts = data.products.map(p => ({
+      sku: p.sku,
+      quantity: p.quantity
+    }));
+
+    const dispatch = await DispatchOrder.create({
+      dispatchId,
+      destination: data.destination,
+      products: formattedProducts,
+      assignedAgent: data.assignedAgent,
+      notes: data.notes,
+      status: 'pending',
+      createdBy
+    });
+
+    await this.reduceStockBySku(data.products);
+    return dispatch;
   }
-
-  const skip = (page - 1) * limit;
-  const total = await Inventory.countDocuments(query);
-  
-  const sortField = filters.sortBy || 'age';
-  const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
-
-  const inventory = await Inventory.find(query)
-    .populate('createdBy', 'name email') // REMOVED warehouse populate
-    .sort({ [sortField]: sortOrder })
-    .skip(skip)
-    .limit(limit);
-
-  return {
-    inventory,
-    total,
-    page,
-    totalPages: Math.ceil(total / limit),
-    filters
-  };
-}
-
-// Fixed inventory stats - remove warehouse completely
-async getInventoryStats(): Promise<InventoryStats> {
-  const [
-    totalItems,
-    activeItems,
-    archivedItems,
-    lowStockItems,
-    expiredItems,
-    nearExpiryItems,
-    stockValueResult
-  ] = await Promise.all([
-    Inventory.countDocuments(),
-    Inventory.countDocuments({ isArchived: false }),
-    Inventory.countDocuments({ isArchived: true }),
-    Inventory.countDocuments({ 
-      quantity: { $lte: 10 },
-      isArchived: false 
-    }),
-    // Expired items (age < 0)
-    Inventory.countDocuments({ 
-      age: { $lt: 0 },
-      isArchived: false 
-    }),
-    // Near expiry items (0-30 days)
-    Inventory.countDocuments({
-      age: { $lte: 30, $gte: 0 },
-      isArchived: false
-    }),
-    Inventory.aggregate([
-      { $match: { isArchived: false } },
-      { $group: { _id: null, totalValue: { $sum: { $multiply: ['$quantity', 100] } } } }
-    ])
-  ]);
-
-  const statusBreakdownObj: { [key: string]: number } = {
-    'active': activeItems,
-    'archived': archivedItems,
-    'expired': expiredItems,
-    'near_expiry': nearExpiryItems
-  };
-
-  const totalStockValue = stockValueResult.length > 0 ? stockValueResult[0].totalValue : 0;
-
-  return {
-    totalItems,
-    activeItems,
-    archivedItems,
-    lowStockItems,
-    expiredItems,
-    nearExpiryItems,
-    totalStockValue,
-    statusBreakdown: statusBreakdownObj
-  };
-}
- // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
- async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
-  await this.validateSkuStock(data.products);
-
-  const latestDispatch = await DispatchOrder.findOne().sort({ createdAt: -1 });
-  const nextNumber = latestDispatch ? parseInt(latestDispatch.dispatchId?.split('-')[1] || "0") + 1 : 1;
-  const dispatchId = `DO-${String(nextNumber).padStart(4, '0')}`;
-
-  const formattedProducts = data.products.map(p => ({
-    sku: p.sku,
-    quantity: p.quantity
-  }));
-
-  const dispatch = await DispatchOrder.create({
-    dispatchId,
-    destination: data.destination,
-    products: formattedProducts,
-    assignedAgent: data.assignedAgent,
-    notes: data.notes,
-    status: 'pending',
-    createdBy
-  });
-
-  await this.reduceStockBySku(data.products);
-  return dispatch;
-}
-
 
   async getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]> {
     let query: any = {};
@@ -1555,57 +1210,296 @@ async getInventoryStats(): Promise<InventoryStats> {
   }
 
   // ==================== INVENTORY DASHBOARD METHODS ====================
-  
-async getInventoryById(inventoryId: string): Promise<IInventory | null> {
-  if (!Types.ObjectId.isValid(inventoryId)) {
-    throw new Error('Invalid inventory ID');
+  async getInventoryDashboard(
+    warehouseId: string, 
+    filters: InventoryDashboardFilters = {}, 
+    page: number = 1, 
+    limit: number = 50
+  ): Promise<InventoryDashboardResponse> {
+    let query: any = { warehouse: new Types.ObjectId(warehouseId) };
+    
+    if (filters.archived !== undefined) {
+      query.isArchived = filters.archived;
+    } else {
+      query.isArchived = false;
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      query.status = filters.status;
+    }
+
+    if (filters.sku) {
+      query.sku = { $regex: filters.sku, $options: 'i' };
+    }
+
+    if (filters.batchId) {
+      query.batchId = { $regex: filters.batchId, $options: 'i' };
+    }
+
+    if (filters.productName) {
+      query.productName = { $regex: filters.productName, $options: 'i' };
+    }
+
+    if (filters.expiryStatus) {
+      const today = new Date();
+      switch (filters.expiryStatus) {
+        case 'expiring_soon':
+          const next30Days = new Date(today);
+          next30Days.setDate(today.getDate() + 30);
+          query.expiryDate = { $gte: today, $lte: next30Days };
+          break;
+        case 'expired':
+          query.expiryDate = { $lt: today };
+          break;
+        case 'not_expired':
+          query.expiryDate = { $gte: today };
+          break;
+        case 'no_expiry':
+          query.expiryDate = { $exists: false };
+          break;
+      }
+    }
+
+    if (filters.ageRange) {
+      query.age = this.getAgeFilter(filters.ageRange);
+    }
+
+    if (filters.quantityRange) {
+      switch (filters.quantityRange) {
+        case 'low':
+          query.quantity = { $lte: 10 };
+          break;
+        case 'medium':
+          query.quantity = { $gt: 10, $lte: 50 };
+          break;
+        case 'high':
+          query.quantity = { $gt: 50 };
+          break;
+        case 'out_of_stock':
+          query.quantity = { $lte: 0 };
+          break;
+      }
+    }
+
+    const skip = (page - 1) * limit;
+    const total = await Inventory.countDocuments(query);
+    const sortField = filters.sortBy || 'updatedAt';
+    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+
+    const inventory = await Inventory.find(query)
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email')
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(limit);
+
+    return {
+      inventory,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      filters
+    };
   }
-  
-  return await Inventory.findById(inventoryId)
-    .populate('createdBy', 'name email'); // REMOVED warehouse populate
-}
-  
- async archiveInventoryItem(inventoryId: string): Promise<IInventory> {
-  if (!Types.ObjectId.isValid(inventoryId)) {
-    throw new Error('Invalid inventory ID');
+
+  async getInventoryById(inventoryId: string): Promise<IInventory | null> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
+    
+    return await Inventory.findById(inventoryId)
+      .populate('warehouse', 'name code')
+      .populate('createdBy', 'name email');
   }
 
-  const updated = await Inventory.findByIdAndUpdate(
-    inventoryId,
-    { 
-      isArchived: true,
-      archivedAt: new Date()
-    },
-    { new: true }
-  ).populate('createdBy', 'name email'); // REMOVED warehouse populate
+  async updateInventoryItem(
+    inventoryId: string, 
+    updateData: {
+      sku?: string;
+      productName?: string;
+      batchId?: string;
+      quantity?: number;
+      minStockLevel?: number;
+      maxStockLevel?: number;
+      expiryDate?: Date | string;
+      location?: {
+        zone: string;
+        aisle: string;
+        rack: string;
+        bin: string;
+      };
+    }
+  ): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
 
-  if (!updated) {
-    throw new Error('Inventory item not found');
+    const inventory = await Inventory.findById(inventoryId);
+    if (!inventory) {
+      throw new Error('Inventory item not found');
+    }
+
+    const allowedUpdates = [
+      'sku', 'productName', 'batchId', 'quantity', 
+      'minStockLevel', 'maxStockLevel', 'expiryDate', 'location'
+    ];
+    
+    const updates: any = {};
+    Object.keys(updateData).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = (updateData as any)[key];
+      }
+    });
+
+    if (updates.expiryDate) {
+      updates.expiryDate = new Date(updates.expiryDate);
+    }
+
+    const now = new Date();
+    const createdAt = inventory.createdAt;
+    const ageInDays = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    updates.age = ageInDays;
+
+    const finalQuantity = updates.quantity !== undefined ? updates.quantity : inventory.quantity;
+    const finalExpiryDate = updates.expiryDate !== undefined ? updates.expiryDate : inventory.expiryDate;
+    const finalMinStock = updates.minStockLevel !== undefined ? updates.minStockLevel : inventory.minStockLevel;
+    const finalMaxStock = updates.maxStockLevel !== undefined ? updates.maxStockLevel : inventory.maxStockLevel;
+
+    updates.status = this.calculateInventoryStatus({
+      quantity: finalQuantity,
+      minStockLevel: finalMinStock,
+      maxStockLevel: finalMaxStock,
+      expiryDate: finalExpiryDate
+    });
+
+    const updated = await Inventory.findByIdAndUpdate(
+      inventoryId,
+      updates,
+      { new: true, runValidators: true }
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
+    if (!updated) {
+      throw new Error('Inventory item not found after update');
+    }
+
+    return updated;
   }
 
-  return updated;
-}
+  async archiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
 
-async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
-  if (!Types.ObjectId.isValid(inventoryId)) {
-    throw new Error('Invalid inventory ID');
+    const updated = await Inventory.findByIdAndUpdate(
+      inventoryId,
+      { 
+        isArchived: true,
+        status: 'archived',
+        archivedAt: new Date()
+      },
+      { new: true }
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
+    if (!updated) {
+      throw new Error('Inventory item not found');
+    }
+
+    return updated;
   }
 
-  const updated = await Inventory.findByIdAndUpdate(
-    inventoryId,
-    { 
-      isArchived: false,
-      archivedAt: null
-    },
-    { new: true }
-  ).populate('createdBy', 'name email'); // REMOVED warehouse populate
+  async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
+    if (!Types.ObjectId.isValid(inventoryId)) {
+      throw new Error('Invalid inventory ID');
+    }
 
-  if (!updated) {
-    throw new Error('Inventory item not found');
+    const inventory = await Inventory.findById(inventoryId);
+    if (!inventory) {
+      throw new Error('Inventory item not found');
+    }
+
+    const status = this.calculateInventoryStatus({
+      quantity: inventory.quantity,
+      minStockLevel: inventory.minStockLevel,
+      maxStockLevel: inventory.maxStockLevel,
+      expiryDate: inventory.expiryDate
+    });
+
+    const updated = await Inventory.findByIdAndUpdate(
+      inventoryId,
+      { 
+        isArchived: false,
+        status: status,
+        archivedAt: null
+      },
+      { new: true }
+    ).populate('warehouse', 'name code')
+     .populate('createdBy', 'name email');
+
+    if (!updated) {
+      throw new Error('Inventory item not found');
+    }
+
+    return updated;
   }
 
-  return updated;
-}
+  async getInventoryStats(warehouseId: string): Promise<InventoryStats> {
+    if (!Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Invalid warehouse ID');
+    }
+
+    const warehouseObjectId = new Types.ObjectId(warehouseId);
+    
+    const [
+      totalItems,
+      activeItems,
+      archivedItems,
+      lowStockItems,
+      expiredItems,
+      nearExpiryItems,
+      statusBreakdown,
+      stockValueResult
+    ] = await Promise.all([
+      Inventory.countDocuments({ warehouse: warehouseObjectId }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: false }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: true }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, status: 'low_stock', isArchived: false }),
+      Inventory.countDocuments({ warehouse: warehouseObjectId, expiryDate: { $lt: new Date() }, isArchived: false }),
+      Inventory.countDocuments({
+        warehouse: warehouseObjectId,
+        expiryDate: { $gte: new Date(), $lte: new Date(new Date().setDate(new Date().getDate() + 30)) },
+        isArchived: false
+      }),
+      Inventory.aggregate([
+        { $match: { warehouse: warehouseObjectId, isArchived: false } },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      Inventory.aggregate([
+        { $match: { warehouse: warehouseObjectId, isArchived: false } },
+        { $group: { _id: null, totalValue: { $sum: { $multiply: ['$quantity', 100] } } } }
+      ])
+    ]);
+
+    const statusBreakdownObj: { [key: string]: number } = {};
+    statusBreakdown.forEach((item: any) => {
+      statusBreakdownObj[item._id] = item.count;
+    });
+
+    const totalStockValue = stockValueResult.length > 0 ? stockValueResult[0].totalValue : 0;
+
+    return {
+      totalItems,
+      activeItems,
+      archivedItems,
+      lowStockItems,
+      expiredItems,
+      nearExpiryItems,
+      totalStockValue,
+      statusBreakdown: statusBreakdownObj
+    };
+  }
+
   async bulkArchiveInventory(inventoryIds: string[]): Promise<{ 
     success: boolean; 
     message: string;
@@ -1644,31 +1538,7 @@ async unarchiveInventoryItem(inventoryId: string): Promise<IInventory> {
       failedIds
     };
   }
-// services/warehouse.service.ts
-async createInventoryItem(data: {
-  sku: string;
-  productName: string;
-  po_number: string;
-  quantity: number;
-  expiry_date?: Date;
-  minStockLevel?: number;
-  maxStockLevel?: number;
-}, createdBy: Types.ObjectId): Promise<IInventory> {
-  try {
-    const inventory = await Inventory.create({
-      ...data,
-      minStockLevel: data.minStockLevel || 0,
-      maxStockLevel: data.maxStockLevel || 1000,
-      isArchived: false,
-      createdBy
-    });
 
-    return inventory;
-  } catch (error) {
-    console.error('❌ Error creating inventory:', error);
-    throw new Error(`Failed to create inventory: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
   async bulkUnarchiveInventory(inventoryIds: string[]): Promise<{ 
     success: boolean; 
     message: string;
@@ -1689,7 +1559,8 @@ async createInventoryItem(data: {
       const status = this.calculateInventoryStatus({
         quantity: item.quantity,
         minStockLevel: item.minStockLevel,
-        maxStockLevel: item.maxStockLevel
+        maxStockLevel: item.maxStockLevel,
+        expiryDate: item.expiryDate
       });
 
       return Inventory.findByIdAndUpdate(
@@ -2078,6 +1949,19 @@ async createInventoryItem(data: {
       isArchived: false
     });
 
+    inventory.forEach(item => {
+      const age = item.age || 0;
+      if (age <= 30) {
+        ageingBuckets['0-30 days']++;
+      } else if (age <= 60) {
+        ageingBuckets['31-60 days']++;
+      } else if (age <= 90) {
+        ageingBuckets['61-90 days']++;
+      } else {
+        ageingBuckets['90+ days']++;
+      }
+    });
+
     return {
       report: 'stock_ageing',
       ageingBuckets,
@@ -2086,82 +1970,96 @@ async createInventoryItem(data: {
     };
   }
 
-  // Update inventory summary report
-private async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
-  const warehouseId = filters.warehouse;
-  if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
-    throw new Error('Valid warehouse ID is required');
+  private async generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport> {
+    const warehouseId = filters.warehouse;
+    if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Valid warehouse ID is required');
+    }
+
+    const dateFilter = this.getDateFilter(filters.dateRange);
+    
+    let inventoryQuery: any = { 
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: false 
+    };
+
+    if (filters.category) {
+      inventoryQuery.productName = { $regex: filters.category, $options: 'i' };
+    }
+
+    if (filters.status) {
+      inventoryQuery.status = filters.status;
+    }
+
+    const inventoryData = await Inventory.find(inventoryQuery)
+      .populate('warehouse', 'name code');
+
+    const totalSKUs = await Inventory.distinct('sku', { 
+      warehouse: new Types.ObjectId(warehouseId),
+      isArchived: false 
+    }).then(skus => skus.length);
+
+    const stockOutSKUs = await Inventory.countDocuments({
+      warehouse: new Types.ObjectId(warehouseId),
+      status: 'low_stock',
+      isArchived: false
+    });
+
+    const poQuery: any = { warehouse: new Types.ObjectId(warehouseId) };
+    if (Object.keys(dateFilter).length > 0) {
+      poQuery.createdAt = dateFilter;
+    }
+
+    if (filters.vendor) {
+      poQuery.vendor = new Types.ObjectId(filters.vendor);
+    }
+
+    const totalPOs = await RaisePurchaseOrder.countDocuments(poQuery);
+    const pendingPOs = await RaisePurchaseOrder.countDocuments({
+      ...poQuery,
+      po_status: 'draft'
+    });
+
+    const totalStockValue = inventoryData.reduce((sum, item) => {
+      return sum + (item.quantity * 100);
+    }, 0);
+
+    const lowStockItems = inventoryData.filter(item => 
+      item.status === 'low_stock'
+    ).length;
+
+    const today = new Date();
+    const next30Days = new Date();
+    next30Days.setDate(today.getDate() + 30);
+
+    const nearExpirySKUs = inventoryData.filter(item => 
+      item.expiryDate && 
+      item.expiryDate <= next30Days && 
+      item.expiryDate >= today
+    ).length;
+
+    const stockAccuracy = 89;
+    const { pendingRefills, completedRefills } = await this.getRefillMetrics(warehouseId);
+
+    return {
+      summary: {
+        totalSKUs,
+        stockOutSKUs,
+        totalPOs,
+        pendingPOs,
+        pendingRefills,
+        completedRefills,
+        totalStockValue,
+        lowStockItems,
+        nearExpirySKUs,
+        stockAccuracy
+      },
+      inventoryDetails: inventoryData,
+      generatedOn: new Date(),
+      filters: filters as ReportFilters
+    };
   }
 
-  const dateFilter = this.getDateFilter(filters.dateRange);
-  
-  let inventoryQuery: any = { 
-    warehouse: new Types.ObjectId(warehouseId),
-    isArchived: false 
-  };
-
-  if (filters.category) {
-    inventoryQuery.productName = { $regex: filters.category, $options: 'i' };
-  }
-
-  const inventoryData = await Inventory.find(inventoryQuery)
-    .populate('warehouse', 'name code');
-
-  const totalSKUs = await Inventory.distinct('sku', { 
-    warehouse: new Types.ObjectId(warehouseId),
-    isArchived: false 
-  }).then(skus => skus.length);
-
-  const stockOutSKUs = await Inventory.countDocuments({
-    warehouse: new Types.ObjectId(warehouseId),
-    quantity: { $lte: 0 },
-    isArchived: false
-  });
-
-  const poQuery: any = {};
-  if (Object.keys(dateFilter).length > 0) {
-    poQuery.createdAt = dateFilter;
-  }
-
-  if (filters.vendor) {
-    poQuery.vendor = new Types.ObjectId(filters.vendor);
-  }
-
-  const totalPOs = await RaisePurchaseOrder.countDocuments(poQuery);
-  const pendingPOs = await RaisePurchaseOrder.countDocuments({
-    ...poQuery,
-    po_status: 'draft'
-  });
-
-  const totalStockValue = inventoryData.reduce((sum, item) => {
-    return sum + (item.quantity * 100); // Using default unit price
-  }, 0);
-
-  const stockAccuracy = 89;
-  const { pendingRefills, completedRefills } = await this.getRefillMetrics(warehouseId);
-
-  return {
-    summary: {
-      totalSKUs,
-      stockOutSKUs,
-      totalPOs,
-      pendingPOs,
-      pendingRefills,
-      completedRefills,
-      totalStockValue,
-      lowStockItems: await Inventory.countDocuments({
-        warehouse: new Types.ObjectId(warehouseId),
-        quantity: { $lte: 10 },
-        isArchived: false
-      }),
-      nearExpirySKUs: 0, // No longer tracked
-      stockAccuracy
-    },
-    inventoryDetails: inventoryData,
-    generatedOn: new Date(),
-    filters: filters as ReportFilters
-  };
-}
   private async generatePurchaseOrderReport(filters: any): Promise<PurchaseOrderReport> {
     const warehouseId = filters.warehouse;
     if (!warehouseId || !Types.ObjectId.isValid(warehouseId)) {
@@ -2193,7 +2091,7 @@ private async generateInventorySummaryReport(filters: any): Promise<InventorySum
     const totalPOs = purchaseOrders.length;
     const pendingPOs = purchaseOrders.filter(po => po.po_status === 'draft').length;
     const approvedPOs = purchaseOrders.filter(po => po.po_status === 'approved').length;
-    const rejectedPOs = purchaseOrders.filter(po => po.po_status === 'draft').length;
+    const rejectedPOs = purchaseOrders.filter(po => po.po_status === 'pending').length;
     
     const totalPOValue = purchaseOrders.reduce((sum, po) => sum + 1000, 0);
     const averagePOValue = totalPOs > 0 ? totalPOValue / totalPOs : 0;
@@ -2631,49 +2529,62 @@ private async generateInventorySummaryReport(filters: any): Promise<InventorySum
   }
 
   // ==================== PRIVATE HELPER METHODS ====================
- 
-
-  private async generateAlerts(warehouseId?: string): Promise<DashboardData['alerts']> {
-  const alerts: DashboardData['alerts'] = [];
-  
-  try {
-    const baseQuery: any = {};
-    if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
-      baseQuery.warehouse = new Types.ObjectId(warehouseId);
+  private getAgeFilter(ageRange: string): any {
+    switch (ageRange) {
+      case '0-30':
+        return { $lte: 30 };
+      case '31-60':
+        return { $gt: 30, $lte: 60 };
+      case '61-90':
+        return { $gt: 60, $lte: 90 };
+      case '90+':
+        return { $gt: 90 };
+      default:
+        return {};
     }
-    
-    const pendingQC = await RaisePurchaseOrder.countDocuments({
-      ...baseQuery,
-      po_status: 'draft'
-    });
-    
-    if (pendingQC > 0) {
-      alerts.push({
-        type: 'qc_failed',
-        message: `${pendingQC} purchase orders pending approval`,
-        count: pendingQC
-      });
-    }
-
-    const lowStock = await Inventory.countDocuments({
-      ...baseQuery,
-      quantity: { $lte: 10 }, // Low stock threshold
-      isArchived: false
-    });
-    
-    if (lowStock > 0) {
-      alerts.push({
-        type: 'low_stock',
-        message: `${lowStock} items below safety stock`,
-        count: lowStock
-      });
-    }
-  } catch (error) {
-    console.error('Error generating alerts:', error);
   }
 
-  return alerts;
-}
+  private async generateAlerts(warehouseId?: string): Promise<DashboardData['alerts']> {
+    const alerts: DashboardData['alerts'] = [];
+    
+    try {
+      const baseQuery: any = {};
+      if (warehouseId && Types.ObjectId.isValid(warehouseId)) {
+        baseQuery.warehouse = new Types.ObjectId(warehouseId);
+      }
+      
+      const pendingQC = await RaisePurchaseOrder.countDocuments({
+        ...baseQuery,
+        po_status: 'draft'
+      });
+      
+      if (pendingQC > 0) {
+        alerts.push({
+          type: 'qc_failed',
+          message: `${pendingQC} purchase orders pending approval`,
+          count: pendingQC
+        });
+      }
+
+      const lowStock = await Inventory.countDocuments({
+        ...baseQuery,
+        status: 'low_stock',
+        isArchived: false
+      });
+      
+      if (lowStock > 0) {
+        alerts.push({
+          type: 'low_stock',
+          message: `${lowStock} items below safety stock`,
+          count: lowStock
+        });
+      }
+    } catch (error) {
+      console.error('Error generating alerts:', error);
+    }
+
+    return alerts;
+  }
 
   private async getRecentActivities(warehouseId?: string): Promise<any[]> {
     try {
@@ -2719,17 +2630,32 @@ private async generateInventorySummaryReport(filters: any): Promise<InventorySum
     }
   }
 
- private async reduceStockBySku(products: { sku: string; quantity: number }[]): Promise<void> {
-  for (const product of products) {
-    await Inventory.findOneAndUpdate(
-      { sku: product.sku, isArchived: false },
-      {
-        $inc: { quantity: -product.quantity },
-        $set: { updatedAt: new Date() }
+  private async validateSkuStock(products: { sku: string; quantity: number }[]): Promise<void> {
+    for (const product of products) {
+      const inventory = await Inventory.findOne({
+        sku: product.sku,
+        isArchived: false
+      });
+
+      if (!inventory || inventory.quantity < product.quantity) {
+        throw new Error(
+          `Insufficient stock for ${product.sku}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`
+        );
       }
-    );
+    }
   }
-}
+
+  private async reduceStockBySku(products: { sku: string; quantity: number }[]): Promise<void> {
+    for (const product of products) {
+      await Inventory.findOneAndUpdate(
+        { sku: product.sku, isArchived: false },
+        {
+          $inc: { quantity: -product.quantity },
+          $set: { updatedAt: new Date() }
+        }
+      );
+    }
+  }
 
   private calculateInventoryStatus(data: {
     quantity: number;
@@ -2753,21 +2679,6 @@ private async generateInventorySummaryReport(filters: any): Promise<InventorySum
     
     return 'active';
   }
-  private async validateSkuStock(products: { sku: string; quantity: number }[]): Promise<void> {
-  for (const product of products) {
-    const inventory = await Inventory.findOne({
-      sku: product.sku,
-      isArchived: false,
-      quantity: { $gte: product.quantity }
-    });
-
-    if (!inventory) {
-      throw new Error(
-        `Insufficient stock for ${product.sku}. Available: ${inventory?.quantity || 0}, Requested: ${product.quantity}`
-      );
-    }
-  }
-}
 }
 
 export const warehouseService = new WarehouseService();
