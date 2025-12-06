@@ -167,6 +167,7 @@ const startServer = async () => {
       logger.info('   🏭 Warehouse: /api/warehouse'); 
       logger.info('   🛒 Vendors: /api/vendors');
       logger.info('   📦Audit Trails :/api/audit-trails');
+      logger.info('   🗺️ Area Routes: /api/area-route');
       logger.info('');
       logger.info('✅ Ready to accept requests!');
     });

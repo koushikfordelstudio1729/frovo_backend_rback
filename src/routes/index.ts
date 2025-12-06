@@ -14,6 +14,7 @@ import auditTrailRoutes from './auditTrail.routes';
 import vendingMachineRoutes from './vendingMachine.routes';
 import cartRoutes from './cart.routes';
 import productRoutes from './product.routes';
+import areaRouteRoutes from './arearoute.route';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.use('/vendors', vendorRoutes);
 router.use('/audit-trails', auditTrailRoutes);
 router.use('/vending', vendingMachineRoutes);
 router.use('/cart', cartRoutes);
+router.use('/area-route', areaRouteRoutes);
 router.use('/', productRoutes);
 
 export default router;
