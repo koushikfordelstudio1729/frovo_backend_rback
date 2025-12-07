@@ -1,5 +1,13 @@
-import { VendorCreate, IVendorCreate, VendorDashboard, IVendorDashboard, IVendorDocument } from '../models/Vendor.model';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
+import { 
+  VendorCreate, 
+  IVendorCreate, 
+  VendorDashboard, 
+  IVendorDashboard, 
+  IVendorDocument, 
+  ICompanyCreate, 
+  CompanyCreate  // Add this import
+} from '../models/Vendor.model';
 import { AuditTrailService } from './auditTrail.service';
 import { DocumentUploadService } from './documentUpload.service';
 
@@ -7,73 +15,427 @@ export class VendorService {
   private auditTrailService = new AuditTrailService();
   private documentUploadService = new DocumentUploadService();
 
-  // Create Complete Vendor with Audit Trail
-  async createCompleteVendor(
-    vendorData: Partial<IVendorCreate>,
-    createdBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ): Promise<IVendorCreate> {
-    try {
-      // Validate vendor data
-      VendorValidationService.validateCompleteVendorData(vendorData);
+  /**
+   * Create a new company
+   */
+  public static async createCompanyService(data: {
+    registered_company_name: string;
+    company_address: string;
+    office_email: string;
+    legal_entity_structure: string;
+    company_registration_number: string;
+    date_of_incorporation: Date;
+    corporate_website?: string;
+    directory_signature_name: string;
+    din: string;
+  }) {
+    const {
+      registered_company_name,
+      company_address,
+      office_email,
+      legal_entity_structure,
+      company_registration_number,
+      date_of_incorporation,
+      corporate_website,
+      directory_signature_name,
+      din
+    } = data;
 
-      // Check for duplicate vendor email
-      const existingVendorByEmail = await VendorCreate.findOne({
-        vendor_email: vendorData.vendor_email?.toLowerCase()
-      });
+    // Validate required fields
+    const requiredFields = [
+      'registered_company_name',
+      'company_address',
+      'office_email',
+      'legal_entity_structure',
+      'company_registration_number',
+      'date_of_incorporation',
+      'directory_signature_name',
+      'din'
+    ];
 
-      if (existingVendorByEmail) {
-        throw new Error('Vendor with this email already exists');
-      }
-
-      // Generate vendor ID if not provided
-      if (!vendorData.vendor_id) {
-        vendorData.vendor_id = this.generateVendorId();
-      } else {
-        // Check for duplicate vendor ID if provided
-        const existingVendorById = await VendorCreate.findOne({
-          vendor_id: vendorData.vendor_id
-        });
-
-        if (existingVendorById) {
-          throw new Error('Vendor with this ID already exists');
-        }
-      }
-
-      // Prepare vendor data with defaults
-      const completeVendorData = {
-        ...vendorData,
-        createdBy,
-        verification_status: 'pending',
-        verified_by: undefined
-      };
-
-      const vendor = new VendorCreate(completeVendorData);
-      const savedVendor = await vendor.save();
-
-      // Create audit trail record
-      await this.createVendorAuditRecord(
-        createdBy,
-        userEmail,
-        userRole,
-        'create',
-        `Created new vendor: ${savedVendor.vendor_name}`,
-        savedVendor._id as Types.ObjectId,
-        savedVendor.vendor_name,
-        savedVendor.vendor_id,
-        undefined,
-        savedVendor.toObject(),
-        req
-      );
-
-      return savedVendor;
-    } catch (error: any) {
-      throw new Error(`Error creating vendor: ${error.message}`);
+    const missingFields = requiredFields.filter(field => !data[field as keyof typeof data]);
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(office_email)) {
+      throw new Error('Invalid email format');
+    }
+
+    // Validate date
+    const incorporationDate = new Date(date_of_incorporation);
+    if (isNaN(incorporationDate.getTime())) {
+      throw new Error('Invalid date format for date_of_incorporation');
+    }
+
+    // Check if date is not in the future
+    const today = new Date();
+    if (incorporationDate > today) {
+      throw new Error('Date of incorporation cannot be in the future');
+    }
+
+    // Check for unique constraints
+    const existingCompanies = await Promise.all([
+      CompanyCreate.findOne({ office_email }),
+      CompanyCreate.findOne({ company_registration_number }),
+      CompanyCreate.findOne({ din })
+    ]);
+
+    const errors = [];
+    if (existingCompanies[0]) errors.push('Company with this email already exists');
+    if (existingCompanies[1]) errors.push('Company with this registration number already exists');
+    if (existingCompanies[2]) errors.push('Company with this DIN already exists');
+
+    if (errors.length > 0) {
+      throw new Error(errors.join(', '));
+    }
+
+    // Validate corporate website if provided
+    if (corporate_website) {
+      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+      if (!urlRegex.test(corporate_website)) {
+        throw new Error('Invalid website URL format');
+      }
+    }
+
+    // Create new company
+    const newCompany = new CompanyCreate({
+      registered_company_name,
+      company_address,
+      office_email: office_email.toLowerCase(),
+      legal_entity_structure,
+      company_registration_number,
+      date_of_incorporation: incorporationDate,
+      corporate_website,
+      directory_signature_name,
+      din
+    });
+
+    const savedCompany = await newCompany.save();
+    
+    // Convert to plain object and remove sensitive/technical fields
+    const companyObj = savedCompany.toObject();
+    delete companyObj.__v;
+    
+    return companyObj;
   }
 
+  /**
+   * Get all companies with pagination
+   */
+  public static async getAllCompaniesService(query: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  } = {}) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = query;
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    let filter: any = {};
+
+    if (search) {
+      filter.$or = [
+        { registered_company_name: { $regex: search, $options: 'i' } },
+        { office_email: { $regex: search, $options: 'i' } },
+        { company_registration_number: { $regex: search, $options: 'i' } },
+        { din: { $regex: search, $options: 'i' } },
+        { directory_signature_name: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const sort: any = {};
+    sort[String(sortBy)] = sortOrder === 'asc' ? 1 : -1;
+
+    const [companies, totalCount] = await Promise.all([
+      CompanyCreate.find(filter)
+        .select('-__v') // Exclude __v field
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum),
+
+      CompanyCreate.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    return {
+      data: companies,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1,
+        limit: limitNum
+      }
+    };
+  }
+
+  /**
+   * Get company by ID
+   */
+  public static async getCompanyByIdService(id: string) {
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid company ID format');
+    }
+
+    const company = await CompanyCreate.findById(id).select('-__v');
+    
+    if (!company) {
+      throw new Error('Company not found');
+    }
+
+    return company;
+  }
+
+  /**
+   * Update company by ID
+   */
+  public static async updateCompanyService(id: string, data: Partial<{
+    registered_company_name: string;
+    company_address: string;
+    office_email: string;
+    legal_entity_structure: string;
+    company_registration_number: string;
+    date_of_incorporation: Date;
+    corporate_website: string;
+    directory_signature_name: string;
+    din: string;
+  }>) {
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid company ID format');
+    }
+
+    // Check if company exists
+    const existingCompany = await CompanyCreate.findById(id);
+    if (!existingCompany) {
+      throw new Error('Company not found');
+    }
+
+    // Validate email if being updated
+    if (data.office_email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(data.office_email)) {
+        throw new Error('Invalid email format');
+      }
+
+      // Check for duplicate email
+      const companyWithSameEmail = await CompanyCreate.findOne({
+        office_email: data.office_email.toLowerCase(),
+        _id: { $ne: id }
+      });
+      
+      if (companyWithSameEmail) {
+        throw new Error('Company with this email already exists');
+      }
+      
+      data.office_email = data.office_email.toLowerCase();
+    }
+
+    // Validate date if being updated
+    if (data.date_of_incorporation) {
+      const incorporationDate = new Date(data.date_of_incorporation);
+      if (isNaN(incorporationDate.getTime())) {
+        throw new Error('Invalid date format for date_of_incorporation');
+      }
+
+      const today = new Date();
+      if (incorporationDate > today) {
+        throw new Error('Date of incorporation cannot be in the future');
+      }
+      
+      data.date_of_incorporation = incorporationDate;
+    }
+
+    // Validate registration number if being updated
+    if (data.company_registration_number) {
+      const companyWithSameRegNo = await CompanyCreate.findOne({
+        company_registration_number: data.company_registration_number,
+        _id: { $ne: id }
+      });
+      
+      if (companyWithSameRegNo) {
+        throw new Error('Company with this registration number already exists');
+      }
+    }
+
+    // Validate DIN if being updated
+    if (data.din) {
+      const companyWithSameDIN = await CompanyCreate.findOne({
+        din: data.din,
+        _id: { $ne: id }
+      });
+      
+      if (companyWithSameDIN) {
+        throw new Error('Company with this DIN already exists');
+      }
+    }
+
+    // Validate website if being updated
+    if (data.corporate_website) {
+      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+      if (!urlRegex.test(data.corporate_website)) {
+        throw new Error('Invalid website URL format');
+      }
+    }
+
+    // Update company
+    const updatedCompany = await CompanyCreate.findByIdAndUpdate(
+      id,
+      data,
+      { new: true, runValidators: true }
+    ).select('-__v');
+
+    return updatedCompany;
+  }
+
+  /**
+   * Delete company by ID
+   */
+  public static async deleteCompanyService(id: string) {
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid company ID format');
+    }
+
+    const deletedCompany = await CompanyCreate.findByIdAndDelete(id);
+    
+    if (!deletedCompany) {
+      throw new Error('Company not found');
+    }
+
+    return deletedCompany;
+  }
+
+  /**
+   * Check if company exists by ID
+   */
+  public static async checkCompanyExists(id: string): Promise<boolean> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return false;
+    }
+    const company = await CompanyCreate.findById(id);
+    return !!company;
+  }
+
+  /**
+   * Search companies by name or email
+   */
+  public static async searchCompaniesService(searchTerm: string, limit: number = 10) {
+    if (!searchTerm || searchTerm.trim() === '') {
+      throw new Error('Search term is required');
+    }
+
+    const companies = await CompanyCreate.find({
+      $or: [
+        { registered_company_name: { $regex: searchTerm, $options: 'i' } },
+        { office_email: { $regex: searchTerm, $options: 'i' } }
+      ]
+    })
+    .select('registered_company_name office_email company_registration_number')
+    .limit(limit)
+    .sort({ registered_company_name: 1 });
+
+    return companies;
+  }
+  // Create Complete Vendor with Audit Trail
+  async createCompleteVendor(
+  vendorData: Partial<IVendorCreate>,
+  createdBy: Types.ObjectId,
+  userEmail: string,
+  userRole: string,
+  req?: any
+): Promise<IVendorCreate> {
+  try {
+    // Validate vendor data
+    VendorValidationService.validateCompleteVendorData(vendorData);
+
+    // ===== IMPORTANT: Validate company_registration_number =====
+    if (vendorData.company_registration_number) {
+      const companyExists = await CompanyCreate.findOne({
+        company_registration_number: vendorData.company_registration_number
+      });
+
+      if (!companyExists) {
+        throw new Error(`Company with registration number "${vendorData.company_registration_number}" does not exist. Please create the company first.`);
+      }
+
+      // Optionally, you can also link the company ID to the vendor
+      // vendorData.company = companyExists._id;
+    } else {
+      throw new Error('Company registration number is required');
+    }
+    // ===== END VALIDATION =====
+
+    // Check for duplicate vendor email
+    const existingVendorByEmail = await VendorCreate.findOne({
+      vendor_email: vendorData.vendor_email?.toLowerCase()
+    });
+
+    if (existingVendorByEmail) {
+      throw new Error('Vendor with this email already exists');
+    }
+
+    // Generate vendor ID if not provided
+    if (!vendorData.vendor_id) {
+      vendorData.vendor_id = this.generateVendorId();
+    } else {
+      // Check for duplicate vendor ID if provided
+      const existingVendorById = await VendorCreate.findOne({
+        vendor_id: vendorData.vendor_id
+      });
+
+      if (existingVendorById) {
+        throw new Error('Vendor with this ID already exists');
+      }
+    }
+
+    // Prepare vendor data with defaults
+    const completeVendorData = {
+      ...vendorData,
+      createdBy,
+      verification_status: 'pending',
+      verified_by: undefined
+    };
+
+    const vendor = new VendorCreate(completeVendorData);
+    const savedVendor = await vendor.save();
+
+    // Create audit trail record
+    await this.createVendorAuditRecord(
+      createdBy,
+      userEmail,
+      userRole,
+      'create',
+      `Created new vendor: ${savedVendor.vendor_name}`,
+      savedVendor._id as Types.ObjectId,
+      savedVendor.vendor_name,
+      savedVendor.vendor_id,
+      undefined,
+      savedVendor.toObject(),
+      req
+    );
+
+    return savedVendor;
+  } catch (error: any) {
+    throw new Error(`Error creating vendor: ${error.message}`);
+  }
+}
   // Enhanced Update Vendor with Audit Trail
   async updateVendor(
     id: string, 
@@ -732,37 +1094,57 @@ export class VendorService {
   }
 
   // Bulk Create Vendors
-  async createBulkVendors(
-    vendorsData: Partial<IVendorCreate>[],
-    createdBy: Types.ObjectId
-  ): Promise<{ 
-    successful: any[]; 
-    failed: any[]; 
-  }> {
-    const successful: any[] = [];
-    const failed: any[] = [];
+async createBulkVendors(
+  vendorsData: Partial<IVendorCreate>[],
+  createdBy: Types.ObjectId
+): Promise<{ 
+  successful: any[]; 
+  failed: any[]; 
+}> {
+  const successful: any[] = [];
+  const failed: any[] = [];
 
-    for (let i = 0; i < vendorsData.length; i++) {
-      try {
-        const result = await this.createCompleteVendor(vendorsData[i], createdBy, '', 'vendor_admin');
-        successful.push({
-          index: i,
-          vendor_name: result.vendor_name,
-          vendor_id: result.vendor_id,
-          data: result
+  for (let i = 0; i < vendorsData.length; i++) {
+    try {
+      // ===== IMPORTANT: Validate company_registration_number for each vendor =====
+      if (vendorsData[i].company_registration_number) {
+        const companyExists = await CompanyCreate.findOne({
+          company_registration_number: vendorsData[i].company_registration_number
         });
-      } catch (error: any) {
-        failed.push({
-          index: i,
-          vendor_name: vendorsData[i].vendor_name,
-          error: error.message
-        });
+
+        if (!companyExists) {
+          throw new Error(`Company with registration number "${vendorsData[i].company_registration_number}" does not exist`);
+        }
+      } else {
+        throw new Error('Company registration number is required');
       }
-    }
+      // ===== END VALIDATION =====
 
-    return { successful, failed };
+      const result = await this.createCompleteVendor(
+        vendorsData[i], 
+        createdBy, 
+        '', 
+        'vendor_admin'
+      );
+      successful.push({
+        index: i,
+        vendor_name: result.vendor_name,
+        vendor_id: result.vendor_id,
+        company_registration_number: result.company_registration_number,
+        data: result
+      });
+    } catch (error: any) {
+      failed.push({
+        index: i,
+        vendor_name: vendorsData[i].vendor_name,
+        company_registration_number: vendorsData[i].company_registration_number,
+        error: error.message
+      });
+    }
   }
 
+  return { successful, failed };
+}
   // Get Vendor Admin Dashboard Data
   async getVendorAdminDashboard(
     createdBy: Types.ObjectId,

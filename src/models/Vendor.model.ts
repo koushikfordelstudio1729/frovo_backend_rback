@@ -12,6 +12,71 @@ export interface IVendorDocument {
   uploaded_at: Date;
 }
 
+export interface ICompanyCreate extends Document {
+  registered_company_name: string;
+  company_address: string;
+  office_email: string;
+  legal_entity_structure: string;
+  company_registration_number: string;
+  date_of_incorporation: Date;
+  corporate_website: string;
+  directory_signature_name: string;
+  din: string;
+}
+const companyCreateSchema = new Schema<ICompanyCreate>({
+  registered_company_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  company_address: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  office_email: {
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true,
+    unique: true
+  },
+  legal_entity_structure: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  company_registration_number: {
+    type: String,
+    required: true,
+    trim: true,
+    unique: true
+  },
+  date_of_incorporation: {
+    type: Date,
+    required: true
+  },
+  corporate_website: {
+    type: String,
+    required: false,
+    trim: true
+  },
+  directory_signature_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  din: {
+    type: String,
+    required: true,
+    trim: true,
+    unique: true
+  }
+}, {
+  timestamps: true,
+  collection: 'companies'
+});
+export const CompanyCreate = mongoose.model<ICompanyCreate>('CompanyCreate', companyCreateSchema);
 export interface IVendorCreate extends Document {
   // Basic Information
   vendor_name: string;
@@ -23,6 +88,7 @@ export interface IVendorCreate extends Document {
   vendor_email: string;
   vendor_address: string;
   vendor_id: string;
+  company_registration_number: string;
 
   // Financial Information
   bank_account_number: string;
@@ -148,6 +214,22 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     required: true,
     unique: true,
     trim: true
+  },
+  company_registration_number: {
+    type: String,
+    required: true,
+    trim: true,
+    references: 'CompanyCreate',
+    validate: {
+    validator: async function(value: string) {
+      // Check if company exists with this registration number
+      const company = await mongoose.model('CompanyCreate').findOne({ 
+        company_registration_number: value 
+      });
+      return !!company; // Return true if company exists
+    },
+    message: 'Company with this registration number does not exist'
+  }
   },
 
   // Financial Information

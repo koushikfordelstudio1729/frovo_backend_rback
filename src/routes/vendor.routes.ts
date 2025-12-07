@@ -15,6 +15,19 @@ const SUPER_ADMIN_ONLY = ['super_admin'];
 const VENDOR_MANAGEMENT = ['super_admin', 'vendor_admin'];
 const READ_ACCESS = ['super_admin', 'vendor_admin', 'ops_manager', 'finance_manager'];
 
+// Company routes (static methods)
+router.post('/companies', VendorController.createCompany);
+router.get('/companies', VendorController.getAllCompanies);
+router.get('/companies/search', VendorController.searchCompanies);
+router.get('/companies/:id', VendorController.getCompanyById);
+router.put('/companies/:id', VendorController.updateCompany);
+router.delete('/companies/:id', VendorController.deleteCompany);
+router.get('/companies/:id/exists', VendorController.checkCompanyExists);
+
+// Vendor routes (instance methods)
+router.get('/vendors/dashboard/super-admin', vendorController.getSuperAdminDashboard.bind(vendorController));
+router.get('/vendors/dashboard/admin', vendorController.getVendorAdminDashboard.bind(vendorController));
+router.post('/vendors', vendorController.createCompleteVendor.bind(vendorController));
 // Super Admin Dashboard Routes
 router.get('/super-admin/dashboard', authorize(SUPER_ADMIN_ONLY), vendorController.getSuperAdminDashboard.bind(vendorController));
 router.get('/super-admin/vendors', authorize(SUPER_ADMIN_ONLY), vendorController.getAllVendorsForSuperAdmin.bind(vendorController));

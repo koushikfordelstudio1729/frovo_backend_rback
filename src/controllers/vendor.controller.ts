@@ -6,6 +6,7 @@ import { AuditTrailService } from '../services/auditTrail.service';
 const vendorService = new VendorService();
 const auditTrailService = new AuditTrailService();
 
+
 export class VendorController {
   
   // Utility function to safely extract user
@@ -21,6 +22,340 @@ export class VendorController {
       roles: user.roles || [],
       email: user.email || ''
     };
+  }
+
+  /**
+   * Create a new company
+   */
+  public static async createCompany(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        registered_company_name,
+        company_address,
+        office_email,
+        legal_entity_structure,
+        company_registration_number,
+        date_of_incorporation,
+        corporate_website,
+        directory_signature_name,
+        din
+      } = req.body;
+
+      // Validate date format
+      let parsedDate: Date;
+      if (date_of_incorporation) {
+        parsedDate = new Date(date_of_incorporation);
+        if (isNaN(parsedDate.getTime())) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)'
+          });
+          return;
+        }
+      }
+
+      const companyData = {
+        registered_company_name,
+        company_address,
+        office_email,
+        legal_entity_structure,
+        company_registration_number,
+        date_of_incorporation: parsedDate!,
+        corporate_website,
+        directory_signature_name,
+        din
+      };
+
+      // Call the static method from VendorService
+      const newCompany = await VendorService.createCompanyService(companyData);
+
+      res.status(201).json({
+        success: true,
+        message: 'Company created successfully',
+        data: newCompany
+      });
+
+    } catch (error) {
+      console.error('Error creating company:', error);
+      
+      // Handle duplicate key errors
+      if (error instanceof Error) {
+        if (error.message.includes('already exists') || error.message.includes('duplicate key')) {
+          res.status(409).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+        
+        if (error.message.includes('Invalid') || error.message.includes('Missing')) {
+          res.status(400).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Get all companies
+   */
+  public static async getAllCompanies(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const result = await VendorService.getAllCompaniesService({
+        page: Number(page),
+        limit: Number(limit),
+        search: search as string,
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc'
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Companies retrieved successfully',
+        data: result.data,
+        pagination: result.pagination
+      });
+
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Get company by ID
+   */
+  public static async getCompanyById(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const company = await VendorService.getCompanyByIdService(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Company retrieved successfully',
+        data: company
+      });
+
+    } catch (error) {
+      console.error('Error fetching company:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+          res.status(404).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Update company
+   */
+  public static async updateCompany(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      // Validate date format if provided
+      if (updateData.date_of_incorporation) {
+        const parsedDate = new Date(updateData.date_of_incorporation);
+        if (isNaN(parsedDate.getTime())) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)'
+          });
+          return;
+        }
+        updateData.date_of_incorporation = parsedDate;
+      }
+
+      const updatedCompany = await VendorService.updateCompanyService(id, updateData);
+
+      if (!updatedCompany) {
+        res.status(404).json({
+          success: false,
+          message: 'Company not found'
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Company updated successfully',
+        data: updatedCompany
+      });
+
+    } catch (error) {
+      console.error('Error updating company:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+          res.status(404).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+        
+        if (error.message.includes('already exists')) {
+          res.status(409).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+        
+        if (error.message.includes('Invalid') || error.message.includes('cannot be')) {
+          res.status(400).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Delete company
+   */
+  public static async deleteCompany(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const deletedCompany = await VendorService.deleteCompanyService(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Company deleted successfully',
+        data: deletedCompany
+      });
+
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+          res.status(404).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Search companies
+   */
+  public static async searchCompanies(req: Request, res: Response): Promise<void> {
+    try {
+      const { q, limit = 10 } = req.query;
+
+      if (!q || typeof q !== 'string' || q.trim() === '') {
+        res.status(400).json({
+          success: false,
+          message: 'Search query is required'
+        });
+        return;
+      }
+
+      const companies = await VendorService.searchCompaniesService(q, Number(limit));
+
+      res.status(200).json({
+        success: true,
+        message: 'Companies search completed',
+        data: companies
+      });
+
+    } catch (error) {
+      console.error('Error searching companies:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('required')) {
+          res.status(400).json({
+            success: false,
+            message: error.message
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Check if company exists
+   */
+  public static async checkCompanyExists(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const exists = await VendorService.checkCompanyExists(id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Company existence checked',
+        data: { exists }
+      });
+
+    } catch (error) {
+      console.error('Error checking company existence:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   // Get Super Admin Dashboard with filters
