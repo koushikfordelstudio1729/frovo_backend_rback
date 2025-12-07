@@ -608,7 +608,105 @@ export class VendorController {
       });
     }
   }
+// In VendorController.ts, add these static methods:
 
+/**
+ * Get vendors by company registration number
+ */
+public static async getVendorsByCompany(req: Request, res: Response): Promise<void> {
+  try {
+    const { company_registration_number } = req.params;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      verification_status,
+      risk_rating,
+      vendor_category
+    } = req.query;
+
+    if (!company_registration_number) {
+      res.status(400).json({
+        success: false,
+        message: 'Company registration number is required'
+      });
+      return;
+    }
+
+    const result = await VendorService.getVendorsByCompanyService(
+      company_registration_number,
+      {
+        page: Number(page),
+        limit: Number(limit),
+        search: search as string,
+        verification_status: verification_status as string,
+        risk_rating: risk_rating as string,
+        vendor_category: vendor_category as string
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Vendors retrieved successfully',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Error fetching vendors by company:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Company not found')) {
+        res.status(404).json({
+          success: false,
+          message: error.message
+        });
+        return;
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
+/**
+ * Get company details with vendor statistics
+ */
+public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const result = await VendorService.getCompanyWithVendorStatsService(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Company with vendor statistics retrieved successfully',
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Error fetching company with vendor stats:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Company not found')) {
+        res.status(404).json({
+          success: false,
+          message: error.message
+        });
+        return;
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
   // Get Vendor by ID
   async getVendorById(req: Request, res: Response) {
     try {

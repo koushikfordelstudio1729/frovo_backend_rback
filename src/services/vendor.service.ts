@@ -1145,6 +1145,196 @@ async createBulkVendors(
 
   return { successful, failed };
 }
+// In VendorService.ts, add these methods:
+
+/**
+ * Get all vendors for a specific company
+ */
+public static async getVendorsByCompanyService(companyRegistrationNumber: string, query: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  verification_status?: string;
+  risk_rating?: string;
+  vendor_category?: string;
+} = {}) {
+  
+  // First, verify company exists
+  const company = await CompanyCreate.findOne({ 
+    company_registration_number: companyRegistrationNumber 
+  });
+  
+  if (!company) {
+    throw new Error('Company not found');
+  }
+
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    verification_status,
+    risk_rating,
+    vendor_category
+  } = query;
+
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+
+  let filter: any = {
+    company_registration_number: companyRegistrationNumber
+  };
+
+  // Add optional filters
+  if (verification_status) {
+    filter.verification_status = verification_status;
+  }
+
+  if (risk_rating) {
+    filter.risk_rating = risk_rating;
+  }
+
+  if (vendor_category) {
+    filter.vendor_category = vendor_category;
+  }
+
+  if (search) {
+    filter.$or = [
+      { vendor_name: { $regex: search, $options: 'i' } },
+      { vendor_email: { $regex: search, $options: 'i' } },
+      { vendor_id: { $regex: search, $options: 'i' } },
+      { primary_contact_name: { $regex: search, $options: 'i' } },
+      { vendor_category: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  const [vendors, totalCount] = await Promise.all([
+    VendorCreate.find(filter)
+      .populate('createdBy', 'name email')
+      .populate('verified_by', 'name email')
+      .select('-__v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+
+    VendorCreate.countDocuments(filter)
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limitNum);
+
+  return {
+    company: {
+      _id: company._id,
+      registered_company_name: company.registered_company_name,
+      company_registration_number: company.company_registration_number,
+      office_email: company.office_email
+    },
+    vendors: vendors,
+    pagination: {
+      currentPage: pageNum,
+      totalPages,
+      totalCount,
+      hasNextPage: pageNum < totalPages,
+      hasPreviousPage: pageNum > 1,
+      limit: limitNum
+    }
+  };
+}
+
+/**
+ * Get company with vendor statistics
+ */
+public static async getCompanyWithVendorStatsService(companyId: string) {
+  // Get company details
+  const company = await CompanyCreate.findById(companyId).select('-__v');
+  
+  if (!company) {
+    throw new Error('Company not found');
+  }
+
+  // Get vendor statistics for this company
+  const vendorStats = await VendorCreate.aggregate([
+    {
+      $match: {
+        company_registration_number: company.company_registration_number
+      }
+    },
+    {
+      $group: {
+        _id: '$verification_status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  // Get vendors by category
+  const vendorsByCategory = await VendorCreate.aggregate([
+    {
+      $match: {
+        company_registration_number: company.company_registration_number
+      }
+    },
+    {
+      $group: {
+        _id: '$vendor_category',
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+
+  // Get vendors by risk rating
+  const vendorsByRisk = await VendorCreate.aggregate([
+    {
+      $match: {
+        company_registration_number: company.company_registration_number
+      }
+    },
+    {
+      $group: {
+        _id: '$risk_rating',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  // Get recent vendors (last 5)
+  const recentVendors = await VendorCreate.find({
+    company_registration_number: company.company_registration_number
+  })
+  .populate('createdBy', 'name email')
+  .select('vendor_name vendor_id vendor_category verification_status risk_rating createdAt')
+  .sort({ createdAt: -1 })
+  .limit(5);
+
+  // Calculate total vendors
+  const totalVendors = await VendorCreate.countDocuments({
+    company_registration_number: company.company_registration_number
+  });
+
+  // Transform vendor stats
+  const statsObject = {
+    pending: 0,
+    verified: 0,
+    failed: 0,
+    rejected: 0
+  };
+
+  vendorStats.forEach(stat => {
+    statsObject[stat._id] = stat.count;
+  });
+
+  return {
+    company: company,
+    statistics: {
+      total_vendors: totalVendors,
+      by_status: statsObject,
+      by_category: vendorsByCategory,
+      by_risk: vendorsByRisk
+    },
+    recent_vendors: recentVendors
+  };
+}
   // Get Vendor Admin Dashboard Data
   async getVendorAdminDashboard(
     createdBy: Types.ObjectId,

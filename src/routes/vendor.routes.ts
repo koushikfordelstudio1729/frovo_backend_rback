@@ -28,6 +28,9 @@ router.get('/companies/:id/exists', VendorController.checkCompanyExists);
 router.get('/vendors/dashboard/super-admin', vendorController.getSuperAdminDashboard.bind(vendorController));
 router.get('/vendors/dashboard/admin', vendorController.getVendorAdminDashboard.bind(vendorController));
 router.post('/vendors', vendorController.createCompleteVendor.bind(vendorController));
+// In your routes file, add:
+router.get('/companies/:id/vendors', VendorController.getCompanyWithVendorStats);
+router.get('/vendors/company/:company_registration_number', VendorController.getVendorsByCompany);
 // Super Admin Dashboard Routes
 router.get('/super-admin/dashboard', authorize(SUPER_ADMIN_ONLY), vendorController.getSuperAdminDashboard.bind(vendorController));
 router.get('/super-admin/vendors', authorize(SUPER_ADMIN_ONLY), vendorController.getAllVendorsForSuperAdmin.bind(vendorController));
