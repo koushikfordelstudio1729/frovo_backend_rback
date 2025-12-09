@@ -953,7 +953,85 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       });
     }
   }
+// In VendorController.ts, add this method:
 
+/**
+ * Quick Verify/Reject Vendor from route
+ * PUT /vendors/:id/quick-verify - automatically verifies vendor
+ * PUT /vendors/:id/quick-reject - automatically rejects vendor
+ */
+async quickVerifyOrRejectVendor(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const action = req.path.split('/').pop(); // Get 'quick-verify' or 'quick-reject'
+    const { _id: verifiedBy, roles, email: userEmail } = this.getLoggedInUser(req);
+    const userRole = roles[0]?.key;
+
+    // Validate user is Super Admin
+    if (userRole !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin can verify or reject vendors'
+      });
+    }
+
+    let verificationStatus: 'verified' | 'rejected';
+    let actionDescription: string;
+
+    // Determine action based on route
+    if (action === 'quick-verify') {
+      verificationStatus = 'verified';
+      actionDescription = 'Vendor quickly verified via quick-verify route';
+    } else if (action === 'quick-reject') {
+      verificationStatus = 'rejected';
+      actionDescription = 'Vendor quickly rejected via quick-reject route';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Use quick-verify or quick-reject'
+      });
+    }
+
+    // Call service method
+    const updatedVendor = await vendorService.quickVerifyOrRejectVendor(
+      id,
+      verificationStatus,
+      verifiedBy,
+      userEmail,
+      userRole,
+      actionDescription,
+      req
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Vendor ${verificationStatus} successfully`,
+      data: updatedVendor
+    });
+
+  } catch (error: any) {
+    console.error('Error in quick verify/reject:', error);
+    
+    if (error.message.includes('Only Super Admin')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    if (error.message.includes('Vendor not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
   // Toggle Vendor Verification (Verify ↔ Reject)
   async toggleVendorVerification(req: Request, res: Response) {
     try {

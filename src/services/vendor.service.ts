@@ -374,13 +374,29 @@ export class VendorService {
       if (!companyExists) {
         throw new Error(`Company with registration number "${vendorData.company_registration_number}" does not exist. Please create the company first.`);
       }
-
-      // Optionally, you can also link the company ID to the vendor
-      // vendorData.company = companyExists._id;
     } else {
       throw new Error('Company registration number is required');
     }
     // ===== END VALIDATION =====
+
+    // ===== VERIFICATION STATUS CONTROL =====
+    // Only super_admin can set verification_status to "verified" during creation
+    // All other roles (vendor_admin, etc.) will have default "pending" status
+    let verificationStatus = 'pending';
+    
+    if (vendorData.verification_status) {
+      if (userRole === 'super_admin') {
+        // Super admin can set any verification status
+        verificationStatus = vendorData.verification_status;
+      } else {
+        // Non-super admins can only set to "pending"
+        if (vendorData.verification_status !== 'pending') {
+          throw new Error('Only Super Admin can set verification status to verified/failed/rejected');
+        }
+        verificationStatus = vendorData.verification_status;
+      }
+    }
+    // ===== END VERIFICATION STATUS CONTROL =====
 
     // Check for duplicate vendor email
     const existingVendorByEmail = await VendorCreate.findOne({
@@ -409,8 +425,8 @@ export class VendorService {
     const completeVendorData = {
       ...vendorData,
       createdBy,
-      verification_status: 'pending',
-      verified_by: undefined
+      verification_status: verificationStatus,  // Use controlled verification status
+      verified_by: verificationStatus === 'verified' ? createdBy : undefined
     };
 
     const vendor = new VendorCreate(completeVendorData);
@@ -930,7 +946,80 @@ export class VendorService {
       throw new Error(`Error bulk updating vendor verification: ${error.message}`);
     }
   }
+// In VendorService.ts, add this method:
 
+/**
+ * Quick Verify/Reject Vendor (automatic, no body required)
+ */
+async quickVerifyOrRejectVendor(
+  vendorId: string,
+  verificationStatus: 'verified' | 'rejected',
+  verifiedBy: Types.ObjectId,
+  userEmail: string,
+  userRole: string,
+  actionDescription: string,
+  req?: any
+): Promise<IVendorCreate> {
+  try {
+    // Check if user is Super Admin
+    if (userRole !== 'super_admin') {
+      throw new Error('Only Super Admin can verify or reject vendors');
+    }
+
+    // Get current state before update
+    const currentVendor = await VendorCreate.findById(vendorId);
+    if (!currentVendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      verification_status: verificationStatus,
+      verified_by: verifiedBy,
+      updatedAt: new Date()
+    };
+
+    // Add automatic notes based on action
+    const timestamp = new Date().toISOString();
+    if (verificationStatus === 'verified') {
+      updateData.risk_notes = `QUICK VERIFIED via API route on ${timestamp}. ${actionDescription}`;
+    } else {
+      updateData.risk_notes = `QUICK REJECTED via API route on ${timestamp}. ${actionDescription}`;
+    }
+
+    // Update vendor
+    const updatedVendor = await VendorCreate.findByIdAndUpdate(
+      vendorId,
+      updateData,
+      { new: true, runValidators: true }
+    )
+    .populate('verified_by', 'name email')
+    .populate('createdBy', 'name email');
+
+    if (!updatedVendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // Create audit trail record
+    await this.createVendorAuditRecord(
+      verifiedBy,
+      userEmail,
+      userRole,
+      'quick_status_change',
+      `Quick ${verificationStatus} vendor via API route: ${actionDescription}`,
+      updatedVendor._id as Types.ObjectId,
+      updatedVendor.vendor_name,
+      updatedVendor.vendor_id,
+      currentVendor.toObject(),
+      updatedVendor.toObject(),
+      req
+    );
+
+    return updatedVendor;
+  } catch (error: any) {
+    throw new Error(`Error quick ${verificationStatus} vendor: ${error.message}`);
+  }
+}
   // Get Vendor Statistics for Super Admin
   async getVendorStatistics(): Promise<{
     total_vendors: number;

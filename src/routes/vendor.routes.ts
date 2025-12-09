@@ -42,6 +42,10 @@ router.patch('/:id/verify', authorize(SUPER_ADMIN_ONLY), vendorController.update
 router.patch('/:id/toggle-verification', authorize(SUPER_ADMIN_ONLY), vendorController.toggleVendorVerification.bind(vendorController));
 router.post('/bulk-verify', authorize(SUPER_ADMIN_ONLY), vendorController.bulkUpdateVendorVerification.bind(vendorController));
 
+// NEW: Quick verify/reject routes (no body required)
+router.put('/:id/quick-verify', authorize(SUPER_ADMIN_ONLY), vendorController.quickVerifyOrRejectVendor.bind(vendorController));
+router.put('/:id/quick-reject', authorize(SUPER_ADMIN_ONLY), vendorController.quickVerifyOrRejectVendor.bind(vendorController));
+
 // Vendor Creation
 router.post('/create', authorize(VENDOR_MANAGEMENT), vendorController.createCompleteVendor.bind(vendorController));
 router.post('/bulk-create', authorize(VENDOR_MANAGEMENT), vendorController.createBulkVendors.bind(vendorController));
