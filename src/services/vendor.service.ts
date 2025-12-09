@@ -641,97 +641,261 @@ export class VendorService {
   }
 
   // Get Super Admin Dashboard Data - Show ALL vendors
+
   async getSuperAdminDashboard(filters: {
-    verification_status?: string;
-    risk_rating?: string;
-    vendor_category?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {}): Promise<{
-    total_vendors: number;
-    pending_approvals: number;
-    active_vendors: number;
-    rejected_vendors: number;
-    vendors: any[];
-  }> {
-    try {
-      // Get counts with proper filtering
-      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-        VendorCreate.countDocuments(),
-        VendorCreate.countDocuments({ verification_status: 'pending' }),
-        VendorCreate.countDocuments({ verification_status: 'verified' }),
-        VendorCreate.countDocuments({ verification_status: 'rejected' })
-      ]);
+  verification_status?: string;
+  risk_rating?: string;
+  vendor_category?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<{
+  total_vendors: number;
+  pending_approvals: number;
+  active_vendors: number;
+  rejected_vendors: number;
+  vendors: any[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    limit: number;
+  };
+}> {
+  try {
+    console.log('👑 SUPER ADMIN DASHBOARD');
+    console.log('🔍 Filters:', filters);
 
-      // Build query for vendors
-      const query: any = {};
+    // Get counts with proper filtering
+    const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
+      VendorCreate.countDocuments(),
+      VendorCreate.countDocuments({ verification_status: 'pending' }),
+      VendorCreate.countDocuments({ verification_status: 'verified' }),
+      VendorCreate.countDocuments({ verification_status: 'rejected' })
+    ]);
 
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
+    console.log('📈 Counts:', { 
+      totalVendors, 
+      pendingApprovals, 
+      activeVendors, 
+      rejectedVendors 
+    });
 
-      if (filters.risk_rating) {
-        query.risk_rating = filters.risk_rating;
-      }
+    // Build query for vendors
+    const query: any = {};
 
-      if (filters.vendor_category) {
-        query.vendor_category = filters.vendor_category;
-      }
+    if (filters.verification_status) {
+      query.verification_status = filters.verification_status;
+    }
 
-      if (filters.search) {
-        query.$or = [
-          { vendor_name: { $regex: filters.search, $options: 'i' } },
-          { vendor_email: { $regex: filters.search, $options: 'i' } },
-          { vendor_id: { $regex: filters.search, $options: 'i' } },
-          { primary_contact_name: { $regex: filters.search, $options: 'i' } },
-          { vendor_category: { $regex: filters.search, $options: 'i' } }
-        ];
-      }
+    if (filters.risk_rating) {
+      query.risk_rating = filters.risk_rating;
+    }
 
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
-      const skip = (page - 1) * limit;
+    if (filters.vendor_category) {
+      query.vendor_category = filters.vendor_category;
+    }
 
-      // Get ALL vendors for the dashboard table with creator information
-      const vendors = await VendorCreate.find(query)
+    if (filters.search) {
+      query.$or = [
+        { vendor_name: { $regex: filters.search, $options: 'i' } },
+        { vendor_email: { $regex: filters.search, $options: 'i' } },
+        { vendor_id: { $regex: filters.search, $options: 'i' } },
+        { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+        { vendor_category: { $regex: filters.search, $options: 'i' } }
+      ];
+    }
+
+    console.log('🔍 Final Query:', JSON.stringify(query, null, 2));
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const skip = (page - 1) * limit;
+
+    // Get ALL vendors for the dashboard table
+    const [vendors, totalCount] = await Promise.all([
+      VendorCreate.find(query)
         .populate('createdBy', 'name email')
         .populate('verified_by', 'name email')
         .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .lean();
+        .lean(),
+      VendorCreate.countDocuments(query)
+    ]);
 
-      const dashboardVendors = vendors.map(vendor => ({
-        _id: vendor._id,
-        vendor_id: vendor.vendor_id,
-        vendor_name: vendor.vendor_name,
-        vendor_category: vendor.vendor_category,
-        verification_status: vendor.verification_status,
-        risk_rating: vendor.risk_rating,
-        contract_expiry_date: vendor.contract_expiry_date,
-        created_by: vendor.createdBy,
-        verified_by: vendor.verified_by,
-        created_at: vendor.createdAt,
-        updated_at: vendor.updatedAt,
-        // Actions based on current status
-        actions: this.getAvailableActions(vendor.verification_status)
-      }));
+    console.log('✅ Vendors found:', vendors.length);
+    console.log('📊 Total count with filters:', totalCount);
 
-      return {
-        total_vendors: totalVendors,
-        pending_approvals: pendingApprovals,
-        active_vendors: activeVendors,
-        rejected_vendors: rejectedVendors,
-        vendors: dashboardVendors
-      };
+    const dashboardVendors = vendors.map(vendor => ({
+      _id: vendor._id,
+      vendor_id: vendor.vendor_id,
+      vendor_name: vendor.vendor_name,
+      vendor_category: vendor.vendor_category,
+      verification_status: vendor.verification_status,
+      risk_rating: vendor.risk_rating,
+      contract_expiry_date: vendor.contract_expiry_date,
+      created_by: vendor.createdBy,
+      verified_by: vendor.verified_by,
+      created_at: vendor.createdAt,
+      updated_at: vendor.updatedAt,
+      // ✅ DIFFERENCE: Super admin actions (can verify/reject)
+      actions: this.getAvailableActions(vendor.verification_status)
+    }));
 
-    } catch (error: any) {
-      throw new Error(`Error getting super admin dashboard: ${error.message}`);
-    }
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      total_vendors: totalVendors,
+      pending_approvals: pendingApprovals,
+      active_vendors: activeVendors,
+      rejected_vendors: rejectedVendors,
+      vendors: dashboardVendors,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+        limit
+      }
+    };
+
+  } catch (error: any) {
+    console.error('❌ Error getting super admin dashboard:', error);
+    throw new Error(`Error getting super admin dashboard: ${error.message}`);
   }
+}
+async getVendorAdminDashboard(filters: {
+  verification_status?: string;
+  risk_rating?: string;
+  vendor_category?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<{
+  total_vendors: number;
+  pending_approvals: number;
+  active_vendors: number;
+  rejected_vendors: number;
+  vendors: any[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    limit: number;
+  };
+}> {
+  try {
+    console.log('👑 SUPER ADMIN DASHBOARD');
+    console.log('🔍 Filters:', filters);
 
+    // Get counts with proper filtering
+    const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
+      VendorCreate.countDocuments(),
+      VendorCreate.countDocuments({ verification_status: 'pending' }),
+      VendorCreate.countDocuments({ verification_status: 'verified' }),
+      VendorCreate.countDocuments({ verification_status: 'rejected' })
+    ]);
+
+    console.log('📈 Counts:', { 
+      totalVendors, 
+      pendingApprovals, 
+      activeVendors, 
+      rejectedVendors 
+    });
+
+    // Build query for vendors
+    const query: any = {};
+
+    if (filters.verification_status) {
+      query.verification_status = filters.verification_status;
+    }
+
+    if (filters.risk_rating) {
+      query.risk_rating = filters.risk_rating;
+    }
+
+    if (filters.vendor_category) {
+      query.vendor_category = filters.vendor_category;
+    }
+
+    if (filters.search) {
+      query.$or = [
+        { vendor_name: { $regex: filters.search, $options: 'i' } },
+        { vendor_email: { $regex: filters.search, $options: 'i' } },
+        { vendor_id: { $regex: filters.search, $options: 'i' } },
+        { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+        { vendor_category: { $regex: filters.search, $options: 'i' } }
+      ];
+    }
+
+    console.log('🔍 Final Query:', JSON.stringify(query, null, 2));
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const skip = (page - 1) * limit;
+
+    // Get ALL vendors for the dashboard table
+    const [vendors, totalCount] = await Promise.all([
+      VendorCreate.find(query)
+        .populate('createdBy', 'name email')
+        .populate('verified_by', 'name email')
+        .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      VendorCreate.countDocuments(query)
+    ]);
+
+    console.log('✅ Vendors found:', vendors.length);
+    console.log('📊 Total count with filters:', totalCount);
+
+    const dashboardVendors = vendors.map(vendor => ({
+      _id: vendor._id,
+      vendor_id: vendor.vendor_id,
+      vendor_name: vendor.vendor_name,
+      vendor_category: vendor.vendor_category,
+      verification_status: vendor.verification_status,
+      risk_rating: vendor.risk_rating,
+      contract_expiry_date: vendor.contract_expiry_date,
+      created_by: vendor.createdBy,
+      verified_by: vendor.verified_by,
+      created_at: vendor.createdAt,
+      updated_at: vendor.updatedAt,
+      // ✅ DIFFERENCE: Super admin actions (can verify/reject)
+      actions: this.getAvailableActions(vendor.verification_status)
+    }));
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      total_vendors: totalVendors,
+      pending_approvals: pendingApprovals,
+      active_vendors: activeVendors,
+      rejected_vendors: rejectedVendors,
+      vendors: dashboardVendors,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+        limit
+      }
+    };
+
+  } catch (error: any) {
+    console.error('❌ Error getting super admin dashboard:', error);
+    throw new Error(`Error getting super admin dashboard: ${error.message}`);
+  }
+}
   // Helper method to determine available actions based on vendor status
   private getAvailableActions(verificationStatus: string): string[] {
     switch (verificationStatus) {
@@ -745,6 +909,23 @@ export class VendorService {
         return ['view', 'edit'];
     }
   }
+  // Get ALL Vendors Without Any Filters (Debug/Public)
+
+private getVendorAdminActions(verificationStatus: string): string[] {
+  // Vendor admin can view all vendors
+  // Can edit only pending vendors (not verified/rejected)
+  // Cannot verify/reject vendors (only super admin can)
+  switch (verificationStatus) {
+    case 'pending':
+      return ['view', 'edit']; // Can view and edit pending vendors
+    case 'verified':
+    case 'rejected':
+    case 'failed':
+      return ['view']; // Can only view verified/rejected/failed vendors
+    default:
+      return ['view'];
+  }
+}
 
   // Toggle Vendor Verification Status (Verify ↔ Reject)
   async toggleVendorVerification(
@@ -1425,108 +1606,7 @@ public static async getCompanyWithVendorStatsService(companyId: string) {
   };
 }
   // Get Vendor Admin Dashboard Data
-  async getVendorAdminDashboard(
-    createdBy: Types.ObjectId,
-    filters: {
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-      search?: string;
-      page?: number;
-      limit?: number;
-    } = {}
-  ): Promise<{
-    total_vendors: number;
-    pending_approvals: number;
-    active_vendors: number;
-    rejected_vendors: number;
-    vendors: any[];
-  }> {
-    try {
-      // Build query for vendor admin (only their own vendors)
-      const baseQuery: any = { createdBy };
-
-      // Get counts with vendor admin filtering
-      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-        VendorCreate.countDocuments(baseQuery),
-        VendorCreate.countDocuments({ ...baseQuery, verification_status: 'pending' }),
-        VendorCreate.countDocuments({ ...baseQuery, verification_status: 'verified' }),
-        VendorCreate.countDocuments({ ...baseQuery, verification_status: 'rejected' })
-      ]);
-
-      // Build complete query with filters
-      const query: any = { createdBy };
-
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_rating) {
-        query.risk_rating = filters.risk_rating;
-      }
-
-      if (filters.vendor_category) {
-        query.vendor_category = filters.vendor_category;
-      }
-
-      if (filters.search) {
-        query.$or = [
-          { vendor_name: { $regex: filters.search, $options: 'i' } },
-          { vendor_email: { $regex: filters.search, $options: 'i' } },
-          { vendor_id: { $regex: filters.search, $options: 'i' } },
-          { vendor_category: { $regex: filters.search, $options: 'i' } }
-        ];
-      }
-
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
-      const skip = (page - 1) * limit;
-
-      // Get vendors for the dashboard table (only vendor admin's vendors)
-      const vendors = await VendorCreate.find(query)
-        .populate('createdBy', 'name email')
-        .populate('verified_by', 'name email')
-        .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean();
-
-      const dashboardVendors = vendors.map(vendor => ({
-        _id: vendor._id,
-        vendor_id: vendor.vendor_id,
-        vendor_name: vendor.vendor_name,
-        vendor_category: vendor.vendor_category,
-        verification_status: vendor.verification_status,
-        risk_rating: vendor.risk_rating,
-        contract_expiry_date: vendor.contract_expiry_date,
-        created_by: vendor.createdBy,
-        verified_by: vendor.verified_by,
-        created_at: vendor.createdAt,
-        updated_at: vendor.updatedAt,
-        // Actions for vendor admin
-        actions: this.getVendorAdminActions(vendor.verification_status)
-      }));
-
-      return {
-        total_vendors: totalVendors,
-        pending_approvals: pendingApprovals,
-        active_vendors: activeVendors,
-        rejected_vendors: rejectedVendors,
-        vendors: dashboardVendors
-      };
-
-    } catch (error: any) {
-      throw new Error(`Error getting vendor admin dashboard: ${error.message}`);
-    }
-  }
-
-  // Helper method to determine available actions for vendor admin
-  private getVendorAdminActions(verificationStatus: string): string[] {
-    // Vendor admin can always view, edit, and delete their vendors
-    // But cannot change verification status (only super admin can do that)
-    return ['view', 'edit', 'delete'];
-  }
+ 
 
   // Update Vendor for Vendor Admin (with restrictions)
   async updateVendorForAdmin(

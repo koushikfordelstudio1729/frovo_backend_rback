@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { VendorService } from '../services/vendor.service';
 import { AuditTrailService } from '../services/auditTrail.service';
+import { VendorCreate } from '../models/Vendor.model';
 
 const vendorService = new VendorService();
 const auditTrailService = new AuditTrailService();
@@ -357,79 +358,84 @@ export class VendorController {
       });
     }
   }
+ // Vendor Admin Dashboard Controller
+// Super Admin Dashboard Controller
+async getVendorAdminDashboard(req: Request, res: Response) {
+  try {
+    console.log('👑 Vendor Admin Dashboard endpoint called');
+    
+    const { roles } = this.getLoggedInUser(req);
+    console.log('👥 User Roles:', roles.map(r => r.key));
 
-  // Get Super Admin Dashboard with filters
-  async getSuperAdminDashboard(req: Request, res: Response) {
-    try {
-      const { roles } = this.getLoggedInUser(req);
-      
-      // Validate user is Super Admin
-      if (!roles.some(role => role.key === 'super_admin')) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only Super Admin can access this dashboard'
-        });
-      }
+    const filters = {
+      verification_status: req.query.verification_status as string,
+      risk_rating: req.query.risk_rating as string,
+      vendor_category: req.query.vendor_category as string,
+      search: req.query.search as string,
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10
+    };
 
-      const filters = {
-        verification_status: req.query.verification_status as string,
-        risk_rating: req.query.risk_rating as string,
-        vendor_category: req.query.vendor_category as string,
-        search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
-      };
+    console.log('🔍 Filters:', filters);
 
-      const dashboardData = await vendorService.getSuperAdminDashboard(filters);
+    const dashboardData = await vendorService.getVendorAdminDashboard(filters);
 
-      res.status(200).json({
-        success: true,
-        data: dashboardData
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
+    console.log('✅ Dashboard data retrieved:', {
+      total_vendors: dashboardData.total_vendors,
+      vendors_count: dashboardData.vendors?.length || 0
+    });
+
+    res.status(200).json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching super admin dashboard:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
+}
 
-  // Get Vendor Admin Dashboard
-  async getVendorAdminDashboard(req: Request, res: Response) {
-    try {
-      const { _id: userId, roles } = this.getLoggedInUser(req);
+// Super Admin Dashboard Controller
+async getSuperAdminDashboard(req: Request, res: Response) {
+  try {
+    console.log('👑 Super Admin Dashboard endpoint called');
+    
+    const { roles } = this.getLoggedInUser(req);
+    console.log('👥 User Roles:', roles.map(r => r.key));
 
-      // Validate user is Vendor Admin or Super Admin
-      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only Super Admin or Vendor Admin can access this dashboard'
-        });
-      }
+    const filters = {
+      verification_status: req.query.verification_status as string,
+      risk_rating: req.query.risk_rating as string,
+      vendor_category: req.query.vendor_category as string,
+      search: req.query.search as string,
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10
+    };
 
-      const filters = {
-        verification_status: req.query.verification_status as string,
-        risk_rating: req.query.risk_rating as string,
-        vendor_category: req.query.vendor_category as string,
-        search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
-      };
+    console.log('🔍 Filters:', filters);
 
-      const dashboardData = await vendorService.getVendorAdminDashboard(userId, filters);
+    const dashboardData = await vendorService.getSuperAdminDashboard(filters);
 
-      res.status(200).json({
-        success: true,
-        data: dashboardData
-      });
-    } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
+    console.log('✅ Dashboard data retrieved:', {
+      total_vendors: dashboardData.total_vendors,
+      vendors_count: dashboardData.vendors?.length || 0
+    });
+
+    res.status(200).json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching super admin dashboard:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
-
+}
   // Get All Vendors for Super Admin
   async getAllVendorsForSuperAdmin(req: Request, res: Response) {
     try {
