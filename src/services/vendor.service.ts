@@ -126,63 +126,79 @@ export class VendorService {
    * Get all companies with pagination
    */
   public static async getAllCompaniesService(query: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  } = {}) {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = query;
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+} = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc'
+  } = query;
 
-    const pageNum = Number(page);
-    const limitNum = Number(limit);
-    const skip = (pageNum - 1) * limitNum;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
 
-    let filter: any = {};
+  let filter: any = {};
 
-    if (search) {
-      filter.$or = [
-        { registered_company_name: { $regex: search, $options: 'i' } },
-        { office_email: { $regex: search, $options: 'i' } },
-        { company_registration_number: { $regex: search, $options: 'i' } },
-        { din: { $regex: search, $options: 'i' } },
-        { directory_signature_name: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    const sort: any = {};
-    sort[String(sortBy)] = sortOrder === 'asc' ? 1 : -1;
-
-    const [companies, totalCount] = await Promise.all([
-      CompanyCreate.find(filter)
-        .select('-__v') // Exclude __v field
-        .sort(sort)
-        .skip(skip)
-        .limit(limitNum),
-
-      CompanyCreate.countDocuments(filter)
-    ]);
-
-    const totalPages = Math.ceil(totalCount / limitNum);
-
-    return {
-      data: companies,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalCount,
-        hasNextPage: pageNum < totalPages,
-        hasPreviousPage: pageNum > 1,
-        limit: limitNum
-      }
-    };
+  if (search) {
+    filter.$or = [
+      { registered_company_name: { $regex: search, $options: 'i' } },
+      { office_email: { $regex: search, $options: 'i' } },
+      { company_registration_number: { $regex: search, $options: 'i' } },
+      { din: { $regex: search, $options: 'i' } },
+      { directory_signature_name: { $regex: search, $options: 'i' } }
+    ];
   }
+
+  const sort: any = {};
+  sort[String(sortBy)] = sortOrder === 'asc' ? 1 : -1;
+
+  const [companies, totalCount] = await Promise.all([
+    CompanyCreate.find(filter)
+      .select('-__v')
+      .sort(sort)
+      .skip(skip)
+      .limit(limitNum),
+
+    CompanyCreate.countDocuments(filter)
+  ]);
+
+  // Get vendor counts for each company
+  const companiesWithVendorCounts = await Promise.all(
+    companies.map(async (company) => {
+      const vendorCount = await VendorCreate.countDocuments({
+        company_registration_number: company.company_registration_number
+      });
+      
+      // Convert to plain object and add vendorCount
+      const companyObj = company.toObject();
+      return {
+        ...companyObj,
+        vendorCount
+      };
+    })
+  );
+
+  const totalPages = Math.ceil(totalCount / limitNum);
+
+  return {
+    data: companiesWithVendorCounts,
+    pagination: {
+      currentPage: pageNum,
+      totalPages,
+      totalCount,
+      hasNextPage: pageNum < totalPages,
+      hasPreviousPage: pageNum > 1,
+      limit: limitNum
+    }
+  };
+}
 
   /**
    * Get company by ID
