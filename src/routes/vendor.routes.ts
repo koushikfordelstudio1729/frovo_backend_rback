@@ -27,7 +27,10 @@ router.get('/companies/:id', authorize(READ_ACCESS), VendorController.getCompany
 router.put('/companies/:id', authorize(VENDOR_MANAGEMENT), VendorController.updateCompany);
 router.delete('/companies/:id', authorize(SUPER_ADMIN_ONLY), VendorController.deleteCompany);
 router.get('/companies/:id/exists', authorize(READ_ACCESS), VendorController.checkCompanyExists);
-router.get('/companies/:id/vendors', authorize(READ_ACCESS), VendorController.getCompanyWithVendorStats);
+router.get('/companies/:company_registration_number/vendors', 
+  authorize(READ_ACCESS), 
+  VendorController.getCompanyWithVendorStats
+);
 router.get('/vendors/company/:company_registration_number', authorize(READ_ACCESS), VendorController.getVendorsByCompany);
 
 // ========== DASHBOARD ROUTES ==========

@@ -1514,85 +1514,136 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
 /**
  * Get company with vendor statistics
  */
-public static async getCompanyWithVendorStatsService(companyId: string) {
-  // Get company details
-  const company = await CompanyCreate.findById(companyId).select('-__v');
+public static async getCompanyWithVendorStatsService(company_registration_number: string) {
+  // Get company details by registration number
+  const company = await CompanyCreate.findOne({ 
+    company_registration_number 
+  }).select('-__v');
   
   if (!company) {
     throw new Error('Company not found');
   }
 
-  // Get vendor statistics for this company
-  const vendorStats = await VendorCreate.aggregate([
-    {
-      $match: {
-        company_registration_number: company.company_registration_number
+  // Run all database operations in parallel for better performance
+  const [
+    vendorStats,
+    vendorsByCategory,
+    vendorsByRisk,
+    recentVendors,
+    totalVendors
+  ] = await Promise.all([
+    // Get vendor statistics by verification status
+    VendorCreate.aggregate([
+      {
+        $match: {
+          company_registration_number: company.company_registration_number
+        }
+      },
+      {
+        $group: {
+          _id: '$verification_status',
+          count: { $sum: 1 }
+        }
       }
-    },
-    {
-      $group: {
-        _id: '$verification_status',
-        count: { $sum: 1 }
+    ]),
+    
+    // Get vendors by category
+    VendorCreate.aggregate([
+      {
+        $match: {
+          company_registration_number: company.company_registration_number
+        }
+      },
+      {
+        $group: {
+          _id: '$vendor_category',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]),
+    
+    // Get vendors by risk rating
+    VendorCreate.aggregate([
+      {
+        $match: {
+          company_registration_number: company.company_registration_number
+        }
+      },
+      {
+        $group: {
+          _id: '$risk_rating',
+          count: { $sum: 1 }
+        }
       }
-    }
+    ]),
+    
+    // Get recent vendors (last 5)
+    VendorCreate.find({
+      company_registration_number: company.company_registration_number
+    })
+    .populate('createdBy', 'name email')
+    .select('vendor_name vendor_id vendor_category verification_status risk_rating createdAt')
+    .sort({ createdAt: -1 })
+    .limit(5),
+    
+    // Get total vendors count
+    VendorCreate.countDocuments({
+      company_registration_number: company.company_registration_number
+    })
   ]);
 
-  // Get vendors by category
-  const vendorsByCategory = await VendorCreate.aggregate([
-    {
-      $match: {
-        company_registration_number: company.company_registration_number
-      }
-    },
-    {
-      $group: {
-        _id: '$vendor_category',
-        count: { $sum: 1 }
-      }
-    },
-    { $sort: { count: -1 } }
-  ]);
-
-  // Get vendors by risk rating
-  const vendorsByRisk = await VendorCreate.aggregate([
-    {
-      $match: {
-        company_registration_number: company.company_registration_number
-      }
-    },
-    {
-      $group: {
-        _id: '$risk_rating',
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-
-  // Get recent vendors (last 5)
-  const recentVendors = await VendorCreate.find({
-    company_registration_number: company.company_registration_number
-  })
-  .populate('createdBy', 'name email')
-  .select('vendor_name vendor_id vendor_category verification_status risk_rating createdAt')
-  .sort({ createdAt: -1 })
-  .limit(5);
-
-  // Calculate total vendors
-  const totalVendors = await VendorCreate.countDocuments({
-    company_registration_number: company.company_registration_number
-  });
-
-  // Transform vendor stats
+  // Transform vendor stats with default values
   const statsObject = {
     pending: 0,
     verified: 0,
     failed: 0,
-    rejected: 0
+    rejected: 0,
+    'in-review': 0,
+    approved: 0
   };
 
+  // Merge the aggregation results into statsObject
   vendorStats.forEach(stat => {
-    statsObject[stat._id] = stat.count;
+    const statusKey = stat._id?.toLowerCase()?.replace(/\s+/g, '-') || stat._id;
+    if (statusKey in statsObject) {
+      statsObject[statusKey] = stat.count;
+    } else {
+      statsObject[stat._id] = stat.count;
+    }
   });
+
+  // Calculate additional statistics
+  const verifiedPercentage = totalVendors > 0 
+    ? Math.round((statsObject.verified / totalVendors) * 100) 
+    : 0;
+  
+  const pendingPercentage = totalVendors > 0 
+    ? Math.round((statsObject.pending / totalVendors) * 100) 
+    : 0;
+
+  // Get risk distribution percentages
+  const riskDistribution = {};
+  vendorsByRisk.forEach(risk => {
+    const riskKey = risk._id || 'Not Rated';
+    const percentage = totalVendors > 0 
+      ? Math.round((risk.count / totalVendors) * 100) 
+      : 0;
+    
+    riskDistribution[riskKey] = {
+      count: risk.count,
+      percentage: percentage
+    };
+  });
+
+  // Get top categories
+  const topCategories = vendorsByCategory.slice(0, 3).map(cat => ({
+    category: cat._id || 'Uncategorized',
+    count: cat.count,
+    percentage: totalVendors > 0 
+      ? Math.round((cat.count / totalVendors) * 100) 
+      : 0
+  }));
 
   return {
     company: company,
@@ -1600,14 +1651,24 @@ public static async getCompanyWithVendorStatsService(companyId: string) {
       total_vendors: totalVendors,
       by_status: statsObject,
       by_category: vendorsByCategory,
-      by_risk: vendorsByRisk
+      by_risk: riskDistribution,
+      status_percentages: {
+        verified: verifiedPercentage,
+        pending: pendingPercentage
+      },
+      top_categories: topCategories,
+      category_count: vendorsByCategory.length,
+      risk_levels_count: vendorsByRisk.length
     },
-    recent_vendors: recentVendors
+    recent_vendors: recentVendors,
+    overview: {
+      company_name: company.registered_company_name,
+      registration_number: company.company_registration_number,
+      vendor_summary: `Total ${totalVendors} vendors registered`,
+      verification_summary: `${statsObject.verified} verified (${verifiedPercentage}%)`
+    }
   };
 }
-  // Get Vendor Admin Dashboard Data
- 
-
   // Update Vendor for Vendor Admin (with restrictions)
   async updateVendorForAdmin(
     id: string, 

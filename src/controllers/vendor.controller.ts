@@ -683,9 +683,9 @@ public static async getVendorsByCompany(req: Request, res: Response): Promise<vo
  */
 public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
   try {
-    const { id } = req.params;
+    const { company_registration_number } = req.params;
 
-    const result = await VendorService.getCompanyWithVendorStatsService(id);
+    const result = await VendorService.getCompanyWithVendorStatsService(company_registration_number);
 
     res.status(200).json({
       success: true,
