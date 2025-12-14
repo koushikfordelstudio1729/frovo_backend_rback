@@ -1,9 +1,9 @@
 {
   "info": {
     "name": "Frovo Warehouse Management API",
-    "description": "Complete Postman collection for Warehouse Management module with all 52 endpoints",
+    "description": "Complete Postman collection for Warehouse Management module with 60 endpoints including Warehouse CRUD and Inventory Management.\n\nVersion 2.1.0 Updates:\n✅ Fixed inventory management - now correctly assigns to warehouses\n✅ Auto-detection for warehouse managers\n✅ Separate PO creation for managers vs super admin\n✅ Complete warehouse CRUD with role-based access",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "1.0.0"
+    "version": "2.1.0"
   },
   "auth": {
     "type": "bearer",
@@ -63,6 +63,16 @@
     },
     {
       "key": "expenseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "warehouseManagerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "warehouseManagerToken",
       "value": "",
       "type": "string"
     }
@@ -187,7 +197,21 @@
       "name": "2. Purchase Orders",
       "item": [
         {
-          "name": "Create Purchase Order",
+          "name": "📖 IMPORTANT - Read First",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "╔═══════════════════════════════════════════════════════════════╗\n║  PURCHASE ORDERS & INVENTORY MANAGEMENT - HOW IT WORKS        ║\n╚═══════════════════════════════════════════════════════════════╝\n\n🔧 VERSION 2.1.0 - INVENTORY FIXES APPLIED\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 WAREHOUSE FIELD IN PURCHASE ORDERS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAll Purchase Orders now include a 'warehouse' field that determines\nwhere inventory will be added when a GRN is created.\n\n✅ FOR WAREHOUSE MANAGERS:\n   - Warehouse is AUTO-DETECTED from your assigned warehouse\n   - NO need to specify warehouse field\n   - Use: \"Create Purchase Order (Warehouse Manager - Auto-Detect)\"\n\n✅ FOR SUPER ADMIN:\n   - Warehouse field is REQUIRED\n   - Must specify which warehouse the PO is for\n   - Use: \"Create Purchase Order (Super Admin - With Warehouse)\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 INVENTORY CREATION FLOW\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n1️⃣ CREATE PURCHASE ORDER\n   └─ Warehouse is assigned (auto or manual)\n\n2️⃣ APPROVE PURCHASE ORDER (optional)\n   └─ Update PO status to 'approved'\n\n3️⃣ CREATE GRN FROM PO\n   └─ 🎯 INVENTORY AUTOMATICALLY CREATED in the PO's warehouse!\n   └─ For each line item:\n      • Existing inventory → Quantity increased\n      • New product → New inventory record created\n\n4️⃣ CHECK INVENTORY\n   └─ GET /api/warehouse/inventory/dashboard/{warehouseId}\n   └─ You'll see all products from the GRN!\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔍 SERVER LOGS TO WATCH\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nWhen creating PO:\n  🏢 Auto-detected warehouse for manager: WH-MUM-002\n  ✅ PO created with warehouse stored in document\n\nWhen creating GRN:\n  📦 Adding inventory from GRN to warehouse: 6939c8730a7957edc3cd6bfa\n  ✅ Created inventory for LAY-CLASSIC-25G: 500 units\n  ✅ Updated inventory for LAY-MASALA-25G: +300 units\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️  TROUBLESHOOTING\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n❌ \"Purchase order does not have warehouse assigned\"\n   → Old PO without warehouse field\n   → Solution: Run migration script or update PO manually\n\n❌ Inventory not created after GRN\n   → Check PO has warehouse field in response\n   → Check server logs for inventory creation messages\n   → Verify warehouse ID is valid\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📚 MORE INFO\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nSee: INVENTORY_MANAGEMENT_FIXES.md for complete documentation"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Purchase Order (Warehouse Manager - Auto-Detect)",
           "event": [
             {
               "listen": "test",
@@ -198,6 +222,7 @@
                   "    pm.collectionVariables.set('poId', jsonData.data._id);",
                   "    console.log('PO ID saved:', jsonData.data._id);",
                   "    console.log('PO Number:', jsonData.data.po_number);",
+                  "    console.log('Warehouse:', jsonData.data.warehouse || 'Not assigned');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -221,7 +246,47 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "warehouse", "inbound", "purchase-orders"]
             },
-            "description": "Create new purchase order. PO number is auto-generated."
+            "description": "Create new purchase order for WAREHOUSE MANAGER.\n\n✅ Warehouse is AUTO-DETECTED from logged-in manager's assigned warehouse.\n✅ No need to specify warehouse field.\n✅ PO number is auto-generated.\n✅ When GRN is created, inventory will be added to the correct warehouse.\n\nNote: If you're logged in as Super Admin, use the 'Create PO with Warehouse' request instead."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Purchase Order (Super Admin - With Warehouse)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('poId', jsonData.data._id);",
+                  "    console.log('PO ID saved:', jsonData.data._id);",
+                  "    console.log('PO Number:', jsonData.data.po_number);",
+                  "    console.log('Warehouse:', jsonData.data.warehouse || 'Not assigned');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor\": \"{{vendorId}}\",\n  \"warehouse\": \"{{warehouseId}}\",\n  \"po_raised_date\": \"{{$isoTimestamp}}\",\n  \"po_status\": \"draft\",\n  \"remarks\": \"Urgent order for upcoming promotion\",\n  \"po_line_items\": [\n    {\n      \"line_no\": 1,\n      \"sku\": \"LAY-CLASSIC-25G\",\n      \"productName\": \"Lays Classic 25g\",\n      \"quantity\": 500,\n      \"category\": \"Snacks\",\n      \"pack_size\": \"25g\",\n      \"uom\": \"Pack\",\n      \"unit_price\": 10,\n      \"expected_delivery_date\": \"2025-12-10T10:00:00.000Z\",\n      \"location\": \"Warehouse A\"\n    },\n    {\n      \"line_no\": 2,\n      \"sku\": \"LAY-MASALA-25G\",\n      \"productName\": \"Lays Masala Magic 25g\",\n      \"quantity\": 300,\n      \"category\": \"Snacks\",\n      \"pack_size\": \"25g\",\n      \"uom\": \"Pack\",\n      \"unit_price\": 10,\n      \"expected_delivery_date\": \"2025-12-10T10:00:00.000Z\",\n      \"location\": \"Warehouse A\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/inbound/purchase-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "inbound", "purchase-orders"]
+            },
+            "description": "Create new purchase order for SUPER ADMIN with explicit warehouse specification.\n\n⚠️  Warehouse field is REQUIRED for Super Admin.\n✅ Use {{warehouseId}} variable (auto-filled from warehouse creation).\n✅ PO number is auto-generated.\n✅ When GRN is created, inventory will be added to the specified warehouse.\n\nNote: Warehouse managers don't need to specify warehouse - it's auto-detected."
           },
           "response": []
         },
@@ -370,7 +435,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "warehouse", "purchase-orders", "{{poId}}", "grn"]
             },
-            "description": "Create GRN from approved PO. GRN number is auto-generated."
+            "description": "Create GRN from approved PO. \n\n✅ GRN number is auto-generated.\n✅ INVENTORY AUTOMATICALLY CREATED in the warehouse assigned to the PO.\n✅ For each line item in the PO:\n   - If inventory exists for SKU → quantity is increased\n   - If inventory doesn't exist → new inventory record created\n✅ Check server logs to see: 'Adding inventory from GRN to warehouse: {warehouseId}'\n\nNote: If PO doesn't have warehouse assigned, inventory creation will be skipped with a warning."
           },
           "response": []
         },
@@ -1675,6 +1740,412 @@
               ]
             },
             "description": "Export report as JSON"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11. Warehouse Management (CRUD)",
+      "item": [
+        {
+          "name": "Step 1: Create Warehouse Manager User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data._id) {",
+                  "        pm.collectionVariables.set('warehouseManagerId', jsonData.data._id);",
+                  "        console.log('Warehouse Manager User ID saved:', jsonData.data._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Warehouse Manager\",\n  \"email\": \"john.manager@frovo.com\",\n  \"phone\": \"9876543210\",\n  \"password\": \"SecurePass@123\",\n  \"roles\": [\"675118f7c2e17142793547d4\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "register"]
+            },
+            "description": "STEP 1: Super Admin creates a new user with Warehouse Manager role. The user ID is saved to use as manager in Step 2.\n\nNote: Replace the role ID with your actual Warehouse Manager role ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Roles (To Find Warehouse Manager Role ID)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get list of all roles to find the Warehouse Manager role ID. Use this ID when creating warehouse manager users."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 2: Create Warehouse with Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('warehouseId', jsonData.data._id);",
+                  "    console.log('Warehouse ID saved:', jsonData.data._id);",
+                  "    console.log('Warehouse Code:', jsonData.data.code);",
+                  "    console.log('Assigned Manager:', jsonData.data.manager.name);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mumbai Central Warehouse\",\n  \"code\": \"WH-MUM-001\",\n  \"partner\": \"Frovo Distribution Partner\",\n  \"location\": \"Andheri East, Mumbai, Maharashtra 400069\",\n  \"capacity\": 50000,\n  \"manager\": \"{{warehouseManagerId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses"]
+            },
+            "description": "STEP 2: Super Admin creates warehouse and assigns the manager created in Step 1. The manager ID is automatically filled from the previous request.\n\nOnly Super Admin can create warehouses. Warehouse code must be unique."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 3: Warehouse Manager Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('warehouseManagerToken', jsonData.data.accessToken);",
+                  "    console.log('Warehouse Manager token saved:', jsonData.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.manager@frovo.com\",\n  \"password\": \"SecurePass@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "STEP 3: Warehouse Manager logs in with their credentials. Token is saved separately as warehouseManagerToken."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 4: Get My Assigned Warehouse",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/my-warehouse",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "my-warehouse"]
+            },
+            "description": "STEP 4: Warehouse Manager gets their assigned warehouse details. This returns the warehouse ID that should be used in all subsequent warehouse operations.\n\nUse this warehouse ID for:\n- Dashboard\n- Purchase Orders\n- GRN\n- Inventory\n- Dispatches\n- Expenses\n- Reports"
+          },
+          "response": []
+        },
+        {
+          "name": "------- DIVIDER -------",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "════════════════════════════════════════\nADDITIONAL WAREHOUSE MANAGEMENT ENDPOINTS\n════════════════════════════════════════"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Warehouse (Manual)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('warehouseId', jsonData.data._id);",
+                  "    console.log('Warehouse ID saved:', jsonData.data._id);",
+                  "    console.log('Warehouse Code:', jsonData.data.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mumbai Central Warehouse\",\n  \"code\": \"WH-MUM-001\",\n  \"partner\": \"Frovo Distribution Partner\",\n  \"location\": \"Andheri East, Mumbai, Maharashtra 400069\",\n  \"capacity\": 50000,\n  \"manager\": \"USER_ID_OF_WAREHOUSE_MANAGER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses"]
+            },
+            "description": "Create warehouse manually (if not using the Step 2 automated flow). Only Super Admin can create warehouses. Warehouse code must be unique.\n\nReplace USER_ID_OF_WAREHOUSE_MANAGER with actual user ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Warehouses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (default: 10, max: 100)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Search by name, code, or location"
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by active status (true/false)"
+                },
+                {
+                  "key": "partner",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filter by partner name"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Sort by: name, code, createdAt, capacity (default: createdAt)"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Sort order: asc, desc (default: desc)"
+                }
+              ]
+            },
+            "description": "Get list of all warehouses with pagination and filters. Super Admin sees all, Warehouse Managers see only their assigned warehouse."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Warehouses with Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses?search=Mumbai&isActive=true&sortBy=name&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Mumbai",
+                  "description": "Search by name, code, or location"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter by active status"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "name",
+                  "description": "Sort by name"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc",
+                  "description": "Ascending order"
+                }
+              ]
+            },
+            "description": "Get warehouses with search and filter options"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Warehouse by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "{{warehouseId}}"]
+            },
+            "description": "Get single warehouse details. Warehouse Managers can only view their assigned warehouse."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Warehouse",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mumbai Central Warehouse - Updated\",\n  \"location\": \"Andheri West, Mumbai, Maharashtra 400058\",\n  \"capacity\": 75000,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "{{warehouseId}}"]
+            },
+            "description": "Update warehouse details. Requires warehouse:manage permission. All fields are optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Reassign Warehouse Manager",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manager\": \"NEW_MANAGER_USER_ID\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "{{warehouseId}}"]
+            },
+            "description": "Reassign warehouse to a different manager. The new manager must have the Warehouse Manager role.\n\nUse Case: When transferring warehouse responsibility to another manager.\n\nRequires warehouse:manage permission or Super Admin role."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Warehouse",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "{{warehouseId}}"]
+            },
+            "description": "Deactivate warehouse (soft delete). Requires warehouse:manage permission."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Warehouse (Super Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/warehouses/{{warehouseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "warehouses", "{{warehouseId}}"]
+            },
+            "description": "Permanently delete warehouse. Only Super Admin can delete. Cannot delete warehouse with active inventory."
           },
           "response": []
         }

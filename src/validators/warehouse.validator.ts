@@ -19,10 +19,10 @@ export const createPurchaseOrderSchema = z.object({
   body: z.object({
     //po_number: z.string().min(1, 'Purchase Order Number is required'),
     vendor: z.string().min(1, 'Vendor is required'),
+    warehouse: objectIdSchema.optional(), // Warehouse ID (optional - will be auto-set for warehouse managers)
     po_raised_date: z.string().datetime().optional(),
     po_status: z.enum(['draft', 'approved', 'pending']).default('draft'),
     remarks: z.string().optional(),
-    //warehouse: z.string().optional()
        po_line_items: z.array(z.object({
       line_no: z.number().min(1, 'Line number is required'),
       sku: z.string().min(1, 'SKU is required'),
@@ -164,7 +164,7 @@ export const createReturnOrderSchema = z.object({
 export const createFieldAgentSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
-    assignedRoutes: z.string().optional()
+    assignedRoutes: z.array(z.string()).optional()
   })
 });
 
@@ -257,5 +257,84 @@ export const dashboardQuerySchema = z.object({
     category: z.string().optional(),
     partner: z.string().optional(),
     warehouseId: objectIdSchema.optional()
+  })
+});
+
+// ==================== WAREHOUSE MANAGEMENT SCHEMAS ====================
+export const createWarehouseSchema = z.object({
+  body: z.object({
+    name: z.string()
+      .min(2, 'Warehouse name must be at least 2 characters')
+      .max(100, 'Warehouse name cannot exceed 100 characters')
+      .trim(),
+    code: z.string()
+      .min(2, 'Warehouse code must be at least 2 characters')
+      .max(20, 'Warehouse code cannot exceed 20 characters')
+      .trim()
+      .toUpperCase(),
+    partner: z.string()
+      .min(1, 'Partner name is required')
+      .trim(),
+    location: z.string()
+      .min(5, 'Location must be at least 5 characters')
+      .trim(),
+    capacity: z.number()
+      .min(1, 'Capacity must be at least 1')
+      .max(1000000, 'Capacity cannot exceed 1,000,000'),
+    manager: objectIdSchema
+  })
+});
+
+export const updateWarehouseSchema = z.object({
+  body: z.object({
+    name: z.string()
+      .min(2, 'Warehouse name must be at least 2 characters')
+      .max(100, 'Warehouse name cannot exceed 100 characters')
+      .trim()
+      .optional(),
+    code: z.string()
+      .min(2, 'Warehouse code must be at least 2 characters')
+      .max(20, 'Warehouse code cannot exceed 20 characters')
+      .trim()
+      .toUpperCase()
+      .optional(),
+    partner: z.string()
+      .min(1, 'Partner name is required')
+      .trim()
+      .optional(),
+    location: z.string()
+      .min(5, 'Location must be at least 5 characters')
+      .trim()
+      .optional(),
+    capacity: z.number()
+      .min(1, 'Capacity must be at least 1')
+      .max(1000000, 'Capacity cannot exceed 1,000,000')
+      .optional(),
+    manager: objectIdSchema.optional(),
+    isActive: z.boolean().optional()
+  })
+});
+
+export const getWarehousesQuerySchema = z.object({
+  query: z.object({
+    page: z.string()
+      .optional()
+      .default('1')
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0, 'Page must be greater than 0'),
+    limit: z.string()
+      .optional()
+      .default('10')
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
+    search: z.string().trim().optional(),
+    isActive: z.enum(['true', 'false']).optional(),
+    partner: z.string().trim().optional(),
+    sortBy: z.enum(['name', 'code', 'createdAt', 'capacity'])
+      .optional()
+      .default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc'])
+      .optional()
+      .default('desc')
   })
 });

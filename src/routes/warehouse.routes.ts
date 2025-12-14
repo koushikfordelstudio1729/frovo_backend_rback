@@ -4,7 +4,8 @@ import * as warehouseController from '../controllers/warehouse.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
-import { 
+import { warehouseScopeMiddleware } from '../middleware/warehouseScope.middleware';
+import {
   createDispatchSchema,
   createQCTemplateSchema,
   createReturnOrderSchema,
@@ -15,13 +16,19 @@ import {
   createPurchaseOrderSchema,
   updatePurchaseOrderStatusSchema,
   createGRNSchema,
-  updateGRNStatusSchema 
+  updateGRNStatusSchema,
+  createWarehouseSchema,
+  updateWarehouseSchema,
+  getWarehousesQuerySchema
 } from '../validators/warehouse.validator';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+// Apply warehouse scoping for warehouse managers (automatically injects warehouseId)
+router.use(warehouseScopeMiddleware);
 
 // ==================== SCREEN 1: DASHBOARD ====================
 router.get('/dashboard',
@@ -302,6 +309,43 @@ router.get('/reports/efficiency',
 router.get('/reports/stock-ageing',
   requirePermission('reports:view'),
   warehouseController.getStockAgeingReport
+);
+
+// ==================== WAREHOUSE MANAGEMENT ====================
+// Get my assigned warehouse (for warehouse managers)
+router.get('/warehouses/my-warehouse',
+  warehouseController.getMyWarehouse
+);
+
+// Create warehouse (Super Admin only - checked in controller)
+router.post('/warehouses',
+  validate({ body: createWarehouseSchema.shape.body }),
+  warehouseController.createWarehouse
+);
+
+// Get all warehouses (with role-based filtering)
+router.get('/warehouses',
+  requirePermission('warehouse:view'),
+  validate({ query: getWarehousesQuerySchema.shape.query }),
+  warehouseController.getWarehouses
+);
+
+// Get warehouse by ID (with access control)
+router.get('/warehouses/:id',
+  requirePermission('warehouse:view'),
+  warehouseController.getWarehouseById
+);
+
+// Update warehouse
+router.put('/warehouses/:id',
+  requirePermission('warehouse:manage'),
+  validate({ body: updateWarehouseSchema.shape.body }),
+  warehouseController.updateWarehouse
+);
+
+// Delete warehouse (Super Admin only - checked in controller)
+router.delete('/warehouses/:id',
+  warehouseController.deleteWarehouse
 );
 
 export default router;

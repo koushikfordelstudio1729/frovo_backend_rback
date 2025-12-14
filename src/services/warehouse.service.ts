@@ -1,14 +1,15 @@
 import mongoose from 'mongoose';
 // services/warehouse.service.ts
-import { 
+import {
   RaisePurchaseOrder,
   DispatchOrder,
   QCTemplate,
   ReturnOrder,
   Inventory,
-  Expense, 
+  Expense,
   FieldAgent,
-  GRNnumber
+  GRNnumber,
+  Warehouse
 } from '../models/Warehouse.model';
 import { Types } from 'mongoose';
 import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent, IGRNnumber } from '../models/Warehouse.model';
@@ -77,6 +78,7 @@ export interface DashboardData {
 export interface RaisePurchaseOrderData {
   po_number?: string;
   vendor: Types.ObjectId;
+  warehouse?: string; // Warehouse ID (optional - will be auto-detected for warehouse managers)
   po_raised_date: Date;
   po_status: 'pending' | 'approved' | 'draft';
   vendor_id: string;
@@ -452,10 +454,11 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
+  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId, userRoles?: any[]): Promise<IRaisePurchaseOrder> {
     try {
       console.log('📦 Received PO data:', {
         vendor: data.vendor,
+        warehouse: data.warehouse || 'Not provided',
         po_line_items_count: data.po_line_items?.length || 0,
         vendor_details_present: data.vendor_details ? 'Yes' : 'No'
       });
@@ -467,23 +470,51 @@ class WarehouseService {
         throw new Error('Vendor not found');
       }
 
+      // Determine warehouse ID
+      let warehouseId: Types.ObjectId | undefined;
+
+      if (data.warehouse) {
+        // Use provided warehouse ID
+        warehouseId = new Types.ObjectId(data.warehouse);
+        console.log('🏢 Using provided warehouse ID:', warehouseId);
+      } else {
+        // Auto-detect warehouse for warehouse managers
+        const isWarehouseManager = userRoles?.some((role: any) =>
+          role.systemRole === 'warehouse_manager'
+        );
+
+        if (isWarehouseManager) {
+          // Find warehouse managed by this user
+          const userWarehouse = await Warehouse.findOne({
+            manager: createdBy,
+            isActive: true
+          });
+
+          if (userWarehouse) {
+            warehouseId = userWarehouse._id;
+            console.log('🏢 Auto-detected warehouse for manager:', userWarehouse.code);
+          }
+        }
+      }
+
       // Extract vendor details to store in PO document
       const vendorDetails = {
         vendor_name: vendor.vendor_name,
         vendor_billing_name: vendor.vendor_billing_name,
         vendor_email: vendor.vendor_email,
-        vendor_phone: vendor.vendor_phone,
+        vendor_phone: vendor.contact_phone,
         vendor_category: vendor.vendor_category,
         gst_number: vendor.gst_number,
         verification_status: vendor.verification_status,
         vendor_address: vendor.vendor_address,
-        vendor_contact: vendor.vendor_contact,
+        vendor_contact: vendor.primary_contact_name,
         vendor_id: vendor.vendor_id
       };
 
-      // Create purchase order with vendor details stored directly
+      // Create purchase order with vendor details and warehouse stored directly
       const purchaseOrder = await RaisePurchaseOrder.create({
         vendor: data.vendor,
+        warehouse: warehouseId, // Add warehouse ID
         vendor_details: vendorDetails,
         po_raised_date: data.po_raised_date || new Date(),
         po_status: data.po_status || 'draft',
@@ -492,7 +523,7 @@ class WarehouseService {
         createdBy
       });
 
-      console.log('✅ PO created with vendor details stored in document');
+      console.log('✅ PO created with vendor details and warehouse stored in document');
       return purchaseOrder;
     } catch (error) {
       console.error('❌ Error creating PO:', error);
@@ -581,6 +612,53 @@ class WarehouseService {
       );
 
       console.log('✅ GRN created successfully:', grn.delivery_challan);
+
+      // Get warehouse ID from purchase order
+      const warehouseId = purchaseOrder.warehouse;
+
+      if (!warehouseId) {
+        console.warn('⚠️  Warning: Purchase order does not have warehouse assigned. Skipping inventory creation.');
+        console.warn('   Please add warehouse field to existing POs for inventory tracking.');
+      } else {
+        // Add inventory for each line item
+        console.log('📦 Adding inventory from GRN to warehouse:', warehouseId);
+        for (const item of purchaseOrder.po_line_items) {
+          const existingInventory = await Inventory.findOne({
+            sku: item.sku,
+            warehouse: warehouseId // ✅ Using correct warehouse ID from PO
+          });
+
+          if (existingInventory) {
+            // Update existing inventory
+            await Inventory.findByIdAndUpdate(existingInventory._id, {
+              $inc: { quantity: item.quantity }
+            });
+            console.log(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
+          } else {
+            // Create new inventory
+            await Inventory.create({
+              sku: item.sku,
+              productName: item.productName,
+              batchId: grn.delivery_challan, // Use delivery challan as batch ID
+              warehouse: warehouseId, // ✅ Using correct warehouse ID from PO
+              quantity: item.quantity,
+              minStockLevel: 0,
+              maxStockLevel: 10000,
+              age: 0,
+              location: {
+                zone: item.location || 'A',
+                aisle: '1',
+                rack: '1',
+                bin: '1'
+              },
+              status: 'active',
+              isArchived: false,
+              createdBy
+            });
+            console.log(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
+          }
+        }
+      }
 
       // Populate vendor details for response
       const populatedGRN = await GRNnumber.findById(grn._id)
@@ -2664,20 +2742,251 @@ async deletePurchaseOrder(id: string): Promise<void> {
     expiryDate?: Date | undefined;
   }): string {
     const today = new Date();
-    
+
     if (data.expiryDate && data.expiryDate < today) {
       return 'expired';
     }
-    
+
     if (data.quantity <= data.minStockLevel) {
       return 'low_stock';
     }
-    
+
     if (data.quantity >= data.maxStockLevel * 0.9) {
       return 'overstock';
     }
-    
+
     return 'active';
+  }
+
+  // ==================== WAREHOUSE MANAGEMENT ====================
+  async createWarehouse(data: {
+    name: string;
+    code: string;
+    partner: string;
+    location: string;
+    capacity: number;
+    manager: Types.ObjectId;
+  }, createdBy: Types.ObjectId) {
+    const { Warehouse } = await import('../models/Warehouse.model');
+
+    // Check if warehouse code already exists
+    const existingWarehouse = await Warehouse.findOne({ code: data.code });
+    if (existingWarehouse) {
+      throw new Error('Warehouse with this code already exists');
+    }
+
+    const warehouse = await Warehouse.create({
+      ...data,
+      isActive: true,
+      createdBy
+    });
+
+    return await Warehouse.findById(warehouse._id)
+      .populate('manager', 'name email phone')
+      .populate('createdBy', 'name email');
+  }
+
+  async getWarehouses(filters: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    isActive?: boolean;
+    partner?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }, userId: Types.ObjectId, userRoles: any[]) {
+    const { Warehouse } = await import('../models/Warehouse.model');
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 10;
+    const skip = (page - 1) * limit;
+
+    // Build query
+    const query: any = {};
+
+    // Role-based filtering: Warehouse managers only see their warehouses
+    const isWarehouseManager = userRoles.some(
+      (role: any) => role.systemRole === 'warehouse_manager'
+    );
+
+    if (isWarehouseManager) {
+      query.manager = userId;
+    }
+
+    // Apply filters
+    if (filters.search) {
+      query.$or = [
+        { name: { $regex: filters.search, $options: 'i' } },
+        { code: { $regex: filters.search, $options: 'i' } },
+        { location: { $regex: filters.search, $options: 'i' } }
+      ];
+    }
+
+    if (filters.isActive !== undefined) {
+      query.isActive = filters.isActive;
+    }
+
+    if (filters.partner) {
+      query.partner = { $regex: filters.partner, $options: 'i' };
+    }
+
+    // Sorting
+    const sortBy = filters.sortBy || 'createdAt';
+    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+    const sort: any = { [sortBy]: sortOrder };
+
+    const [warehouses, total] = await Promise.all([
+      Warehouse.find(query)
+        .populate('manager', 'name email phone')
+        .populate('createdBy', 'name email')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit),
+      Warehouse.countDocuments(query)
+    ]);
+
+    return {
+      warehouses,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  async getWarehouseById(warehouseId: string, userId: Types.ObjectId, userRoles: any[]) {
+    const { Warehouse } = await import('../models/Warehouse.model');
+
+    if (!Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Invalid warehouse ID');
+    }
+
+    const warehouse = await Warehouse.findById(warehouseId)
+      .populate('manager', 'name email phone')
+      .populate('createdBy', 'name email');
+
+    if (!warehouse) {
+      throw new Error('Warehouse not found');
+    }
+
+    // Role-based access: Warehouse managers can only view their warehouses
+    const isWarehouseManager = userRoles.some(
+      (role: any) => role.systemRole === 'warehouse_manager'
+    );
+
+    if (isWarehouseManager && warehouse.manager?.toString() !== userId.toString()) {
+      throw new Error('Access denied: You can only view your assigned warehouse');
+    }
+
+    return warehouse;
+  }
+
+  async updateWarehouse(
+    warehouseId: string,
+    updateData: Partial<{
+      name: string;
+      code: string;
+      partner: string;
+      location: string;
+      capacity: number;
+      manager: Types.ObjectId;
+      isActive: boolean;
+    }>
+  ) {
+    const { Warehouse } = await import('../models/Warehouse.model');
+
+    if (!Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Invalid warehouse ID');
+    }
+
+    // Check if updating code and if it already exists
+    if (updateData.code) {
+      const existingWarehouse = await Warehouse.findOne({
+        code: updateData.code,
+        _id: { $ne: warehouseId }
+      });
+      if (existingWarehouse) {
+        throw new Error('Warehouse with this code already exists');
+      }
+    }
+
+    const warehouse = await Warehouse.findByIdAndUpdate(
+      warehouseId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    )
+      .populate('manager', 'name email phone')
+      .populate('createdBy', 'name email');
+
+    if (!warehouse) {
+      throw new Error('Warehouse not found');
+    }
+
+    return warehouse;
+  }
+
+  async deleteWarehouse(warehouseId: string) {
+    const { Warehouse } = await import('../models/Warehouse.model');
+
+    if (!Types.ObjectId.isValid(warehouseId)) {
+      throw new Error('Invalid warehouse ID');
+    }
+
+    // Check if warehouse has active inventory
+    const inventoryCount = await Inventory.countDocuments({
+      warehouse: warehouseId,
+      isArchived: false
+    });
+
+    if (inventoryCount > 0) {
+      throw new Error('Cannot delete warehouse with active inventory. Please archive or transfer inventory first.');
+    }
+
+    const warehouse = await Warehouse.findByIdAndDelete(warehouseId);
+
+    if (!warehouse) {
+      throw new Error('Warehouse not found');
+    }
+
+    return { message: 'Warehouse deleted successfully', warehouse };
+  }
+
+  // Get warehouse assigned to a specific manager (for warehouse manager to know their warehouse)
+  async getMyWarehouse(managerId: Types.ObjectId | string) {
+    // Convert to ObjectId if it's a string to ensure proper comparison
+    const managerObjectId = typeof managerId === 'string'
+      ? new Types.ObjectId(managerId)
+      : managerId;
+
+    console.log('🔍 Looking for warehouse with manager ID:', managerObjectId.toString());
+
+    const warehouse = await Warehouse.findOne({
+      manager: managerObjectId,
+      isActive: true
+    })
+      .populate('manager', 'name email phone')
+      .populate('createdBy', 'name email')
+      .lean();
+
+    if (!warehouse) {
+      // Debug: Check if warehouse exists with any status
+      const anyWarehouse = await Warehouse.findOne({
+        manager: managerObjectId
+      }).lean();
+
+      if (anyWarehouse) {
+        console.log('⚠️  Warehouse found but isActive:', (anyWarehouse as any).isActive);
+        throw new Error('Warehouse assigned to this manager is not active');
+      }
+
+      console.log('❌ No warehouse found for manager ID:', managerObjectId.toString());
+      throw new Error('No warehouse assigned to this manager');
+    }
+
+    console.log('✅ Warehouse found:', (warehouse as any).code);
+    return warehouse;
   }
 }
 

@@ -56,10 +56,11 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       console.log('🔒 Warehouse staff: PO status forced to draft');
     }
 
-    const result = await warehouseService.createPurchaseOrder(req.body, req.user._id);
-    
+    const result = await warehouseService.createPurchaseOrder(req.body, req.user._id, req.user.roles);
+
     console.log('📤 Service result:', {
       po_number: result.po_number,
+      warehouse: result.warehouse || 'Not assigned',
       line_items_count: result.po_line_items?.length || 0,
       line_items: result.po_line_items
     });
@@ -413,7 +414,10 @@ export const rejectReturn = asyncHandler(async (req: Request, res: Response) => 
 // Field Agent Management
 export const getFieldAgents = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const isActive = req.query['isActive'] === 'true';
+    // Only set isActive if the query parameter is explicitly provided
+    const isActive = req.query['isActive'] !== undefined
+      ? req.query['isActive'] === 'true'
+      : undefined;
     const agents = await warehouseService.getFieldAgents(isActive);
     sendSuccess(res, agents, 'Field agents retrieved successfully');
   } catch (error) {
@@ -837,5 +841,141 @@ export const getStockAgeingReport = asyncHandler(async (req: Request, res: Respo
     sendSuccess(res, report, 'Stock ageing report generated successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
+  }
+});
+
+// ==================== WAREHOUSE MANAGEMENT CONTROLLERS ====================
+export const createWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check if user is super admin
+  const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === 'super_admin');
+  if (!isSuperAdmin) {
+    return sendError(res, 'Only Super Admin can create warehouses', 403);
+  }
+
+  try {
+    const warehouse = await warehouseService.createWarehouse(req.body, req.user._id);
+    return sendCreated(res, warehouse, 'Warehouse created successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to create warehouse', 500);
+  }
+});
+
+export const getWarehouses = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for viewing warehouses
+  if (!checkPermission(req.user, 'warehouse:view')) {
+    return sendError(res, 'Insufficient permissions to view warehouses', 403);
+  }
+
+  try {
+    const filters = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10,
+      search: req.query.search as string,
+      isActive: req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined,
+      partner: req.query.partner as string,
+      sortBy: (req.query.sortBy as string) || 'createdAt',
+      sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'desc'
+    };
+
+    const result = await warehouseService.getWarehouses(filters, req.user._id, req.user.roles);
+    return sendSuccess(res, result, 'Warehouses retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve warehouses', 500);
+  }
+});
+
+export const getWarehouseById = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for viewing warehouses
+  if (!checkPermission(req.user, 'warehouse:view')) {
+    return sendError(res, 'Insufficient permissions to view warehouse', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    const warehouse = await warehouseService.getWarehouseById(id, req.user._id, req.user.roles);
+    return sendSuccess(res, warehouse, 'Warehouse retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve warehouse', 500);
+  }
+});
+
+export const updateWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for managing warehouses
+  if (!checkPermission(req.user, 'warehouse:manage')) {
+    return sendError(res, 'Insufficient permissions to update warehouse', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    const warehouse = await warehouseService.updateWarehouse(id, req.body);
+    return sendSuccess(res, warehouse, 'Warehouse updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update warehouse', 500);
+  }
+});
+
+export const deleteWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check if user is super admin
+  const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === 'super_admin');
+  if (!isSuperAdmin) {
+    return sendError(res, 'Only Super Admin can delete warehouses', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    await warehouseService.deleteWarehouse(id);
+    return sendSuccess(res, null, 'Warehouse deleted successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to delete warehouse', 500);
+  }
+});
+
+// Get warehouse assigned to logged-in manager (for warehouse managers to know their warehouse)
+export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  try {
+    const warehouse = await warehouseService.getMyWarehouse(req.user._id);
+
+    // Get user's permissions
+    const permissions = await req.user.getPermissions();
+
+    // Include permissions in the response
+    const responseData = {
+      warehouse,
+      manager: {
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone,
+        roles: req.user.roles?.map((role: any) => ({
+          id: role._id || role.id,
+          name: role.name,
+          key: role.key,
+          systemRole: role.systemRole
+        })),
+        permissions: permissions
+      }
+    };
+
+    return sendSuccess(res, responseData, 'Your assigned warehouse retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve assigned warehouse', 500);
   }
 });

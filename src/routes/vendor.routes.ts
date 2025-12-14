@@ -13,7 +13,7 @@ router.use(authenticate);
 // Route groups for better organization
 const SUPER_ADMIN_ONLY = ['super_admin'];
 const VENDOR_MANAGEMENT = ['super_admin', 'vendor_admin'];
-const READ_ACCESS = ['super_admin', 'vendor_admin', 'ops_manager', 'finance_manager'];
+const READ_ACCESS = ['super_admin', 'vendor_admin', 'ops_manager', 'finance_manager', 'warehouse_manager', 'warehouse_manager_full'];
 
 // Company routes (static methods)
 router.post('/companies', VendorController.createCompany);

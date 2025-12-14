@@ -128,6 +128,7 @@ export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
+  warehouse: Types.ObjectId; // Added warehouse field
   po_status: 'draft' | 'approved' | 'pending';
   po_raised_date: Date;
   remarks?: string;
@@ -182,10 +183,15 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
     location: { type: String, required: true }
   }],
 
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorCreate', 
-    required: true 
+  vendor: {
+    type: Schema.Types.ObjectId,
+    ref: 'VendorCreate',
+    required: true
+  },
+  warehouse: {
+    type: Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    required: false // Optional for backward compatibility
   },
     // Add vendor details subdocument
   vendor_details: {
@@ -335,6 +341,7 @@ export interface IFieldAgent extends Document {
   _id: Types.ObjectId;
   name: string;
   assignedRoutes: string[];
+  isActive: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -470,7 +477,7 @@ const qcTemplateSchema = new Schema<IQCTemplate>({
 
 const returnOrderSchema = new Schema<IReturnOrder>({
   batchId: { type: String, required: true },
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+  vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
   reason: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   status: {
@@ -490,6 +497,7 @@ const returnOrderSchema = new Schema<IReturnOrder>({
 const fieldAgentSchema = new Schema<IFieldAgent>({
   name: { type: String, required: true },
   assignedRoutes: [{ type: String }],
+  isActive: { type: Boolean, default: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
