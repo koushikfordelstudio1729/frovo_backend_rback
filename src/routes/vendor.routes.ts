@@ -16,7 +16,8 @@ router.use(authenticate);
 const SUPER_ADMIN_ONLY = ['super_admin'];
 const VENDOR_MANAGEMENT = ['super_admin', 'vendor_admin'];
 const VENDOR_ADMIN_ONLY = ['vendor_admin'];
-const READ_ACCESS = ['super_admin', 'vendor_admin', 'ops_manager', 'finance_manager'];
+
+const READ_ACCESS = ['super_admin', 'vendor_admin', 'ops_manager', 'finance_manager', 'warehouse_manager', 'warehouse_manager_full'];
 
 // ========== COMPANY ROUTES ==========
 console.log('📋 Registering company routes...');

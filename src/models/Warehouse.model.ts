@@ -128,6 +128,7 @@ export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
+  warehouse: Types.ObjectId; // Added warehouse field
   po_status: 'draft' | 'approved' | 'pending';
   po_raised_date: Date;
   remarks?: string;
@@ -142,6 +143,14 @@ export interface IRaisePurchaseOrder extends Document {
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
+    images?: Array<{
+      file_name: string;
+      file_url: string;
+      cloudinary_public_id: string;
+      file_size: number;
+      mime_type: string;
+      uploaded_at: Date;
+    }>;
   }>;
     vendor_details: {
     vendor_name: string;
@@ -179,13 +188,26 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
     uom: { type: String, required: true },
     unit_price: { type: Number, required: true },
     expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true }
+    location: { type: String, required: true },
+    images: [{
+      file_name: { type: String, required: true },
+      file_url: { type: String, required: true },
+      cloudinary_public_id: { type: String, required: true },
+      file_size: { type: Number, required: true },
+      mime_type: { type: String, required: true },
+      uploaded_at: { type: Date, default: Date.now }
+    }]
   }],
 
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorCreate', 
-    required: true 
+  vendor: {
+    type: Schema.Types.ObjectId,
+    ref: 'VendorCreate',
+    required: true
+  },
+  warehouse: {
+    type: Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    required: false // Optional for backward compatibility
   },
     // Add vendor details subdocument
   vendor_details: {
@@ -287,6 +309,8 @@ export interface IDispatchOrder extends Document {
 
   assignedAgent: Types.ObjectId;
 
+  warehouse: Types.ObjectId;
+
   notes?: string;
 
   status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
@@ -321,6 +345,7 @@ export interface IReturnOrder extends Document {
   _id: Types.ObjectId;
   batchId: string;
   vendor: Types.ObjectId;
+  warehouse: Types.ObjectId;
   reason: string;
   quantity: number;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
@@ -335,6 +360,7 @@ export interface IFieldAgent extends Document {
   _id: Types.ObjectId;
   name: string;
   assignedRoutes: string[];
+  isActive: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -414,6 +440,8 @@ const dispatchOrderSchema = new Schema({
 
   assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
 
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+
   notes: { type: String, maxlength: 500 },
 
   status: {
@@ -470,7 +498,8 @@ const qcTemplateSchema = new Schema<IQCTemplate>({
 
 const returnOrderSchema = new Schema<IReturnOrder>({
   batchId: { type: String, required: true },
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+  vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   reason: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   status: {
@@ -490,6 +519,7 @@ const returnOrderSchema = new Schema<IReturnOrder>({
 const fieldAgentSchema = new Schema<IFieldAgent>({
   name: { type: String, required: true },
   assignedRoutes: [{ type: String }],
+  isActive: { type: Boolean, default: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
@@ -528,7 +558,7 @@ const expenseSchema = new Schema<IExpense>({
   },
 
   amount: { type: Number, required: true, min: 0 },
-  vendor: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+  vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
 
   date: { type: Date, required: true },
   description: { type: String, maxlength: 200 },

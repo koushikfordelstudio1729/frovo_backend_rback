@@ -184,17 +184,17 @@ export const updateUserPassword = asyncHandler(async (req: Request, res: Respons
 
 export const searchUsers = asyncHandler(async (req: Request, res: Response): Promise<any> => {
   const { q, limit } = req.query;
-  
+
   if (!q) {
     return sendError(res, 'Search query is required', 400);
   }
-  
+
   try {
     const users = await userService.searchUsers(
       q as string,
       limit ? parseInt(limit as string) : 10
     );
-    
+
     sendSuccess(res, users);
   } catch (error) {
     sendError(res, 'Failed to search users', 500);

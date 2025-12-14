@@ -4,6 +4,7 @@ import asyncHandler from 'express-async-handler';
 import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 import { checkPermission } from '../middleware/auth.middleware';
+import { DocumentUploadService } from '../services/documentUpload.service';
 
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -37,11 +38,97 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
   }
 
   try {
-    console.log('📥 Request body received:', {
-      vendor: req.body.vendor,
-      po_line_items_count: req.body.po_line_items?.length || 0,
-      po_line_items: req.body.po_line_items,
-      all_fields: Object.keys(req.body)
+    const uploadService = new DocumentUploadService();
+    const files = (req as any).files as Express.Multer.File[] | undefined;
+
+    console.log('📥 Request received:', {
+      hasFiles: !!files,
+      fileCount: files?.length || 0,
+      contentType: req.headers['content-type']
+    });
+
+    // Parse po_line_items if it's a string (from multipart/form-data)
+    let poData = { ...req.body };
+    if (typeof req.body.po_line_items === 'string') {
+      try {
+        poData.po_line_items = JSON.parse(req.body.po_line_items);
+      } catch (parseError) {
+        return sendBadRequest(res, 'Invalid po_line_items format. Must be valid JSON.');
+      }
+    }
+
+    // Handle file uploads if present
+    if (files && files.length > 0) {
+      console.log('📤 Processing file uploads...');
+
+      // Group files by line item index (field name pattern: images_0, images_1, etc.)
+      const filesByLineItem: { [key: number]: Express.Multer.File[] } = {};
+
+      for (const file of files) {
+        // Extract line item index from field name (e.g., "images_0" -> 0)
+        const match = file.fieldname.match(/images_(\d+)/);
+        if (match) {
+          const lineItemIndex = parseInt(match[1], 10);
+          if (!filesByLineItem[lineItemIndex]) {
+            filesByLineItem[lineItemIndex] = [];
+          }
+          filesByLineItem[lineItemIndex].push(file);
+        }
+      }
+
+      console.log('📊 Files grouped by line item:', Object.keys(filesByLineItem).map(key => ({
+        lineItem: key,
+        fileCount: filesByLineItem[parseInt(key)].length
+      })));
+
+      // Upload files to Cloudinary and attach to line items
+      for (const [lineItemIndex, lineItemFiles] of Object.entries(filesByLineItem)) {
+        const index = parseInt(lineItemIndex, 10);
+
+        if (!poData.po_line_items[index]) {
+          console.warn(`⚠️ Warning: Files uploaded for line item ${index}, but line item doesn't exist`);
+          continue;
+        }
+
+        // Upload each file for this line item
+        const uploadedImages = [];
+        for (const file of lineItemFiles) {
+          try {
+            console.log(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
+
+            const uploadResult = await uploadService.uploadToCloudinary(
+              file.buffer,
+              file.originalname,
+              'frovo/purchase_orders'
+            );
+
+            uploadedImages.push({
+              file_name: file.originalname,
+              file_url: uploadResult.url,
+              cloudinary_public_id: uploadResult.publicId,
+              file_size: file.size,
+              mime_type: file.mimetype,
+              uploaded_at: new Date()
+            });
+
+            console.log(`✅ Uploaded ${file.originalname} successfully`);
+          } catch (uploadError) {
+            console.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
+            return sendError(res, `Failed to upload file ${file.originalname}`, 500);
+          }
+        }
+
+        // Attach images to the corresponding line item
+        poData.po_line_items[index].images = uploadedImages;
+      }
+
+      console.log('✅ All files uploaded successfully');
+    }
+
+    console.log('📥 Final PO data:', {
+      vendor: poData.vendor,
+      po_line_items_count: poData.po_line_items?.length || 0,
+      all_fields: Object.keys(poData)
     });
 
     // Check if user is warehouse staff by checking roles array
@@ -52,14 +139,15 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
 
     // If user is warehouse staff, enforce draft status only
     if (isWarehouseStaff) {
-      req.body.po_status = 'draft'; // Force draft status for warehouse staff
+      poData.po_status = 'draft'; // Force draft status for warehouse staff
       console.log('🔒 Warehouse staff: PO status forced to draft');
     }
 
-    const result = await warehouseService.createPurchaseOrder(req.body, req.user._id);
-    
+    const result = await warehouseService.createPurchaseOrder(poData, req.user._id, req.user.roles);
+
     console.log('📤 Service result:', {
       po_number: result.po_number,
+      warehouse: result.warehouse || 'Not assigned',
       line_items_count: result.po_line_items?.length || 0,
       line_items: result.po_line_items
     });
@@ -413,7 +501,10 @@ export const rejectReturn = asyncHandler(async (req: Request, res: Response) => 
 // Field Agent Management
 export const getFieldAgents = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const isActive = req.query['isActive'] === 'true';
+    // Only set isActive if the query parameter is explicitly provided
+    const isActive = req.query['isActive'] !== undefined
+      ? req.query['isActive'] === 'true'
+      : undefined;
     const agents = await warehouseService.getFieldAgents(isActive);
     sendSuccess(res, agents, 'Field agents retrieved successfully');
   } catch (error) {
@@ -662,6 +753,23 @@ export const deleteExpense = asyncHandler(async (req: Request, res: Response) =>
   }
 });
 
+export const uploadExpenseBill = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  if (!req.file) {
+    return sendBadRequest(res, 'No file uploaded');
+  }
+
+  try {
+    const expense = await warehouseService.uploadExpenseBill(id, req.file);
+    return sendSuccess(res, expense, 'Bill uploaded successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to upload bill', 500);
+  }
+});
+
 export const getExpenseById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   if (!id) return sendBadRequest(res, 'Expense ID is required');
@@ -837,5 +945,141 @@ export const getStockAgeingReport = asyncHandler(async (req: Request, res: Respo
     sendSuccess(res, report, 'Stock ageing report generated successfully');
   } catch (error) {
     sendError(res, error instanceof Error ? error.message : 'Failed to generate stock ageing report', 500);
+  }
+});
+
+// ==================== WAREHOUSE MANAGEMENT CONTROLLERS ====================
+export const createWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check if user is super admin
+  const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === 'super_admin');
+  if (!isSuperAdmin) {
+    return sendError(res, 'Only Super Admin can create warehouses', 403);
+  }
+
+  try {
+    const warehouse = await warehouseService.createWarehouse(req.body, req.user._id);
+    return sendCreated(res, warehouse, 'Warehouse created successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to create warehouse', 500);
+  }
+});
+
+export const getWarehouses = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for viewing warehouses
+  if (!checkPermission(req.user, 'warehouse:view')) {
+    return sendError(res, 'Insufficient permissions to view warehouses', 403);
+  }
+
+  try {
+    const filters = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10,
+      search: req.query.search as string,
+      isActive: req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined,
+      partner: req.query.partner as string,
+      sortBy: (req.query.sortBy as string) || 'createdAt',
+      sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'desc'
+    };
+
+    const result = await warehouseService.getWarehouses(filters, req.user._id, req.user.roles);
+    return sendSuccess(res, result, 'Warehouses retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve warehouses', 500);
+  }
+});
+
+export const getWarehouseById = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for viewing warehouses
+  if (!checkPermission(req.user, 'warehouse:view')) {
+    return sendError(res, 'Insufficient permissions to view warehouse', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    const warehouse = await warehouseService.getWarehouseById(id, req.user._id, req.user.roles);
+    return sendSuccess(res, warehouse, 'Warehouse retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve warehouse', 500);
+  }
+});
+
+export const updateWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check permission for managing warehouses
+  if (!checkPermission(req.user, 'warehouse:manage')) {
+    return sendError(res, 'Insufficient permissions to update warehouse', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    const warehouse = await warehouseService.updateWarehouse(id, req.body);
+    return sendSuccess(res, warehouse, 'Warehouse updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update warehouse', 500);
+  }
+});
+
+export const deleteWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  // Check if user is super admin
+  const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === 'super_admin');
+  if (!isSuperAdmin) {
+    return sendError(res, 'Only Super Admin can delete warehouses', 403);
+  }
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'Warehouse ID is required');
+
+  try {
+    await warehouseService.deleteWarehouse(id);
+    return sendSuccess(res, null, 'Warehouse deleted successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to delete warehouse', 500);
+  }
+});
+
+// Get warehouse assigned to logged-in manager (for warehouse managers to know their warehouse)
+export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  try {
+    const warehouse = await warehouseService.getMyWarehouse(req.user._id);
+
+    // Get user's permissions
+    const permissions = await req.user.getPermissions();
+
+    // Include permissions in the response
+    const responseData = {
+      warehouse,
+      manager: {
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone,
+        roles: req.user.roles?.map((role: any) => ({
+          id: role._id || role.id,
+          name: role.name,
+          key: role.key,
+          systemRole: role.systemRole
+        })),
+        permissions: permissions
+      }
+    };
+
+    return sendSuccess(res, responseData, 'Your assigned warehouse retrieved successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to retrieve assigned warehouse', 500);
   }
 });
