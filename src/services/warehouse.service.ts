@@ -13,6 +13,7 @@ import {
 } from '../models/Warehouse.model';
 import { Types } from 'mongoose';
 import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent, IGRNnumber } from '../models/Warehouse.model';
+import { DocumentUploadService } from './documentUpload.service';
 
 // Interfaces
 export interface InventoryStats {
@@ -224,6 +225,12 @@ export interface GRNData {
 }
 
 class WarehouseService {
+  private documentUploadService: DocumentUploadService;
+
+  constructor() {
+    this.documentUploadService = new DocumentUploadService();
+  }
+
   // ==================== SCREEN 1: DASHBOARD ====================
   async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> {
     const dateFilter = this.getDateFilter(filters?.dateRange);
@@ -1860,11 +1867,46 @@ async deletePurchaseOrder(id: string): Promise<void> {
     if (!Types.ObjectId.isValid(expenseId)) {
       throw new Error('Invalid expense ID');
     }
-    
+
     const result = await Expense.findByIdAndDelete(expenseId);
     if (!result) {
       throw new Error('Expense not found');
     }
+  }
+
+  async uploadExpenseBill(
+    expenseId: string,
+    file: Express.Multer.File
+  ): Promise<IExpense> {
+    // Validate expense ID
+    if (!Types.ObjectId.isValid(expenseId)) {
+      throw new Error('Invalid expense ID');
+    }
+
+    // Find expense
+    const expense = await Expense.findById(expenseId);
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+
+    // Upload to Cloudinary
+    const { url } = await this.documentUploadService.uploadToCloudinary(
+      file.buffer,
+      file.originalname,
+      `frovo/expenses/${expenseId}`
+    );
+
+    // Update expense with bill URL
+    expense.billUrl = url;
+    await expense.save();
+
+    // Return populated expense
+    return await Expense.findById(expenseId)
+      .populate('vendor', 'vendor_name vendor_email vendor_contact')
+      .populate('warehouseId', 'name code location')
+      .populate('createdBy', 'name email')
+      .populate('approvedBy', 'name email')
+      .then(e => e!);
   }
 
   async getExpenseById(expenseId: string): Promise<IExpense | null> {

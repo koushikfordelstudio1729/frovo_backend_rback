@@ -1234,6 +1234,30 @@
           "response": []
         },
         {
+          "name": "Upload Expense Bill",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "document",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/warehouse/expenses/{{expenseId}}/upload-bill",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "warehouse", "expenses", "{{expenseId}}", "upload-bill"]
+            },
+            "description": "Upload bill document for an expense. The file will be uploaded to Cloudinary and the URL will be stored in the expense record."
+          },
+          "response": []
+        },
+        {
           "name": "Get All Expenses",
           "request": {
             "method": "GET",

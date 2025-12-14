@@ -753,6 +753,23 @@ export const deleteExpense = asyncHandler(async (req: Request, res: Response) =>
   }
 });
 
+export const uploadExpenseBill = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) return sendBadRequest(res, 'Expense ID is required');
+
+  if (!req.file) {
+    return sendBadRequest(res, 'No file uploaded');
+  }
+
+  try {
+    const expense = await warehouseService.uploadExpenseBill(id, req.file);
+    return sendSuccess(res, expense, 'Bill uploaded successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to upload bill', 500);
+  }
+});
+
 export const getExpenseById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   if (!id) return sendBadRequest(res, 'Expense ID is required');

@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { warehouseScopeMiddleware } from '../middleware/warehouseScope.middleware';
-import { uploadPOImages } from '../middleware/upload.middleware';
+import { uploadPOImages, uploadSingle } from '../middleware/upload.middleware';
 import {
   createDispatchSchema,
   createQCTemplateSchema,
@@ -259,6 +259,12 @@ router.patch('/expenses/:id/payment-status',
 router.delete('/expenses/:id',
   requirePermission('expenses:manage'),
   warehouseController.deleteExpense
+);
+
+router.post('/expenses/:id/upload-bill',
+  requirePermission('expenses:manage'),
+  uploadSingle,
+  warehouseController.uploadExpenseBill
 );
 
 router.get('/expenses/trend/monthly',
