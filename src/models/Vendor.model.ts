@@ -17,7 +17,7 @@ export interface ICompanyCreate extends Document {
   company_address: string;
   office_email: string;
   legal_entity_structure: string;
-  company_registration_number: string;
+  cin: string;
   date_of_incorporation: Date;
   corporate_website: string;
   directory_signature_name: string;
@@ -46,7 +46,7 @@ const companyCreateSchema = new Schema<ICompanyCreate>({
     required: true,
     trim: true
   },
-  company_registration_number: {
+  cin: {
     type: String,
     required: true,
     trim: true,
@@ -88,7 +88,7 @@ export interface IVendorCreate extends Document {
   vendor_email: string;
   vendor_address: string;
   vendor_id: string;
-  company_registration_number: string;
+  cin: string;
 
   // Financial Information
   bank_account_number: string;
@@ -215,7 +215,7 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     unique: true,
     trim: true
   },
-  company_registration_number: {
+  cin: {
     type: String,
     required: true,
     trim: true,
@@ -224,7 +224,7 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     validator: async function(value: string) {
       // Check if company exists with this registration number
       const company = await mongoose.model('CompanyCreate').findOne({ 
-        company_registration_number: value 
+        cin: value 
       });
       return !!company; // Return true if company exists
     },

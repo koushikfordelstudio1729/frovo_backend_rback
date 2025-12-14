@@ -24,11 +24,11 @@ console.log('📋 Registering company routes...');
 router.post('/companies', authorize(VENDOR_MANAGEMENT), VendorController.createCompany);
 router.get('/companies', authorize(READ_ACCESS), VendorController.getAllCompanies);
 router.get('/companies/search', authorize(READ_ACCESS), VendorController.searchCompanies);
-router.get('/companies/:id', authorize(READ_ACCESS), VendorController.getCompanyById);
-router.put('/companies/:id', authorize(VENDOR_MANAGEMENT), VendorController.updateCompany);
-router.delete('/companies/:id', authorize(SUPER_ADMIN_ONLY), VendorController.deleteCompany);
-router.get('/companies/:id/exists', authorize(READ_ACCESS), VendorController.checkCompanyExists);
-router.get('/companies/:company_registration_number/vendors', 
+router.get('/companies/:cin', authorize(READ_ACCESS), VendorController.getCompanyById);
+router.put('/companies/:cin', authorize(VENDOR_MANAGEMENT), VendorController.updateCompany);
+router.delete('/companies/:cin', authorize(SUPER_ADMIN_ONLY), VendorController.deleteCompany);
+router.get('/companies/:cin/exists', authorize(READ_ACCESS), VendorController.checkCompanyExists);
+router.get('/companies/:cin/vendors', 
   authorize(READ_ACCESS), 
   VendorController.getCompanyWithVendorStats
 );
@@ -36,12 +36,20 @@ router.get('/vendors/company/:company_registration_number', authorize(READ_ACCES
 
 // ========== DASHBOARD ROUTES ==========
 console.log('📊 Registering dashboard routes...');
-// KEEP ONLY ONE VENDOR ADMIN DASHBOARD ROUTE
-router.get('/vendor-admin/dashboard', authorize(VENDOR_MANAGEMENT), vendorController.getVendorAdminDashboard.bind(vendorController));
-router.get('/super-admin/dashboard', authorize(SUPER_ADMIN_ONLY), vendorController.getSuperAdminDashboard.bind(vendorController));
 
-// REMOVE THIS DUPLICATE ROUTE (it conflicts)
-// router.get('/vendors/dashboard/admin', vendorController.getVendorAdminDashboard.bind(vendorController));
+// COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
+// Shows all companies and all vendors (created by all admins)
+router.get('/common-dashboard', 
+  authorize(VENDOR_MANAGEMENT), 
+  vendorController.getCommonDashboard.bind(vendorController)
+);
+
+// SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only Super Admin
+// Shows only vendors with full approval/verification management
+router.get('/super-admin/vendor-management', 
+  authorize(SUPER_ADMIN_ONLY), 
+  vendorController.getSuperAdminVendorManagement.bind(vendorController)
+);
 
 // ========== SUPER ADMIN SPECIFIC ROUTES ==========
 console.log('👑 Registering super admin routes...');
@@ -59,7 +67,7 @@ router.put('/:id/quick-reject', authorize(SUPER_ADMIN_ONLY), vendorController.qu
 
 // ========== VENDOR CREATION ROUTES ==========
 console.log('➕ Registering vendor creation routes...');
-router.post('/create', authorize(VENDOR_ADMIN_ONLY), vendorController.createCompleteVendor.bind(vendorController));
+router.post('/create', authorize(VENDOR_MANAGEMENT), vendorController.createCompleteVendor.bind(vendorController));
 router.post('/bulk-create', authorize(VENDOR_MANAGEMENT), vendorController.createBulkVendors.bind(vendorController));
 
 // REMOVE THIS DUPLICATE ROUTE (already have /create)

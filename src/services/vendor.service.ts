@@ -18,23 +18,29 @@ export class VendorService {
   /**
    * Create a new company
    */
-  public static async createCompanyService(data: {
-    registered_company_name: string;
-    company_address: string;
-    office_email: string;
-    legal_entity_structure: string;
-    company_registration_number: string;
-    date_of_incorporation: Date;
-    corporate_website?: string;
-    directory_signature_name: string;
-    din: string;
-  }) {
+  public static async createCompanyService(
+    data: {
+      registered_company_name: string;
+      company_address: string;
+      office_email: string;
+      legal_entity_structure: string;
+      cin: string;
+      date_of_incorporation: Date;
+      corporate_website?: string;
+      directory_signature_name: string;
+      din: string;
+    },
+    userId: any,
+    userEmail: string,
+    userRole: string,
+    req?: any
+  ) {
     const {
       registered_company_name,
       company_address,
       office_email,
       legal_entity_structure,
-      company_registration_number,
+      cin,
       date_of_incorporation,
       corporate_website,
       directory_signature_name,
@@ -47,7 +53,7 @@ export class VendorService {
       'company_address',
       'office_email',
       'legal_entity_structure',
-      'company_registration_number',
+      'cin',
       'date_of_incorporation',
       'directory_signature_name',
       'din'
@@ -79,7 +85,7 @@ export class VendorService {
     // Check for unique constraints
     const existingCompanies = await Promise.all([
       CompanyCreate.findOne({ office_email }),
-      CompanyCreate.findOne({ company_registration_number }),
+      CompanyCreate.findOne({ cin }),
       CompanyCreate.findOne({ din })
     ]);
 
@@ -106,7 +112,7 @@ export class VendorService {
       company_address,
       office_email: office_email.toLowerCase(),
       legal_entity_structure,
-      company_registration_number,
+      cin,
       date_of_incorporation: incorporationDate,
       corporate_website,
       directory_signature_name,
@@ -114,6 +120,29 @@ export class VendorService {
     });
 
     const savedCompany = await newCompany.save();
+    
+    // ✅ CREATE AUDIT TRAIL FOR COMPANY CREATION
+    const auditTrailService = new AuditTrailService();
+    try {
+      await auditTrailService.createAuditRecord({
+        user: userId,
+        user_email: userEmail,
+        user_role: userRole,
+        action: 'create',
+        action_description: `Created new company: ${registered_company_name}`,
+        target_type: 'company',
+        target_company: savedCompany._id as Types.ObjectId,
+        target_company_name: registered_company_name,
+        target_company_cin: cin,
+        after_state: savedCompany.toObject(),
+        changed_fields: [],
+        ip_address: req?.ip || req?.headers?.['x-forwarded-for'] || req?.connection?.remoteAddress,
+        user_agent: req?.get?.('User-Agent') || req?.headers?.['user-agent']
+      });
+    } catch (auditError) {
+      console.error('Failed to create company audit trail:', auditError);
+      // Don't fail the company creation if audit fails
+    }
     
     // Convert to plain object and remove sensitive/technical fields
     const companyObj = savedCompany.toObject();
@@ -150,7 +179,7 @@ export class VendorService {
     filter.$or = [
       { registered_company_name: { $regex: search, $options: 'i' } },
       { office_email: { $regex: search, $options: 'i' } },
-      { company_registration_number: { $regex: search, $options: 'i' } },
+      { cin: { $regex: search, $options: 'i' } },
       { din: { $regex: search, $options: 'i' } },
       { directory_signature_name: { $regex: search, $options: 'i' } }
     ];
@@ -173,7 +202,7 @@ export class VendorService {
   const companiesWithVendorCounts = await Promise.all(
     companies.map(async (company) => {
       const vendorCount = await VendorCreate.countDocuments({
-        company_registration_number: company.company_registration_number
+        cin: company.cin
       });
       
       // Convert to plain object and add vendorCount
@@ -221,17 +250,24 @@ export class VendorService {
   /**
    * Update company by ID
    */
-  public static async updateCompanyService(id: string, data: Partial<{
-    registered_company_name: string;
-    company_address: string;
-    office_email: string;
-    legal_entity_structure: string;
-    company_registration_number: string;
-    date_of_incorporation: Date;
-    corporate_website: string;
-    directory_signature_name: string;
-    din: string;
-  }>) {
+  public static async updateCompanyService(
+    id: string, 
+    data: Partial<{
+      registered_company_name: string;
+      company_address: string;
+      office_email: string;
+      legal_entity_structure: string;
+      cin: string;
+      date_of_incorporation: Date;
+      corporate_website: string;
+      directory_signature_name: string;
+      din: string;
+    }>,
+    userId: any,
+    userEmail: string,
+    userRole: string,
+    req?: any
+  ) {
     // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error('Invalid company ID format');
@@ -242,6 +278,9 @@ export class VendorService {
     if (!existingCompany) {
       throw new Error('Company not found');
     }
+
+    // Store before state for audit
+    const beforeState = existingCompany.toObject();
 
     // Validate email if being updated
     if (data.office_email) {
@@ -279,9 +318,9 @@ export class VendorService {
     }
 
     // Validate registration number if being updated
-    if (data.company_registration_number) {
+    if (data.cin) {
       const companyWithSameRegNo = await CompanyCreate.findOne({
-        company_registration_number: data.company_registration_number,
+        cin: data.cin,
         _id: { $ne: id }
       });
       
@@ -317,22 +356,92 @@ export class VendorService {
       { new: true, runValidators: true }
     ).select('-__v');
 
+    // ✅ CREATE AUDIT TRAIL FOR COMPANY UPDATE
+    if (updatedCompany) {
+      const auditTrailService = new AuditTrailService();
+      
+      // Get changed fields
+      const changedFields = Object.keys(data).filter(key => {
+        const oldValue = beforeState[key as keyof typeof beforeState];
+        const newValue = data[key as keyof typeof data];
+        return JSON.stringify(oldValue) !== JSON.stringify(newValue);
+      });
+
+      try {
+        await auditTrailService.createAuditRecord({
+          user: userId,
+          user_email: userEmail,
+          user_role: userRole,
+          action: 'update',
+          action_description: `Updated company: ${updatedCompany.registered_company_name}`,
+          target_type: 'company',
+          target_company: updatedCompany._id as Types.ObjectId,
+          target_company_name: updatedCompany.registered_company_name,
+          target_company_cin: updatedCompany.cin,
+          before_state: beforeState,
+          after_state: updatedCompany.toObject(),
+          changed_fields: changedFields,
+          ip_address: req?.ip || req?.headers?.['x-forwarded-for'] || req?.connection?.remoteAddress,
+          user_agent: req?.get?.('User-Agent') || req?.headers?.['user-agent']
+        });
+      } catch (auditError) {
+        console.error('Failed to create company update audit trail:', auditError);
+        // Don't fail the update if audit fails
+      }
+    }
+
     return updatedCompany;
   }
 
   /**
    * Delete company by ID
    */
-  public static async deleteCompanyService(id: string) {
+  public static async deleteCompanyService(
+    id: string,
+    userId: any,
+    userEmail: string,
+    userRole: string,
+    req?: any
+  ) {
     // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error('Invalid company ID format');
     }
 
-    const deletedCompany = await CompanyCreate.findByIdAndDelete(id);
+    // Get company before deletion for audit trail
+    const companyToDelete = await CompanyCreate.findById(id);
     
-    if (!deletedCompany) {
+    if (!companyToDelete) {
       throw new Error('Company not found');
+    }
+
+    const beforeState = companyToDelete.toObject();
+    const deletedCompany = await CompanyCreate.findByIdAndDelete(id);
+
+    // ✅ CREATE AUDIT TRAIL FOR COMPANY DELETION
+    if (deletedCompany) {
+      const auditTrailService = new AuditTrailService();
+      
+      try {
+        await auditTrailService.createAuditRecord({
+          user: userId,
+          user_email: userEmail,
+          user_role: userRole,
+          action: 'delete',
+          action_description: `Deleted company: ${deletedCompany.registered_company_name}`,
+          target_type: 'company',
+          target_company: deletedCompany._id as Types.ObjectId,
+          target_company_name: deletedCompany.registered_company_name,
+          target_company_cin: deletedCompany.cin,
+          before_state: beforeState,
+          changed_fields: [],
+          ip_address: req?.ip || req?.headers?.['x-forwarded-for'] || req?.connection?.remoteAddress,
+          user_agent: req?.get?.('User-Agent') || req?.headers?.['user-agent']
+        });
+      } catch (auditError) {
+        console.error('Failed to create company deletion audit trail:', auditError);
+        // Don't fail the deletion if audit fails
+      }
     }
 
     return deletedCompany;
@@ -382,13 +491,13 @@ export class VendorService {
     VendorValidationService.validateCompleteVendorData(vendorData);
 
     // ===== IMPORTANT: Validate company_registration_number =====
-    if (vendorData.company_registration_number) {
+    if (vendorData.cin) {
       const companyExists = await CompanyCreate.findOne({
-        company_registration_number: vendorData.company_registration_number
+        cin: vendorData.cin
       });
 
       if (!companyExists) {
-        throw new Error(`Company with registration number "${vendorData.company_registration_number}" does not exist. Please create the company first.`);
+        throw new Error(`Company with registration number "${vendorData.cin}" does not exist. Please create the company first.`);
       }
     } else {
       throw new Error('Company registration number is required');
@@ -656,292 +765,332 @@ export class VendorService {
     return `VEND-${timestamp}-${random}`;
   }
 
-  // Get Super Admin Dashboard Data - Show ALL vendors
-
-  async getSuperAdminDashboard(filters: {
-  verification_status?: string;
-  risk_rating?: string;
-  vendor_category?: string;
-  search?: string;
-  page?: number;
-  limit?: number;
-} = {}): Promise<{
-  total_vendors: number;
-  pending_approvals: number;
-  active_vendors: number;
-  rejected_vendors: number;
-  vendors: any[];
-  pagination?: {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-    limit: number;
-  };
-}> {
-  try {
-    console.log('👑 SUPER ADMIN DASHBOARD');
-    console.log('🔍 Filters:', filters);
-
-    // Get counts with proper filtering
-    const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-      VendorCreate.countDocuments(),
-      VendorCreate.countDocuments({ verification_status: 'pending' }),
-      VendorCreate.countDocuments({ verification_status: 'verified' }),
-      VendorCreate.countDocuments({ verification_status: 'rejected' })
-    ]);
-
-    console.log('📈 Counts:', { 
-      totalVendors, 
-      pendingApprovals, 
-      activeVendors, 
-      rejectedVendors 
-    });
-
-    // Build query for vendors
-    const query: any = {};
-
-    if (filters.verification_status) {
-      query.verification_status = filters.verification_status;
-    }
-
-    if (filters.risk_rating) {
-      query.risk_rating = filters.risk_rating;
-    }
-
-    if (filters.vendor_category) {
-      query.vendor_category = filters.vendor_category;
-    }
-
-    if (filters.search) {
-      query.$or = [
-        { vendor_name: { $regex: filters.search, $options: 'i' } },
-        { vendor_email: { $regex: filters.search, $options: 'i' } },
-        { vendor_id: { $regex: filters.search, $options: 'i' } },
-        { primary_contact_name: { $regex: filters.search, $options: 'i' } },
-        { vendor_category: { $regex: filters.search, $options: 'i' } }
-      ];
-    }
-
-    console.log('🔍 Final Query:', JSON.stringify(query, null, 2));
-
-    const page = filters.page || 1;
-    const limit = filters.limit || 10;
-    const skip = (page - 1) * limit;
-
-    // Get ALL vendors for the dashboard table
-    const [vendors, totalCount] = await Promise.all([
-      VendorCreate.find(query)
-        .populate('createdBy', 'name email')
-        .populate('verified_by', 'name email')
-        .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      VendorCreate.countDocuments(query)
-    ]);
-
-    console.log('✅ Vendors found:', vendors.length);
-    console.log('📊 Total count with filters:', totalCount);
-
-    const dashboardVendors = vendors.map(vendor => ({
-      _id: vendor._id,
-      vendor_id: vendor.vendor_id,
-      vendor_name: vendor.vendor_name,
-      vendor_category: vendor.vendor_category,
-      verification_status: vendor.verification_status,
-      risk_rating: vendor.risk_rating,
-      contract_expiry_date: vendor.contract_expiry_date,
-      created_by: vendor.createdBy,
-      verified_by: vendor.verified_by,
-      created_at: vendor.createdAt,
-      updated_at: vendor.updatedAt,
-      // ✅ DIFFERENCE: Super admin actions (can verify/reject)
-      actions: this.getAvailableActions(vendor.verification_status)
-    }));
-
-    const totalPages = Math.ceil(totalCount / limit);
-
-    return {
-      total_vendors: totalVendors,
-      pending_approvals: pendingApprovals,
-      active_vendors: activeVendors,
-      rejected_vendors: rejectedVendors,
-      vendors: dashboardVendors,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalCount,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-        limit
-      }
+  /**
+   * COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
+   * Shows: All companies, All vendors (created by all admins), Total counts
+   * This is a shared dashboard showing the complete system overview
+   */
+  async getCommonDashboard(filters: {
+    verification_status?: string;
+    risk_rating?: string;
+    vendor_category?: string;
+    search?: string;
+    company_search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{
+    total_companies: number;
+    total_vendors: number;
+    pending_vendors: number;
+    verified_vendors: number;
+    rejected_vendors: number;
+    companies: any[];
+    vendors: any[];
+    pagination?: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      limit: number;
     };
+  }> {
+    try {
+      console.log('📊 COMMON DASHBOARD (Accessible by Super Admin & Vendor Admin)');
+      console.log('🔍 Filters:', filters);
 
-  } catch (error: any) {
-    console.error('❌ Error getting super admin dashboard:', error);
-    throw new Error(`Error getting super admin dashboard: ${error.message}`);
-  }
-}
-async getVendorAdminDashboard(filters: {
-  verification_status?: string;
-  risk_rating?: string;
-  vendor_category?: string;
-  search?: string;
-  page?: number;
-  limit?: number;
-} = {}): Promise<{
-  total_vendors: number;
-  pending_approvals: number;
-  active_vendors: number;
-  rejected_vendors: number;
-  vendors: any[];
-  pagination?: {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-    limit: number;
-  };
-}> {
-  try {
-    console.log('👑 SUPER ADMIN DASHBOARD');
-    console.log('🔍 Filters:', filters);
+      // Get all company statistics
+      const totalCompanies = await CompanyCreate.countDocuments();
 
-    // Get counts with proper filtering
-    const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-      VendorCreate.countDocuments(),
-      VendorCreate.countDocuments({ verification_status: 'pending' }),
-      VendorCreate.countDocuments({ verification_status: 'verified' }),
-      VendorCreate.countDocuments({ verification_status: 'rejected' })
-    ]);
+      // Get all vendor statistics (no filtering by creator)
+      const [totalVendors, pendingVendors, verifiedVendors, rejectedVendors] = await Promise.all([
+        VendorCreate.countDocuments(),
+        VendorCreate.countDocuments({ verification_status: 'pending' }),
+        VendorCreate.countDocuments({ verification_status: 'verified' }),
+        VendorCreate.countDocuments({ verification_status: 'rejected' })
+      ]);
 
-    console.log('📈 Counts:', { 
-      totalVendors, 
-      pendingApprovals, 
-      activeVendors, 
-      rejectedVendors 
-    });
+      console.log('📈 Statistics:', { 
+        totalCompanies,
+        totalVendors, 
+        pendingVendors, 
+        verifiedVendors, 
+        rejectedVendors 
+      });
 
-    // Build query for vendors
-    const query: any = {};
-
-    if (filters.verification_status) {
-      query.verification_status = filters.verification_status;
-    }
-
-    if (filters.risk_rating) {
-      query.risk_rating = filters.risk_rating;
-    }
-
-    if (filters.vendor_category) {
-      query.vendor_category = filters.vendor_category;
-    }
-
-    if (filters.search) {
-      query.$or = [
-        { vendor_name: { $regex: filters.search, $options: 'i' } },
-        { vendor_email: { $regex: filters.search, $options: 'i' } },
-        { vendor_id: { $regex: filters.search, $options: 'i' } },
-        { primary_contact_name: { $regex: filters.search, $options: 'i' } },
-        { vendor_category: { $regex: filters.search, $options: 'i' } }
-      ];
-    }
-
-    console.log('🔍 Final Query:', JSON.stringify(query, null, 2));
-
-    const page = filters.page || 1;
-    const limit = filters.limit || 10;
-    const skip = (page - 1) * limit;
-
-    // Get ALL vendors for the dashboard table
-    const [vendors, totalCount] = await Promise.all([
-      VendorCreate.find(query)
-        .populate('createdBy', 'name email')
-        .populate('verified_by', 'name email')
-        .select('vendor_name vendor_category vendor_id risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      VendorCreate.countDocuments(query)
-    ]);
-
-    console.log('✅ Vendors found:', vendors.length);
-    console.log('📊 Total count with filters:', totalCount);
-
-    const dashboardVendors = vendors.map(vendor => ({
-      _id: vendor._id,
-      vendor_id: vendor.vendor_id,
-      vendor_name: vendor.vendor_name,
-      vendor_category: vendor.vendor_category,
-      verification_status: vendor.verification_status,
-      risk_rating: vendor.risk_rating,
-      contract_expiry_date: vendor.contract_expiry_date,
-      created_by: vendor.createdBy,
-      verified_by: vendor.verified_by,
-      created_at: vendor.createdAt,
-      updated_at: vendor.updatedAt,
-      // ✅ DIFFERENCE: Super admin actions (can verify/reject)
-      actions: this.getAvailableActions(vendor.verification_status)
-    }));
-
-    const totalPages = Math.ceil(totalCount / limit);
-
-    return {
-      total_vendors: totalVendors,
-      pending_approvals: pendingApprovals,
-      active_vendors: activeVendors,
-      rejected_vendors: rejectedVendors,
-      vendors: dashboardVendors,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalCount,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-        limit
+      // Build query for companies
+      const companyQuery: any = {};
+      if (filters.company_search) {
+        companyQuery.$or = [
+          { registered_company_name: { $regex: filters.company_search, $options: 'i' } },
+          { office_email: { $regex: filters.company_search, $options: 'i' } },
+          { cin: { $regex: filters.company_search, $options: 'i' } }
+        ];
       }
-    };
 
-  } catch (error: any) {
-    console.error('❌ Error getting super admin dashboard:', error);
-    throw new Error(`Error getting super admin dashboard: ${error.message}`);
+      // Get recent companies (limit to 5 for dashboard)
+      const companies = await CompanyCreate.find(companyQuery)
+        .select('registered_company_name office_email cin date_of_incorporation createdAt')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+
+      // Add vendor count to each company
+      const companiesWithVendorCount = await Promise.all(
+        companies.map(async (company) => {
+          const vendorCount = await VendorCreate.countDocuments({ cin: company.cin });
+          return {
+            ...company,
+            vendor_count: vendorCount
+          };
+        })
+      );
+
+      // Build query for vendors
+      const vendorQuery: any = {};
+
+      if (filters.verification_status) {
+        vendorQuery.verification_status = filters.verification_status;
+      }
+
+      if (filters.risk_rating) {
+        vendorQuery.risk_rating = filters.risk_rating;
+      }
+
+      if (filters.vendor_category) {
+        vendorQuery.vendor_category = filters.vendor_category;
+      }
+
+      if (filters.search) {
+        vendorQuery.$or = [
+          { vendor_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_email: { $regex: filters.search, $options: 'i' } },
+          { vendor_id: { $regex: filters.search, $options: 'i' } },
+          { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_category: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+
+      console.log('🔍 Vendor Query:', JSON.stringify(vendorQuery, null, 2));
+
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Get ALL vendors (created by all admins - no createdBy filter)
+      const [vendors, totalCount] = await Promise.all([
+        VendorCreate.find(vendorQuery)
+          .populate('createdBy', 'name email')
+          .populate('verified_by', 'name email')
+          .select('vendor_name vendor_category vendor_id cin risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        VendorCreate.countDocuments(vendorQuery)
+      ]);
+
+      console.log('✅ Vendors found:', vendors.length);
+      console.log('📊 Total vendor count with filters:', totalCount);
+
+      // Format vendors for response
+      const dashboardVendors = vendors.map(vendor => ({
+        _id: vendor._id,
+        vendor_id: vendor.vendor_id,
+        vendor_name: vendor.vendor_name,
+        vendor_category: vendor.vendor_category,
+        cin: vendor.cin,
+        verification_status: vendor.verification_status,
+        risk_rating: vendor.risk_rating,
+        contract_expiry_date: vendor.contract_expiry_date,
+        created_by: vendor.createdBy,
+        verified_by: vendor.verified_by,
+        created_at: vendor.createdAt,
+        updated_at: vendor.updatedAt,
+        actions: ['view'] // Common dashboard - view only access
+      }));
+
+      const totalPages = Math.ceil(totalCount / limit);
+
+      return {
+        total_companies: totalCompanies,
+        total_vendors: totalVendors,
+        pending_vendors: pendingVendors,
+        verified_vendors: verifiedVendors,
+        rejected_vendors: rejectedVendors,
+        companies: companiesWithVendorCount,
+        vendors: dashboardVendors,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+          limit
+        }
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error getting common dashboard:', error);
+      throw new Error(`Error getting common dashboard: ${error.message}`);
+    }
   }
-}
-  // Helper method to determine available actions based on vendor status
-  private getAvailableActions(verificationStatus: string): string[] {
+
+  /**
+   * SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only for Super Admin
+   * Shows: Only vendors (no companies), with full management capabilities
+   * Focus: Vendor verification, approval workflow, vendor management
+   */
+  async getSuperAdminVendorManagementDashboard(filters: {
+    verification_status?: string;
+    risk_rating?: string;
+    vendor_category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{
+    total_vendors: number;
+    pending_approvals: number;
+    verified_vendors: number;
+    rejected_vendors: number;
+    failed_vendors: number;
+    vendors: any[];
+    pagination?: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      limit: number;
+    };
+  }> {
+    try {
+      console.log('👑 SUPER ADMIN VENDOR MANAGEMENT DASHBOARD');
+      console.log('🔍 Filters:', filters);
+
+      // Get vendor counts for all statuses
+      const [totalVendors, pendingApprovals, verifiedVendors, rejectedVendors, failedVendors] = await Promise.all([
+        VendorCreate.countDocuments(),
+        VendorCreate.countDocuments({ verification_status: 'pending' }),
+        VendorCreate.countDocuments({ verification_status: 'verified' }),
+        VendorCreate.countDocuments({ verification_status: 'rejected' }),
+        VendorCreate.countDocuments({ verification_status: 'failed' })
+      ]);
+
+      console.log('📈 Vendor Statistics:', { 
+        totalVendors, 
+        pendingApprovals, 
+        verifiedVendors, 
+        rejectedVendors,
+        failedVendors 
+      });
+
+      // Build query for vendors with filters
+      const query: any = {};
+
+      if (filters.verification_status) {
+        query.verification_status = filters.verification_status;
+      }
+
+      if (filters.risk_rating) {
+        query.risk_rating = filters.risk_rating;
+      }
+
+      if (filters.vendor_category) {
+        query.vendor_category = filters.vendor_category;
+      }
+
+      if (filters.search) {
+        query.$or = [
+          { vendor_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_email: { $regex: filters.search, $options: 'i' } },
+          { vendor_id: { $regex: filters.search, $options: 'i' } },
+          { primary_contact_name: { $regex: filters.search, $options: 'i' } },
+          { vendor_category: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+
+      console.log('🔍 Final Query:', JSON.stringify(query, null, 2));
+
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Get vendors with full details for management
+      const [vendors, totalCount] = await Promise.all([
+        VendorCreate.find(query)
+          .populate('createdBy', 'name email')
+          .populate('verified_by', 'name email')
+          .select('vendor_name vendor_category vendor_id cin risk_rating contract_expiry_date verification_status createdBy verified_by risk_notes createdAt updatedAt')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        VendorCreate.countDocuments(query)
+      ]);
+
+      console.log('✅ Vendors found:', vendors.length);
+      console.log('📊 Total count with filters:', totalCount);
+
+      // Format vendors with super admin actions
+      const managementVendors = vendors.map(vendor => ({
+        _id: vendor._id,
+        vendor_id: vendor.vendor_id,
+        vendor_name: vendor.vendor_name,
+        vendor_category: vendor.vendor_category,
+        cin: vendor.cin,
+        verification_status: vendor.verification_status,
+        risk_rating: vendor.risk_rating,
+        contract_expiry_date: vendor.contract_expiry_date,
+        created_by: vendor.createdBy,
+        verified_by: vendor.verified_by,
+        risk_notes: vendor.risk_notes,
+        created_at: vendor.createdAt,
+        updated_at: vendor.updatedAt,
+        // Super admin can verify/reject/edit/delete
+        actions: this.getSuperAdminActions(vendor.verification_status)
+      }));
+
+      const totalPages = Math.ceil(totalCount / limit);
+
+      return {
+        total_vendors: totalVendors,
+        pending_approvals: pendingApprovals,
+        verified_vendors: verifiedVendors,
+        rejected_vendors: rejectedVendors,
+        failed_vendors: failedVendors,
+        vendors: managementVendors,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+          limit
+        }
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error getting super admin vendor management dashboard:', error);
+      throw new Error(`Error getting super admin vendor management dashboard: ${error.message}`);
+    }
+  }
+
+  // Helper method for super admin actions (can verify/reject vendors)
+  private getSuperAdminActions(verificationStatus: string): string[] {
     switch (verificationStatus) {
       case 'pending':
-        return ['verify', 'reject', 'view', 'edit'];
+        return ['verify', 'reject', 'view', 'edit', 'delete'];
       case 'verified':
-        return ['reject', 'view', 'edit'];
+        return ['reject', 'view', 'edit', 'delete'];
       case 'rejected':
-        return ['verify', 'view', 'edit'];
+        return ['verify', 'view', 'edit', 'delete'];
+      case 'failed':
+        return ['verify', 'reject', 'view', 'edit', 'delete'];
       default:
-        return ['view', 'edit'];
+        return ['view', 'edit', 'delete'];
     }
   }
-  // Get ALL Vendors Without Any Filters (Debug/Public)
-
-private getVendorAdminActions(verificationStatus: string): string[] {
-  // Vendor admin can view all vendors
-  // Can edit only pending vendors (not verified/rejected)
-  // Cannot verify/reject vendors (only super admin can)
-  switch (verificationStatus) {
-    case 'pending':
-      return ['view', 'edit']; // Can view and edit pending vendors
-    case 'verified':
-    case 'rejected':
-    case 'failed':
-      return ['view']; // Can only view verified/rejected/failed vendors
-    default:
-      return ['view'];
-  }
-}
 
   // Toggle Vendor Verification Status (Verify ↔ Reject)
   async toggleVendorVerification(
@@ -1078,7 +1227,7 @@ private getVendorAdminActions(verificationStatus: string): string[] {
         verified_by: vendor.verified_by,
         created_at: vendor.createdAt,
         updated_at: vendor.updatedAt,
-        actions: this.getAvailableActions(vendor.verification_status)
+        
       }));
 
       return {
@@ -1393,13 +1542,13 @@ async createBulkVendors(
   for (let i = 0; i < vendorsData.length; i++) {
     try {
       // ===== IMPORTANT: Validate company_registration_number for each vendor =====
-      if (vendorsData[i].company_registration_number) {
+      if (vendorsData[i].cin) {
         const companyExists = await CompanyCreate.findOne({
-          company_registration_number: vendorsData[i].company_registration_number
+          cin: vendorsData[i].cin
         });
 
         if (!companyExists) {
-          throw new Error(`Company with registration number "${vendorsData[i].company_registration_number}" does not exist`);
+          throw new Error(`Company with identification number "${vendorsData[i].cin}" does not exist`);
         }
       } else {
         throw new Error('Company registration number is required');
@@ -1416,14 +1565,14 @@ async createBulkVendors(
         index: i,
         vendor_name: result.vendor_name,
         vendor_id: result.vendor_id,
-        company_registration_number: result.company_registration_number,
+        cin: result.cin,
         data: result
       });
     } catch (error: any) {
       failed.push({
         index: i,
         vendor_name: vendorsData[i].vendor_name,
-        company_registration_number: vendorsData[i].company_registration_number,
+        cin: vendorsData[i].cin,
         error: error.message
       });
     }
@@ -1512,7 +1661,7 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
     company: {
       _id: company._id,
       registered_company_name: company.registered_company_name,
-      company_registration_number: company.company_registration_number,
+      company_registration_number: company.cin,
       office_email: company.office_email
     },
     vendors: vendors,
@@ -1530,10 +1679,10 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
 /**
  * Get company with vendor statistics
  */
-public static async getCompanyWithVendorStatsService(company_registration_number: string) {
+public static async getCompanyWithVendorStatsService(cin: string) {
   // Get company details by registration number
   const company = await CompanyCreate.findOne({ 
-    company_registration_number 
+    cin:cin 
   }).select('-__v');
   
   if (!company) {
@@ -1552,7 +1701,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     VendorCreate.aggregate([
       {
         $match: {
-          company_registration_number: company.company_registration_number
+          cin: company.cin
         }
       },
       {
@@ -1567,7 +1716,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     VendorCreate.aggregate([
       {
         $match: {
-          company_registration_number: company.company_registration_number
+          cin: company.cin
         }
       },
       {
@@ -1583,7 +1732,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     VendorCreate.aggregate([
       {
         $match: {
-          company_registration_number: company.company_registration_number
+          cin: company.cin
         }
       },
       {
@@ -1596,7 +1745,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     
     // Get recent vendors (last 5)
     VendorCreate.find({
-      company_registration_number: company.company_registration_number
+      cin: company.cin
     })
     .populate('createdBy', 'name email')
     .select('vendor_name vendor_id vendor_category verification_status risk_rating createdAt')
@@ -1605,7 +1754,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     
     // Get total vendors count
     VendorCreate.countDocuments({
-      company_registration_number: company.company_registration_number
+      cin: company.cin
     })
   ]);
 
@@ -1679,7 +1828,7 @@ public static async getCompanyWithVendorStatsService(company_registration_number
     recent_vendors: recentVendors,
     overview: {
       company_name: company.registered_company_name,
-      registration_number: company.company_registration_number,
+      cin: company.cin,
       vendor_summary: `Total ${totalVendors} vendors registered`,
       verification_summary: `${statsObject.verified} verified (${verifiedPercentage}%)`
     }

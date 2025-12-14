@@ -10,8 +10,8 @@ const auditTrailService = new AuditTrailService();
 
 export class VendorController {
   
-  // Utility function to safely extract user
-  private getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
+  // Utility function to safely extract user - NOW STATIC
+  private static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
     const user = (req as any).user;
     
     if (!user || !user._id) {
@@ -30,12 +30,16 @@ export class VendorController {
    */
   public static async createCompany(req: Request, res: Response): Promise<void> {
     try {
+      // Get logged in user info - USING STATIC METHOD
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || 'unknown';
+
       const {
         registered_company_name,
         company_address,
         office_email,
         legal_entity_structure,
-        company_registration_number,
+        cin,
         date_of_incorporation,
         corporate_website,
         directory_signature_name,
@@ -60,15 +64,21 @@ export class VendorController {
         company_address,
         office_email,
         legal_entity_structure,
-        company_registration_number,
+        cin,
         date_of_incorporation: parsedDate!,
         corporate_website,
         directory_signature_name,
         din
       };
 
-      // Call the static method from VendorService
-      const newCompany = await VendorService.createCompanyService(companyData);
+      // Call the static method from VendorService with user info for audit
+      const newCompany = await VendorService.createCompanyService(
+        companyData,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
 
       res.status(201).json({
         success: true,
@@ -149,9 +159,9 @@ export class VendorController {
    */
   public static async getCompanyById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { cin } = req.params;
 
-      const company = await VendorService.getCompanyByIdService(id);
+      const company = await VendorService.getCompanyByIdService(cin);
 
       res.status(200).json({
         success: true,
@@ -185,7 +195,11 @@ export class VendorController {
    */
   public static async updateCompany(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      // Get logged in user info - USING STATIC METHOD
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || 'unknown';
+
+      const { cin } = req.params;
       const updateData = req.body;
 
       // Validate date format if provided
@@ -201,7 +215,14 @@ export class VendorController {
         updateData.date_of_incorporation = parsedDate;
       }
 
-      const updatedCompany = await VendorService.updateCompanyService(id, updateData);
+      const updatedCompany = await VendorService.updateCompanyService(
+        cin, 
+        updateData,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
 
       if (!updatedCompany) {
         res.status(404).json({
@@ -259,9 +280,19 @@ export class VendorController {
    */
   public static async deleteCompany(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      // Get logged in user info - USING STATIC METHOD
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || 'unknown';
 
-      const deletedCompany = await VendorService.deleteCompanyService(id);
+      const { cin } = req.params;
+
+      const deletedCompany = await VendorService.deleteCompanyService(
+        cin,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
 
       res.status(200).json({
         success: true,
@@ -339,9 +370,9 @@ export class VendorController {
    */
   public static async checkCompanyExists(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { cin } = req.params;
 
-      const exists = await VendorService.checkCompanyExists(id);
+      const exists = await VendorService.checkCompanyExists(cin);
 
       res.status(200).json({
         success: true,
@@ -358,88 +389,117 @@ export class VendorController {
       });
     }
   }
- // Vendor Admin Dashboard Controller
-// Super Admin Dashboard Controller
-async getVendorAdminDashboard(req: Request, res: Response) {
-  try {
-    console.log('👑 Vendor Admin Dashboard endpoint called');
-    
-    const { roles } = this.getLoggedInUser(req);
-    console.log('👥 User Roles:', roles.map(r => r.key));
+  /**
+   * COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
+   * Shows: All companies, All vendors created by all admins, Total counts
+   * Route: GET /api/vendors/common-dashboard
+   */
+  async getCommonDashboard(req: Request, res: Response) {
+    try {
+      console.log('📊 Common Dashboard endpoint called');
+      
+      const { roles } = VendorController.getLoggedInUser(req);
+      console.log('👥 User Roles:', roles.map(r => r.key));
 
-    const filters = {
-      verification_status: req.query.verification_status as string,
-      risk_rating: req.query.risk_rating as string,
-      vendor_category: req.query.vendor_category as string,
-      search: req.query.search as string,
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 10
-    };
+      // Validate user has access (both super_admin and vendor_admin can access)
+      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. This dashboard is only for Super Admin and Vendor Admin.'
+        });
+      }
 
-    console.log('🔍 Filters:', filters);
+      const filters = {
+        verification_status: req.query.verification_status as string,
+        risk_rating: req.query.risk_rating as string,
+        vendor_category: req.query.vendor_category as string,
+        search: req.query.search as string,
+        company_search: req.query.company_search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10
+      };
 
-    const dashboardData = await vendorService.getVendorAdminDashboard(filters);
+      console.log('🔍 Filters:', filters);
 
-    console.log('✅ Dashboard data retrieved:', {
-      total_vendors: dashboardData.total_vendors,
-      vendors_count: dashboardData.vendors?.length || 0
-    });
+      const dashboardData = await vendorService.getCommonDashboard(filters);
 
-    res.status(200).json({
-      success: true,
-      data: dashboardData
-    });
-  } catch (error: any) {
-    console.error('❌ Error fetching super admin dashboard:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+      console.log('✅ Common dashboard data retrieved:', {
+        total_companies: dashboardData.total_companies,
+        total_vendors: dashboardData.total_vendors,
+        companies_count: dashboardData.companies?.length || 0,
+        vendors_count: dashboardData.vendors?.length || 0
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Common dashboard data retrieved successfully',
+        data: dashboardData
+      });
+    } catch (error: any) {
+      console.error('❌ Error fetching common dashboard:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
   }
-}
 
-// Super Admin Dashboard Controller
-async getSuperAdminDashboard(req: Request, res: Response) {
-  try {
-    console.log('👑 Super Admin Dashboard endpoint called');
-    
-    const { roles } = this.getLoggedInUser(req);
-    console.log('👥 User Roles:', roles.map(r => r.key));
+  /**
+   * SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only for Super Admin
+   * Shows: Only vendors with full management capabilities (verify/reject/approve)
+   * Route: GET /api/vendors/super-admin/vendor-management
+   */
+  async getSuperAdminVendorManagement(req: Request, res: Response) {
+    try {
+      console.log('👑 Super Admin Vendor Management Dashboard endpoint called');
+      
+      const { roles } = VendorController.getLoggedInUser(req);
+      console.log('👥 User Roles:', roles.map(r => r.key));
 
-    const filters = {
-      verification_status: req.query.verification_status as string,
-      risk_rating: req.query.risk_rating as string,
-      vendor_category: req.query.vendor_category as string,
-      search: req.query.search as string,
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 10
-    };
+      // Validate user is Super Admin ONLY
+      if (!roles.some(role => role.key === 'super_admin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. This dashboard is only for Super Admin.'
+        });
+      }
 
-    console.log('🔍 Filters:', filters);
+      const filters = {
+        verification_status: req.query.verification_status as string,
+        risk_rating: req.query.risk_rating as string,
+        vendor_category: req.query.vendor_category as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10
+      };
 
-    const dashboardData = await vendorService.getSuperAdminDashboard(filters);
+      console.log('🔍 Filters:', filters);
 
-    console.log('✅ Dashboard data retrieved:', {
-      total_vendors: dashboardData.total_vendors,
-      vendors_count: dashboardData.vendors?.length || 0
-    });
+      const dashboardData = await vendorService.getSuperAdminVendorManagementDashboard(filters);
 
-    res.status(200).json({
-      success: true,
-      data: dashboardData
-    });
-  } catch (error: any) {
-    console.error('❌ Error fetching super admin dashboard:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+      console.log('✅ Super admin vendor management data retrieved:', {
+        total_vendors: dashboardData.total_vendors,
+        pending_approvals: dashboardData.pending_approvals,
+        vendors_count: dashboardData.vendors?.length || 0
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Super admin vendor management dashboard data retrieved successfully',
+        data: dashboardData
+      });
+    } catch (error: any) {
+      console.error('❌ Error fetching super admin vendor management dashboard:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
   }
-}
   // Get All Vendors for Super Admin
   async getAllVendorsForSuperAdmin(req: Request, res: Response) {
     try {
-      const { roles } = this.getLoggedInUser(req);
+      const { roles } = VendorController.getLoggedInUser(req);
       
       // Validate user is Super Admin
       if (!roles.some(role => role.key === 'super_admin')) {
@@ -478,7 +538,7 @@ async getSuperAdminDashboard(req: Request, res: Response) {
   // Get Vendor Statistics for Super Admin
   async getVendorStatistics(req: Request, res: Response) {
     try {
-      const { roles } = this.getLoggedInUser(req);
+      const { roles } = VendorController.getLoggedInUser(req);
       
       // Validate user is Super Admin
       if (!roles.some(role => role.key === 'super_admin')) {
@@ -505,7 +565,7 @@ async getSuperAdminDashboard(req: Request, res: Response) {
   // Get Pending Approvals for Super Admin
   async getPendingApprovals(req: Request, res: Response) {
     try {
-      const { roles } = this.getLoggedInUser(req);
+      const { roles } = VendorController.getLoggedInUser(req);
       
       // Validate user is Super Admin
       if (!roles.some(role => role.key === 'super_admin')) {
@@ -532,7 +592,7 @@ async getSuperAdminDashboard(req: Request, res: Response) {
   // Create Complete Vendor with Audit Trail
   async createCompleteVendor(req: Request, res: Response) {
     try {
-      const { _id: createdBy, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: createdBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
       
       // Validate user has permission to create vendors
@@ -583,7 +643,7 @@ async getSuperAdminDashboard(req: Request, res: Response) {
   // Bulk Create Vendors
   async createBulkVendors(req: Request, res: Response) {
     try {
-      const { _id: createdBy, roles } = this.getLoggedInUser(req);
+      const { _id: createdBy, roles } = VendorController.getLoggedInUser(req);
       const { vendors } = req.body;
 
       if (!Array.isArray(vendors) || vendors.length === 0) {
@@ -614,14 +674,13 @@ async getSuperAdminDashboard(req: Request, res: Response) {
       });
     }
   }
-// In VendorController.ts, add these static methods:
 
 /**
  * Get vendors by company registration number
  */
 public static async getVendorsByCompany(req: Request, res: Response): Promise<void> {
   try {
-    const { company_registration_number } = req.params;
+    const { cin } = req.params;
     const {
       page = 1,
       limit = 10,
@@ -631,7 +690,7 @@ public static async getVendorsByCompany(req: Request, res: Response): Promise<vo
       vendor_category
     } = req.query;
 
-    if (!company_registration_number) {
+    if (!cin) {
       res.status(400).json({
         success: false,
         message: 'Company registration number is required'
@@ -640,7 +699,7 @@ public static async getVendorsByCompany(req: Request, res: Response): Promise<vo
     }
 
     const result = await VendorService.getVendorsByCompanyService(
-      company_registration_number,
+      cin,
       {
         page: Number(page),
         limit: Number(limit),
@@ -683,9 +742,9 @@ public static async getVendorsByCompany(req: Request, res: Response): Promise<vo
  */
 public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
   try {
-    const { company_registration_number } = req.params;
+    const { cin } = req.params;
 
-    const result = await VendorService.getCompanyWithVendorStatsService(company_registration_number);
+    const result = await VendorService.getCompanyWithVendorStatsService(cin);
 
     res.status(200).json({
       success: true,
@@ -767,7 +826,7 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
   async getVendorForEdit(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: userId, roles } = this.getLoggedInUser(req);
+      const { _id: userId, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const vendor = await vendorService.getVendorForEdit(id, userId, userRole);
@@ -827,7 +886,7 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
   async updateVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const updatedVendor = await vendorService.updateVendor(
@@ -877,7 +936,7 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
   async updateVendorForAdmin(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: userId, roles } = this.getLoggedInUser(req);
+      const { _id: userId, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const updatedVendor = await vendorService.updateVendorForAdmin(id, req.body, userId, userRole);
@@ -921,7 +980,7 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
     try {
       const { id } = req.params;
       const { verification_status, notes } = req.body;
-      const { _id: verifiedBy, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       if (!['verified', 'rejected', 'pending'].includes(verification_status)) {
@@ -970,7 +1029,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const action = req.path.split('/').pop(); // Get 'quick-verify' or 'quick-reject'
-    const { _id: verifiedBy, roles, email: userEmail } = this.getLoggedInUser(req);
+    const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
     const userRole = roles[0]?.key;
 
     // Validate user is Super Admin
@@ -1042,7 +1101,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   async toggleVendorVerification(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: verifiedBy, roles } = this.getLoggedInUser(req);
+      const { _id: verifiedBy, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const updatedVendor = await vendorService.toggleVendorVerification(
@@ -1074,7 +1133,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   async bulkUpdateVendorVerification(req: Request, res: Response) {
     try {
       const { vendor_ids, verification_status, rejection_reason } = req.body;
-      const { _id: verifiedBy, roles } = this.getLoggedInUser(req);
+      const { _id: verifiedBy, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       if (!['verified', 'rejected'].includes(verification_status)) {
@@ -1122,7 +1181,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   async deleteVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const result = await vendorService.deleteVendor(id, userId, userEmail, userRole, req);
@@ -1150,7 +1209,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   async deleteVendorForAdmin(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { _id: userId, roles } = this.getLoggedInUser(req);
+      const { _id: userId, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const result = await vendorService.deleteVendorForAdmin(id, userId, userRole);
@@ -1184,7 +1243,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   // Test endpoint to generate audit data
   async generateTestAuditData(req: Request, res: Response) {
     try {
-      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       // Create test audit records
@@ -1227,7 +1286,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const { document_type, expiry_date } = req.body;
-      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       // Check if file exists
@@ -1276,7 +1335,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
   async deleteVendorDocument(req: Request, res: Response) {
     try {
       const { id, documentId } = req.params;
-      const { _id: userId, roles, email: userEmail } = this.getLoggedInUser(req);
+      const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
       const vendor = await vendorService.deleteVendorDocument(
