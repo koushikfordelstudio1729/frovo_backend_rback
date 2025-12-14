@@ -4,6 +4,7 @@ import asyncHandler from 'express-async-handler';
 import { warehouseService } from '../services/warehouse.service';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/responseHandlers';
 import { checkPermission } from '../middleware/auth.middleware';
+import { DocumentUploadService } from '../services/documentUpload.service';
 
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
@@ -37,11 +38,97 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
   }
 
   try {
-    console.log('📥 Request body received:', {
-      vendor: req.body.vendor,
-      po_line_items_count: req.body.po_line_items?.length || 0,
-      po_line_items: req.body.po_line_items,
-      all_fields: Object.keys(req.body)
+    const uploadService = new DocumentUploadService();
+    const files = (req as any).files as Express.Multer.File[] | undefined;
+
+    console.log('📥 Request received:', {
+      hasFiles: !!files,
+      fileCount: files?.length || 0,
+      contentType: req.headers['content-type']
+    });
+
+    // Parse po_line_items if it's a string (from multipart/form-data)
+    let poData = { ...req.body };
+    if (typeof req.body.po_line_items === 'string') {
+      try {
+        poData.po_line_items = JSON.parse(req.body.po_line_items);
+      } catch (parseError) {
+        return sendBadRequest(res, 'Invalid po_line_items format. Must be valid JSON.');
+      }
+    }
+
+    // Handle file uploads if present
+    if (files && files.length > 0) {
+      console.log('📤 Processing file uploads...');
+
+      // Group files by line item index (field name pattern: images_0, images_1, etc.)
+      const filesByLineItem: { [key: number]: Express.Multer.File[] } = {};
+
+      for (const file of files) {
+        // Extract line item index from field name (e.g., "images_0" -> 0)
+        const match = file.fieldname.match(/images_(\d+)/);
+        if (match) {
+          const lineItemIndex = parseInt(match[1], 10);
+          if (!filesByLineItem[lineItemIndex]) {
+            filesByLineItem[lineItemIndex] = [];
+          }
+          filesByLineItem[lineItemIndex].push(file);
+        }
+      }
+
+      console.log('📊 Files grouped by line item:', Object.keys(filesByLineItem).map(key => ({
+        lineItem: key,
+        fileCount: filesByLineItem[parseInt(key)].length
+      })));
+
+      // Upload files to Cloudinary and attach to line items
+      for (const [lineItemIndex, lineItemFiles] of Object.entries(filesByLineItem)) {
+        const index = parseInt(lineItemIndex, 10);
+
+        if (!poData.po_line_items[index]) {
+          console.warn(`⚠️ Warning: Files uploaded for line item ${index}, but line item doesn't exist`);
+          continue;
+        }
+
+        // Upload each file for this line item
+        const uploadedImages = [];
+        for (const file of lineItemFiles) {
+          try {
+            console.log(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
+
+            const uploadResult = await uploadService.uploadToCloudinary(
+              file.buffer,
+              file.originalname,
+              'frovo/purchase_orders'
+            );
+
+            uploadedImages.push({
+              file_name: file.originalname,
+              file_url: uploadResult.url,
+              cloudinary_public_id: uploadResult.publicId,
+              file_size: file.size,
+              mime_type: file.mimetype,
+              uploaded_at: new Date()
+            });
+
+            console.log(`✅ Uploaded ${file.originalname} successfully`);
+          } catch (uploadError) {
+            console.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
+            return sendError(res, `Failed to upload file ${file.originalname}`, 500);
+          }
+        }
+
+        // Attach images to the corresponding line item
+        poData.po_line_items[index].images = uploadedImages;
+      }
+
+      console.log('✅ All files uploaded successfully');
+    }
+
+    console.log('📥 Final PO data:', {
+      vendor: poData.vendor,
+      po_line_items_count: poData.po_line_items?.length || 0,
+      all_fields: Object.keys(poData)
     });
 
     // Check if user is warehouse staff by checking roles array
@@ -52,11 +139,11 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
 
     // If user is warehouse staff, enforce draft status only
     if (isWarehouseStaff) {
-      req.body.po_status = 'draft'; // Force draft status for warehouse staff
+      poData.po_status = 'draft'; // Force draft status for warehouse staff
       console.log('🔒 Warehouse staff: PO status forced to draft');
     }
 
-    const result = await warehouseService.createPurchaseOrder(req.body, req.user._id, req.user.roles);
+    const result = await warehouseService.createPurchaseOrder(poData, req.user._id, req.user.roles);
 
     console.log('📤 Service result:', {
       po_number: result.po_number,

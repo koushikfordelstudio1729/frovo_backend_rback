@@ -143,6 +143,14 @@ export interface IRaisePurchaseOrder extends Document {
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
+    images?: Array<{
+      file_name: string;
+      file_url: string;
+      cloudinary_public_id: string;
+      file_size: number;
+      mime_type: string;
+      uploaded_at: Date;
+    }>;
   }>;
     vendor_details: {
     vendor_name: string;
@@ -180,7 +188,15 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
     uom: { type: String, required: true },
     unit_price: { type: Number, required: true },
     expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true }
+    location: { type: String, required: true },
+    images: [{
+      file_name: { type: String, required: true },
+      file_url: { type: String, required: true },
+      cloudinary_public_id: { type: String, required: true },
+      file_size: { type: Number, required: true },
+      mime_type: { type: String, required: true },
+      uploaded_at: { type: Date, default: Date.now }
+    }]
   }],
 
   vendor: {

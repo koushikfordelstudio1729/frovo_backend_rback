@@ -21,6 +21,7 @@ pids
 !.env.example
 
 # Output of builds
+/diist
 dist/
 build/
 tmp/

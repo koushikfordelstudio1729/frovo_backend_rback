@@ -48,3 +48,7 @@ export const uploadSingle = upload.single('document');
 
 // Middleware for multiple file uploads (max 5 files)
 export const uploadMultiple = upload.array('documents', 5);
+
+// Middleware for PO line item images (any field name, max 50 files total)
+// Field names should be like: images_0, images_1, images_2, etc.
+export const uploadPOImages = upload.any();

@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { warehouseScopeMiddleware } from '../middleware/warehouseScope.middleware';
+import { uploadPOImages } from '../middleware/upload.middleware';
 import {
   createDispatchSchema,
   createQCTemplateSchema,
@@ -41,7 +42,7 @@ router.get('/dashboard',
 // Purchase Orders
 router.post('/inbound/purchase-orders',
   requirePermission('purchase_orders:create'),
-  validate({ body: createPurchaseOrderSchema.shape.body }),
+  uploadPOImages, // Handle file uploads for PO line item images
   warehouseController.createPurchaseOrder
 );
 
