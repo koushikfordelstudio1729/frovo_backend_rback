@@ -309,6 +309,8 @@ export interface IDispatchOrder extends Document {
 
   assignedAgent: Types.ObjectId;
 
+  warehouse: Types.ObjectId;
+
   notes?: string;
 
   status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
@@ -343,6 +345,7 @@ export interface IReturnOrder extends Document {
   _id: Types.ObjectId;
   batchId: string;
   vendor: Types.ObjectId;
+  warehouse: Types.ObjectId;
   reason: string;
   quantity: number;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
@@ -437,6 +440,8 @@ const dispatchOrderSchema = new Schema({
 
   assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
 
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+
   notes: { type: String, maxlength: 500 },
 
   status: {
@@ -494,6 +499,7 @@ const qcTemplateSchema = new Schema<IQCTemplate>({
 const returnOrderSchema = new Schema<IReturnOrder>({
   batchId: { type: String, required: true },
   vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
+  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   reason: { type: String, required: true },
   quantity: { type: Number, required: true, min: 1 },
   status: {

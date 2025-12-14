@@ -125,6 +125,7 @@ export interface DispatchData {
     unitPrice?: number;
   }[];
   assignedAgent: Types.ObjectId;
+  warehouse: Types.ObjectId;
   route: string;
   notes?: string;
   estimatedDelivery?: Date;
@@ -145,6 +146,7 @@ export interface ReturnOrderData {
   sku: string;
   productName: string;
   vendor: Types.ObjectId;
+  warehouse: Types.ObjectId;
   reason: string;
   quantity: number;
   returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
@@ -1030,6 +1032,7 @@ async deletePurchaseOrder(id: string): Promise<void> {
       destination: data.destination,
       products: formattedProducts,
       assignedAgent: data.assignedAgent,
+      warehouse: data.warehouse,
       notes: data.notes,
       status: 'pending',
       createdBy
@@ -1160,6 +1163,7 @@ async deletePurchaseOrder(id: string): Promise<void> {
     const returnOrderData = {
       batchId: data.batchId,
       vendor: data.vendor,
+      warehouse: data.warehouse,
       reason: data.reason,
       status: data.status || 'pending',
       quantity: quantity,

@@ -84,7 +84,7 @@ export const updatePurchaseOrderStatusSchema = z.object({
 export const createDispatchSchema = z.object({
   body: z.object({
     dispatchId: z.string().min(1, 'Dispatch ID is required'),
-    
+
     // merged field
     destination: z.string().min(1, 'Destination is required'),
 
@@ -94,6 +94,8 @@ export const createDispatchSchema = z.object({
     })).min(1, 'At least one product is required'),
 
     assignedAgent: objectIdSchema, // Agent required
+
+    warehouse: objectIdSchema.optional(), // Optional because middleware may inject it
 
     notes: z.string().max(500, 'Notes too long').optional(),
 
@@ -153,6 +155,7 @@ export const createReturnOrderSchema = z.object({
   body: z.object({
     batchId: z.string().min(1, 'Batch ID is required'),
     vendor: objectIdSchema,
+    warehouse: objectIdSchema.optional(), // Optional because middleware may inject it
     reason: z.string().min(1, 'Reason is required'),
     status: z.enum(['pending', 'approved', 'returned', 'rejected']).optional().default('pending'),
     quantity: z.number().min(1, 'Quantity must be at least 1').optional().default(1),
