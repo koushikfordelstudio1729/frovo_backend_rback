@@ -222,6 +222,14 @@ export interface GRNData {
   remarks?: string;
   scanned_challan?: string;
   qc_status: 'bad' | 'moderate' | 'excellent';
+  quantities?: Array<{
+    sku: string;
+    received_quantity: number;
+    accepted_quantity: number;
+    rejected_quantity: number;
+    expiry_date?: string;
+    item_remarks?: string;
+  }>;
 }
 
 class WarehouseService {
@@ -540,7 +548,7 @@ class WarehouseService {
     }
   }
 
-  async createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId): Promise<IGRNnumber> {
+  async createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId, uploadedFile?: Express.Multer.File): Promise<IGRNnumber> {
     try {
       console.log('📦 Creating GRN for PO:', purchaseOrderId);
 
@@ -557,7 +565,7 @@ class WarehouseService {
       // Validate purchase order exists and is approved
       const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId)
         .populate('vendor');
-      
+
       if (!purchaseOrder) {
         throw new Error('Purchase order not found');
       }
@@ -575,6 +583,20 @@ class WarehouseService {
       // Generate unique GRN number
       const grnNumber = await this.generateGRNNumber();
 
+      // Handle scanned challan upload
+      let scannedChallanUrl = grnData.scanned_challan;
+      if (uploadedFile) {
+        console.log('📤 Uploading scanned challan to Cloudinary...');
+        const documentUploadService = new DocumentUploadService();
+        const uploadResult = await documentUploadService.uploadToCloudinary(
+          uploadedFile.buffer,
+          uploadedFile.originalname,
+          'frovo/grn_challans'
+        );
+        scannedChallanUrl = uploadResult.url;
+        console.log('✅ Scanned challan uploaded:', uploadResult.url);
+      }
+
       // Create GRN with proper structure
       const grnPayload = {
         grn_number: grnNumber,
@@ -584,7 +606,7 @@ class WarehouseService {
         vehicle_number: grnData.vehicle_number,
         recieved_date: grnData.recieved_date,
         remarks: grnData.remarks,
-        scanned_challan: grnData.scanned_challan,
+        scanned_challan: scannedChallanUrl, // Use uploaded URL or provided URL
         qc_status: grnData.qc_status,
         
         // Copy vendor information from PO
@@ -592,21 +614,26 @@ class WarehouseService {
         vendor_details: purchaseOrder.vendor_details,
         
         // Copy and transform line items
-        grn_line_items: purchaseOrder.po_line_items.map(item => ({
-          line_no: item.line_no,
-          sku: item.sku,
-          productName: item.productName,
-          quantity: item.quantity,
-          category: item.category,
-          pack_size: item.pack_size,
-          uom: item.uom,
-          unit_price: item.unit_price,
-          expected_delivery_date: item.expected_delivery_date,
-          location: item.location,
-          received_quantity: 0,
-          accepted_quantity: 0,
-          rejected_quantity: 0
-        })),
+        grn_line_items: purchaseOrder.po_line_items.map(item => {
+          // Find matching quantity data from frontend
+          const quantityData = grnData.quantities?.find((q: any) => q.sku === item.sku);
+
+          return {
+            line_no: item.line_no,
+            sku: item.sku,
+            productName: item.productName,
+            quantity: item.quantity,
+            category: item.category,
+            pack_size: item.pack_size,
+            uom: item.uom,
+            unit_price: item.unit_price,
+            expected_delivery_date: item.expected_delivery_date,
+            location: item.location,
+            received_quantity: quantityData?.received_quantity || 0,
+            accepted_quantity: quantityData?.accepted_quantity || 0,
+            rejected_quantity: quantityData?.rejected_quantity || 0
+          };
+        }),
         
         createdBy,
         po_status: 'received'

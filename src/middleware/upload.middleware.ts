@@ -52,3 +52,8 @@ export const uploadMultiple = upload.array('documents', 5);
 // Middleware for PO line item images (any field name, max 50 files total)
 // Field names should be like: images_0, images_1, images_2, etc.
 export const uploadPOImages = upload.any();
+
+// Middleware for GRN upload - accepts 'document' file and other form fields
+export const uploadGRN = upload.fields([
+  { name: 'document', maxCount: 1 }
+]);

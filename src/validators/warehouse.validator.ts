@@ -48,19 +48,33 @@ export const createGRNSchema = z.object({
     vehicle_number: z.string().min(1, 'Vehicle number is required'),
     received_date: z.string().datetime().optional(), // Fixed spelling: received_date
     remarks: z.string().optional(),
-    scanned_challan: z.string().url('Valid URL required').optional(),
+    scanned_challan: z.string().url('Valid URL required').optional(), // Optional - can be provided via file upload
     qc_status: z.enum(['bad', 'moderate', 'excellent'], {
       required_error: 'QC status is required'
     }),
-    // Add quantities field to validation
-    quantities: z.array(z.object({
-      sku: z.string().min(1, 'SKU is required'),
-      received_quantity: z.number().min(0, 'Received quantity must be positive'),
-      accepted_quantity: z.number().min(0, 'Accepted quantity must be positive'),
-      rejected_quantity: z.number().min(0, 'Rejected quantity must be positive'),
-      expiry_date: z.string().datetime().optional(),
-      item_remarks: z.string().optional()
-    })).optional() // Make it optional in validation
+    // Add quantities field to validation - accept string or array
+    quantities: z.union([
+      z.string().transform((str, ctx) => {
+        try {
+          const parsed = JSON.parse(str);
+          return parsed;
+        } catch (e) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Invalid JSON string for quantities',
+          });
+          return z.NEVER;
+        }
+      }),
+      z.array(z.object({
+        sku: z.string().min(1, 'SKU is required'),
+        received_quantity: z.number().min(0, 'Received quantity must be positive'),
+        accepted_quantity: z.number().min(0, 'Accepted quantity must be positive'),
+        rejected_quantity: z.number().min(0, 'Rejected quantity must be positive'),
+        expiry_date: z.string().datetime().optional(),
+        item_remarks: z.string().optional()
+      }))
+    ]).optional() // Make it optional in validation
   })
 });
 export const updateGRNStatusSchema = z.object({

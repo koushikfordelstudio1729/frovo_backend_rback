@@ -192,12 +192,18 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
 
   try {
     const { purchaseOrderId } = req.params;
-    
+
     if (!purchaseOrderId) {
       return sendBadRequest(res, 'Purchase order ID is required');
     }
 
-    const result = await warehouseService.createGRN(purchaseOrderId, req.body, req.user._id);
+    // Get uploaded file if present (uploadGRN uses .fields())
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const uploadedFile = files?.document?.[0];
+
+    // Quantities are automatically parsed by the validator
+
+    const result = await warehouseService.createGRN(purchaseOrderId, req.body, req.user._id, uploadedFile);
     return sendCreated(res, result, 'GRN created successfully');
   } catch (error) {
     return sendError(res, error instanceof Error ? error.message : 'Failed to create GRN', 500);

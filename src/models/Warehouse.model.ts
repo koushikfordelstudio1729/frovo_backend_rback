@@ -55,8 +55,11 @@ export interface IGRNnumber extends Document {
     unit_price: number;
     expected_delivery_date: Date;
     location: string;
+    received_quantity?: number;
+    accepted_quantity?: number;
+    rejected_quantity?: number;
   }>;
-  
+
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -112,7 +115,10 @@ const grnNumberSchema = new Schema<IGRNnumber>({
     uom: { type: String, required: true },
     unit_price: { type: Number, required: true },
     expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true }
+    location: { type: String, required: true },
+    received_quantity: { type: Number, default: 0 },
+    accepted_quantity: { type: Number, default: 0 },
+    rejected_quantity: { type: Number, default: 0 }
   }],
   
   createdBy: { 

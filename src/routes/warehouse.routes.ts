@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { requirePermission } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { warehouseScopeMiddleware } from '../middleware/warehouseScope.middleware';
-import { uploadPOImages, uploadSingle } from '../middleware/upload.middleware';
+import { uploadPOImages, uploadSingle, uploadGRN } from '../middleware/upload.middleware';
 import {
   createDispatchSchema,
   createQCTemplateSchema,
@@ -71,6 +71,7 @@ router.delete('/inbound/purchase-orders/:id',
 // ==================== GRN MANAGEMENT ====================
 router.post('/purchase-orders/:purchaseOrderId/grn',
   requirePermission('grn:create'),
+  uploadGRN, // Upload middleware for scanned_challan file + other form fields
   validate({ body: createGRNSchema.shape.body }),
   warehouseController.createGRN
 );
