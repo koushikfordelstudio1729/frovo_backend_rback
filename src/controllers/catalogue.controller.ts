@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { 
     catalogueService, 
+    CategoryFilterDTO, 
     categoryService, 
     CreateCatalogueDTO, 
     CreateCategoryDTO, 
@@ -75,32 +76,7 @@ export class CatalogueController {
         }
     }
 
-    /**
-     * Get dashboard statistics
-     */
-    async getDashboardStats(req: Request, res: Response): Promise<void> {
-        try {
-            console.log('Fetching dashboard statistics');
-
-            const stats = await catalogueService.getDashboardStats();
-
-            res.status(200).json({
-                success: true,
-                message: 'Dashboard statistics retrieved successfully',
-                data: stats
-            });
-
-        } catch (error: any) {
-            console.error('Error fetching dashboard stats:', error);
-            
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch dashboard statistics',
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
-        }
-    }
-
+    
     /**
      * Get filter options (brands and categories)
      */
@@ -405,6 +381,29 @@ export class CatalogueController {
 }
 
 export class CategoryController {
+    async getCategoryDashboardStats(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Fetching category dashboard statistics');
+
+            const stats = await categoryService.getCategoryDashboardStats();
+
+            res.status(200).json({
+                success: true,
+                message: 'Category dashboard statistics retrieved successfully',
+                data: stats
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching category dashboard stats:', error);
+            
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch category dashboard statistics',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+    
     /**
      * Create a new category
      */

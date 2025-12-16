@@ -14,8 +14,12 @@ router.post('/category', authenticate, authorize(SUPER_ADMIN_ONLY), categoryCont
 router.post('/sku-catalogue', authenticate, authorize(VENDOR_MANAGEMENT), catalogueController.createCatalogue.bind(catalogueController));
 // Dashboard routes
 router.get('/dashboard', catalogueController.getDashboard.bind(catalogueController));
-router.get('/dashboard/stats', catalogueController.getDashboardStats.bind(catalogueController));
+
 router.get('/dashboard/filter-options', catalogueController.getFilterOptions.bind(catalogueController));
 router.get('/dashboard/export', catalogueController.exportDashboardCSV.bind(catalogueController));
+
+// Category Dashboard Routes
+router.get('/categories/dashboard/stats', categoryController.getCategoryDashboardStats.bind(categoryController));
+
 
 export default router;

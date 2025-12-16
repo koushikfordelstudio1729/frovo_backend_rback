@@ -12,8 +12,147 @@ export interface CreateCategoryDTO {
     category_image: string;
     category_status?: 'active' | 'inactive';
 }
+export interface CategoryStatsDTO {
+    total_categories: number;
+    active_categories: number;
+    inactive_categories: number;
+    total_sub_categories: number;
+    active_sub_categories: number;
+    inactive_sub_categories: number;
+    categories_by_status: Array<{
+        category_name: string;
+        category_status: 'active' | 'inactive';
+        sub_categories_count: number;
+        sub_categories: Array<{
+            name: string;
+            status: string;
+            description: string;
+        }>;
+    }>;
+    sub_categories_by_category: Array<{
+        category_name: string;
+        sub_categories: string[];
+        count: number;
+    }>;
+    status_distribution: {
+        active_percentage: number;
+        inactive_percentage: number;
+    };
+}
 
+export interface CategoryFilterDTO {
+    status?: 'active' | 'inactive';
+    category_name?: string;
+    page?: number;
+    limit?: number;
+}
+
+export interface CategoryListResponseDTO {
+    categories: Array<{
+        id: string;
+        category_name: string;
+        description: string;
+        category_status: 'active' | 'inactive';
+        category_image: string;
+        sub_categories_count: number;
+        sub_categories_list: string[];
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    stats: {
+        total_categories: number;
+        active_categories: number;
+        inactive_categories: number;
+    };
+}
 export class CategoryService {
+    /**
+     * Get comprehensive category dashboard statistics
+     */
+    async getCategoryDashboardStats(): Promise<CategoryStatsDTO> {
+        try {
+            console.log('Fetching category dashboard statistics');
+
+            // Get all categories
+            const allCategories = await CategoryModel.find({})
+                .select('category_name category_status sub_details description category_image')
+                .lean();
+
+            // Calculate statistics
+            let totalSubCategories = 0;
+            let activeSubCategories = 0;
+            let inactiveSubCategories = 0;
+            
+            const categoriesByStatus = allCategories.map(category => {
+                const subCategories = category.sub_details?.sub_categories || '';
+                const subCategoriesList = subCategories.split(',').map(s => s.trim()).filter(s => s);
+                
+                totalSubCategories += subCategoriesList.length;
+                
+                // Assuming all sub-categories inherit category status
+                if (category.category_status === 'active') {
+                    activeSubCategories += subCategoriesList.length;
+                } else {
+                    inactiveSubCategories += subCategoriesList.length;
+                }
+
+                return {
+                    category_name: category.category_name,
+                    category_status: category.category_status,
+                    sub_categories_count: subCategoriesList.length,
+                    sub_categories: subCategoriesList.map(name => ({
+                        name,
+                        status: category.category_status,
+                        description: category.sub_details?.description_sub_category || ''
+                    }))
+                };
+            });
+
+            // Group sub-categories by category
+            const subCategoriesByCategory = allCategories.map(category => {
+                const subCategories = category.sub_details?.sub_categories || '';
+                const subCategoriesList = subCategories.split(',').map(s => s.trim()).filter(s => s);
+                
+                return {
+                    category_name: category.category_name,
+                    sub_categories: subCategoriesList,
+                    count: subCategoriesList.length
+                };
+            });
+
+            // Filter by status
+            const activeCategories = allCategories.filter(cat => cat.category_status === 'active');
+            const inactiveCategories = allCategories.filter(cat => cat.category_status === 'inactive');
+
+            // Calculate percentages
+            const totalCategories = allCategories.length;
+            const activePercentage = totalCategories > 0 ? (activeCategories.length / totalCategories) * 100 : 0;
+            const inactivePercentage = totalCategories > 0 ? (inactiveCategories.length / totalCategories) * 100 : 0;
+
+            return {
+                total_categories: totalCategories,
+                active_categories: activeCategories.length,
+                inactive_categories: inactiveCategories.length,
+                total_sub_categories: totalSubCategories,
+                active_sub_categories: activeSubCategories,
+                inactive_sub_categories: inactiveSubCategories,
+                categories_by_status: categoriesByStatus,
+                sub_categories_by_category: subCategoriesByCategory,
+                status_distribution: {
+                    active_percentage: Math.round(activePercentage * 100) / 100,
+                    inactive_percentage: Math.round(inactivePercentage * 100) / 100
+                }
+            };
+
+        } catch (error: any) {
+            console.error('Error fetching category dashboard stats:', error);
+            throw error;
+        }
+    }
     /**
      * Create a new category with detailed debugging
      */
@@ -476,65 +615,7 @@ export class CatalogueService {
         }
     }
 
-    /**
-     * Get dashboard statistics
-     */
-    async getDashboardStats(): Promise<{
-        totalProducts: number;
-        activeProducts: number;
-        inactiveProducts: number;
-        totalCategories: number;
-        averagePrice: number;
-        priceRange: { min: number; max: number };
-        brandsCount: number;
-    }> {
-        try {
-            const [
-                totalProducts,
-                activeProducts,
-                inactiveProducts,
-                totalCategories,
-                priceStats,
-                brandsCount
-            ] = await Promise.all([
-                CatalogueModel.countDocuments(),
-                CatalogueModel.countDocuments({ status: 'active' }),
-                CatalogueModel.countDocuments({ status: 'inactive' }),
-                CategoryModel.countDocuments(),
-                CatalogueModel.aggregate([
-                    {
-                        $group: {
-                            _id: null,
-                            avgPrice: { $avg: '$final_price' },
-                            minPrice: { $min: '$final_price' },
-                            maxPrice: { $max: '$final_price' }
-                        }
-                    }
-                ]),
-                CatalogueModel.distinct('brand_name').then(brands => brands.length)
-            ]);
-
-            const stats = priceStats[0] || { avgPrice: 0, minPrice: 0, maxPrice: 0 };
-
-            return {
-                totalProducts,
-                activeProducts,
-                inactiveProducts,
-                totalCategories,
-                averagePrice: Math.round(stats.avgPrice * 100) / 100,
-                priceRange: {
-                    min: stats.minPrice,
-                    max: stats.maxPrice
-                },
-                brandsCount
-            };
-
-        } catch (error: any) {
-            console.error('Error fetching dashboard stats:', error);
-            throw error;
-        }
-    }
-
+    
     /**
      * Get unique brands for filter dropdown
      */
