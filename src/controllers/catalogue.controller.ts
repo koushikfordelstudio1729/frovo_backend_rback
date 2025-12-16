@@ -3,7 +3,8 @@ import {
     catalogueService, 
     categoryService, 
     CreateCatalogueDTO, 
-    CreateCategoryDTO 
+    CreateCategoryDTO, 
+    DashboardFilterDTO
 } from '../services/catalogue.service';
 import { Types } from 'mongoose';
 
@@ -21,6 +22,204 @@ export class CatalogueController {
             roles: user.roles || [],
             email: user.email || ''
         };
+    }
+    /**
+     * Get dashboard data with filtering
+     */
+    async getDashboard(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Fetching dashboard data with filters:', req.query);
+
+            // Parse query parameters
+            const filters: DashboardFilterDTO = {
+                category: req.query.category as string,
+                brand_name: req.query.brand_name as string,
+                status: req.query.status as 'active' | 'inactive',
+                search: req.query.search as string,
+                page: req.query.page ? parseInt(req.query.page as string) : 1,
+                limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
+                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
+            };
+
+            // Parse price filters
+            if (req.query.min_price) {
+                filters.min_price = parseFloat(req.query.min_price as string);
+            }
+            if (req.query.max_price) {
+                filters.max_price = parseFloat(req.query.max_price as string);
+            }
+
+            // Validate pagination
+            if (filters.page! < 1) filters.page = 1;
+            if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
+
+            // Get dashboard data
+            const dashboardData = await catalogueService.getDashboardData(filters);
+
+            // Send response
+            res.status(200).json({
+                success: true,
+                message: 'Dashboard data retrieved successfully',
+                data: dashboardData
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching dashboard data:', error);
+            
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch dashboard data',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    async getDashboardStats(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Fetching dashboard statistics');
+
+            const stats = await catalogueService.getDashboardStats();
+
+            res.status(200).json({
+                success: true,
+                message: 'Dashboard statistics retrieved successfully',
+                data: stats
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching dashboard stats:', error);
+            
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch dashboard statistics',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Get filter options (brands and categories)
+     */
+    async getFilterOptions(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Fetching filter options');
+
+            const [brands, categories] = await Promise.all([
+                catalogueService.getUniqueBrands(),
+                catalogueService.getUniqueCategories()
+            ]);
+
+            res.status(200).json({
+                success: true,
+                message: 'Filter options retrieved successfully',
+                data: {
+                    brands,
+                    categories
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching filter options:', error);
+            
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch filter options',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Export dashboard data to CSV
+     */
+    async exportDashboardCSV(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Exporting dashboard data to CSV');
+
+            // Get all data without pagination for export
+            const filters: DashboardFilterDTO = {
+                category: req.query.category as string,
+                brand_name: req.query.brand_name as string,
+                status: req.query.status as 'active' | 'inactive',
+                search: req.query.search as string,
+                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
+                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
+            };
+
+            // Parse price filters
+            if (req.query.min_price) {
+                filters.min_price = parseFloat(req.query.min_price as string);
+            }
+            if (req.query.max_price) {
+                filters.max_price = parseFloat(req.query.max_price as string);
+            }
+
+            // Get all data
+            const dashboardData = await catalogueService.getDashboardData({
+                ...filters,
+                page: 1,
+                limit: 10000 // Large limit to get all data
+            });
+
+            // Convert to CSV
+            const csvData = this.convertToCSV(dashboardData.products);
+
+            // Set headers for CSV download
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=catalogue-dashboard.csv');
+            res.status(200).send(csvData);
+
+        } catch (error: any) {
+            console.error('Error exporting dashboard data:', error);
+            
+            res.status(500).json({
+                success: false,
+                message: 'Failed to export dashboard data',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Convert dashboard data to CSV format
+     */
+    private convertToCSV(products: any[]): string {
+        const headers = [
+            'SKU ID',
+            'Product Name',
+            'Category',
+            'Sub Category',
+            'Brand',
+            'Unit Size',
+            'Base Price',
+            'Final Price',
+            'Status',
+            'Created Date'
+        ];
+
+        const rows = products.map(product => [
+            product.sku_id,
+            `"${product.product_name.replace(/"/g, '""')}"`,
+            product.category,
+            product.sub_category,
+            product.brand_name,
+            product.unit_size,
+            product.base_price,
+            product.final_price,
+            product.status,
+            new Date(product.createdAt).toISOString().split('T')[0]
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        return csvContent;
     }
 
     /**

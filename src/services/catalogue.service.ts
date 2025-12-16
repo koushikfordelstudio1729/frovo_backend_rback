@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { CatalogueModel, ICatalogue, CategoryModel, ICategory } from '../models/Catalogue.model';
 
 // CATEGORY DTOs and Service
@@ -161,8 +162,404 @@ export interface CreateCatalogueDTO {
     images: string[];
     status?: 'active' | 'inactive';
 }
+export interface DashboardFilterDTO {
+    category?: string;
+    brand_name?: string;
+    status?: 'active' | 'inactive';
+    min_price?: number;
+    max_price?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+    sort_by?: 'product_name' | 'base_price' | 'createdAt';
+    sort_order?: 'asc' | 'desc';
+}
 
+export interface DashboardResponseDTO {
+    products: Array<{
+        sku_id: string;
+        product_name: string;
+        category: string;
+        sub_category: string;
+        brand_name: string;
+        unit_size: string;
+        base_price: number;
+        final_price: number;
+        status: 'active' | 'inactive';
+        images: string[];
+        createdAt: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    filters: DashboardFilterDTO;
+}
 export class CatalogueService {
+    /**
+     * Get dashboard data with filtering, pagination, and sorting
+     */
+    async getDashboardData(filters: DashboardFilterDTO = {}): Promise<DashboardResponseDTO> {
+        try {
+            const {
+                category,
+                brand_name,
+                status,
+                min_price,
+                max_price,
+                search,
+                page = 1,
+                limit = 10,
+                sort_by = 'createdAt',
+                sort_order = 'desc'
+            } = filters;
+
+            console.log('Building dashboard query with filters:', filters);
+
+            // Step 1: First get ALL catalogue items without category filtering
+            const query: any = {};
+
+            // Apply all filters except category
+            if (brand_name) {
+                query.brand_name = { $regex: brand_name, $options: 'i' };
+            }
+
+            if (status) {
+                query.status = status;
+            }
+
+            if (min_price !== undefined || max_price !== undefined) {
+                query.final_price = {};
+                if (min_price !== undefined) query.final_price.$gte = min_price;
+                if (max_price !== undefined) query.final_price.$lte = max_price;
+            }
+
+            if (search) {
+                query.$or = [
+                    { sku_id: { $regex: search, $options: 'i' } },
+                    { product_name: { $regex: search, $options: 'i' } },
+                    { brand_name: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } }
+                ];
+            }
+
+            // Step 2: Get all categories for mapping
+            const allCategories = await CategoryModel.find({}).select('_id category_name').lean();
+            const categoryMap = new Map();
+            
+            // Create two maps: one for ObjectId, one for string name
+            const categoryIdMap = new Map(); // _id -> category_name
+            const categoryNameMap = new Map(); // category_name -> category_name
+            
+            allCategories.forEach(cat => {
+                categoryIdMap.set(cat._id.toString(), cat.category_name);
+                categoryNameMap.set(cat.category_name, cat.category_name);
+            });
+
+            // Step 3: Get all catalogue items matching other filters
+            const [allProducts, total] = await Promise.all([
+                CatalogueModel.find(query)
+                    .select('sku_id product_name category sub_category brand_name unit_size base_price final_price status images createdAt')
+                    .sort({ [sort_by]: sort_order === 'asc' ? 1 : -1 })
+                    .lean()
+                    .exec(),
+                CatalogueModel.countDocuments(query)
+            ]);
+
+            console.log(`Found ${allProducts.length} products before category filtering`);
+
+            // Step 4: Transform products and resolve category names
+            const transformedProducts: any[] = [];
+            
+            for (const product of allProducts) {
+                let categoryName = 'Unknown';
+                
+                // Try to resolve category name
+                if (product.category) {
+                    if (mongoose.Types.ObjectId.isValid(product.category.toString())) {
+                        // It's an ObjectId
+                        categoryName = categoryIdMap.get(product.category.toString()) || 'Unknown';
+                    } else {
+                        // It's a string (category name)
+                        categoryName = categoryNameMap.get(product.category.toString()) || product.category.toString();
+                    }
+                }
+
+                // Apply category filter if specified
+                if (category) {
+                    if (!categoryName.toLowerCase().includes(category.toLowerCase())) {
+                        continue; // Skip this product if it doesn't match category filter
+                    }
+                }
+
+                transformedProducts.push({
+                    _id: product._id,
+                    sku_id: product.sku_id,
+                    product_name: product.product_name,
+                    category: categoryName,
+                    sub_category: product.sub_category,
+                    brand_name: product.brand_name,
+                    unit_size: product.unit_size,
+                    base_price: product.base_price,
+                    final_price: product.final_price,
+                    status: product.status,
+                    images: product.images,
+                    createdAt: product.createdAt
+                });
+            }
+
+            console.log(`After category filtering: ${transformedProducts.length} products`);
+
+            // Step 5: Apply pagination
+            const startIndex = (page - 1) * limit;
+            const endIndex = startIndex + limit;
+            const paginatedProducts = transformedProducts.slice(startIndex, endIndex);
+
+            return {
+                products: paginatedProducts,
+                total: transformedProducts.length,
+                page,
+                limit,
+                totalPages: Math.ceil(transformedProducts.length / limit),
+                filters
+            };
+
+        } catch (error: any) {
+            console.error('Error fetching dashboard data:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get dashboard data using aggregation pipeline (for complex filters)
+     */
+    private async getDashboardDataWithAggregation(filters: DashboardFilterDTO): Promise<DashboardResponseDTO> {
+        try {
+            const {
+                category,
+                brand_name,
+                status,
+                min_price,
+                max_price,
+                search,
+                page = 1,
+                limit = 10,
+                sort_by = 'createdAt',
+                sort_order = 'desc'
+            } = filters;
+
+            // Build aggregation pipeline
+            const pipeline: any[] = [];
+
+            // 1. Match stage for catalogue filters
+            const matchStage: any = {};
+            
+            if (brand_name) {
+                matchStage.brand_name = { $regex: brand_name, $options: 'i' };
+            }
+            
+            if (status) {
+                matchStage.status = status;
+            }
+            
+            if (min_price !== undefined || max_price !== undefined) {
+                matchStage.final_price = {};
+                if (min_price !== undefined) matchStage.final_price.$gte = min_price;
+                if (max_price !== undefined) matchStage.final_price.$lte = max_price;
+            }
+            
+            if (search) {
+                matchStage.$or = [
+                    { sku_id: { $regex: search, $options: 'i' } },
+                    { product_name: { $regex: search, $options: 'i' } },
+                    { brand_name: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } }
+                ];
+            }
+            
+            if (Object.keys(matchStage).length > 0) {
+                pipeline.push({ $match: matchStage });
+            }
+
+            // 2. Lookup to join with categories
+            pipeline.push({
+                $lookup: {
+                    from: 'categories',
+                    localField: 'category',
+                    foreignField: '_id',
+                    as: 'categoryInfo'
+                }
+            });
+
+            // 3. Unwind category array
+            pipeline.push({
+                $unwind: {
+                    path: '$categoryInfo',
+                    preserveNullAndEmptyArrays: true
+                }
+            });
+
+            // 4. Filter by category name (after lookup)
+            if (category) {
+                pipeline.push({
+                    $match: {
+                        'categoryInfo.category_name': { 
+                            $regex: category, 
+                            $options: 'i' 
+                        }
+                    }
+                });
+            }
+
+            // 5. Project required fields
+            pipeline.push({
+                $project: {
+                    sku_id: 1,
+                    product_name: 1,
+                    category: '$categoryInfo.category_name',
+                    sub_category: 1,
+                    brand_name: 1,
+                    unit_size: 1,
+                    base_price: 1,
+                    final_price: 1,
+                    status: 1,
+                    images: 1,
+                    createdAt: 1
+                }
+            });
+
+            // 6. Count total documents
+            const countPipeline = [...pipeline];
+            countPipeline.push({ $count: 'total' });
+            
+            const [countResult] = await CatalogueModel.aggregate(countPipeline);
+            const total = countResult ? countResult.total : 0;
+
+            // 7. Sort
+            const sortStage: any = {};
+            // Map sort_by to actual field names
+            const sortFieldMap: Record<string, string> = {
+                'product_name': 'product_name',
+                'base_price': 'final_price',
+                'createdAt': 'createdAt'
+            };
+            
+            const sortField = sortFieldMap[sort_by] || 'createdAt';
+            sortStage[sortField] = sort_order === 'asc' ? 1 : -1;
+            pipeline.push({ $sort: sortStage });
+
+            // 8. Skip and limit for pagination
+            const skip = (page - 1) * limit;
+            pipeline.push({ $skip: skip });
+            pipeline.push({ $limit: limit });
+
+            // 9. Execute aggregation
+            const products = await CatalogueModel.aggregate(pipeline);
+
+            // Set default category name for null values
+            const transformedProducts = products.map(product => ({
+                ...product,
+                category: product.category || 'Unknown'
+            }));
+
+            return {
+                products: transformedProducts,
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                filters
+            };
+
+        } catch (error: any) {
+            console.error('Error in aggregation pipeline:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    async getDashboardStats(): Promise<{
+        totalProducts: number;
+        activeProducts: number;
+        inactiveProducts: number;
+        totalCategories: number;
+        averagePrice: number;
+        priceRange: { min: number; max: number };
+        brandsCount: number;
+    }> {
+        try {
+            const [
+                totalProducts,
+                activeProducts,
+                inactiveProducts,
+                totalCategories,
+                priceStats,
+                brandsCount
+            ] = await Promise.all([
+                CatalogueModel.countDocuments(),
+                CatalogueModel.countDocuments({ status: 'active' }),
+                CatalogueModel.countDocuments({ status: 'inactive' }),
+                CategoryModel.countDocuments(),
+                CatalogueModel.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            avgPrice: { $avg: '$final_price' },
+                            minPrice: { $min: '$final_price' },
+                            maxPrice: { $max: '$final_price' }
+                        }
+                    }
+                ]),
+                CatalogueModel.distinct('brand_name').then(brands => brands.length)
+            ]);
+
+            const stats = priceStats[0] || { avgPrice: 0, minPrice: 0, maxPrice: 0 };
+
+            return {
+                totalProducts,
+                activeProducts,
+                inactiveProducts,
+                totalCategories,
+                averagePrice: Math.round(stats.avgPrice * 100) / 100,
+                priceRange: {
+                    min: stats.minPrice,
+                    max: stats.maxPrice
+                },
+                brandsCount
+            };
+
+        } catch (error: any) {
+            console.error('Error fetching dashboard stats:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get unique brands for filter dropdown
+     */
+    async getUniqueBrands(): Promise<string[]> {
+        try {
+            const brands = await CatalogueModel.distinct('brand_name');
+            return brands.filter(brand => brand).sort();
+        } catch (error: any) {
+            console.error('Error fetching brands:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get unique categories for filter dropdown
+     */
+    async getUniqueCategories(): Promise<string[]> {
+        try {
+            const categories = await CategoryModel.distinct('category_name');
+            return categories.sort();
+        } catch (error: any) {
+            console.error('Error fetching categories:', error);
+            throw error;
+        }
+    }
     /**
      * Create a new catalogue product
      */
