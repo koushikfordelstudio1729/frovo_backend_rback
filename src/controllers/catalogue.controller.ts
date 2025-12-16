@@ -10,6 +10,334 @@ import {
 import { Types } from 'mongoose';
 
 export class CatalogueController {
+    /**
+     * Get catalogue product by ID - FIXED VERSION
+     */
+    async getCatalogueById(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Fetching catalogue product with ID: ${id}`);
+
+            // Extract user info for audit (if available)
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // User not authenticated - continue anyway for GET requests
+                console.log('Request without authentication');
+            }
+
+            const product = await catalogueService.getCatalogueById(id);
+
+            if (!product) {
+                res.status(404).json({
+                    success: false,
+                    message: 'Product not found',
+                    requestedId: id,
+                    requestedBy: {
+                        userId,
+                        userEmail,
+                        userRole
+                    }
+                });
+                return;
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Product retrieved successfully',
+                data: {
+                    id: product._id,
+                    sku_id: product.sku_id,
+                    product_name: product.product_name,
+                    brand_name: product.brand_name,
+                    description: product.description,
+                    category: product.category,
+                    sub_category: product.sub_category,
+                    manufacturer_name: product.manufacturer_name,
+                    manufacturer_address: product.manufacturer_address,
+                    shell_life: product.shell_life,
+                    expiry_alert_threshold: product.expiry_alert_threshold,
+                    tages_label: product.tages_label,
+                    unit_size: product.unit_size,
+                    base_price: product.base_price,
+                    final_price: product.final_price,
+                    barcode: product.barcode,
+                    nutrition_information: product.nutrition_information,
+                    ingredients: product.ingredients,
+                    images: product.images,
+                    status: product.status,
+                    createdAt: product.createdAt,
+                    updatedAt: product.updatedAt
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching product:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            const statusCode = error.message.includes('Invalid product ID') ? 400 : 500;
+
+            res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to fetch product',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                requestedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Update catalogue product by ID - FIXED VERSION (requires auth)
+     */
+    async updateCatalogue(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Updating catalogue product ${id} with data:`, req.body);
+
+            // Extract user info for audit - REQUIRED for update operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // Authentication is required for update operations
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for update operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            // Prepare update data from request body
+            const updateData: Partial<CreateCatalogueDTO> = {};
+
+            // Only include fields that are actually provided in the request
+            if (req.body.sku_id !== undefined) updateData.sku_id = req.body.sku_id;
+            if (req.body.product_name !== undefined) updateData.product_name = req.body.product_name;
+            if (req.body.brand_name !== undefined) updateData.brand_name = req.body.brand_name;
+            if (req.body.description !== undefined) updateData.description = req.body.description;
+            if (req.body.category !== undefined) updateData.category = req.body.category;
+            if (req.body.sub_category !== undefined) updateData.sub_category = req.body.sub_category;
+            if (req.body.manufacturer_name !== undefined) updateData.manufacturer_name = req.body.manufacturer_name;
+            if (req.body.manufacturer_address !== undefined) updateData.manufacturer_address = req.body.manufacturer_address;
+            if (req.body.shell_life !== undefined) updateData.shell_life = req.body.shell_life;
+            if (req.body.expiry_alert_threshold !== undefined) {
+                updateData.expiry_alert_threshold = Number(req.body.expiry_alert_threshold);
+            }
+            if (req.body.tages_label !== undefined) updateData.tages_label = req.body.tages_label;
+            if (req.body.unit_size !== undefined) updateData.unit_size = req.body.unit_size;
+            if (req.body.base_price !== undefined) updateData.base_price = Number(req.body.base_price);
+            if (req.body.final_price !== undefined) updateData.final_price = Number(req.body.final_price);
+            if (req.body.barcode !== undefined) updateData.barcode = req.body.barcode;
+            if (req.body.nutrition_information !== undefined) updateData.nutrition_information = req.body.nutrition_information;
+            if (req.body.ingredients !== undefined) updateData.ingredients = req.body.ingredients;
+            if (req.body.status !== undefined) updateData.status = req.body.status;
+            
+            if (req.body.images !== undefined) {
+                updateData.images = Array.isArray(req.body.images) 
+                    ? req.body.images 
+                    : [req.body.images].filter(Boolean);
+            }
+
+            // Validate if there's anything to update
+            if (Object.keys(updateData).length === 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'No update data provided',
+                    updatedBy: {
+                        userId,
+                        userEmail,
+                        userRole
+                    }
+                });
+                return;
+            }
+
+            // Update product
+            const updatedProduct = await catalogueService.updateCatalogue(id, updateData);
+
+            res.status(200).json({
+                success: true,
+                message: 'Product updated successfully',
+                data: {
+                    id: updatedProduct._id,
+                    sku_id: updatedProduct.sku_id,
+                    product_name: updatedProduct.product_name,
+                    brand_name: updatedProduct.brand_name,
+                    description: updatedProduct.description,
+                    category: updatedProduct.category,
+                    sub_category: updatedProduct.sub_category,
+                    manufacturer_name: updatedProduct.manufacturer_name,
+                    manufacturer_address: updatedProduct.manufacturer_address,
+                    shell_life: updatedProduct.shell_life,
+                    expiry_alert_threshold: updatedProduct.expiry_alert_threshold,
+                    tages_label: updatedProduct.tages_label,
+                    unit_size: updatedProduct.unit_size,
+                    base_price: updatedProduct.base_price,
+                    final_price: updatedProduct.final_price,
+                    barcode: updatedProduct.barcode,
+                    nutrition_information: updatedProduct.nutrition_information,
+                    ingredients: updatedProduct.ingredients,
+                    images: updatedProduct.images,
+                    status: updatedProduct.status,
+                    updatedAt: updatedProduct.updatedAt
+                },
+                meta: {
+                    updatedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString(),
+                    fieldsUpdated: Object.keys(updateData)
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error updating product:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            // Handle specific error cases
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to update product';
+
+            if (error.message.includes('Invalid product ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('already exists')) {
+                statusCode = 409;
+            } else if (error.message.includes('cannot be negative') || 
+                       error.message.includes('cannot be less than') ||
+                       error.message.includes('must be between') ||
+                       error.message.includes('At least one image') ||
+                       error.message.includes('Maximum 10 images')) {
+                statusCode = 400;
+            } else if (error.name === 'ValidationError') {
+                statusCode = 400;
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                updatedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Delete catalogue product by ID - FIXED VERSION (requires auth)
+     */
+    async deleteCatalogue(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Deleting catalogue product ${id}`);
+
+            // Extract user info for audit - REQUIRED for delete operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // Authentication is required for delete operations
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for delete operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            const result = await catalogueService.deleteCatalogue(id);
+
+            res.status(200).json({
+                success: true,
+                message: result.message,
+                data: {
+                    deletedProductId: id,
+                    deletedProduct: result.deletedProduct
+                },
+                meta: {
+                    deletedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error deleting product:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            // Handle specific error cases
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to delete product';
+
+            if (error.message.includes('Invalid product ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                requestedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
     // Utility function to safely extract user - STATIC
     public static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
         const user = (req as any).user;
@@ -403,7 +731,303 @@ export class CategoryController {
             });
         }
     }
-    
+    /**
+     * Get category by ID - FIXED VERSION
+     */
+    async getCategoryById(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Fetching category with ID: ${id}`);
+
+            // Extract user info for audit (if available)
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // User not authenticated - continue anyway for GET requests
+                console.log('Request without authentication');
+            }
+
+            const category = await categoryService.getCategoryById(id);
+
+            if (!category) {
+                res.status(404).json({
+                    success: false,
+                    message: 'Category not found',
+                    requestedId: id,
+                    requestedBy: {
+                        userId,
+                        userEmail,
+                        userRole
+                    }
+                });
+                return;
+            }
+
+            // Parse sub-categories for response
+            const subCategoriesList = category.sub_details.sub_categories
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s);
+
+            res.status(200).json({
+                success: true,
+                message: 'Category retrieved successfully',
+                data: {
+                    id: category._id,
+                    category_name: category.category_name,
+                    description: category.description,
+                    sub_details: {
+                        sub_categories: category.sub_details.sub_categories,
+                        sub_categories_list: subCategoriesList,
+                        description_sub_category: category.sub_details.description_sub_category
+                    },
+                    category_image: category.category_image,
+                    category_status: category.category_status,
+                    createdAt: category.createdAt,
+                    updatedAt: category.updatedAt
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching category:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            const statusCode = error.message.includes('Invalid category ID') ? 400 : 500;
+
+            res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to fetch category',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                requestedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Update category by ID - FIXED VERSION (requires auth)
+     */
+    async updateCategory(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Updating category ${id} with data:`, req.body);
+
+            // Extract user info for audit - REQUIRED for update operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // Authentication is required for update operations
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for update operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            // Handle both flat and nested formats
+            let subCategories: string | undefined;
+            let descriptionSubCategory: string | undefined;
+            
+            if (req.body.sub_details) {
+                subCategories = req.body.sub_details.sub_categories;
+                descriptionSubCategory = req.body.sub_details.description_sub_category;
+            } else {
+                subCategories = req.body.sub_categories;
+                descriptionSubCategory = req.body.description_sub_category;
+            }
+
+            // Prepare update data
+            const updateData: Partial<CreateCategoryDTO> = {};
+            
+            if (req.body.category_name) updateData.category_name = req.body.category_name;
+            if (req.body.description) updateData.description = req.body.description;
+            if (req.body.category_image) updateData.category_image = req.body.category_image;
+            if (req.body.category_status) updateData.category_status = req.body.category_status;
+            
+            if (subCategories || descriptionSubCategory) {
+                updateData.sub_details = {
+                    sub_categories: subCategories || '',
+                    description_sub_category: descriptionSubCategory || ''
+                };
+            }
+
+            // Update category
+            const updatedCategory = await categoryService.updateCategory(id, updateData);
+
+            // Parse sub-categories for response
+            const subCategoriesList = updatedCategory.sub_details.sub_categories
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s);
+
+            res.status(200).json({
+                success: true,
+                message: 'Category updated successfully',
+                data: {
+                    id: updatedCategory._id,
+                    category_name: updatedCategory.category_name,
+                    description: updatedCategory.description,
+                    sub_details: {
+                        sub_categories: updatedCategory.sub_details.sub_categories,
+                        sub_categories_list: subCategoriesList,
+                        description_sub_category: updatedCategory.sub_details.description_sub_category
+                    },
+                    category_image: updatedCategory.category_image,
+                    category_status: updatedCategory.category_status,
+                    updatedAt: updatedCategory.updatedAt
+                },
+                meta: {
+                    updatedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error updating category:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            // Handle specific error cases
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to update category';
+
+            if (error.message.includes('Invalid category ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('already exists')) {
+                statusCode = 409;
+            } else if (error.name === 'ValidationError') {
+                statusCode = 400;
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                updatedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Delete category by ID - FIXED VERSION (requires auth)
+     */
+    async deleteCategory(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            console.log(`Deleting category ${id}`);
+
+            // Extract user info for audit - REQUIRED for delete operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+            
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // Authentication is required for delete operations
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for delete operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            const result = await categoryService.deleteCategory(id);
+
+            res.status(200).json({
+                success: true,
+                message: result.message,
+                data: {
+                    deletedCategoryId: id,
+                    affectedCatalogues: result.affectedCatalogues
+                },
+                meta: {
+                    deletedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error deleting category:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            // Handle specific error cases
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to delete category';
+
+            if (error.message.includes('Invalid category ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('Cannot delete category')) {
+                statusCode = 409; // Conflict - category is in use
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                requestedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
     /**
      * Create a new category
      */

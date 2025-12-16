@@ -21,5 +21,13 @@ router.get('/dashboard/export', catalogueController.exportDashboardCSV.bind(cata
 // Category Dashboard Routes
 router.get('/categories/dashboard/stats', categoryController.getCategoryDashboardStats.bind(categoryController));
 
+router.get('/categories/:id',  authenticate, authorize(SUPER_ADMIN_ONLY),categoryController.getCategoryById.bind(categoryController));
+router.put('/categories/:id', authenticate, authorize(SUPER_ADMIN_ONLY), categoryController.updateCategory.bind(categoryController));
+router.delete('/categories/:id', authorize(SUPER_ADMIN_ONLY), categoryController.deleteCategory.bind(categoryController));
+// Catalogue Dashboard Routes
+router.get('/catalogues/:id', catalogueController.getCatalogueById.bind(catalogueController));
+router.put('/catalogues/:id', authenticate,authorize(VENDOR_MANAGEMENT), catalogueController.updateCatalogue.bind(catalogueController));
+router.delete('/catalogues/:id', authorize(VENDOR_MANAGEMENT), catalogueController.deleteCatalogue.bind(catalogueController));
+
 
 export default router;

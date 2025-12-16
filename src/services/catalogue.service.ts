@@ -71,6 +71,163 @@ export interface CategoryListResponseDTO {
 }
 export class CategoryService {
     /**
+     * Get category by ID with full details
+     */
+    async getCategoryById(categoryId: string): Promise<ICategory | null> {
+        try {
+            console.log(`Fetching category with ID: ${categoryId}`);
+
+            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+                throw new Error('Invalid category ID format');
+            }
+
+            const category = await CategoryModel.findById(categoryId).lean() as unknown as ICategory | null;
+
+            if (!category) {
+                console.log(`Category with ID ${categoryId} not found`);
+                return null;
+            }
+
+            console.log('Category found:', {
+                id: category._id,
+                name: category.category_name,
+                status: category.category_status
+            });
+
+            return category;
+        } catch (error: any) {
+            console.error('Error fetching category by ID:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update category by ID
+     */
+    async updateCategory(
+        categoryId: string, 
+        updateData: Partial<CreateCategoryDTO>
+    ): Promise<ICategory> {
+        try {
+            console.log(`Updating category ${categoryId} with data:`, updateData);
+
+            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+                throw new Error('Invalid category ID format');
+            }
+
+            // Check if category exists
+            const existingCategory = await CategoryModel.findById(categoryId);
+            if (!existingCategory) {
+                throw new Error('Category not found');
+            }
+
+            // If updating category_name or sub_categories, check for duplicates
+            if (updateData.category_name || updateData.sub_details?.sub_categories) {
+                const nameToCheck = updateData.category_name || existingCategory.category_name;
+                const subCategoriesToCheck = updateData.sub_details?.sub_categories || 
+                    existingCategory.sub_details.sub_categories;
+
+                const duplicateCategory = await CategoryModel.findOne({
+                    _id: { $ne: categoryId }, // Exclude current category
+                    category_name: nameToCheck,
+                    'sub_details.sub_categories': subCategoriesToCheck
+                });
+
+                if (duplicateCategory) {
+                    throw new Error(
+                        `Category "${nameToCheck}" with sub-categories "${subCategoriesToCheck}" already exists`
+                    );
+                }
+            }
+
+            // Prepare update object
+            const updateObject: any = {};
+            
+            if (updateData.category_name) updateObject.category_name = updateData.category_name;
+            if (updateData.description) updateObject.description = updateData.description;
+            if (updateData.category_image) updateObject.category_image = updateData.category_image;
+            if (updateData.category_status) updateObject.category_status = updateData.category_status;
+            
+            if (updateData.sub_details) {
+                updateObject['sub_details.sub_categories'] = updateData.sub_details.sub_categories;
+                updateObject['sub_details.description_sub_category'] = updateData.sub_details.description_sub_category;
+            }
+
+            // Update category
+            const updatedCategory = await CategoryModel.findByIdAndUpdate(
+                categoryId,
+                { $set: updateObject },
+                { new: true, runValidators: true }
+            );
+
+            if (!updatedCategory) {
+                throw new Error('Failed to update category');
+            }
+
+            console.log('Category updated successfully:', {
+                id: updatedCategory._id,
+                name: updatedCategory.category_name
+            });
+
+            return updatedCategory;
+        } catch (error: any) {
+            console.error('Error updating category:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete category by ID
+     */
+    async deleteCategory(categoryId: string): Promise<{ 
+        success: boolean; 
+        message: string;
+        affectedCatalogues?: number;
+    }> {
+        try {
+            console.log(`Attempting to delete category ${categoryId}`);
+
+            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+                throw new Error('Invalid category ID format');
+            }
+
+            // Check if category exists
+            const category = await CategoryModel.findById(categoryId);
+            if (!category) {
+                throw new Error('Category not found');
+            }
+
+            // Check if any catalogue items are using this category
+            const catalogueCount = await CatalogueModel.countDocuments({
+                category: category.category_name
+            });
+
+            if (catalogueCount > 0) {
+                throw new Error(
+                    `Cannot delete category. ${catalogueCount} catalogue item(s) are using this category. ` +
+                    `Please reassign or delete those items first.`
+                );
+            }
+
+            // Delete the category
+            await CategoryModel.findByIdAndDelete(categoryId);
+
+            console.log('Category deleted successfully:', {
+                id: categoryId,
+                name: category.category_name
+            });
+
+            return {
+                success: true,
+                message: 'Category deleted successfully',
+                affectedCatalogues: 0
+            };
+        } catch (error: any) {
+            console.error('Error deleting category:', error);
+            throw error;
+        }
+    }
+    /**
      * Get comprehensive category dashboard statistics
      */
     async getCategoryDashboardStats(): Promise<CategoryStatsDTO> {
@@ -335,6 +492,230 @@ export interface DashboardResponseDTO {
     filters: DashboardFilterDTO;
 }
 export class CatalogueService {
+    /**
+     * Get catalogue product by ID with full details
+     */
+    async getCatalogueById(productId: string): Promise<ICatalogue | null> {
+        try {
+            console.log(`Fetching catalogue product with ID: ${productId}`);
+
+            if (!mongoose.Types.ObjectId.isValid(productId)) {
+                throw new Error('Invalid product ID format');
+            }
+
+            const product = await CatalogueModel.findById(productId).lean();
+
+            if (!product) {
+                console.log(`Product with ID ${productId} not found`);
+                return null;
+            }
+
+            // Resolve category name if it's stored as ObjectId
+            let categoryName = 'Unknown';
+            if (product.category) {
+                if (mongoose.Types.ObjectId.isValid(product.category.toString())) {
+                    const category = await CategoryModel.findById(product.category);
+                    categoryName = category?.category_name || 'Unknown';
+                } else {
+                    categoryName = product.category.toString();
+                }
+            }
+
+            console.log('Product found:', {
+                id: product._id,
+                sku: product.sku_id,
+                name: product.product_name,
+                category: categoryName
+            });
+
+            return {
+                ...product,
+                category: categoryName
+            } as any;
+        } catch (error: any) {
+            console.error('Error fetching catalogue by ID:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update catalogue product by ID
+     */
+    async updateCatalogue(
+        productId: string, 
+        updateData: Partial<CreateCatalogueDTO>
+    ): Promise<ICatalogue> {
+        try {
+            console.log(`Updating catalogue product ${productId} with data:`, updateData);
+
+            if (!mongoose.Types.ObjectId.isValid(productId)) {
+                throw new Error('Invalid product ID format');
+            }
+
+            // Check if product exists
+            const existingProduct = await CatalogueModel.findById(productId);
+            if (!existingProduct) {
+                throw new Error('Product not found');
+            }
+
+            // If updating SKU, check for duplicates
+            if (updateData.sku_id && updateData.sku_id !== existingProduct.sku_id) {
+                const duplicateSku = await CatalogueModel.findOne({
+                    _id: { $ne: productId },
+                    sku_id: updateData.sku_id
+                });
+
+                if (duplicateSku) {
+                    throw new Error('Product with this SKU already exists');
+                }
+            }
+
+            // If updating barcode, check for duplicates
+            if (updateData.barcode && updateData.barcode !== existingProduct.barcode) {
+                const duplicateBarcode = await CatalogueModel.findOne({
+                    _id: { $ne: productId },
+                    barcode: updateData.barcode
+                });
+
+                if (duplicateBarcode) {
+                    throw new Error('Product with this barcode already exists');
+                }
+            }
+
+            // If updating category or sub_category, validate them
+            if (updateData.category) {
+                const category = await CategoryModel.findOne({
+                    category_name: updateData.category
+                });
+
+                if (!category) {
+                    throw new Error(`Category "${updateData.category}" not found`);
+                }
+
+                // If sub_category is also being updated or exists
+                const subCategoryToCheck = updateData.sub_category || existingProduct.sub_category;
+                if (subCategoryToCheck) {
+                    const subCategories = category.sub_details.sub_categories
+                        .split(',')
+                        .map(s => s.trim());
+                    
+                    if (!subCategories.includes(subCategoryToCheck)) {
+                        throw new Error(
+                            `Sub-category "${subCategoryToCheck}" not found in category "${updateData.category}"`
+                        );
+                    }
+                }
+            }
+
+            // Validate prices if being updated
+            if (updateData.base_price !== undefined && updateData.base_price < 0) {
+                throw new Error('Base price cannot be negative');
+            }
+
+            if (updateData.final_price !== undefined && updateData.final_price < 0) {
+                throw new Error('Final price cannot be negative');
+            }
+
+            if (updateData.base_price !== undefined || updateData.final_price !== undefined) {
+                const basePrice = updateData.base_price ?? existingProduct.base_price;
+                const finalPrice = updateData.final_price ?? existingProduct.final_price;
+
+                if (finalPrice < basePrice) {
+                    throw new Error('Final price cannot be less than base price');
+                }
+            }
+
+            // Validate expiry threshold if being updated
+            if (updateData.expiry_alert_threshold !== undefined) {
+                if (updateData.expiry_alert_threshold < 1 || updateData.expiry_alert_threshold > 365) {
+                    throw new Error('Expiry alert threshold must be between 1 and 365 days');
+                }
+            }
+
+            // Validate images if being updated
+            if (updateData.images) {
+                if (!Array.isArray(updateData.images) || updateData.images.length === 0) {
+                    throw new Error('At least one image is required');
+                }
+
+                if (updateData.images.length > 10) {
+                    throw new Error('Maximum 10 images allowed');
+                }
+            }
+
+            // Update product
+            const updatedProduct = await CatalogueModel.findByIdAndUpdate(
+                productId,
+                { $set: updateData },
+                { new: true, runValidators: true }
+            );
+
+            if (!updatedProduct) {
+                throw new Error('Failed to update product');
+            }
+
+            console.log('Product updated successfully:', {
+                id: updatedProduct._id,
+                sku: updatedProduct.sku_id,
+                name: updatedProduct.product_name
+            });
+
+            return updatedProduct;
+        } catch (error: any) {
+            console.error('Error updating catalogue:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete catalogue product by ID
+     */
+    async deleteCatalogue(productId: string): Promise<{ 
+        success: boolean; 
+        message: string;
+        deletedProduct?: {
+            sku_id: string;
+            product_name: string;
+        };
+    }> {
+        try {
+            console.log(`Attempting to delete catalogue product ${productId}`);
+
+            if (!mongoose.Types.ObjectId.isValid(productId)) {
+                throw new Error('Invalid product ID format');
+            }
+
+            // Check if product exists
+            const product = await CatalogueModel.findById(productId);
+            if (!product) {
+                throw new Error('Product not found');
+            }
+
+            // Store product info before deletion
+            const productInfo = {
+                sku_id: product.sku_id,
+                product_name: product.product_name
+            };
+
+            // Delete the product
+            await CatalogueModel.findByIdAndDelete(productId);
+
+            console.log('Product deleted successfully:', {
+                id: productId,
+                sku: productInfo.sku_id,
+                name: productInfo.product_name
+            });
+
+            return {
+                success: true,
+                message: 'Product deleted successfully',
+                deletedProduct: productInfo
+            };
+        } catch (error: any) {
+            console.error('Error deleting catalogue:', error);
+            throw error;
+        }
+    }
     /**
      * Get dashboard data with filtering, pagination, and sorting
      */
