@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import { CatalogueModel, ICatalogue, CategoryModel, ICategory } from '../models/Catalogue.model';
+import { historyCatalogueService } from './historyCatalogue.service';
+import { Request } from 'express';
 
 // CATEGORY DTOs and Service
 export interface CreateCategoryDTO {
@@ -7,11 +9,12 @@ export interface CreateCategoryDTO {
     description: string;
     sub_details: {
         sub_categories: string;
-    description_sub_category: string;
+        description_sub_category: string;
     }
     category_image: string;
     category_status?: 'active' | 'inactive';
 }
+
 export interface CategoryStatsDTO {
     total_categories: number;
     active_categories: number;
@@ -69,7 +72,75 @@ export interface CategoryListResponseDTO {
         inactive_categories: number;
     };
 }
+
+// CATALOGUE DTOs
+export interface CreateCatalogueDTO {
+    [x: string]: any;
+    sku_id: string;
+    product_name: string;
+    brand_name: string;
+    description: string;
+    category: string;
+    sub_category: string;
+    manufacturer_name: string;
+    manufacturer_address: string;
+    shell_life: string;
+    expiry_alert_threshold: number;
+    tages_label: string;
+    unit_size: string;
+    base_price: number;
+    final_price: number;
+    barcode: string;
+    nutrition_information: string;
+    ingredients: string;
+    images: string[];
+    status?: 'active' | 'inactive';
+}
+
+export interface DashboardFilterDTO {
+    category?: string;
+    brand_name?: string;
+    status?: 'active' | 'inactive';
+    min_price?: number;
+    max_price?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+    sort_by?: 'product_name' | 'base_price' | 'createdAt';
+    sort_order?: 'asc' | 'desc';
+}
+
+export interface DashboardResponseDTO {
+    products: Array<{
+        sku_id: string;
+        product_name: string;
+        category: string;
+        sub_category: string;
+        brand_name: string;
+        unit_size: string;
+        base_price: number;
+        final_price: number;
+        status: 'active' | 'inactive';
+        images: string[];
+        createdAt: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    filters: DashboardFilterDTO;
+}
+
 export class CategoryService {
+    private req: Request | null = null;
+
+    /**
+     * Set request context for audit logging
+     */
+    setRequestContext(req: Request): void {
+        this.req = req;
+    }
+
     /**
      * Get category by ID with full details
      */
@@ -86,6 +157,16 @@ export class CategoryService {
             if (!category) {
                 console.log(`Category with ID ${categoryId} not found`);
                 return null;
+            }
+
+            // Log view operation
+            if (this.req && category) {
+                await historyCatalogueService.logView(
+                    this.req,
+                    'category',
+                    category._id,
+                    category.category_name
+                ).catch(err => console.error('Failed to log view:', err));
             }
 
             console.log('Category found:', {
@@ -153,6 +234,9 @@ export class CategoryService {
                 updateObject['sub_details.description_sub_category'] = updateData.sub_details.description_sub_category;
             }
 
+            // Store before state for audit
+            const beforeState = existingCategory.toObject();
+
             // Update category
             const updatedCategory = await CategoryModel.findByIdAndUpdate(
                 categoryId,
@@ -164,6 +248,18 @@ export class CategoryService {
                 throw new Error('Failed to update category');
             }
 
+            // Log update operation
+            if (this.req) {
+                await historyCatalogueService.logUpdate(
+                    this.req,
+                    'category',
+                    updatedCategory._id,
+                    updatedCategory.category_name,
+                    beforeState,
+                    updatedCategory.toObject()
+                ).catch(err => console.error('Failed to log update:', err));
+            }
+
             console.log('Category updated successfully:', {
                 id: updatedCategory._id,
                 name: updatedCategory.category_name
@@ -172,6 +268,24 @@ export class CategoryService {
             return updatedCategory;
         } catch (error: any) {
             console.error('Error updating category:', error);
+
+            // Log failed operation
+            if (this.req) {
+                const category = await CategoryModel.findById(categoryId);
+                if (category) {
+                    await historyCatalogueService.logUpdate(
+                        this.req,
+                        'category',
+                        category._id,
+                        category.category_name,
+                        {},
+                        {},
+                        'failed',
+                        error.message
+                    ).catch(err => console.error('Failed to log failed update:', err));
+                }
+            }
+
             throw error;
         }
     }
@@ -209,8 +323,22 @@ export class CategoryService {
                 );
             }
 
+            // Store before state for audit
+            const beforeState = category.toObject();
+
             // Delete the category
             await CategoryModel.findByIdAndDelete(categoryId);
+
+            // Log delete operation
+            if (this.req) {
+                await historyCatalogueService.logDelete(
+                    this.req,
+                    'category',
+                    category._id,
+                    category.category_name,
+                    beforeState
+                ).catch(err => console.error('Failed to log delete:', err));
+            }
 
             console.log('Category deleted successfully:', {
                 id: categoryId,
@@ -224,9 +352,27 @@ export class CategoryService {
             };
         } catch (error: any) {
             console.error('Error deleting category:', error);
+
+            // Log failed operation
+            if (this.req) {
+                const category = await CategoryModel.findById(categoryId);
+                if (category) {
+                    await historyCatalogueService.logDelete(
+                        this.req,
+                        'category',
+                        category._id,
+                        category.category_name,
+                        {},
+                        'failed',
+                        error.message
+                    ).catch(err => console.error('Failed to log failed delete:', err));
+                }
+            }
+
             throw error;
         }
     }
+
     /**
      * Get comprehensive category dashboard statistics
      */
@@ -310,6 +456,7 @@ export class CategoryService {
             throw error;
         }
     }
+
     /**
      * Create a new category with detailed debugging
      */
@@ -347,6 +494,17 @@ export class CategoryService {
             const category = new CategoryModel(categoryData);
             const savedCategory = await category.save();
             
+            // Log create operation
+            if (this.req) {
+                await historyCatalogueService.logCreate(
+                    this.req,
+                    'category',
+                    savedCategory._id,
+                    savedCategory.category_name,
+                    savedCategory.toObject()
+                ).catch(err => console.error('Failed to log create:', err));
+            }
+            
             console.log('Category created successfully:', {
                 _id: savedCategory._id,
                 category_name: savedCategory.category_name,
@@ -362,6 +520,19 @@ export class CategoryService {
                 keyValue: error.keyValue,
                 stack: error.stack
             });
+
+            // Log failed create operation
+            if (this.req) {
+                await historyCatalogueService.logCreate(
+                    this.req,
+                    'category',
+                    new mongoose.Types.ObjectId(),
+                    categoryData.category_name,
+                    categoryData,
+                    'failed',
+                    error.message
+                ).catch(err => console.error('Failed to log failed create:', err));
+            }
             
             // If it's a MongoDB duplicate key error, check what's duplicate
             if (error.code === 11000) {
@@ -436,62 +607,17 @@ export class CategoryService {
         }
     }
 }
-// CATALOGUE DTOs and Service
-export interface CreateCatalogueDTO {
-    sku_id: string;
-    product_name: string;
-    brand_name: string;
-    description: string;
-    category: string;
-    sub_category: string;
-    manufacturer_name: string;
-    manufacturer_address: string;
-    shell_life: string;
-    expiry_alert_threshold: number;
-    tages_label: string;
-    unit_size: string;
-    base_price: number;
-    final_price: number;
-    barcode: string;
-    nutrition_information: string;
-    ingredients: string;
-    images: string[];
-    status?: 'active' | 'inactive';
-}
-export interface DashboardFilterDTO {
-    category?: string;
-    brand_name?: string;
-    status?: 'active' | 'inactive';
-    min_price?: number;
-    max_price?: number;
-    search?: string;
-    page?: number;
-    limit?: number;
-    sort_by?: 'product_name' | 'base_price' | 'createdAt';
-    sort_order?: 'asc' | 'desc';
-}
 
-export interface DashboardResponseDTO {
-    products: Array<{
-        sku_id: string;
-        product_name: string;
-        category: string;
-        sub_category: string;
-        brand_name: string;
-        unit_size: string;
-        base_price: number;
-        final_price: number;
-        status: 'active' | 'inactive';
-        images: string[];
-        createdAt: Date;
-    }>;
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    filters: DashboardFilterDTO;
-}
 export class CatalogueService {
+    private req: Request | null = null;
+
+    /**
+     * Set request context for audit logging
+     */
+    setRequestContext(req: Request): void {
+        this.req = req;
+    }
+
     /**
      * Get catalogue product by ID with full details
      */
@@ -519,6 +645,16 @@ export class CatalogueService {
                 } else {
                     categoryName = product.category.toString();
                 }
+            }
+
+            // Log view operation
+            if (this.req && product) {
+                await historyCatalogueService.logView(
+                    this.req,
+                    'catalogue',
+                    product._id,
+                    product.product_name
+                ).catch(err => console.error('Failed to log view:', err));
             }
 
             console.log('Product found:', {
@@ -643,6 +779,9 @@ export class CatalogueService {
                 }
             }
 
+            // Store before state for audit
+            const beforeState = existingProduct.toObject();
+
             // Update product
             const updatedProduct = await CatalogueModel.findByIdAndUpdate(
                 productId,
@@ -654,6 +793,18 @@ export class CatalogueService {
                 throw new Error('Failed to update product');
             }
 
+            // Log update operation
+            if (this.req) {
+                await historyCatalogueService.logUpdate(
+                    this.req,
+                    'catalogue',
+                    updatedProduct._id,
+                    updatedProduct.product_name,
+                    beforeState,
+                    updatedProduct.toObject()
+                ).catch(err => console.error('Failed to log update:', err));
+            }
+
             console.log('Product updated successfully:', {
                 id: updatedProduct._id,
                 sku: updatedProduct.sku_id,
@@ -663,6 +814,24 @@ export class CatalogueService {
             return updatedProduct;
         } catch (error: any) {
             console.error('Error updating catalogue:', error);
+
+            // Log failed operation
+            if (this.req) {
+                const product = await CatalogueModel.findById(productId);
+                if (product) {
+                    await historyCatalogueService.logUpdate(
+                        this.req,
+                        'catalogue',
+                        product._id,
+                        product.product_name,
+                        {},
+                        {},
+                        'failed',
+                        error.message
+                    ).catch(err => console.error('Failed to log failed update:', err));
+                }
+            }
+
             throw error;
         }
     }
@@ -697,8 +866,22 @@ export class CatalogueService {
                 product_name: product.product_name
             };
 
+            // Store before state for audit
+            const beforeState = product.toObject();
+
             // Delete the product
             await CatalogueModel.findByIdAndDelete(productId);
+
+            // Log delete operation
+            if (this.req) {
+                await historyCatalogueService.logDelete(
+                    this.req,
+                    'catalogue',
+                    product._id,
+                    product.product_name,
+                    beforeState
+                ).catch(err => console.error('Failed to log delete:', err));
+            }
 
             console.log('Product deleted successfully:', {
                 id: productId,
@@ -713,9 +896,27 @@ export class CatalogueService {
             };
         } catch (error: any) {
             console.error('Error deleting catalogue:', error);
+
+            // Log failed operation
+            if (this.req) {
+                const product = await CatalogueModel.findById(productId);
+                if (product) {
+                    await historyCatalogueService.logDelete(
+                        this.req,
+                        'catalogue',
+                        product._id,
+                        product.product_name,
+                        {},
+                        'failed',
+                        error.message
+                    ).catch(err => console.error('Failed to log failed delete:', err));
+                }
+            }
+
             throw error;
         }
     }
+
     /**
      * Get dashboard data with filtering, pagination, and sorting
      */
@@ -849,6 +1050,7 @@ export class CatalogueService {
             throw error;
         }
     }
+
     /**
      * Get dashboard data using aggregation pipeline (for complex filters)
      */
@@ -996,7 +1198,6 @@ export class CatalogueService {
         }
     }
 
-    
     /**
      * Get unique brands for filter dropdown
      */
@@ -1022,11 +1223,14 @@ export class CatalogueService {
             throw error;
         }
     }
+
     /**
-     * Create a new catalogue product
+     * Create a new catalogue product with category name
      */
     async createCatalogue(productData: CreateCatalogueDTO): Promise<ICatalogue> {
         try {
+            console.log('Creating catalogue with category name:', productData.category);
+
             // Check if SKU already exists
             const existingSku = await CatalogueModel.findOne({ 
                 sku_id: productData.sku_id 
@@ -1045,18 +1249,32 @@ export class CatalogueService {
                 throw new Error('Product with this barcode already exists');
             }
 
-            // Validate category and sub_category exist
+            // Find category by name (assuming category field contains category name string)
             const category = await CategoryModel.findOne({ 
                 category_name: productData.category 
             });
             
             if (!category) {
-                throw new Error(`Category "${productData.category}" not found`);
+                throw new Error(`Category "${productData.category}" not found. Please create the category first.`);
             }
 
+            console.log('Found category:', {
+                id: category._id,
+                name: category.category_name,
+                sub_categories: category.sub_details.sub_categories
+            });
+
             // Validate sub_category belongs to the category
-            if (!category.sub_details.sub_categories.includes(productData.sub_category)) {
-                throw new Error(`Sub-category "${productData.sub_category}" not found in category "${productData.category}"`);
+            // Note: sub_details.sub_categories is a string like "burger,pizza,samosa"
+            const subCategoriesArray = category.sub_details.sub_categories
+                .split(',')
+                .map(s => s.trim());
+            
+            if (!subCategoriesArray.includes(productData.sub_category)) {
+                throw new Error(
+                    `Sub-category "${productData.sub_category}" not found in category "${productData.category}". ` +
+                    `Available sub-categories: ${subCategoriesArray.join(', ')}`
+                );
             }
 
             // Validate prices
@@ -1082,21 +1300,77 @@ export class CatalogueService {
                 throw new Error('Maximum 10 images allowed');
             }
 
-            // Create and save the product
-            const product = new CatalogueModel({
-                ...productData,
-                status: productData.status || 'active'
+            // Prepare catalogue data with category ObjectId
+            const catalogueData = {
+                sku_id: productData.sku_id,
+                product_name: productData.product_name,
+                brand_name: productData.brand_name,
+                description: productData.description,
+                category: category._id, // Use the category's ObjectId
+                sub_category: productData.sub_category,
+                manufacturer_name: productData.manufacturer_name,
+                manufacturer_address: productData.manufacturer_address,
+                shell_life: productData.shell_life,
+                expiry_alert_threshold: productData.expiry_alert_threshold,
+                tages_label: productData.tages_label,
+                unit_size: productData.unit_size,
+                base_price: productData.base_price,
+                final_price: productData.final_price,
+                barcode: productData.barcode,
+                nutrition_information: productData.nutrition_information,
+                ingredients: productData.ingredients,
+                images: productData.images,
+                status: productData.status || 'active',
+                createdBy: productData.createdBy
+            };
+
+            console.log('Creating catalogue with data:', {
+                sku_id: catalogueData.sku_id,
+                category_id: catalogueData.category,
+                sub_category: catalogueData.sub_category
             });
-            
+
+            // Create and save the product
+            const product = new CatalogueModel(catalogueData);
             const savedProduct = await product.save();
+            
+            // Log create operation
+            if (this.req) {
+                await historyCatalogueService.logCreate(
+                    this.req,
+                    'catalogue',
+                    savedProduct._id,
+                    savedProduct.product_name,
+                    savedProduct.toObject()
+                ).catch(err => console.error('Failed to log create:', err));
+            }
+            
+            console.log('Catalogue created successfully with ID:', savedProduct._id);
             return savedProduct;
 
         } catch (error: any) {
+            console.error('Error creating catalogue:', {
+                message: error.message,
+                stack: error.stack
+            });
+
+            // Log failed create operation
+            if (this.req) {
+                await historyCatalogueService.logCreate(
+                    this.req,
+                    'catalogue',
+                    new mongoose.Types.ObjectId(),
+                    productData.product_name,
+                    productData,
+                    'failed',
+                    error.message
+                ).catch(err => console.error('Failed to log failed create:', err));
+            }
+
             throw error;
         }
     }
 
-    
     /**
      * Validate catalogue data
      */
@@ -1168,6 +1442,19 @@ export class CatalogueService {
     }
 }
 
-// Export instances (no default exports)
+// Export instances with context-aware factories
+export const createCategoryService = (req?: Request): CategoryService => {
+    const service = new CategoryService();
+    if (req) service.setRequestContext(req);
+    return service;
+};
+
+export const createCatalogueService = (req?: Request): CatalogueService => {
+    const service = new CatalogueService();
+    if (req) service.setRequestContext(req);
+    return service;
+};
+
+// Legacy exports for backward compatibility
 export const categoryService = new CategoryService();
 export const catalogueService = new CatalogueService();

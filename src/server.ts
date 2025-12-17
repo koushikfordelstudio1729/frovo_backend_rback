@@ -170,6 +170,7 @@ const startServer = async () => {
       logger.info('   🗺️ Area Routes: /api/area-route');
       logger.info('   🏪 Vending Machines: /api/vending');
       logger.info('   📦 Catalogue: /api/catalogue');
+      logger.info('   🛍️ History Catalogue: /api/history-catalogue');
       logger.info('');
       logger.info('✅ Ready to accept requests!');
     });

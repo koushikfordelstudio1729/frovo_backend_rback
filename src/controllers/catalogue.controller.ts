@@ -4,21 +4,40 @@ import {
     CategoryFilterDTO, 
     categoryService, 
     CreateCatalogueDTO, 
+    createCatalogueService, 
     CreateCategoryDTO, 
+    createCategoryService, 
     DashboardFilterDTO
 } from '../services/catalogue.service';
 import { Types } from 'mongoose';
 
 export class CatalogueController {
+    public static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
+        const user = (req as any).user;
+        
+        if (!user || !user._id) {
+            throw new Error('User authentication required');
+        }
+        
+        return {
+            _id: user._id,
+            roles: user.roles || [],
+            email: user.email || ''
+        };
+    }
+
     /**
-     * Get catalogue product by ID - FIXED VERSION
+     * Get catalogue product by ID
      */
     async getCatalogueById(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const catalogueService = createCatalogueService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Fetching catalogue product with ID: ${id}`);
 
-            // Extract user info for audit (if available)
+            // Extract user info for audit
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -106,9 +125,12 @@ export class CatalogueController {
     }
 
     /**
-     * Update catalogue product by ID - FIXED VERSION (requires auth)
+     * Update catalogue product by ID
      */
     async updateCatalogue(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const catalogueService = createCatalogueService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Updating catalogue product ${id} with data:`, req.body);
@@ -261,9 +283,12 @@ export class CatalogueController {
     }
 
     /**
-     * Delete catalogue product by ID - FIXED VERSION (requires auth)
+     * Delete catalogue product by ID
      */
     async deleteCatalogue(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const catalogueService = createCatalogueService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Deleting catalogue product ${id}`);
@@ -338,20 +363,7 @@ export class CatalogueController {
             });
         }
     }
-    // Utility function to safely extract user - STATIC
-    public static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
-        const user = (req as any).user;
-        
-        if (!user || !user._id) {
-            throw new Error('User authentication required');
-        }
-        
-        return {
-            _id: user._id,
-            roles: user.roles || [],
-            email: user.email || ''
-        };
-    }
+
     /**
      * Get dashboard data with filtering
      */
@@ -530,6 +542,9 @@ export class CatalogueController {
      * Create a new catalogue product
      */
     async createCatalogue(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const catalogueService = createCatalogueService(req);
+        
         try {
             // Extract logged in user information
             const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
@@ -709,32 +724,170 @@ export class CatalogueController {
 }
 
 export class CategoryController {
-    async getCategoryDashboardStats(req: Request, res: Response): Promise<void> {
+    /**
+     * Create a new category
+     */
+    async createCategory(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+        
         try {
-            console.log('Fetching category dashboard statistics');
+            console.log('Received create category request:', {
+                body: req.body,
+                headers: req.headers,
+                user: (req as any).user
+            });
 
-            const stats = await categoryService.getCategoryDashboardStats();
+            // Extract logged in user information
+            const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
+            const userRole = roles[0]?.key || 'unknown';
 
-            res.status(200).json({
+            console.log('Creating category by user:', { userId, userEmail, userRole });
+
+            // Handle both flat and nested formats
+            let subCategories: string;
+            let descriptionSubCategory: string;
+            
+            if (req.body.sub_details) {
+                // Nested format
+                subCategories = req.body.sub_details.sub_categories;
+                descriptionSubCategory = req.body.sub_details.description_sub_category;
+            } else {
+                // Flat format (for backward compatibility)
+                subCategories = req.body.sub_categories;
+                descriptionSubCategory = req.body.description_sub_category;
+            }
+
+            // Extract data from request body
+            const categoryData: CreateCategoryDTO = {
+                category_name: req.body.category_name,
+                description: req.body.description,
+                sub_details: {
+                    sub_categories: subCategories,
+                    description_sub_category: descriptionSubCategory
+                },
+                category_image: req.body.category_image,
+                category_status: req.body.category_status || 'active'
+            };
+
+            console.log('Processed category data:', categoryData);
+
+            // First, let's debug by checking what's already in the database
+            try {
+                console.log('--- DEBUG: Checking existing categories ---');
+                await categoryService.getAllCategories();
+                
+                console.log(`--- DEBUG: Checking categories with name "${categoryData.category_name}" ---`);
+                await categoryService.findCategoriesByName(categoryData.category_name);
+            } catch (debugError) {
+                console.error('Debug check failed:', debugError);
+            }
+
+            // Create category using service
+            const category = await categoryService.createCategory(categoryData);
+
+            // Format response
+            const responseData = {
+                id: category._id,
+                category_name: category.category_name,
+                description: category.description,
+                sub_details: {
+                    sub_categories: category.sub_details.sub_categories,
+                    description_sub_category: category.sub_details.description_sub_category
+                },
+                category_image: category.category_image,
+                category_status: category.category_status,
+                createdAt: category.createdAt,
+                updatedAt: category.updatedAt
+            };
+
+            // Send success response
+            res.status(201).json({
                 success: true,
-                message: 'Category dashboard statistics retrieved successfully',
-                data: stats
+                message: 'Category created successfully',
+                data: responseData,
+                meta: {
+                    createdBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
             });
 
         } catch (error: any) {
-            console.error('Error fetching category dashboard stats:', error);
-            
+            console.error('Error creating category:', {
+                message: error.message,
+                code: error.code,
+                name: error.name,
+                keyPattern: error.keyPattern,
+                keyValue: error.keyValue,
+                fullError: error
+            });
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                console.log('User not authenticated in error handler');
+            }
+
+            // Handle duplicate error
+            if (error.message.includes('already exists') || error.code === 11000) {
+                const categoryName = req.body.category_name || 'unknown';
+                const subCategories = req.body.sub_categories || req.body.sub_details?.sub_categories || 'unknown';
+                
+                res.status(409).json({
+                    success: false,
+                    message: `Category "${categoryName}" with sub-categories "${subCategories}" already exists`,
+                    suggestion: 'Try using different sub-categories or modify the existing category',
+                    details: {
+                        category_name: categoryName,
+                        sub_categories: subCategories,
+                        database_error_code: error.code,
+                        key_pattern: error.keyPattern,
+                        key_value: error.keyValue
+                    },
+                    userInfo: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            // Handle Mongoose validation errors
+            if (error.name === 'ValidationError') {
+                const validationErrors = Object.values(error.errors).map((err: any) => 
+                    `${err.path}: ${err.message}`
+                );
+                
+                res.status(400).json({
+                    success: false,
+                    message: 'Validation error',
+                    errors: validationErrors,
+                    userInfo: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            // Generic error response
             res.status(500).json({
                 success: false,
-                message: 'Failed to fetch category dashboard statistics',
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+                message: 'Internal server error',
+                
             });
         }
     }
+
     /**
-     * Get category by ID - FIXED VERSION
+     * Get category by ID
      */
     async getCategoryById(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Fetching category with ID: ${id}`);
@@ -823,9 +976,12 @@ export class CategoryController {
     }
 
     /**
-     * Update category by ID - FIXED VERSION (requires auth)
+     * Update category by ID
      */
     async updateCategory(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Updating category ${id} with data:`, req.body);
@@ -949,9 +1105,12 @@ export class CategoryController {
     }
 
     /**
-     * Delete category by ID - FIXED VERSION (requires auth)
+     * Delete category by ID
      */
     async deleteCategory(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+        
         try {
             const { id } = req.params;
             console.log(`Deleting category ${id}`);
@@ -1028,162 +1187,35 @@ export class CategoryController {
             });
         }
     }
+
     /**
-     * Create a new category
+     * Get category dashboard statistics
      */
-    async createCategory(req: Request, res: Response): Promise<void> {
-    try {
-        console.log('Received create category request:', {
-            body: req.body,
-            headers: req.headers,
-            user: (req as any).user
-        });
-
-        // Extract logged in user information
-        const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
-        const userRole = roles[0]?.key || 'unknown';
-
-        console.log('Creating category by user:', { userId, userEmail, userRole });
-
-        // Handle both flat and nested formats
-        let subCategories: string;
-        let descriptionSubCategory: string;
+    async getCategoryDashboardStats(req: Request, res: Response): Promise<void> {
+        // Create service (no request context needed for stats)
+        const categoryService = createCategoryService();
         
-        if (req.body.sub_details) {
-            // Nested format
-            subCategories = req.body.sub_details.sub_categories;
-            descriptionSubCategory = req.body.sub_details.description_sub_category;
-        } else {
-            // Flat format (for backward compatibility)
-            subCategories = req.body.sub_categories;
-            descriptionSubCategory = req.body.description_sub_category;
-        }
-
-        // Extract data from request body
-        const categoryData: CreateCategoryDTO = {
-            category_name: req.body.category_name,
-            description: req.body.description,
-            sub_details: {
-                sub_categories: subCategories,
-                description_sub_category: descriptionSubCategory
-            },
-            category_image: req.body.category_image,
-            category_status: req.body.category_status || 'active'
-        };
-
-        console.log('Processed category data:', categoryData);
-
-        // First, let's debug by checking what's already in the database
         try {
-            console.log('--- DEBUG: Checking existing categories ---');
-            await categoryService.getAllCategories();
-            
-            console.log(`--- DEBUG: Checking categories with name "${categoryData.category_name}" ---`);
-            await categoryService.findCategoriesByName(categoryData.category_name);
-        } catch (debugError) {
-            console.error('Debug check failed:', debugError);
-        }
+            console.log('Fetching category dashboard statistics');
 
-        // Validate input data
-      
+            const stats = await categoryService.getCategoryDashboardStats();
 
-        // Create category using service
-        const category = await categoryService.createCategory(categoryData);
-
-        // Format response
-        const responseData = {
-            id: category._id,
-            category_name: category.category_name,
-            description: category.description,
-            sub_details: {
-                sub_categories: category.sub_details.sub_categories,
-                description_sub_category: category.sub_details.description_sub_category
-            },
-            category_image: category.category_image,
-            category_status: category.category_status,
-            createdAt: category.createdAt,
-            updatedAt: category.updatedAt
-        };
-
-        // Send success response
-        res.status(201).json({
-            success: true,
-            message: 'Category created successfully',
-            data: responseData,
-            meta: {
-                createdBy: userEmail,
-                userRole,
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Error creating category:', {
-            message: error.message,
-            code: error.code,
-            name: error.name,
-            keyPattern: error.keyPattern,
-            keyValue: error.keyValue,
-            fullError: error
-        });
-
-        // Extract user info for error logging
-        let userId = 'unknown';
-        let userEmail = 'unknown';
-        let userRole = 'unknown';
-        try {
-            const user = CatalogueController.getLoggedInUser(req);
-            userId = user._id.toString();
-            userEmail = user.email;
-            userRole = user.roles[0]?.key || 'unknown';
-        } catch (userError) {
-            console.log('User not authenticated in error handler');
-        }
-
-        // Handle duplicate error
-        if (error.message.includes('already exists') || error.code === 11000) {
-            const categoryName = req.body.category_name || 'unknown';
-            const subCategories = req.body.sub_categories || req.body.sub_details?.sub_categories || 'unknown';
-            
-            res.status(409).json({
-                success: false,
-                message: `Category "${categoryName}" with sub-categories "${subCategories}" already exists`,
-                suggestion: 'Try using different sub-categories or modify the existing category',
-                details: {
-                    category_name: categoryName,
-                    sub_categories: subCategories,
-                    database_error_code: error.code,
-                    key_pattern: error.keyPattern,
-                    key_value: error.keyValue
-                },
-                userInfo: { userId, userEmail, userRole }
+            res.status(200).json({
+                success: true,
+                message: 'Category dashboard statistics retrieved successfully',
+                data: stats
             });
-            return;
-        }
 
-        // Handle Mongoose validation errors
-        if (error.name === 'ValidationError') {
-            const validationErrors = Object.values(error.errors).map((err: any) => 
-                `${err.path}: ${err.message}`
-            );
+        } catch (error: any) {
+            console.error('Error fetching category dashboard stats:', error);
             
-            res.status(400).json({
+            res.status(500).json({
                 success: false,
-                message: 'Validation error',
-                errors: validationErrors,
-                userInfo: { userId, userEmail, userRole }
+                message: 'Failed to fetch category dashboard statistics',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
-            return;
         }
-
-        // Generic error response
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-            
-        });
     }
-}
 }
 
 // Export instances for both controllers
