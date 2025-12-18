@@ -650,6 +650,9 @@ class WarehouseService {
         // Add inventory for each line item
         console.log('📦 Adding inventory from GRN to warehouse:', warehouseId);
         for (const item of purchaseOrder.po_line_items) {
+          // Find matching quantity data to get expiry date
+          const quantityData = grnData.quantities?.find((q: any) => q.sku === item.sku);
+
           const existingInventory = await Inventory.findOne({
             sku: item.sku,
             warehouse: warehouseId // ✅ Using correct warehouse ID from PO
@@ -657,13 +660,23 @@ class WarehouseService {
 
           if (existingInventory) {
             // Update existing inventory
-            await Inventory.findByIdAndUpdate(existingInventory._id, {
+            const updateData: any = {
               $inc: { quantity: item.quantity }
-            });
+            };
+
+            // Update expiry date if provided and newer
+            if (quantityData?.expiry_date) {
+              const newExpiryDate = new Date(quantityData.expiry_date);
+              if (!existingInventory.expiryDate || newExpiryDate < existingInventory.expiryDate) {
+                updateData.expiryDate = newExpiryDate;
+              }
+            }
+
+            await Inventory.findByIdAndUpdate(existingInventory._id, updateData);
             console.log(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
           } else {
             // Create new inventory
-            await Inventory.create({
+            const inventoryData: any = {
               sku: item.sku,
               productName: item.productName,
               batchId: grn.delivery_challan, // Use delivery challan as batch ID
@@ -681,7 +694,14 @@ class WarehouseService {
               status: 'active',
               isArchived: false,
               createdBy
-            });
+            };
+
+            // Add expiry date if provided
+            if (quantityData?.expiry_date) {
+              inventoryData.expiryDate = new Date(quantityData.expiry_date);
+            }
+
+            await Inventory.create(inventoryData);
             console.log(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
           }
         }
