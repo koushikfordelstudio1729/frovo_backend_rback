@@ -143,7 +143,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       console.log('🔒 Warehouse staff: PO status forced to draft');
     }
 
-    const result = await warehouseService.createPurchaseOrder(poData, req.user._id, req.user.roles);
+    const result = await warehouseService.createPurchaseOrder(poData, req.user._id);
 
     console.log('📤 Service result:', {
       po_number: result.po_number,

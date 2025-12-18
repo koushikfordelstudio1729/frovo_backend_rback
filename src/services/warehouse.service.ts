@@ -79,7 +79,7 @@ export interface DashboardData {
 export interface RaisePurchaseOrderData {
   po_number?: string;
   vendor: Types.ObjectId;
-  warehouse?: string; // Warehouse ID (optional - will be auto-detected for warehouse managers)
+  warehouse: string; // Warehouse ID (required - ensures inventory is created properly)
   po_raised_date: Date;
   po_status: 'pending' | 'approved' | 'draft';
   vendor_id: string;
@@ -471,11 +471,11 @@ class WarehouseService {
   }
 
   // ==================== SCREEN 2: INBOUND LOGISTICS ====================
-  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId, userRoles?: any[]): Promise<IRaisePurchaseOrder> {
+  async createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder> {
     try {
       console.log('📦 Received PO data:', {
         vendor: data.vendor,
-        warehouse: data.warehouse || 'Not provided',
+        warehouse: data.warehouse,
         po_line_items_count: data.po_line_items?.length || 0,
         vendor_details_present: data.vendor_details ? 'Yes' : 'No'
       });
@@ -487,31 +487,22 @@ class WarehouseService {
         throw new Error('Vendor not found');
       }
 
-      // Determine warehouse ID
-      let warehouseId: Types.ObjectId | undefined;
+      // Validate and use provided warehouse ID (now required)
+      if (!data.warehouse) {
+        throw new Error('Warehouse ID is required when creating a purchase order');
+      }
 
-      if (data.warehouse) {
-        // Use provided warehouse ID
-        warehouseId = new Types.ObjectId(data.warehouse);
-        console.log('🏢 Using provided warehouse ID:', warehouseId);
-      } else {
-        // Auto-detect warehouse for warehouse managers
-        const isWarehouseManager = userRoles?.some((role: any) =>
-          role.systemRole === 'warehouse_manager'
-        );
+      const warehouseId = new Types.ObjectId(data.warehouse);
+      console.log('🏢 Using warehouse ID:', warehouseId);
 
-        if (isWarehouseManager) {
-          // Find warehouse managed by this user
-          const userWarehouse = await Warehouse.findOne({
-            manager: createdBy,
-            isActive: true
-          });
+      // Verify warehouse exists and is active
+      const warehouseExists = await Warehouse.findOne({
+        _id: warehouseId,
+        isActive: true
+      });
 
-          if (userWarehouse) {
-            warehouseId = userWarehouse._id;
-            console.log('🏢 Auto-detected warehouse for manager:', userWarehouse.code);
-          }
-        }
+      if (!warehouseExists) {
+        throw new Error('Warehouse not found or inactive');
       }
 
       // Extract vendor details to store in PO document

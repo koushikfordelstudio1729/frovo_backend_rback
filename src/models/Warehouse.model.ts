@@ -213,7 +213,7 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
   warehouse: {
     type: Schema.Types.ObjectId,
     ref: 'Warehouse',
-    required: false // Optional for backward compatibility
+    required: true // Required to ensure inventory is created properly
   },
     // Add vendor details subdocument
   vendor_details: {
