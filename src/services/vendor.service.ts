@@ -25,10 +25,13 @@ export class VendorService {
       office_email: string;
       legal_entity_structure: string;
       cin: string;
+      gst_number: string;
       date_of_incorporation: Date;
       corporate_website?: string;
       directory_signature_name: string;
       din: string;
+      company_status?: 'active' | 'inactive' | 'blacklisted' | 'under_review';
+      risk_rating?: 'low' | 'medium' | 'high';
     },
     userId: any,
     userEmail: string,
@@ -41,10 +44,13 @@ export class VendorService {
       office_email,
       legal_entity_structure,
       cin,
+      gst_number,
       date_of_incorporation,
       corporate_website,
       directory_signature_name,
-      din
+      din,
+      company_status,
+      risk_rating
     } = data;
 
     // Validate required fields
@@ -54,6 +60,7 @@ export class VendorService {
       'office_email',
       'legal_entity_structure',
       'cin',
+      'gst_number',
       'date_of_incorporation',
       'directory_signature_name',
       'din'
@@ -82,17 +89,25 @@ export class VendorService {
       throw new Error('Date of incorporation cannot be in the future');
     }
 
+    // Validate GST number format (15 characters)
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!gstRegex.test(gst_number)) {
+      throw new Error('Invalid GST number format');
+    }
+
     // Check for unique constraints
     const existingCompanies = await Promise.all([
       CompanyCreate.findOne({ office_email }),
       CompanyCreate.findOne({ cin }),
-      CompanyCreate.findOne({ din })
+      CompanyCreate.findOne({ din }),
+      CompanyCreate.findOne({ gst_number })
     ]);
 
     const errors = [];
     if (existingCompanies[0]) errors.push('Company with this email already exists');
     if (existingCompanies[1]) errors.push('Company with this registration number already exists');
     if (existingCompanies[2]) errors.push('Company with this DIN already exists');
+    if (existingCompanies[3]) errors.push('Company with this GST number already exists');
 
     if (errors.length > 0) {
       throw new Error(errors.join(', '));
@@ -113,10 +128,13 @@ export class VendorService {
       office_email: office_email.toLowerCase(),
       legal_entity_structure,
       cin,
+      gst_number: gst_number.toUpperCase(),
       date_of_incorporation: incorporationDate,
       corporate_website,
       directory_signature_name,
-      din
+      din,
+      company_status: company_status || 'active',
+      risk_rating: risk_rating || 'medium'
     });
 
     const savedCompany = await newCompany.save();
@@ -230,16 +248,15 @@ export class VendorService {
 }
 
   /**
-   * Get company by ID
+   * Get company by CIN
    */
-  public static async getCompanyByIdService(id: string) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error('Invalid company ID format');
+  public static async getCompanyByIdService(cin: string) {
+    if (!cin || cin.trim() === '') {
+      throw new Error('Company CIN is required');
     }
 
-    const company = await CompanyCreate.findById(id).select('-__v');
-    
+    const company = await CompanyCreate.findOne({ cin: cin }).select('-__v');
+
     if (!company) {
       throw new Error('Company not found');
     }
@@ -248,33 +265,36 @@ export class VendorService {
   }
 
   /**
-   * Update company by ID
+   * Update company by CIN
    */
   public static async updateCompanyService(
-    id: string, 
+    cin: string,
     data: Partial<{
       registered_company_name: string;
       company_address: string;
       office_email: string;
       legal_entity_structure: string;
       cin: string;
+      gst_number: string;
       date_of_incorporation: Date;
       corporate_website: string;
       directory_signature_name: string;
       din: string;
+      company_status: 'active' | 'inactive' | 'blacklisted' | 'under_review';
+      risk_rating: 'low' | 'medium' | 'high';
     }>,
     userId: any,
     userEmail: string,
     userRole: string,
     req?: any
   ) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error('Invalid company ID format');
+    // Validate CIN
+    if (!cin || cin.trim() === '') {
+      throw new Error('Company CIN is required');
     }
 
     // Check if company exists
-    const existingCompany = await CompanyCreate.findById(id);
+    const existingCompany = await CompanyCreate.findOne({ cin: cin });
     if (!existingCompany) {
       throw new Error('Company not found');
     }
@@ -292,14 +312,34 @@ export class VendorService {
       // Check for duplicate email
       const companyWithSameEmail = await CompanyCreate.findOne({
         office_email: data.office_email.toLowerCase(),
-        _id: { $ne: id }
+        cin: { $ne: cin }
       });
-      
+
       if (companyWithSameEmail) {
         throw new Error('Company with this email already exists');
       }
-      
+
       data.office_email = data.office_email.toLowerCase();
+    }
+
+    // Validate GST number if being updated
+    if (data.gst_number) {
+      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstRegex.test(data.gst_number)) {
+        throw new Error('Invalid GST number format');
+      }
+
+      // Check for duplicate GST number
+      const companyWithSameGST = await CompanyCreate.findOne({
+        gst_number: data.gst_number.toUpperCase(),
+        cin: { $ne: cin }
+      });
+
+      if (companyWithSameGST) {
+        throw new Error('Company with this GST number already exists');
+      }
+
+      data.gst_number = data.gst_number.toUpperCase();
     }
 
     // Validate date if being updated
@@ -318,12 +358,11 @@ export class VendorService {
     }
 
     // Validate registration number if being updated
-    if (data.cin) {
+    if (data.cin && data.cin !== cin) {
       const companyWithSameRegNo = await CompanyCreate.findOne({
-        cin: data.cin,
-        _id: { $ne: id }
+        cin: data.cin
       });
-      
+
       if (companyWithSameRegNo) {
         throw new Error('Company with this registration number already exists');
       }
@@ -333,9 +372,9 @@ export class VendorService {
     if (data.din) {
       const companyWithSameDIN = await CompanyCreate.findOne({
         din: data.din,
-        _id: { $ne: id }
+        cin: { $ne: cin }
       });
-      
+
       if (companyWithSameDIN) {
         throw new Error('Company with this DIN already exists');
       }
@@ -350,8 +389,8 @@ export class VendorService {
     }
 
     // Update company
-    const updatedCompany = await CompanyCreate.findByIdAndUpdate(
-      id,
+    const updatedCompany = await CompanyCreate.findOneAndUpdate(
+      { cin: cin },
       data,
       { new: true, runValidators: true }
     ).select('-__v');
@@ -394,29 +433,29 @@ export class VendorService {
   }
 
   /**
-   * Delete company by ID
+   * Delete company by CIN
    */
   public static async deleteCompanyService(
-    id: string,
+    cin: string,
     userId: any,
     userEmail: string,
     userRole: string,
     req?: any
   ) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error('Invalid company ID format');
+    // Validate CIN
+    if (!cin || cin.trim() === '') {
+      throw new Error('Company CIN is required');
     }
 
     // Get company before deletion for audit trail
-    const companyToDelete = await CompanyCreate.findById(id);
-    
+    const companyToDelete = await CompanyCreate.findOne({ cin: cin });
+
     if (!companyToDelete) {
       throw new Error('Company not found');
     }
 
     const beforeState = companyToDelete.toObject();
-    const deletedCompany = await CompanyCreate.findByIdAndDelete(id);
+    const deletedCompany = await CompanyCreate.findOneAndDelete({ cin: cin });
 
     // ✅ CREATE AUDIT TRAIL FOR COMPANY DELETION
     if (deletedCompany) {
@@ -448,13 +487,13 @@ export class VendorService {
   }
 
   /**
-   * Check if company exists by ID
+   * Check if company exists by CIN
    */
-  public static async checkCompanyExists(id: string): Promise<boolean> {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+  public static async checkCompanyExists(cin: string): Promise<boolean> {
+    if (!cin || cin.trim() === '') {
       return false;
     }
-    const company = await CompanyCreate.findById(id);
+    const company = await CompanyCreate.findOne({ cin: cin });
     return !!company;
   }
 
@@ -593,9 +632,14 @@ export class VendorService {
         throw new Error('Vendor not found');
       }
 
-      // If user is not Super Admin, prevent changing verification_status
-      if (userRole !== 'super_admin' && 'verification_status' in updateData) {
-        throw new Error('Only Super Admin can modify verification status');
+      // Only Super Admin and Vendor Admin can modify verification_status
+      // Block other roles from changing verification status
+      if (!['super_admin', 'vendor_admin'].includes(userRole) && 'verification_status' in updateData) {
+        if (updateData.verification_status !== currentVendor.verification_status) {
+          throw new Error('Only Super Admin or Vendor Admin can modify verification status');
+        }
+        // If status hasn't changed, remove it from updateData to avoid unnecessary updates
+        delete updateData.verification_status;
       }
 
       // Validate update data
@@ -653,7 +697,7 @@ export class VendorService {
 
   // Enhanced Vendor Verification with Audit Trail
   async updateVendorVerification(
-    vendorId: string, 
+    vendorId: string,
     verificationStatus: 'verified' | 'rejected' | 'pending',
     verifiedBy: Types.ObjectId,
     userRole: string,
@@ -662,9 +706,9 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate> {
     try {
-      // Check if user is Super Admin
-      if (userRole !== 'super_admin') {
-        throw new Error('Only Super Admin can modify vendor verification status');
+      // Check if user has vendor management permissions
+      if (userRole !== 'super_admin' && userRole !== 'vendor_admin') {
+        throw new Error('Only Super Admin or Vendor Admin can modify vendor verification status');
       }
 
       // Get current state before update
@@ -1251,9 +1295,9 @@ export class VendorService {
     rejectionReason?: string
   ): Promise<{ successful: string[]; failed: any[] }> {
     try {
-      // Check if user is Super Admin
-      if (userRole !== 'super_admin') {
-        throw new Error('Only Super Admin can verify or reject vendors');
+      // Check if user has vendor management permissions
+      if (userRole !== 'super_admin' && userRole !== 'vendor_admin') {
+        throw new Error('Only Super Admin or Vendor Admin can verify or reject vendors');
       }
 
       const successful: string[] = [];
@@ -1307,9 +1351,9 @@ async quickVerifyOrRejectVendor(
   req?: any
 ): Promise<IVendorCreate> {
   try {
-    // Check if user is Super Admin
-    if (userRole !== 'super_admin') {
-      throw new Error('Only Super Admin can verify or reject vendors');
+    // Check if user has vendor management permissions
+    if (userRole !== 'super_admin' && userRole !== 'vendor_admin') {
+      throw new Error('Only Super Admin or Vendor Admin can verify or reject vendors');
     }
 
     // Get current state before update
@@ -1469,6 +1513,50 @@ async quickVerifyOrRejectVendor(
     }
   }
 
+  // Get Logged-in Vendor Profile (My Vendors)
+  async getMyVendorProfile(userId: Types.ObjectId): Promise<{
+    user_info: {
+      user_id: Types.ObjectId;
+      total_vendors_created: number;
+    };
+    statistics: {
+      total_vendors: number;
+      pending_vendors: number;
+      verified_vendors: number;
+      rejected_vendors: number;
+      failed_vendors: number;
+    };
+    vendors: IVendorCreate[];
+  }> {
+    try {
+      // Get all vendors created by this user
+      const vendors = await VendorCreate.find({ createdBy: userId })
+        .populate('createdBy', 'name email')
+        .populate('verified_by', 'name email')
+        .sort({ createdAt: -1 });
+
+      // Calculate statistics
+      const statistics = {
+        total_vendors: vendors.length,
+        pending_vendors: vendors.filter(v => v.verification_status === 'pending').length,
+        verified_vendors: vendors.filter(v => v.verification_status === 'verified').length,
+        rejected_vendors: vendors.filter(v => v.verification_status === 'rejected').length,
+        failed_vendors: vendors.filter(v => v.verification_status === 'failed').length
+      };
+
+      return {
+        user_info: {
+          user_id: userId,
+          total_vendors_created: vendors.length
+        },
+        statistics,
+        vendors
+      };
+    } catch (error: any) {
+      throw new Error(`Error fetching vendor profile: ${error.message}`);
+    }
+  }
+
   // Get All Vendors with filtering and pagination (for general use)
   async getAllVendors(filters: {
     verification_status?: string;
@@ -1585,7 +1673,7 @@ async createBulkVendors(
 /**
  * Get all vendors for a specific company
  */
-public static async getVendorsByCompanyService(companyRegistrationNumber: string, query: {
+public static async getVendorsByCompanyService(cin: string, query: {
   page?: number;
   limit?: number;
   search?: string;
@@ -1593,12 +1681,12 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
   risk_rating?: string;
   vendor_category?: string;
 } = {}) {
-  
+
   // First, verify company exists
-  const company = await CompanyCreate.findOne({ 
-    company_registration_number: companyRegistrationNumber 
+  const company = await CompanyCreate.findOne({
+    cin: cin
   });
-  
+
   if (!company) {
     throw new Error('Company not found');
   }
@@ -1617,7 +1705,7 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
   const skip = (pageNum - 1) * limitNum;
 
   let filter: any = {
-    company_registration_number: companyRegistrationNumber
+    cin: cin
   };
 
   // Add optional filters
@@ -1661,7 +1749,7 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
     company: {
       _id: company._id,
       registered_company_name: company.registered_company_name,
-      company_registration_number: company.cin,
+      cin: company.cin,
       office_email: company.office_email
     },
     vendors: vendors,
@@ -1680,11 +1768,11 @@ public static async getVendorsByCompanyService(companyRegistrationNumber: string
  * Get company with vendor statistics
  */
 public static async getCompanyWithVendorStatsService(cin: string) {
-  // Get company details by registration number
-  const company = await CompanyCreate.findOne({ 
-    cin:cin 
+  // Get company details by CIN
+  const company = await CompanyCreate.findOne({
+    cin: cin
   }).select('-__v');
-  
+
   if (!company) {
     throw new Error('Company not found');
   }
@@ -1853,9 +1941,14 @@ public static async getCompanyWithVendorStatsService(cin: string) {
         throw new Error('You can only update vendors created by you');
       }
 
-      // Vendor admin cannot change verification_status
-      if (userRole === 'vendor_admin' && 'verification_status' in updateData) {
-        throw new Error('Only Super Admin can modify verification status');
+      // Only Super Admin and Vendor Admin can modify verification_status
+      // This check is now redundant since vendor_admin is allowed, but keeping for other roles
+      if (!['super_admin', 'vendor_admin'].includes(userRole) && 'verification_status' in updateData) {
+        if (updateData.verification_status !== existingVendor.verification_status) {
+          throw new Error('Only Super Admin or Vendor Admin can modify verification status');
+        }
+        // If status hasn't changed, remove it from updateData to avoid unnecessary updates
+        delete updateData.verification_status;
       }
 
       // Define allowed fields for vendor admin to update

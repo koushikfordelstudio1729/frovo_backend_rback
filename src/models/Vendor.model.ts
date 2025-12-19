@@ -18,10 +18,13 @@ export interface ICompanyCreate extends Document {
   office_email: string;
   legal_entity_structure: string;
   cin: string;
+  gst_number: string;
   date_of_incorporation: Date;
   corporate_website: string;
   directory_signature_name: string;
   din: string;
+  company_status: 'active' | 'inactive' | 'blacklisted' | 'under_review';
+  risk_rating: 'low' | 'medium' | 'high';
 }
 const companyCreateSchema = new Schema<ICompanyCreate>({
   registered_company_name: {
@@ -52,6 +55,13 @@ const companyCreateSchema = new Schema<ICompanyCreate>({
     trim: true,
     unique: true
   },
+  gst_number: {
+    type: String,
+    required: true,
+    uppercase: true,
+    trim: true,
+    unique: true
+  },
   date_of_incorporation: {
     type: Date,
     required: true
@@ -71,6 +81,18 @@ const companyCreateSchema = new Schema<ICompanyCreate>({
     required: true,
     trim: true,
     unique: true
+  },
+  company_status: {
+    type: String,
+    enum: ['active', 'inactive', 'blacklisted', 'under_review'],
+    default: 'active',
+    required: true
+  },
+  risk_rating: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium',
+    required: true
   }
 }, {
   timestamps: true,
@@ -83,12 +105,14 @@ export interface IVendorCreate extends Document {
   vendor_billing_name: string;
   vendor_type: string[];  // Multi-select: snacks, beverages, packaging, services
   vendor_category: string;
+  material_categories_supplied: string[];  // Materials/products this vendor supplies
   primary_contact_name: string;
   contact_phone: string;
   vendor_email: string;
   vendor_address: string;
   vendor_id: string;
   cin: string;
+  warehouse_id?: Types.ObjectId;
 
   // Financial Information
   bank_account_number: string;
@@ -104,7 +128,8 @@ export interface IVendorCreate extends Document {
 
   // Status & Risk Information
   vendor_status_cycle: string;
-  verification_status: 'pending' | 'verified' | 'failed' | 'rejected';
+  vendor_status: 'active' | 'inactive' | 'deactivated';
+  verification_status: 'draft' | 'pending' | 'under_review' | 'verified' | 'rejected' | 'failed' | 'suspended' | 'contract_expired' | 'blacklisted';
   risk_rating: 'low' | 'medium' | 'high';
   risk_notes: string;
   verified_by?: Types.ObjectId;
@@ -187,6 +212,11 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     enum: ['consumables', 'packaging', 'logistics', 'maintenance', 'services', 'equipment'],
     trim: true
   },
+  material_categories_supplied: [{
+    type: String,
+    required: false,
+    trim: true
+  }],
   primary_contact_name: {
     type: String,
     required: true,
@@ -223,13 +253,18 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     validate: {
     validator: async function(value: string) {
       // Check if company exists with this registration number
-      const company = await mongoose.model('CompanyCreate').findOne({ 
-        cin: value 
+      const company = await mongoose.model('CompanyCreate').findOne({
+        cin: value
       });
       return !!company; // Return true if company exists
     },
     message: 'Company with this registration number does not exist'
   }
+  },
+  warehouse_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    required: false
   },
 
   // Financial Information
@@ -292,11 +327,17 @@ const vendorCreateSchema = new Schema<IVendorCreate>({
     enum: ['procurement', 'restocking', 'finance_reconciliation', 'audit'],
     default: 'procurement'
   },
+  vendor_status: {
+    type: String,
+    enum: ['active', 'inactive', 'deactivated'],
+    default: 'active',
+    required: true
+  },
   verification_status: {
     type: String,
-    enum: ['pending', 'verified', 'failed', 'rejected'],
+    enum: ['draft', 'pending', 'under_review', 'verified', 'rejected', 'failed', 'suspended', 'contract_expired', 'blacklisted'],
     required: true,
-    default: 'pending'
+    default: 'draft'
   },
   risk_rating: {
     type: String,

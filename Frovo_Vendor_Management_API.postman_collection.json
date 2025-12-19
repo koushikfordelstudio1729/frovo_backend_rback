@@ -1,0 +1,1308 @@
+{
+	"info": {
+		"_postman_id": "vendor-management-api-2025",
+		"name": "Frovo Vendor Management API",
+		"description": "Complete API collection for Frovo Vendor Management Module\n\nFeatures:\n- Company Management (8 endpoints)\n- Vendor CRUD Operations (7 endpoints)\n- Vendor Verification (5 endpoints)\n- Dashboard & Analytics (5 endpoints)\n- Document Management (4 endpoints)\n- Audit Trail (2 endpoints)\n\nTotal: 32 endpoints\n\nLast Updated: December 18, 2025",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Company Management",
+			"item": [
+				{
+					"name": "Create Company",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"registered_company_name\": \"PepsiCo India Pvt Ltd\",\n  \"company_address\": \"Unit No. 1, Logix Technova, Plot No. C-28 & C-29, Sector 127, Noida, Uttar Pradesh - 201301\",\n  \"office_email\": \"contact@pepsicoindia.co.in\",\n  \"legal_entity_structure\": \"Pvt Ltd\",\n  \"cin\": \"U15499DL1989PTC035955\",\n  \"gst_number\": \"07AABCP0634E1ZU\",\n  \"date_of_incorporation\": \"1989-09-15\",\n  \"corporate_website\": \"https://www.pepsicoindia.co.in\",\n  \"directory_signature_name\": \"Ahmed ElSheikh\",\n  \"din\": \"08845260\",\n  \"company_status\": \"active\",\n  \"risk_rating\": \"low\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies"
+							]
+						},
+						"description": "Create a new registered company.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**New Fields (Dec 2025):**\n- `gst_number` (required) - 15 character GST identification\n- `company_status` (optional) - active/inactive/blacklisted/under_review\n- `risk_rating` (optional) - low/medium/high (default: medium)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Companies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies?page=1&limit=10&search=&sortBy=createdAt&sortOrder=desc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Items per page (default: 10)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by name, email, CIN, DIN"
+								},
+								{
+									"key": "sortBy",
+									"value": "createdAt",
+									"description": "Sort field (default: createdAt)"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc",
+									"description": "asc or desc (default: desc)"
+								}
+							]
+						},
+						"description": "Get paginated list of all companies with search and filter.\n\n**Authorization:** Read Access (Super Admin, Vendor Admin, Ops Manager, Finance Manager, Warehouse Manager)"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Companies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/search?q=Pepsi&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "Pepsi",
+									"description": "Search query (required)"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Max results (default: 10)"
+								}
+							]
+						},
+						"description": "Quick search companies by name or email.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company by CIN",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:cin",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":cin"
+							],
+							"variable": [
+								{
+									"key": "cin",
+									"value": "U15499DL1989PTC035955",
+									"description": "Company Identification Number"
+								}
+							]
+						},
+						"description": "Get single company details by CIN.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Company",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_status\": \"active\",\n  \"risk_rating\": \"high\",\n  \"corporate_website\": \"https://www.pepsicoindia.co.in\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:cin",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":cin"
+							],
+							"variable": [
+								{
+									"key": "cin",
+									"value": "U15499DL1989PTC035955"
+								}
+							]
+						},
+						"description": "Update company details.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**Updatable Fields:**\n- All company fields except CIN\n- New: company_status, risk_rating"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Company",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:cin",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":cin"
+							],
+							"variable": [
+								{
+									"key": "cin",
+									"value": "U15499DL1989PTC035955"
+								}
+							]
+						},
+						"description": "Delete a company (creates audit trail).\n\n**Authorization:** Super Admin Only"
+					},
+					"response": []
+				},
+				{
+					"name": "Check Company Exists",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:cin/exists",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":cin",
+								"exists"
+							],
+							"variable": [
+								{
+									"key": "cin",
+									"value": "U15499DL1989PTC035955"
+								}
+							]
+						},
+						"description": "Check if company exists by CIN.\n\n**Authorization:** Read Access\n\n**Returns:** { exists: true/false }"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company with Vendor Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:cin/vendors",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":cin",
+								"vendors"
+							],
+							"variable": [
+								{
+									"key": "cin",
+									"value": "U15499DL1989PTC035955"
+								}
+							]
+						},
+						"description": "Get company details with vendor statistics.\n\n**Authorization:** Read Access\n\n**Returns:**\n- Company details\n- Vendor counts by status\n- Vendor counts by category\n- Risk distribution\n- Recent vendors"
+					},
+					"response": []
+				}
+			],
+			"description": "Company management endpoints for creating and managing registered companies.",
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{auth_token}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "Dashboards",
+			"item": [
+				{
+					"name": "Common Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/common-dashboard?page=1&limit=10&verification_status=&risk_rating=&vendor_category=&search=&company_search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"common-dashboard"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "verification_status",
+									"value": "",
+									"description": "Filter: draft, pending, verified, etc."
+								},
+								{
+									"key": "risk_rating",
+									"value": "",
+									"description": "Filter: low, medium, high"
+								},
+								{
+									"key": "vendor_category",
+									"value": "",
+									"description": "Filter by vendor category"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search vendors"
+								},
+								{
+									"key": "company_search",
+									"value": "",
+									"description": "Search companies"
+								}
+							]
+						},
+						"description": "Common dashboard for both Super Admin and Vendor Admin.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**Shows:**\n- All companies (recent 5)\n- All vendors (paginated)\n- Total counts and statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Super Admin Vendor Management",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/super-admin/vendor-management?page=1&limit=10&verification_status=pending&risk_rating=&vendor_category=&search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"super-admin",
+								"vendor-management"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "verification_status",
+									"value": "pending"
+								},
+								{
+									"key": "risk_rating",
+									"value": ""
+								},
+								{
+									"key": "vendor_category",
+									"value": ""
+								},
+								{
+									"key": "search",
+									"value": ""
+								}
+							]
+						},
+						"description": "Vendor management dashboard for Super Admin only.\n\n**Authorization:** Super Admin Only\n\n**Shows:**\n- Only vendors (no companies)\n- Approval workflow focus\n- Full management actions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Vendors (Super Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/super-admin/vendors?page=1&limit=10&verification_status=&risk_rating=&vendor_category=&created_by=&search=&date_from=&date_to=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"super-admin",
+								"vendors"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "verification_status",
+									"value": ""
+								},
+								{
+									"key": "risk_rating",
+									"value": ""
+								},
+								{
+									"key": "vendor_category",
+									"value": ""
+								},
+								{
+									"key": "created_by",
+									"value": "",
+									"description": "Filter by creator user ID"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "date_from",
+									"value": "",
+									"description": "Filter created after date"
+								},
+								{
+									"key": "date_to",
+									"value": "",
+									"description": "Filter created before date"
+								}
+							]
+						},
+						"description": "Advanced vendor list with creator and date filters.\n\n**Authorization:** Super Admin Only"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/super-admin/statistics",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"super-admin",
+								"statistics"
+							]
+						},
+						"description": "Comprehensive vendor statistics for Super Admin.\n\n**Authorization:** Super Admin Only\n\n**Returns:**\n- Total/pending/active/rejected counts\n- Vendors by category\n- Vendors by risk\n- Recent activity"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Approvals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/super-admin/pending-approvals",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"super-admin",
+								"pending-approvals"
+							]
+						},
+						"description": "Get all vendors pending approval.\n\n**Authorization:** Super Admin Only"
+					},
+					"response": []
+				}
+			],
+			"description": "Dashboard and analytics endpoints for vendor management overview."
+		},
+		{
+			"name": "Vendor CRUD",
+			"item": [
+				{
+					"name": "Create Vendor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vendor_name\": \"Lays India\",\n  \"vendor_billing_name\": \"Frito-Lay India Pvt Ltd\",\n  \"vendor_type\": [\"snacks\", \"beverages\"],\n  \"vendor_category\": \"consumables\",\n  \"material_categories_supplied\": [\"Chips\", \"Snacks\", \"Beverages\"],\n  \"primary_contact_name\": \"Rajesh Kumar\",\n  \"contact_phone\": \"+919876543210\",\n  \"vendor_email\": \"contact@lays-india.com\",\n  \"vendor_address\": \"Plot 1A, Sector 16A, Noida, Uttar Pradesh - 201301\",\n  \"cin\": \"U15499DL1989PTC035955\",\n  \"warehouse_id\": null,\n  \"bank_account_number\": \"1234567890123456\",\n  \"ifsc_code\": \"HDFC0001234\",\n  \"payment_terms\": \"net_30\",\n  \"payment_methods\": \"neft\",\n  \"gst_number\": \"07AABCP0634E1ZU\",\n  \"pan_number\": \"AABCP0634E\",\n  \"tds_rate\": 1.0,\n  \"billing_cycle\": \"monthly\",\n  \"vendor_status_cycle\": \"procurement\",\n  \"vendor_status\": \"active\",\n  \"verification_status\": \"pending\",\n  \"risk_rating\": \"low\",\n  \"risk_notes\": \"Reliable vendor with 5+ years track record\",\n  \"contract_terms\": \"Net 30 payment terms, 48hr delivery SLA, minimum order 100 units\",\n  \"contract_expiry_date\": \"2025-12-31\",\n  \"contract_renewal_date\": \"2025-11-30\",\n  \"internal_notes\": \"Preferred vendor for chips category\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/create",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"create"
+							]
+						},
+						"description": "Create a new vendor.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**New Field (Dec 2025):**\n- `material_categories_supplied` - Array of materials this vendor supplies\n\n**Note:** Only Super Admin can set verification_status to 'verified' during creation."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Vendors",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vendors\": [\n    {\n      \"vendor_name\": \"Vendor 1\",\n      \"vendor_billing_name\": \"Vendor 1 Pvt Ltd\",\n      \"vendor_type\": [\"snacks\"],\n      \"vendor_category\": \"consumables\",\n      \"material_categories_supplied\": [\"Chips\"],\n      \"primary_contact_name\": \"Contact 1\",\n      \"contact_phone\": \"+919876543210\",\n      \"vendor_email\": \"vendor1@example.com\",\n      \"vendor_address\": \"Address 1\",\n      \"cin\": \"U15499DL1989PTC035955\",\n      \"bank_account_number\": \"1234567890123456\",\n      \"ifsc_code\": \"HDFC0001234\",\n      \"payment_terms\": \"net_30\",\n      \"payment_methods\": \"neft\",\n      \"gst_number\": \"07AABCP0634E1Z1\",\n      \"pan_number\": \"AABCP0634E\",\n      \"tds_rate\": 1.0,\n      \"billing_cycle\": \"monthly\",\n      \"risk_rating\": \"low\",\n      \"risk_notes\": \"Good vendor\",\n      \"contract_expiry_date\": \"2025-12-31\",\n      \"contract_renewal_date\": \"2025-11-30\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/bulk-create",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"bulk-create"
+							]
+						},
+						"description": "Bulk create up to 50 vendors at once.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**Limit:** Maximum 50 vendors per request"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Vendors",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors?page=1&limit=10&verification_status=&risk_rating=&vendor_category=&search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "verification_status",
+									"value": ""
+								},
+								{
+									"key": "risk_rating",
+									"value": ""
+								},
+								{
+									"key": "vendor_category",
+									"value": ""
+								},
+								{
+									"key": "search",
+									"value": ""
+								}
+							]
+						},
+						"description": "Get paginated list of all vendors.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}",
+									"description": "MongoDB ObjectId"
+								}
+							]
+						},
+						"description": "Get vendor details by MongoDB ID.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor by Vendor ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/vendor-id/:vendorId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"vendor-id",
+								":vendorId"
+							],
+							"variable": [
+								{
+									"key": "vendorId",
+									"value": "VEND-123456-ABC",
+									"description": "Custom Vendor ID (e.g., VEND-123456-ABC)"
+								}
+							]
+						},
+						"description": "Get vendor by business vendor ID.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Vendor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"material_categories_supplied\": [\"Chips\", \"Snacks\", \"Beverages\", \"Cookies\"],\n  \"risk_rating\": \"medium\",\n  \"risk_notes\": \"Updated risk assessment\",\n  \"vendor_status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Update vendor details.\n\n**Authorization:** Super Admin or Vendor Admin\n\n**Note:** Vendor Admin cannot change verification_status"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Vendor",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Delete vendor (creates audit trail).\n\n**Authorization:** Super Admin or Vendor Admin"
+					},
+					"response": []
+				}
+			],
+			"description": "Vendor CRUD operations for creating and managing vendors."
+		},
+		{
+			"name": "Vendor Verification",
+			"item": [
+				{
+					"name": "Update Verification Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verification_status\": \"verified\",\n  \"notes\": \"All documents verified. Vendor approved for procurement.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/verify",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"verify"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Update vendor verification status with notes.\n\n**Authorization:** Super Admin Only\n\n**Status Options:**\n- verified\n- rejected\n- pending"
+					},
+					"response": []
+				},
+				{
+					"name": "Quick Verify Vendor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/quick-verify",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"quick-verify"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Quick verify vendor (no body required).\n\n**Authorization:** Super Admin Only\n\n**Note:** Automatically adds verification notes with timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Quick Reject Vendor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/quick-reject",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"quick-reject"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Quick reject vendor (no body required).\n\n**Authorization:** Super Admin Only\n\n**Note:** Automatically adds rejection notes with timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Verify/Reject Vendors",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"vendor_ids\": [\n    \"{{vendor_id_1}}\",\n    \"{{vendor_id_2}}\",\n    \"{{vendor_id_3}}\"\n  ],\n  \"verification_status\": \"verified\",\n  \"rejection_reason\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/bulk-verify",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"bulk-verify"
+							]
+						},
+						"description": "Bulk verify or reject multiple vendors.\n\n**Authorization:** Super Admin Only\n\n**Status Options:**\n- verified\n- rejected\n\n**Note:** rejection_reason required if status is 'rejected'"
+					},
+					"response": []
+				}
+			],
+			"description": "Vendor verification and approval workflows (Super Admin only)."
+		},
+		{
+			"name": "Document Management",
+			"item": [
+				{
+					"name": "Upload Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "document_type",
+									"value": "gst_certificate",
+									"type": "text",
+									"description": "signed_contract | gst_certificate | msme_certificate | tds_exemption | pan_card | bank_proof | other"
+								},
+								{
+									"key": "expiry_date",
+									"value": "2025-12-31",
+									"type": "text",
+									"description": "Optional: Document expiry date (YYYY-MM-DD)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"documents"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Upload document to vendor (stored in Cloudinary).\n\n**Authorization:** Super Admin or Vendor Admin\n\n**Document Types:**\n- signed_contract\n- gst_certificate\n- msme_certificate\n- tds_exemption\n- pan_card\n- bank_proof\n- other"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/documents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"documents"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Get all documents for a vendor.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Document",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/documents/:documentId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"documents",
+								":documentId"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								},
+								{
+									"key": "documentId",
+									"value": "{{document_id}}"
+								}
+							]
+						},
+						"description": "Get single document details.\n\n**Authorization:** Read Access"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Document",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/documents/:documentId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"documents",
+								":documentId"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								},
+								{
+									"key": "documentId",
+									"value": "{{document_id}}"
+								}
+							]
+						},
+						"description": "Delete document from vendor and Cloudinary.\n\n**Authorization:** Super Admin or Vendor Admin"
+					},
+					"response": []
+				}
+			],
+			"description": "Document upload and management for vendors (Cloudinary integration)."
+		},
+		{
+			"name": "Audit Trail",
+			"item": [
+				{
+					"name": "Get Vendor Audit Trail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/:id/audit-trail?page=1&limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								":id",
+								"audit-trail"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vendor_id}}"
+								}
+							]
+						},
+						"description": "Get audit trail for a specific vendor.\n\n**Authorization:** Read Access\n\n**Returns:**\n- Timestamp\n- Actor (user who made change)\n- Action (create, update, delete, etc.)\n- Before/After states\n- Changed fields\n- IP address and user agent"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company Audit Trail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/vendors/companies/:id/audit-trail?page=1&limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"vendors",
+								"companies",
+								":id",
+								"audit-trail"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{company_id}}"
+								}
+							]
+						},
+						"description": "Get audit trail for a specific company.\n\n**Authorization:** Read Access\n\n**Returns:**\n- Complete history of all changes\n- User tracking\n- Before/After comparisons"
+					},
+					"response": []
+				}
+			],
+			"description": "Audit trail endpoints for tracking all vendor and company changes."
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{auth_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "your_jwt_token_here",
+			"type": "string"
+		},
+		{
+			"key": "vendor_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "company_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "document_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

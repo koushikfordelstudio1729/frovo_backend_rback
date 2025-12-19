@@ -40,10 +40,13 @@ export class VendorController {
         office_email,
         legal_entity_structure,
         cin,
+        gst_number,
         date_of_incorporation,
         corporate_website,
         directory_signature_name,
-        din
+        din,
+        company_status,
+        risk_rating
       } = req.body;
 
       // Validate date format
@@ -65,10 +68,13 @@ export class VendorController {
         office_email,
         legal_entity_structure,
         cin,
+        gst_number,
         date_of_incorporation: parsedDate!,
         corporate_website,
         directory_signature_name,
-        din
+        din,
+        company_status,
+        risk_rating
       };
 
       // Call the static method from VendorService with user info for audit
@@ -802,7 +808,7 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
     try {
       const { vendorId } = req.params;
       const vendor = await vendorService.getVendorByVendorId(vendorId);
-      
+
       if (!vendor) {
         return res.status(404).json({
           success: false,
@@ -815,6 +821,27 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
         data: vendor
       });
     } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  // Get My Vendor Profile (Logged-in User's Vendors)
+  async getMyVendorProfile(req: Request, res: Response) {
+    try {
+      const { _id: userId } = VendorController.getLoggedInUser(req);
+
+      const profile = await vendorService.getMyVendorProfile(userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Vendor profile retrieved successfully',
+        data: profile
+      });
+    } catch (error: any) {
+      console.error('Error fetching vendor profile:', error);
       res.status(400).json({
         success: false,
         message: error.message
@@ -1272,6 +1299,82 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
         message: 'Test audit data generated successfully'
       });
     } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  /**
+   * Get audit trail for a specific vendor
+   */
+  async getVendorAuditTrail(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { page = 1, limit = 50 } = req.query;
+
+      // Verify vendor exists
+      const vendor = await vendorService.getVendorById(id);
+      if (!vendor) {
+        return res.status(404).json({
+          success: false,
+          message: 'Vendor not found'
+        });
+      }
+
+      // Get audit trails for this vendor
+      const auditData = await auditTrailService.getVendorAuditTrails(
+        id,
+        Number(page),
+        Number(limit)
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Vendor audit trail retrieved successfully',
+        data: auditData
+      });
+    } catch (error: any) {
+      console.error('Error fetching vendor audit trail:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  /**
+   * Get audit trail for a specific company
+   */
+  async getCompanyAuditTrail(req: Request, res: Response) {
+    try {
+      const { cin } = req.params;
+      const { page = 1, limit = 50 } = req.query;
+
+      // Verify company exists
+      const company = await VendorService.getCompanyByIdService(cin);
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          message: 'Company not found'
+        });
+      }
+
+      // Get audit trails for this company (using company MongoDB _id for audit lookup)
+      const auditData = await auditTrailService.getCompanyAuditTrails(
+        company._id.toString(),
+        Number(page),
+        Number(limit)
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Company audit trail retrieved successfully',
+        data: auditData
+      });
+    } catch (error: any) {
+      console.error('Error fetching company audit trail:', error);
       res.status(400).json({
         success: false,
         message: error.message
