@@ -1,5 +1,43 @@
-import mongoose, { Document, Types } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 
+export interface ICategoryImage extends Document {
+    image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  
+  uploaded_at: Date;
+}
+
+// Document Sub-Schema
+const categoryImageSchema = new Schema<ICategoryImage>({
+  image_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  file_url: {
+    type: String,
+    required: true
+  },
+  cloudinary_public_id: {
+    type: String,
+    required: true
+  },
+  file_size: {
+    type: Number,
+    required: true
+  },
+  mime_type: {
+    type: String,
+    required: true
+  },
+  uploaded_at: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
 // CATEGORY SCHEMA
 export interface ICategory extends Document {
     category_name: string;
@@ -9,7 +47,7 @@ export interface ICategory extends Document {
         description_sub_category: string;
     }
     category_status?: 'active' | 'inactive';
-    category_image: string;
+    category_image: ICategoryImage;
      // In interface but not in schema
     createdAt: Date;
     updatedAt: Date;
@@ -23,7 +61,7 @@ const CategorySchema = new mongoose.Schema<ICategory>(
             sub_categories: { type: String, required: true },
             description_sub_category: { type: String, required: true }
         },
-        category_image: { type: String, required: true },
+        category_image: [categoryImageSchema],
         category_status: { type: String, enum: ['active', 'inactive'], default: 'active' },
          // Added missing field
     },
@@ -41,6 +79,44 @@ export const CategoryModel = mongoose.model<ICategory>(
     CategorySchema
 );
 
+export interface IProductImage extends Document {
+    image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  
+  uploaded_at: Date;
+}
+
+// Document Sub-Schema
+const productImageSchema = new Schema<IProductImage>({
+  image_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  file_url: {
+    type: String,
+    required: true
+  },
+  cloudinary_public_id: {
+    type: String,
+    required: true
+  },
+  file_size: {
+    type: Number,
+    required: true
+  },
+  mime_type: {
+    type: String,
+    required: true
+  },
+  uploaded_at: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
 // CATALOGUE SCHEMA
 export interface ICatalogue extends Document {
     sku_id: string;
@@ -60,7 +136,7 @@ export interface ICatalogue extends Document {
     barcode: string;
     nutrition_information: string;
     ingredients: string;
-    images: string[];
+    product_images: IProductImage;
     status: 'active' | 'inactive';
     
     createdAt: Date;
@@ -86,7 +162,7 @@ const CatalogueSchema = new mongoose.Schema<ICatalogue>(
         barcode: { type: String, required: true, unique: true },
         nutrition_information: { type: String, required: true },
         ingredients: { type: String, required: true },
-        images: { type: [String], required: true },
+        product_images:[productImageSchema],
         status: { type: String, enum: ['active', 'inactive'], default: 'active' },
         // Added missing field
     },

@@ -1024,7 +1024,7 @@ export class CatalogueService {
                     base_price: product.base_price,
                     final_price: product.final_price,
                     status: product.status,
-                    images: product.images,
+                    product_images: product.product_images,
                     createdAt: product.createdAt
                 });
             }

@@ -90,7 +90,7 @@ export class CatalogueController {
                     barcode: product.barcode,
                     nutrition_information: product.nutrition_information,
                     ingredients: product.ingredients,
-                    images: product.images,
+                    product_images: product.product_images,
                     status: product.status,
                     createdAt: product.createdAt,
                     updatedAt: product.updatedAt
@@ -225,7 +225,7 @@ export class CatalogueController {
                     barcode: updatedProduct.barcode,
                     nutrition_information: updatedProduct.nutrition_information,
                     ingredients: updatedProduct.ingredients,
-                    images: updatedProduct.images,
+                    product_images: updatedProduct.product_images,
                     status: updatedProduct.status,
                     updatedAt: updatedProduct.updatedAt
                 },
@@ -620,7 +620,7 @@ export class CatalogueController {
                 barcode: product.barcode,
                 nutrition_information: product.nutrition_information,
                 ingredients: product.ingredients,
-                images: product.images,
+                product_images: product.product_images,
                 status: product.status,
                 // Include user info who created this (optional)
                 createdBy: {

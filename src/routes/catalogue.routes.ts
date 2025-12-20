@@ -6,17 +6,17 @@ import { authorize } from '../middleware/authorize.middleware';
 
 const router = express.Router();
 const SUPER_ADMIN_ONLY = ['super_admin'];
-const VENDOR_MANAGEMENT = ['super_admin', 'vendor_admin'];
+const MANAGEMENT = ['super_admin', 'admin'];
 // Category routes
-router.post('/category', authenticate, authorize(SUPER_ADMIN_ONLY), categoryController.createCategory.bind(categoryController));
+router.post('/category', authenticate, authorize(MANAGEMENT), categoryController.createCategory.bind(categoryController));
 
 // Catalogue routes
-router.post('/sku-catalogue', authenticate, authorize(VENDOR_MANAGEMENT), catalogueController.createCatalogue.bind(catalogueController));
+router.post('/sku-catalogue', authenticate, authorize(MANAGEMENT), catalogueController.createCatalogue.bind(catalogueController));
 // Dashboard routes
-router.get('/dashboard', catalogueController.getDashboard.bind(catalogueController));
+router.get('/dashboard', authenticate, authorize(SUPER_ADMIN_ONLY), catalogueController.getDashboard.bind(catalogueController));
 
-router.get('/dashboard/filter-options', catalogueController.getFilterOptions.bind(catalogueController));
-router.get('/dashboard/export', catalogueController.exportDashboardCSV.bind(catalogueController));
+router.get('/dashboard/filter-options', authenticate, authorize(SUPER_ADMIN_ONLY), catalogueController.getFilterOptions.bind(catalogueController));
+router.get('/dashboard/export', authenticate, authorize(SUPER_ADMIN_ONLY),catalogueController.exportDashboardCSV.bind(catalogueController));
 
 // Category Dashboard Routes
 router.get('/categories/dashboard/stats', categoryController.getCategoryDashboardStats.bind(categoryController));
@@ -26,8 +26,8 @@ router.put('/categories/:id', authenticate, authorize(SUPER_ADMIN_ONLY), categor
 router.delete('/categories/:id', authorize(SUPER_ADMIN_ONLY), categoryController.deleteCategory.bind(categoryController));
 // Catalogue Dashboard Routes
 router.get('/catalogues/:id', catalogueController.getCatalogueById.bind(catalogueController));
-router.put('/catalogues/:id', authenticate,authorize(VENDOR_MANAGEMENT), catalogueController.updateCatalogue.bind(catalogueController));
-router.delete('/catalogues/:id', authorize(VENDOR_MANAGEMENT), catalogueController.deleteCatalogue.bind(catalogueController));
+router.put('/catalogues/:id', authenticate,authorize(MANAGEMENT), catalogueController.updateCatalogue.bind(catalogueController));
+router.delete('/catalogues/:id', authorize(MANAGEMENT), catalogueController.deleteCatalogue.bind(catalogueController));
 
 
 export default router;
