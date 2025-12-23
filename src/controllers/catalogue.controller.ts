@@ -1,15 +1,18 @@
 import { Request, Response } from 'express';
-import { 
-    catalogueService, 
-    CategoryFilterDTO, 
-    categoryService, 
-    CreateCatalogueDTO, 
-    createCatalogueService, 
-    CreateCategoryDTO, 
-    createCategoryService, 
+import {
+    catalogueService,
+    CategoryFilterDTO,
+    categoryService,
+    CreateCatalogueDTO,
+    createCatalogueService,
+    CreateCategoryDTO,
+    createCategoryService,
     DashboardFilterDTO
 } from '../services/catalogue.service';
 import { Types } from 'mongoose';
+import { ImageUploadService } from '../services/catalogueFileUpload.service';
+
+const imageUploadService = new ImageUploadService();
 
 export class CatalogueController {
     public static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
@@ -155,6 +158,38 @@ export class CatalogueController {
                 return;
             }
 
+            // Handle file upload if present (for updating images)
+            const files = req.files as Express.Multer.File[];
+            if (files && files.length > 0) {
+                console.log(`Uploading ${files.length} new product image(s) to Cloudinary`);
+
+                // Validate max images
+                const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || '10');
+                if (files.length > maxImages) {
+                    res.status(400).json({
+                        success: false,
+                        message: `Maximum ${maxImages} images allowed`,
+                        uploadedBy: { userId, userEmail, userRole }
+                    });
+                    return;
+                }
+
+                // Upload all images to Cloudinary with metadata
+                const folder = process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
+                const uploadPromises = files.map(file =>
+                    imageUploadService.uploadToCloudinary(file.buffer, file.originalname, folder)
+                        .then(({ url, publicId }) =>
+                            imageUploadService.createProductDocumentMetadata(file, url, publicId)
+                        )
+                );
+
+                const productImages = await Promise.all(uploadPromises);
+
+                // Set new images (replaces existing)
+                req.body.product_images = productImages;
+                console.log('New product images uploaded with metadata:', productImages);
+            }
+
             // Prepare update data from request body
             const updateData: Partial<CreateCatalogueDTO> = {};
 
@@ -179,11 +214,11 @@ export class CatalogueController {
             if (req.body.nutrition_information !== undefined) updateData.nutrition_information = req.body.nutrition_information;
             if (req.body.ingredients !== undefined) updateData.ingredients = req.body.ingredients;
             if (req.body.status !== undefined) updateData.status = req.body.status;
-            
-            if (req.body.images !== undefined) {
-                updateData.images = Array.isArray(req.body.images) 
-                    ? req.body.images 
-                    : [req.body.images].filter(Boolean);
+
+            if (req.body.product_images !== undefined) {
+                updateData.product_images = Array.isArray(req.body.product_images)
+                    ? req.body.product_images
+                    : [req.body.product_images].filter(Boolean);
             }
 
             // Validate if there's anything to update
@@ -271,6 +306,103 @@ export class CatalogueController {
                 statusCode = 400;
             } else if (error.name === 'ValidationError') {
                 statusCode = 400;
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                updatedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Update catalogue product status only
+     */
+    async updateCatalogueStatus(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const catalogueService = createCatalogueService(req);
+
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+
+            console.log(`Updating catalogue product ${id} status to: ${status}`);
+
+            // Extract user info for audit - REQUIRED for update operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for update operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            // Validate status value
+            if (!status || !['active', 'inactive'].includes(status)) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid status value. Must be "active" or "inactive"',
+                    updatedBy: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            // Update only the status
+            const updateData = { status };
+            const updatedProduct = await catalogueService.updateCatalogue(id, updateData);
+
+            res.status(200).json({
+                success: true,
+                message: 'Product status updated successfully',
+                data: {
+                    id: updatedProduct._id,
+                    sku_id: updatedProduct.sku_id,
+                    product_name: updatedProduct.product_name,
+                    status: updatedProduct.status,
+                    updatedAt: updatedProduct.updatedAt
+                },
+                meta: {
+                    updatedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error updating product status:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to update product status';
+
+            if (error.message.includes('Invalid product ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
             }
 
             res.status(statusCode).json({
@@ -544,7 +676,7 @@ export class CatalogueController {
     async createCatalogue(req: Request, res: Response): Promise<void> {
         // Create service with request context
         const catalogueService = createCatalogueService(req);
-        
+
         try {
             // Extract logged in user information
             const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
@@ -552,6 +684,47 @@ export class CatalogueController {
 
             // Log user information (optional - for debugging/auditing)
             console.log(`Creating product by user: ${userEmail}, role: ${userRole}, userId: ${userId}`);
+            console.log('Request files:', req.files);
+            console.log('Request body:', req.body);
+
+            // Handle file upload if present
+            let productImages: any[] = [];
+            const files = req.files as Express.Multer.File[];
+
+            if (files && files.length > 0) {
+                console.log(`Uploading ${files.length} product image(s) to Cloudinary`);
+
+                // Validate max images
+                const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || '10');
+                if (files.length > maxImages) {
+                    res.status(400).json({
+                        success: false,
+                        message: `Maximum ${maxImages} images allowed`,
+                        uploadedBy: { userId, userEmail, userRole }
+                    });
+                    return;
+                }
+
+                // Upload all images to Cloudinary with metadata
+                const folder = process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
+                const uploadPromises = files.map(file =>
+                    imageUploadService.uploadToCloudinary(file.buffer, file.originalname, folder)
+                        .then(({ url, publicId }) =>
+                            imageUploadService.createProductDocumentMetadata(file, url, publicId)
+                        )
+                );
+
+                productImages = await Promise.all(uploadPromises);
+
+                console.log('Product images uploaded with metadata:', productImages);
+            } else if (req.body.images) {
+                // If no files uploaded, use image objects from body (backward compatibility)
+                productImages = Array.isArray(req.body.images)
+                    ? req.body.images
+                    : typeof req.body.images === 'string'
+                        ? JSON.parse(req.body.images)
+                        : [req.body.images].filter(Boolean);
+            }
 
             // Extract data from request body
             const productData: CreateCatalogueDTO = {
@@ -572,7 +745,7 @@ export class CatalogueController {
                 barcode: req.body.barcode,
                 nutrition_information: req.body.nutrition_information,
                 ingredients: req.body.ingredients,
-                images: Array.isArray(req.body.images) ? req.body.images : [req.body.images].filter(Boolean),
+                product_images: productImages,
                 status: req.body.status || 'active',
             };
 
@@ -712,12 +885,188 @@ export class CatalogueController {
             res.status(statusCode).json({
                 success: false,
                 message: errorMessage,
-                
+
                 userInfo: {
                     userId,
                     userEmail,
                     attemptedAt: new Date().toISOString()
                 }
+            });
+        }
+    }
+
+    /**
+     * Get all catalogue products with pagination and filtering
+     */
+    async getAllCatalogues(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Fetching all catalogues with filters:', req.query);
+
+            // Parse query parameters
+            const filters: DashboardFilterDTO = {
+                category: req.query.category as string,
+                brand_name: req.query.brand_name as string,
+                status: req.query.status as 'active' | 'inactive',
+                search: req.query.search as string,
+                page: req.query.page ? parseInt(req.query.page as string) : 1,
+                limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
+                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
+            };
+
+            // Parse price filters
+            if (req.query.min_price) {
+                filters.min_price = parseFloat(req.query.min_price as string);
+            }
+            if (req.query.max_price) {
+                filters.max_price = parseFloat(req.query.max_price as string);
+            }
+
+            // Validate pagination
+            if (filters.page! < 1) filters.page = 1;
+            if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
+
+            // Get all catalogues
+            const cataloguesData = await catalogueService.getDashboardData(filters);
+
+            // Send response
+            res.status(200).json({
+                success: true,
+                message: 'Catalogues retrieved successfully',
+                data: cataloguesData
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching all catalogues:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch catalogues',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Upload multiple product images to Cloudinary
+     */
+    async uploadProductImage(req: Request, res: Response): Promise<void> {
+        try {
+            // Check if files exist
+            const files = req.files as Express.Multer.File[];
+
+            if (!files || files.length === 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'No image files uploaded'
+                });
+                return;
+            }
+
+            // Validate max images (from env or default to 10)
+            const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || '10');
+            if (files.length > maxImages) {
+                res.status(400).json({
+                    success: false,
+                    message: `Maximum ${maxImages} images allowed per upload`
+                });
+                return;
+            }
+
+            // Get user info for audit
+            const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
+            const userRole = roles[0]?.key || 'unknown';
+
+            console.log(`Uploading ${files.length} product images by user: ${userEmail}`);
+
+            // Upload all images to Cloudinary
+            const folder = process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
+                    folder
+                ).then(({ url, publicId }) => ({
+                    file,
+                    url,
+                    publicId,
+                    metadata: imageUploadService.createProductDocumentMetadata(file, url, publicId)
+                }))
+            );
+
+            const uploadedImages = await Promise.all(uploadPromises);
+
+            res.status(200).json({
+                success: true,
+                message: `${uploadedImages.length} product image(s) uploaded successfully`,
+                data: {
+                    images: uploadedImages.map(img => ({
+                        image_url: img.url,
+                        public_id: img.publicId,
+                        metadata: img.metadata
+                    })),
+                    count: uploadedImages.length
+                },
+                meta: {
+                    uploadedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error uploading product images:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to upload product images',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Delete image from Cloudinary
+     */
+    async deleteProductImage(req: Request, res: Response): Promise<void> {
+        try {
+            const { publicId } = req.params;
+
+            if (!publicId) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Public ID is required'
+                });
+                return;
+            }
+
+            // Get user info for audit
+            const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
+            const userRole = roles[0]?.key || 'unknown';
+
+            console.log(`Deleting product image ${publicId} by user: ${userEmail}`);
+
+            // Delete from Cloudinary
+            await imageUploadService.deleteFromCloudinary(publicId);
+
+            res.status(200).json({
+                success: true,
+                message: 'Product image deleted successfully',
+                data: { publicId },
+                meta: {
+                    deletedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error deleting product image:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to delete product image',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     }
@@ -730,10 +1079,11 @@ export class CategoryController {
     async createCategory(req: Request, res: Response): Promise<void> {
         // Create service with request context
         const categoryService = createCategoryService(req);
-        
+
         try {
             console.log('Received create category request:', {
                 body: req.body,
+                files: req.files,
                 headers: req.headers,
                 user: (req as any).user
             });
@@ -744,14 +1094,50 @@ export class CategoryController {
 
             console.log('Creating category by user:', { userId, userEmail, userRole });
 
-            // Handle both flat and nested formats
+            // Handle file upload if present
+            let categoryImageData: any = req.body.category_image || '';
+            const files = req.files as Express.Multer.File[];
+
+            if (files && files.length > 0) {
+                console.log(`Uploading ${files.length} category image(s) to Cloudinary`);
+
+                // Upload first image to Cloudinary (category typically has one image)
+                const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+                const { url, publicId } = await imageUploadService.uploadToCloudinary(
+                    files[0].buffer,
+                    files[0].originalname,
+                    folder
+                );
+
+                // Create metadata object for the uploaded image
+                categoryImageData = imageUploadService.createCategoryDocumentMetadata(
+                    files[0],
+                    url,
+                    publicId
+                );
+
+                console.log('Category image uploaded:', url);
+            }
+
+            // Handle both flat and nested formats for sub_details
             let subCategories: string;
             let descriptionSubCategory: string;
-            
-            if (req.body.sub_details) {
+
+            // Parse sub_details if it's a JSON string (from form-data)
+            let subDetails = req.body.sub_details;
+            if (typeof subDetails === 'string') {
+                try {
+                    subDetails = JSON.parse(subDetails);
+                } catch (e) {
+                    // If parsing fails, treat as error
+                    throw new Error('sub_details must be valid JSON');
+                }
+            }
+
+            if (subDetails) {
                 // Nested format
-                subCategories = req.body.sub_details.sub_categories;
-                descriptionSubCategory = req.body.sub_details.description_sub_category;
+                subCategories = subDetails.sub_categories;
+                descriptionSubCategory = subDetails.description_sub_category;
             } else {
                 // Flat format (for backward compatibility)
                 subCategories = req.body.sub_categories;
@@ -766,7 +1152,7 @@ export class CategoryController {
                     sub_categories: subCategories,
                     description_sub_category: descriptionSubCategory
                 },
-                category_image: req.body.category_image,
+                category_image: categoryImageData,
                 category_status: req.body.category_status || 'active'
             };
 
@@ -1006,13 +1392,47 @@ export class CategoryController {
                 return;
             }
 
-            // Handle both flat and nested formats
+            // Handle file upload if present (for updating image)
+            const files = req.files as Express.Multer.File[];
+            if (files && files.length > 0) {
+                console.log(`Uploading new category image to Cloudinary`);
+
+                const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+                const { url, publicId } = await imageUploadService.uploadToCloudinary(
+                    files[0].buffer,
+                    files[0].originalname,
+                    folder
+                );
+
+                // Create metadata object for the uploaded image
+                const categoryImageData = imageUploadService.createCategoryDocumentMetadata(
+                    files[0],
+                    url,
+                    publicId
+                );
+
+                // Set the new image data
+                req.body.category_image = categoryImageData;
+                console.log('New category image uploaded:', url);
+            }
+
+            // Handle both flat and nested formats for sub_details
             let subCategories: string | undefined;
             let descriptionSubCategory: string | undefined;
-            
-            if (req.body.sub_details) {
-                subCategories = req.body.sub_details.sub_categories;
-                descriptionSubCategory = req.body.sub_details.description_sub_category;
+
+            // Parse sub_details if it's a JSON string (from form-data)
+            let subDetails = req.body.sub_details;
+            if (typeof subDetails === 'string') {
+                try {
+                    subDetails = JSON.parse(subDetails);
+                } catch (e) {
+                    // If parsing fails, ignore
+                }
+            }
+
+            if (subDetails) {
+                subCategories = subDetails.sub_categories;
+                descriptionSubCategory = subDetails.description_sub_category;
             } else {
                 subCategories = req.body.sub_categories;
                 descriptionSubCategory = req.body.description_sub_category;
@@ -1020,7 +1440,7 @@ export class CategoryController {
 
             // Prepare update data
             const updateData: Partial<CreateCategoryDTO> = {};
-            
+
             if (req.body.category_name) updateData.category_name = req.body.category_name;
             if (req.body.description) updateData.description = req.body.description;
             if (req.body.category_image) updateData.category_image = req.body.category_image;
@@ -1093,6 +1513,102 @@ export class CategoryController {
                 statusCode = 409;
             } else if (error.name === 'ValidationError') {
                 statusCode = 400;
+            }
+
+            res.status(statusCode).json({
+                success: false,
+                message: errorMessage,
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                updatedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+
+    /**
+     * Update category status only
+     */
+    async updateCategoryStatus(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+
+            console.log(`Updating category ${id} status to: ${status}`);
+
+            // Extract user info for audit - REQUIRED for update operations
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for update operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            // Validate status value
+            if (!status || !['active', 'inactive'].includes(status)) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid status value. Must be "active" or "inactive"',
+                    updatedBy: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            // Update only the status
+            const updateData = { category_status: status };
+            const updatedCategory = await categoryService.updateCategory(id, updateData);
+
+            res.status(200).json({
+                success: true,
+                message: 'Category status updated successfully',
+                data: {
+                    id: updatedCategory._id,
+                    category_name: updatedCategory.category_name,
+                    category_status: updatedCategory.category_status,
+                    updatedAt: updatedCategory.updatedAt
+                },
+                meta: {
+                    updatedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error updating category status:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            let statusCode = 500;
+            let errorMessage = error.message || 'Failed to update category status';
+
+            if (error.message.includes('Invalid category ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
             }
 
             res.status(statusCode).json({
@@ -1194,7 +1710,7 @@ export class CategoryController {
     async getCategoryDashboardStats(req: Request, res: Response): Promise<void> {
         // Create service (no request context needed for stats)
         const categoryService = createCategoryService();
-        
+
         try {
             console.log('Fetching category dashboard statistics');
 
@@ -1208,10 +1724,128 @@ export class CategoryController {
 
         } catch (error: any) {
             console.error('Error fetching category dashboard stats:', error);
-            
+
             res.status(500).json({
                 success: false,
                 message: 'Failed to fetch category dashboard statistics',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Get all categories with pagination and filtering
+     */
+    async getAllCategories(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+
+        try {
+            console.log('Fetching all categories with filters:', req.query);
+
+            // Parse query parameters
+            const filters: CategoryFilterDTO = {
+                status: req.query.status as 'active' | 'inactive',
+                category_name: req.query.category_name as string,
+                page: req.query.page ? parseInt(req.query.page as string) : 1,
+                limit: req.query.limit ? parseInt(req.query.limit as string) : 10
+            };
+
+            // Validate pagination
+            if (filters.page! < 1) filters.page = 1;
+            if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
+
+            // Get categories with filters
+            const result = await categoryService.getAllCategoriesWithFilters(filters);
+
+            res.status(200).json({
+                success: true,
+                message: 'Categories retrieved successfully',
+                data: result
+            });
+
+        } catch (error: any) {
+            console.error('Error fetching all categories:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch categories',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Upload category image to Cloudinary (typically just one image)
+     */
+    async uploadCategoryImage(req: Request, res: Response): Promise<void> {
+        try {
+            // Check if files exist
+            const files = req.files as Express.Multer.File[];
+
+            if (!files || files.length === 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'No image file uploaded'
+                });
+                return;
+            }
+
+            // Get user info for audit
+            const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
+            const userRole = roles[0]?.key || 'unknown';
+
+            console.log(`Uploading ${files.length} category image(s) by user: ${userEmail}`);
+
+            // Upload all images to Cloudinary
+            const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
+                    folder
+                ).then(({ url, publicId }) => ({
+                    file,
+                    url,
+                    publicId,
+                    metadata: imageUploadService.createCategoryDocumentMetadata(file, url, publicId)
+                }))
+            );
+
+            const uploadedImages = await Promise.all(uploadPromises);
+
+            // For category, typically we use just the first image
+            const primaryImage = uploadedImages[0];
+
+            res.status(200).json({
+                success: true,
+                message: `${uploadedImages.length} category image(s) uploaded successfully`,
+                data: {
+                    primary_image: {
+                        image_url: primaryImage.url,
+                        public_id: primaryImage.publicId,
+                        metadata: primaryImage.metadata
+                    },
+                    all_images: uploadedImages.map(img => ({
+                        image_url: img.url,
+                        public_id: img.publicId,
+                        metadata: img.metadata
+                    })),
+                    count: uploadedImages.length
+                },
+                meta: {
+                    uploadedBy: userEmail,
+                    userRole,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error uploading category image:', error);
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to upload category image',
                 error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }

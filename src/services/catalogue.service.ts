@@ -11,7 +11,7 @@ export interface CreateCategoryDTO {
         sub_categories: string;
         description_sub_category: string;
     }
-    category_image: string;
+    category_image: any; // Can be string URL or ICategoryImageData object
     category_status?: 'active' | 'inactive';
 }
 
@@ -93,7 +93,7 @@ export interface CreateCatalogueDTO {
     barcode: string;
     nutrition_information: string;
     ingredients: string;
-    images: string[];
+    product_images: any[]; // Array of image metadata objects
     status?: 'active' | 'inactive';
 }
 
@@ -121,7 +121,7 @@ export interface DashboardResponseDTO {
         base_price: number;
         final_price: number;
         status: 'active' | 'inactive';
-        images: string[];
+        product_images: any[];
         createdAt: Date;
     }>;
     total: number;
@@ -313,7 +313,7 @@ export class CategoryService {
 
             // Check if any catalogue items are using this category
             const catalogueCount = await CatalogueModel.countDocuments({
-                category: category.category_name
+                category: categoryId
             });
 
             if (catalogueCount > 0) {
@@ -588,21 +588,105 @@ export class CategoryService {
      */
     async findCategoriesByName(categoryName: string): Promise<ICategory[]> {
         try {
-            const categories = await CategoryModel.find({ 
-                category_name: categoryName 
+            const categories = await CategoryModel.find({
+                category_name: categoryName
             });
-            
-            console.log(`Categories with name "${categoryName}":`, 
+
+            console.log(`Categories with name "${categoryName}":`,
                 categories.map(cat => ({
                     id: cat._id,
                     name: cat.category_name,
                     sub_categories: cat.sub_details.sub_categories
                 }))
             );
-            
+
             return categories;
         } catch (error: any) {
             console.error('Error finding categories by name:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all categories with filters and pagination
+     */
+    async getAllCategoriesWithFilters(filters: CategoryFilterDTO): Promise<CategoryListResponseDTO> {
+        try {
+            console.log('Fetching categories with filters:', filters);
+
+            const {
+                status,
+                category_name,
+                page = 1,
+                limit = 10
+            } = filters;
+
+            // Build query
+            const query: any = {};
+
+            if (status) {
+                query.category_status = status;
+            }
+
+            if (category_name) {
+                query.category_name = { $regex: category_name, $options: 'i' };
+            }
+
+            // Get total count
+            const total = await CategoryModel.countDocuments(query);
+
+            // Get categories with pagination
+            const skip = (page - 1) * limit;
+            const categories = await CategoryModel.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean();
+
+            // Transform response
+            const categoriesData = categories.map(category => {
+                const subCategoriesList = category.sub_details.sub_categories
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(s => s);
+
+                // Handle category_image - it could be an object (ICategoryImageData) or a string
+                const categoryImage = typeof category.category_image === 'string'
+                    ? category.category_image
+                    : (category.category_image as any)?.file_url || '';
+
+                return {
+                    id: category._id.toString(),
+                    category_name: category.category_name,
+                    description: category.description,
+                    category_status: category.category_status,
+                    category_image: categoryImage,
+                    sub_categories_count: subCategoriesList.length,
+                    sub_categories_list: subCategoriesList,
+                    createdAt: category.createdAt,
+                    updatedAt: category.updatedAt
+                };
+            });
+
+            // Get stats
+            const activeCount = await CategoryModel.countDocuments({ category_status: 'active' });
+            const inactiveCount = await CategoryModel.countDocuments({ category_status: 'inactive' });
+
+            return {
+                categories: categoriesData,
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                stats: {
+                    total_categories: total,
+                    active_categories: activeCount,
+                    inactive_categories: inactiveCount
+                }
+            };
+
+        } catch (error: any) {
+            console.error('Error fetching categories with filters:', error);
             throw error;
         }
     }
@@ -728,16 +812,19 @@ export class CatalogueService {
                     throw new Error(`Category "${updateData.category}" not found`);
                 }
 
+                // Convert category name to ObjectId
+                updateData.category = category._id as any;
+
                 // If sub_category is also being updated or exists
                 const subCategoryToCheck = updateData.sub_category || existingProduct.sub_category;
                 if (subCategoryToCheck) {
                     const subCategories = category.sub_details.sub_categories
                         .split(',')
                         .map(s => s.trim());
-                    
+
                     if (!subCategories.includes(subCategoryToCheck)) {
                         throw new Error(
-                            `Sub-category "${subCategoryToCheck}" not found in category "${updateData.category}"`
+                            `Sub-category "${subCategoryToCheck}" not found in category "${category.category_name}"`
                         );
                     }
                 }
@@ -769,12 +856,12 @@ export class CatalogueService {
             }
 
             // Validate images if being updated
-            if (updateData.images) {
-                if (!Array.isArray(updateData.images) || updateData.images.length === 0) {
+            if (updateData.product_images) {
+                if (!Array.isArray(updateData.product_images) || updateData.product_images.length === 0) {
                     throw new Error('At least one image is required');
                 }
 
-                if (updateData.images.length > 10) {
+                if (updateData.product_images.length > 10) {
                     throw new Error('Maximum 10 images allowed');
                 }
             }
@@ -980,7 +1067,7 @@ export class CatalogueService {
             // Step 3: Get all catalogue items matching other filters
             const [allProducts, total] = await Promise.all([
                 CatalogueModel.find(query)
-                    .select('sku_id product_name category sub_category brand_name unit_size base_price final_price status images createdAt')
+                    .select('sku_id product_name category sub_category brand_name unit_size base_price final_price status product_images createdAt')
                     .sort({ [sort_by]: sort_order === 'asc' ? 1 : -1 })
                     .lean()
                     .exec(),
@@ -1024,7 +1111,7 @@ export class CatalogueService {
                     base_price: product.base_price,
                     final_price: product.final_price,
                     status: product.status,
-                    product_images: product.product_images,
+                    product_images: product.product_images || [],
                     createdAt: product.createdAt
                 });
             }
@@ -1144,7 +1231,7 @@ export class CatalogueService {
                     base_price: 1,
                     final_price: 1,
                     status: 1,
-                    images: 1,
+                    product_images: 1,
                     createdAt: 1
                 }
             });
@@ -1292,11 +1379,11 @@ export class CatalogueService {
             }
 
             // Validate images array
-            if (!Array.isArray(productData.images) || productData.images.length === 0) {
+            if (!Array.isArray(productData.product_images) || productData.product_images.length === 0) {
                 throw new Error('At least one image is required');
             }
 
-            if (productData.images.length > 10) {
+            if (productData.product_images.length > 10) {
                 throw new Error('Maximum 10 images allowed');
             }
 
@@ -1319,7 +1406,7 @@ export class CatalogueService {
                 barcode: productData.barcode,
                 nutrition_information: productData.nutrition_information,
                 ingredients: productData.ingredients,
-                images: productData.images,
+                product_images: productData.product_images,
                 status: productData.status || 'active',
                 createdBy: productData.createdBy
             };
@@ -1383,7 +1470,7 @@ export class CatalogueService {
             'category', 'sub_category', 'manufacturer_name',
             'manufacturer_address', 'shell_life', 'expiry_alert_threshold',
             'tages_label', 'unit_size', 'base_price', 'final_price',
-            'barcode', 'nutrition_information', 'ingredients', 'images'
+            'barcode', 'nutrition_information', 'ingredients', 'product_images'
         ];
 
         requiredFields.forEach(field => {
@@ -1421,13 +1508,13 @@ export class CatalogueService {
             }
         }
 
-        if (data.images) {
-            if (!Array.isArray(data.images)) {
-                errors.push('Images must be an array');
-            } else if (data.images.length === 0) {
-                errors.push('At least one image URL is required');
-            } else if (data.images.length > 10) {
-                errors.push('Maximum 10 images allowed');
+        if (data.product_images) {
+            if (!Array.isArray(data.product_images)) {
+                errors.push('Product images must be an array');
+            } else if (data.product_images.length === 0) {
+                errors.push('At least one product image URL is required');
+            } else if (data.product_images.length > 10) {
+                errors.push('Maximum 10 product images allowed');
             }
         }
 
