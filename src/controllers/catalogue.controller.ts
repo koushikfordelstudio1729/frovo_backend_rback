@@ -198,7 +198,7 @@ export class CatalogueController {
             if (req.body.product_name !== undefined) updateData.product_name = req.body.product_name;
             if (req.body.brand_name !== undefined) updateData.brand_name = req.body.brand_name;
             if (req.body.description !== undefined) updateData.description = req.body.description;
-            if (req.body.category !== undefined) updateData.category = req.body.category;
+            if (req.body.category_id !== undefined) updateData.category_id = req.body.category_id; // Changed from category to category_id
             if (req.body.sub_category !== undefined) updateData.sub_category = req.body.sub_category;
             if (req.body.manufacturer_name !== undefined) updateData.manufacturer_name = req.body.manufacturer_name;
             if (req.body.manufacturer_address !== undefined) updateData.manufacturer_address = req.body.manufacturer_address;
@@ -732,7 +732,7 @@ export class CatalogueController {
                 product_name: req.body.product_name,
                 brand_name: req.body.brand_name,
                 description: req.body.description,
-                category: req.body.category,
+                category_id: req.body.category_id, // Changed from category to category_id
                 sub_category: req.body.sub_category,
                 manufacturer_name: req.body.manufacturer_name,
                 manufacturer_address: req.body.manufacturer_address,
@@ -1315,6 +1315,9 @@ export class CategoryController {
                 .map(s => s.trim())
                 .filter(s => s);
 
+            // Get product count for this category
+            const productCount = await categoryService.getProductCountByCategory(id);
+
             res.status(200).json({
                 success: true,
                 message: 'Category retrieved successfully',
@@ -1329,6 +1332,7 @@ export class CategoryController {
                     },
                     category_image: category.category_image,
                     category_status: category.category_status,
+                    product_count: productCount, // Add product count
                     createdAt: category.createdAt,
                     updatedAt: category.updatedAt
                 }
