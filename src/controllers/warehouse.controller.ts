@@ -1061,10 +1061,45 @@ export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) =
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
   try {
-    const warehouse = await warehouseService.getMyWarehouse(req.user._id);
+    // Check if user is super admin
+    const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === 'super_admin');
 
     // Get user's permissions
     const permissions = await req.user.getPermissions();
+
+    // Super admin has access to all warehouses, not a specific assigned warehouse
+    if (isSuperAdmin) {
+      const warehousesResult = await warehouseService.getWarehouses(
+        { isActive: true },
+        req.user._id,
+        req.user.roles
+      );
+
+      const responseData = {
+        warehouse: null, // Super admin doesn't have a single assigned warehouse
+        warehouses: warehousesResult.warehouses, // Return all warehouses for super admin
+        pagination: warehousesResult.pagination,
+        manager: {
+          _id: req.user._id,
+          name: req.user.name,
+          email: req.user.email,
+          phone: req.user.phone,
+          roles: req.user.roles?.map((role: any) => ({
+            id: role._id || role.id,
+            name: role.name,
+            key: role.key,
+            systemRole: role.systemRole
+          })),
+          permissions: permissions
+        },
+        isSuperAdmin: true
+      };
+
+      return sendSuccess(res, responseData, 'All warehouses retrieved successfully for Super Admin');
+    }
+
+    // For warehouse managers and staff, get their assigned warehouse
+    const warehouse = await warehouseService.getMyWarehouse(req.user._id);
 
     // Include permissions in the response
     const responseData = {
@@ -1081,7 +1116,8 @@ export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) =
           systemRole: role.systemRole
         })),
         permissions: permissions
-      }
+      },
+      isSuperAdmin: false
     };
 
     return sendSuccess(res, responseData, 'Your assigned warehouse retrieved successfully');
