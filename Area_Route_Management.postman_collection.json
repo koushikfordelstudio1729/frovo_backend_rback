@@ -1,0 +1,494 @@
+{
+	"info": {
+		"_postman_id": "area-route-mgmt-001",
+		"name": "Area & Route Management API",
+		"description": "Complete API collection for Area & Route Management system with tracking capabilities",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Area Management",
+			"item": [
+				{
+					"name": "Create Area",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"area_name\": \"HSR Layout - Sector 2\",\n  \"select_machine\": [\"VM-102\", \"VM-103\", \"VM-150\"],\n  \"area_description\": \"Tech Park cluster zone\",\n  \"status\": \"active\",\n  \"latitude\": 12.9352,\n  \"longitude\": 77.6245,\n  \"address\": \"HSR Layout, Sector 2, Bangalore, Karnataka 560102\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/area",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "area"]
+						},
+						"description": "Create a new area with machines and optional location data"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Areas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/area?page=1&limit=10&status=active",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "area"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Items per page"
+								},
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Filter by status (active/inactive)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all areas with pagination and optional status filter"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Area by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/area/{{area_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "area", "{{area_id}}"]
+						},
+						"description": "Get a specific area by its ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Area",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"area_name\": \"HSR Layout - Sector 2 Updated\",\n  \"select_machine\": [\"VM-102\", \"VM-103\", \"VM-150\", \"VM-151\"],\n  \"area_description\": \"Updated tech park cluster zone\",\n  \"status\": \"active\",\n  \"latitude\": 12.9353,\n  \"longitude\": 77.6246\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/area/{{area_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "area", "{{area_id}}"]
+						},
+						"description": "Update an existing area"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete/Deactivate Area",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/area/{{area_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "area", "{{area_id}}"]
+						},
+						"description": "Soft delete - deactivates the area by setting status to inactive"
+					},
+					"response": []
+				}
+			],
+			"description": "CRUD operations for area management"
+		},
+		{
+			"name": "Route Management",
+			"item": [
+				{
+					"name": "Create Route - Daily",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_name\": \"HSR Morning Route\",\n  \"area_name\": \"{{area_id}}\",\n  \"route_description\": \"Morning service route for HSR area\",\n  \"selected_machine\": [\"VM-301\", \"VM-215\", \"VM-122\"],\n  \"frequency_type\": \"daily\",\n  \"notes\": \"High-traffic machines first\",\n  \"machine_sequence\": [\"VM-301\", \"VM-215\", \"VM-122\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/route",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route"]
+						},
+						"description": "Create a daily route"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Route - Weekly",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_name\": \"Indiranagar Weekly Route\",\n  \"area_name\": \"{{area_id}}\",\n  \"route_description\": \"Weekly maintenance route\",\n  \"selected_machine\": [\"VM-401\", \"VM-402\", \"VM-403\"],\n  \"frequency_type\": \"weekly\",\n  \"weekly_days\": [\"Monday\", \"Wednesday\", \"Friday\"],\n  \"notes\": \"Check inventory levels\",\n  \"machine_sequence\": [\"VM-401\", \"VM-402\", \"VM-403\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/route",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route"]
+						},
+						"description": "Create a weekly route with specific days"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Route - Custom",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_name\": \"IT Park Custom Route\",\n  \"area_name\": \"{{area_id}}\",\n  \"route_description\": \"Custom schedule for special maintenance\",\n  \"selected_machine\": [\"VM-501\", \"VM-502\", \"VM-503\"],\n  \"frequency_type\": \"custom\",\n  \"custom_dates\": [\"2025-01-05\", \"2025-01-12\", \"2025-01-19\", \"2025-01-26\"],\n  \"notes\": \"Special maintenance schedule\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/route",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route"]
+						},
+						"description": "Create a route with custom dates"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/route?page=1&limit=10&frequency_type=daily&search=Morning",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Items per page"
+								},
+								{
+									"key": "frequency_type",
+									"value": "daily",
+									"description": "Filter by frequency (daily/weekly/monthly/custom)",
+									"disabled": true
+								},
+								{
+									"key": "area_name",
+									"value": "{{area_id}}",
+									"description": "Filter by area ID",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "Morning",
+									"description": "Search by route name or machine",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all routes with pagination and filters"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Route by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/route/{{route_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route", "{{route_id}}"]
+						},
+						"description": "Get a specific route with populated area and machine count"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Routes by Area",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/route/area/{{area_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route", "area", "{{area_id}}"]
+						},
+						"description": "Get all routes for a specific area"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Route",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_name\": \"HSR Morning Route - Updated\",\n  \"route_description\": \"Updated morning service route\",\n  \"selected_machine\": [\"VM-301\", \"VM-215\", \"VM-122\", \"VM-123\"],\n  \"frequency_type\": \"weekly\",\n  \"weekly_days\": [\"Monday\", \"Tuesday\", \"Wednesday\"],\n  \"notes\": \"Updated schedule and machines\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/route/{{route_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route", "{{route_id}}"]
+						},
+						"description": "Update an existing route"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Route",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/route/{{route_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "route", "{{route_id}}"]
+						},
+						"description": "Permanently delete a route"
+					},
+					"response": []
+				}
+			],
+			"description": "CRUD operations for route management with frequency scheduling"
+		},
+		{
+			"name": "Route Tracking",
+			"item": [
+				{
+					"name": "Agent Check-in - Completed",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_id\": \"{{route_id}}\",\n  \"machine_id\": \"VM-301\",\n  \"agent_id\": \"AGENT-001\",\n  \"status\": \"completed\",\n  \"planned_sequence\": 1,\n  \"actual_sequence\": 1,\n  \"notes\": \"All systems normal\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/check-in",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "check-in"]
+						},
+						"description": "Agent checks in to a machine as completed"
+					},
+					"response": []
+				},
+				{
+					"name": "Agent Check-in - Skipped",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_id\": \"{{route_id}}\",\n  \"machine_id\": \"VM-302\",\n  \"agent_id\": \"AGENT-001\",\n  \"status\": \"skipped\",\n  \"planned_sequence\": 2,\n  \"actual_sequence\": 2,\n  \"notes\": \"Machine under maintenance\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/check-in",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "check-in"]
+						},
+						"description": "Agent skips a machine with reason"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Route Progress - Today",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/progress/{{route_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "progress", "{{route_id}}"]
+						},
+						"description": "Get route progress for today with summary and machine-by-machine breakdown"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Route Progress - Specific Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/progress/{{route_id}}?date=2025-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "progress", "{{route_id}}"],
+							"query": [
+								{
+									"key": "date",
+									"value": "2025-01-15",
+									"description": "Specific date to check progress"
+								}
+							]
+						},
+						"description": "Get route progress for a specific date"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Route Progress - By Agent",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/progress/{{route_id}}?agent_id=AGENT-001",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "progress", "{{route_id}}"],
+							"query": [
+								{
+									"key": "agent_id",
+									"value": "AGENT-001",
+									"description": "Filter by specific agent"
+								}
+							]
+						},
+						"description": "Get route progress for a specific agent"
+					},
+					"response": []
+				},
+				{
+					"name": "Reassign Machines",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"route_id\": \"{{route_id}}\",\n  \"machine_ids\": [\"VM-215\", \"VM-310\"],\n  \"original_agent_id\": \"AGENT-001\",\n  \"reassigned_agent_id\": \"AGENT-002\",\n  \"reason\": \"Original agent called in sick\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/area-route/tracking/reassign",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "tracking", "reassign"]
+						},
+						"description": "Reassign multiple machines to a backup agent"
+					},
+					"response": []
+				}
+			],
+			"description": "Real-time tracking and reassignment capabilities"
+		},
+		{
+			"name": "Analytics & Statistics",
+			"item": [
+				{
+					"name": "Get Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/area-route/statistics",
+							"host": ["{{base_url}}"],
+							"path": ["area-route", "statistics"]
+						},
+						"description": "Get comprehensive statistics: total areas, routes, frequency breakdown, routes per area, and summary metrics"
+					},
+					"response": []
+				}
+			],
+			"description": "Dashboard statistics and analytics"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		},
+		{
+			"key": "area_id",
+			"value": "507f1f77bcf86cd799439011",
+			"type": "string"
+		},
+		{
+			"key": "route_id",
+			"value": "507f1f77bcf86cd799439012",
+			"type": "string"
+		}
+	]
+}
