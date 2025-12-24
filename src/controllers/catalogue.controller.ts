@@ -17,11 +17,11 @@ const imageUploadService = new ImageUploadService();
 export class CatalogueController {
     public static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
         const user = (req as any).user;
-        
+
         if (!user || !user._id) {
             throw new Error('User authentication required');
         }
-        
+
         return {
             _id: user._id,
             roles: user.roles || [],
@@ -35,7 +35,7 @@ export class CatalogueController {
     async getCatalogueById(req: Request, res: Response): Promise<void> {
         // Create service with request context
         const catalogueService = createCatalogueService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Fetching catalogue product with ID: ${id}`);
@@ -44,7 +44,7 @@ export class CatalogueController {
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
@@ -133,7 +133,7 @@ export class CatalogueController {
     async updateCatalogue(req: Request, res: Response): Promise<void> {
         // Create service with request context
         const catalogueService = createCatalogueService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Updating catalogue product ${id} with data:`, req.body);
@@ -142,7 +142,7 @@ export class CatalogueController {
             let userId: string;
             let userEmail: string;
             let userRole: string;
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
@@ -198,7 +198,7 @@ export class CatalogueController {
             if (req.body.product_name !== undefined) updateData.product_name = req.body.product_name;
             if (req.body.brand_name !== undefined) updateData.brand_name = req.body.brand_name;
             if (req.body.description !== undefined) updateData.description = req.body.description;
-            if (req.body.category_id !== undefined) updateData.category_id = req.body.category_id; // Changed from category to category_id
+            if (req.body.category !== undefined) updateData.category = req.body.category;
             if (req.body.sub_category !== undefined) updateData.sub_category = req.body.sub_category;
             if (req.body.manufacturer_name !== undefined) updateData.manufacturer_name = req.body.manufacturer_name;
             if (req.body.manufacturer_address !== undefined) updateData.manufacturer_address = req.body.manufacturer_address;
@@ -292,17 +292,21 @@ export class CatalogueController {
             let statusCode = 500;
             let errorMessage = error.message || 'Failed to update product';
 
-            if (error.message.includes('Invalid product ID')) {
+            if (error.message.includes('Invalid product ID') ||
+                error.message.includes('Invalid category ID') ||
+                error.message.includes('Invalid sub-category ID')) {
                 statusCode = 400;
             } else if (error.message.includes('not found')) {
                 statusCode = 404;
             } else if (error.message.includes('already exists')) {
                 statusCode = 409;
-            } else if (error.message.includes('cannot be negative') || 
-                       error.message.includes('cannot be less than') ||
-                       error.message.includes('must be between') ||
-                       error.message.includes('At least one image') ||
-                       error.message.includes('Maximum 10 images')) {
+            } else if (error.message.includes('cannot be negative') ||
+                error.message.includes('cannot be less than') ||
+                error.message.includes('must be between') ||
+                error.message.includes('At least one image') ||
+                error.message.includes('Maximum 10 images') ||
+                error.message.includes('does not belong to') ||
+                error.message.includes('Sub-category ID does not exist')) {
                 statusCode = 400;
             } else if (error.name === 'ValidationError') {
                 statusCode = 400;
@@ -420,7 +424,7 @@ export class CatalogueController {
     async deleteCatalogue(req: Request, res: Response): Promise<void> {
         // Create service with request context
         const catalogueService = createCatalogueService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Deleting catalogue product ${id}`);
@@ -429,7 +433,7 @@ export class CatalogueController {
             let userId: string;
             let userEmail: string;
             let userRole: string;
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
@@ -539,7 +543,7 @@ export class CatalogueController {
 
         } catch (error: any) {
             console.error('Error fetching dashboard data:', error);
-            
+
             res.status(500).json({
                 success: false,
                 message: 'Failed to fetch dashboard data',
@@ -548,7 +552,6 @@ export class CatalogueController {
         }
     }
 
-    
     /**
      * Get filter options (brands and categories)
      */
@@ -572,7 +575,7 @@ export class CatalogueController {
 
         } catch (error: any) {
             console.error('Error fetching filter options:', error);
-            
+
             res.status(500).json({
                 success: false,
                 message: 'Failed to fetch filter options',
@@ -623,7 +626,7 @@ export class CatalogueController {
 
         } catch (error: any) {
             console.error('Error exporting dashboard data:', error);
-            
+
             res.status(500).json({
                 success: false,
                 message: 'Failed to export dashboard data',
@@ -639,8 +642,8 @@ export class CatalogueController {
         const headers = [
             'SKU ID',
             'Product Name',
-            'Category',
-            'Sub Category',
+            'Category ID',
+            'Sub Category ID',
             'Brand',
             'Unit Size',
             'Base Price',
@@ -682,10 +685,7 @@ export class CatalogueController {
             const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
 
-            // Log user information (optional - for debugging/auditing)
             console.log(`Creating product by user: ${userEmail}, role: ${userRole}, userId: ${userId}`);
-            console.log('Request files:', req.files);
-            console.log('Request body:', req.body);
 
             // Handle file upload if present
             let productImages: any[] = [];
@@ -694,7 +694,6 @@ export class CatalogueController {
             if (files && files.length > 0) {
                 console.log(`Uploading ${files.length} product image(s) to Cloudinary`);
 
-                // Validate max images
                 const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || '10');
                 if (files.length > maxImages) {
                     res.status(400).json({
@@ -705,7 +704,6 @@ export class CatalogueController {
                     return;
                 }
 
-                // Upload all images to Cloudinary with metadata
                 const folder = process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
                 const uploadPromises = files.map(file =>
                     imageUploadService.uploadToCloudinary(file.buffer, file.originalname, folder)
@@ -715,15 +713,6 @@ export class CatalogueController {
                 );
 
                 productImages = await Promise.all(uploadPromises);
-
-                console.log('Product images uploaded with metadata:', productImages);
-            } else if (req.body.images) {
-                // If no files uploaded, use image objects from body (backward compatibility)
-                productImages = Array.isArray(req.body.images)
-                    ? req.body.images
-                    : typeof req.body.images === 'string'
-                        ? JSON.parse(req.body.images)
-                        : [req.body.images].filter(Boolean);
             }
 
             // Extract data from request body
@@ -732,16 +721,16 @@ export class CatalogueController {
                 product_name: req.body.product_name,
                 brand_name: req.body.brand_name,
                 description: req.body.description,
-                category_id: req.body.category_id, // Changed from category to category_id
-                sub_category: req.body.sub_category,
+                category: new Types.ObjectId(req.body.category), // Convert to ObjectId
+                sub_category: new Types.ObjectId(req.body.sub_category), // Convert to ObjectId // Sub-category ObjectId
                 manufacturer_name: req.body.manufacturer_name,
                 manufacturer_address: req.body.manufacturer_address,
                 shell_life: req.body.shell_life,
-                expiry_alert_threshold: Number(req.body.expiry_alert_threshold),
+                expiry_alert_threshold: req.body.expiry_alert_threshold,
                 tages_label: req.body.tages_label,
                 unit_size: req.body.unit_size,
-                base_price: Number(req.body.base_price),
-                final_price: Number(req.body.final_price),
+                base_price: req.body.base_price,
+                final_price: req.body.final_price,
                 barcode: req.body.barcode,
                 nutrition_information: req.body.nutrition_information,
                 ingredients: req.body.ingredients,
@@ -749,14 +738,15 @@ export class CatalogueController {
                 status: req.body.status || 'active',
             };
 
-            // OPTIONAL: Add user info to product data (if you want to track who created it)
-            // Uncomment if you want to add createdBy field to your model
-            // const productDataWithUser = {
-            //     ...productData,
-            //     createdBy: userId,
-            //     createdByEmail: userEmail,
-            //     createdByRole: userRole
-            // };
+            // Validate that both IDs are provided
+            if (!productData.category || !productData.sub_category) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Both category ID and sub-category ID are required',
+                    createdBy: { userId, userEmail, userRole }
+                });
+                return;
+            }
 
             // Validate input data
             const validation = catalogueService.validateCatalogueData(productData);
@@ -765,7 +755,7 @@ export class CatalogueController {
                     success: false,
                     message: 'Validation failed',
                     errors: validation.errors,
-                    createdBy: { userId, userEmail, userRole } // Include user info in error response
+                    createdBy: { userId, userEmail, userRole }
                 });
                 return;
             }
@@ -795,7 +785,6 @@ export class CatalogueController {
                 ingredients: product.ingredients,
                 product_images: product.product_images,
                 status: product.status,
-                // Include user info who created this (optional)
                 createdBy: {
                     userId: userId.toString(),
                     userEmail,
@@ -818,36 +807,36 @@ export class CatalogueController {
         } catch (error: any) {
             console.error('Error creating product:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
                 userEmail = user.email;
-            } catch (userError) {
-                // User not authenticated - use default values
-            }
+            } catch (userError) { }
 
-            // Handle specific error cases
             const errorMessages: Record<string, number> = {
                 'Product with this SKU already exists': 409,
                 'Product with this barcode already exists': 409,
                 'Category.*not found': 404,
                 'Sub-category.*not found': 404,
+                'Sub-category.*does not belong to': 400,
+                'Sub-category ID does not exist': 400,
                 'Prices cannot be negative': 400,
                 'Final price cannot be less than base price': 400,
-                'Expiry alert threshold must be between 1 and 365 days': 400,
+                'Expiry alert threshold must be between': 400,
                 'At least one image is required': 400,
                 'Maximum 10 images allowed': 400,
                 'Shell life should be in format': 400,
-                'User authentication required': 401
+                'User authentication required': 401,
+                'Invalid category ID': 400,
+                'Invalid sub-category ID': 400,
+                'Both category ID and sub-category ID are required': 400
             };
 
-            // Check for known error patterns
             let statusCode = 500;
             let errorMessage = 'Internal server error';
-            
+
             for (const [pattern, code] of Object.entries(errorMessages)) {
                 if (error.message.match(new RegExp(pattern))) {
                     statusCode = code;
@@ -856,15 +845,13 @@ export class CatalogueController {
                 }
             }
 
-            // Handle Mongoose validation errors
             if (error.name === 'ValidationError') {
                 statusCode = 400;
                 errorMessage = 'Validation error';
-                
-                const validationErrors = Object.values(error.errors).map((err: any) => 
+                const validationErrors = Object.values(error.errors).map((err: any) =>
                     `${err.path}: ${err.message}`
                 );
-                
+
                 res.status(statusCode).json({
                     success: false,
                     message: errorMessage,
@@ -874,18 +861,16 @@ export class CatalogueController {
                 return;
             }
 
-            // Handle duplicate key errors (MongoDB)
             if (error.code === 11000) {
                 statusCode = 409;
                 const field = Object.keys(error.keyPattern)[0];
                 errorMessage = `${field} already exists`;
             }
 
-            // Send error response with user info
             res.status(statusCode).json({
                 success: false,
                 message: errorMessage,
-
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
                 userInfo: {
                     userId,
                     userEmail,
@@ -902,7 +887,6 @@ export class CatalogueController {
         try {
             console.log('Fetching all catalogues with filters:', req.query);
 
-            // Parse query parameters
             const filters: DashboardFilterDTO = {
                 category: req.query.category as string,
                 brand_name: req.query.brand_name as string,
@@ -914,7 +898,6 @@ export class CatalogueController {
                 sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
             };
 
-            // Parse price filters
             if (req.query.min_price) {
                 filters.min_price = parseFloat(req.query.min_price as string);
             }
@@ -922,14 +905,11 @@ export class CatalogueController {
                 filters.max_price = parseFloat(req.query.max_price as string);
             }
 
-            // Validate pagination
             if (filters.page! < 1) filters.page = 1;
             if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
 
-            // Get all catalogues
             const cataloguesData = await catalogueService.getDashboardData(filters);
 
-            // Send response
             res.status(200).json({
                 success: true,
                 message: 'Catalogues retrieved successfully',
@@ -952,7 +932,6 @@ export class CatalogueController {
      */
     async uploadProductImage(req: Request, res: Response): Promise<void> {
         try {
-            // Check if files exist
             const files = req.files as Express.Multer.File[];
 
             if (!files || files.length === 0) {
@@ -963,7 +942,6 @@ export class CatalogueController {
                 return;
             }
 
-            // Validate max images (from env or default to 10)
             const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || '10');
             if (files.length > maxImages) {
                 res.status(400).json({
@@ -973,13 +951,9 @@ export class CatalogueController {
                 return;
             }
 
-            // Get user info for audit
             const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
 
-            console.log(`Uploading ${files.length} product images by user: ${userEmail}`);
-
-            // Upload all images to Cloudinary
             const folder = process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
             const uploadPromises = files.map(file =>
                 imageUploadService.uploadToCloudinary(
@@ -1040,13 +1014,11 @@ export class CatalogueController {
                 return;
             }
 
-            // Get user info for audit
             const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
 
             console.log(`Deleting product image ${publicId} by user: ${userEmail}`);
 
-            // Delete from Cloudinary
             await imageUploadService.deleteFromCloudinary(publicId);
 
             res.status(200).json({
@@ -1077,22 +1049,13 @@ export class CategoryController {
      * Create a new category
      */
     async createCategory(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
 
         try {
-            console.log('Received create category request:', {
-                body: req.body,
-                files: req.files,
-                headers: req.headers,
-                user: (req as any).user
-            });
+            console.log('Received create category request:', req.body);
 
-            // Extract logged in user information
             const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
-
-            console.log('Creating category by user:', { userId, userEmail, userRole });
 
             // Handle file upload if present
             let categoryImageData: any = req.body.category_image || '';
@@ -1101,7 +1064,6 @@ export class CategoryController {
             if (files && files.length > 0) {
                 console.log(`Uploading ${files.length} category image(s) to Cloudinary`);
 
-                // Upload first image to Cloudinary (category typically has one image)
                 const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
                 const { url, publicId } = await imageUploadService.uploadToCloudinary(
                     files[0].buffer,
@@ -1109,78 +1071,82 @@ export class CategoryController {
                     folder
                 );
 
-                // Create metadata object for the uploaded image
                 categoryImageData = imageUploadService.createCategoryDocumentMetadata(
                     files[0],
                     url,
                     publicId
                 );
-
-                console.log('Category image uploaded:', url);
             }
 
-            // Handle both flat and nested formats for sub_details
-            let subCategories: string;
-            let descriptionSubCategory: string;
+            // Parse sub-categories (can be single object, array, or JSON string)
+            let subCategoriesData: Array<{
+                sub_category_name: string;
+                description: string;
+            }> = [];
 
-            // Parse sub_details if it's a JSON string (from form-data)
-            let subDetails = req.body.sub_details;
-            if (typeof subDetails === 'string') {
-                try {
-                    subDetails = JSON.parse(subDetails);
-                } catch (e) {
-                    // If parsing fails, treat as error
-                    throw new Error('sub_details must be valid JSON');
+            // Handle different input formats
+            if (req.body.sub_categories) {
+                if (typeof req.body.sub_categories === 'string') {
+                    try {
+                        // Try parsing as JSON array
+                        subCategoriesData = JSON.parse(req.body.sub_categories);
+                    } catch {
+                        // If not JSON, treat as single sub-category
+                        subCategoriesData = [{
+                            sub_category_name: req.body.sub_categories,
+                            description: req.body.description_sub_category || `Description for ${req.body.sub_categories}`
+                        }];
+                    }
+                } else if (Array.isArray(req.body.sub_categories)) {
+                    subCategoriesData = req.body.sub_categories;
+                } else if (typeof req.body.sub_categories === 'object') {
+                    // Single sub-category object
+                    subCategoriesData = [req.body.sub_categories];
                 }
             }
 
-            if (subDetails) {
-                // Nested format
-                subCategories = subDetails.sub_categories;
-                descriptionSubCategory = subDetails.description_sub_category;
-            } else {
-                // Flat format (for backward compatibility)
-                subCategories = req.body.sub_categories;
-                descriptionSubCategory = req.body.description_sub_category;
+            // If no sub-categories provided, check old format
+            if (subCategoriesData.length === 0) {
+                if (req.body.sub_details) {
+                    let subDetails = req.body.sub_details;
+                    if (typeof subDetails === 'string') {
+                        try {
+                            subDetails = JSON.parse(subDetails);
+                        } catch (e) { }
+                    }
+                    if (subDetails?.sub_categories) {
+                        subCategoriesData = [{
+                            sub_category_name: subDetails.sub_categories,
+                            description: subDetails.description_sub_category || ''
+                        }];
+                    }
+                }
             }
 
-            // Extract data from request body
+            // Create category data with sub-categories array
             const categoryData: CreateCategoryDTO = {
                 category_name: req.body.category_name,
                 description: req.body.description,
-                sub_details: {
-                    sub_categories: subCategories,
-                    description_sub_category: descriptionSubCategory
-                },
+                sub_categories: subCategoriesData,
                 category_image: categoryImageData,
                 category_status: req.body.category_status || 'active'
             };
 
             console.log('Processed category data:', categoryData);
 
-            // First, let's debug by checking what's already in the database
-            try {
-                console.log('--- DEBUG: Checking existing categories ---');
-                await categoryService.getAllCategories();
-                
-                console.log(`--- DEBUG: Checking categories with name "${categoryData.category_name}" ---`);
-                await categoryService.findCategoriesByName(categoryData.category_name);
-            } catch (debugError) {
-                console.error('Debug check failed:', debugError);
-            }
-
             // Create category using service
             const category = await categoryService.createCategory(categoryData);
 
-            // Format response
+            // Format response with both IDs
             const responseData = {
-                id: category._id,
+                id: category._id, // Category ID
                 category_name: category.category_name,
                 description: category.description,
-                sub_details: {
-                    sub_categories: category.sub_details.sub_categories,
-                    description_sub_category: category.sub_details.description_sub_category
-                },
+                sub_categories: category.sub_categories.map(subCat => ({
+                    id: subCat._id, // Sub-category ID
+                    sub_category_name: subCat.sub_category_name,
+                    description: subCat.description
+                })),
                 category_image: category.category_image,
                 category_status: category.category_status,
                 createdAt: category.createdAt,
@@ -1200,16 +1166,8 @@ export class CategoryController {
             });
 
         } catch (error: any) {
-            console.error('Error creating category:', {
-                message: error.message,
-                code: error.code,
-                name: error.name,
-                keyPattern: error.keyPattern,
-                keyValue: error.keyValue,
-                fullError: error
-            });
+            console.error('Error creating category:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -1218,37 +1176,31 @@ export class CategoryController {
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
-            } catch (userError) {
-                console.log('User not authenticated in error handler');
-            }
+            } catch (userError) { }
 
-            // Handle duplicate error
             if (error.message.includes('already exists') || error.code === 11000) {
                 const categoryName = req.body.category_name || 'unknown';
-                const subCategories = req.body.sub_categories || req.body.sub_details?.sub_categories || 'unknown';
-                
+                const subCategories = req.body.sub_categories || 'unknown';
+
                 res.status(409).json({
                     success: false,
-                    message: `Category "${categoryName}" with sub-categories "${subCategories}" already exists`,
+                    message: `Category "${categoryName}" with sub-category combination already exists`,
                     suggestion: 'Try using different sub-categories or modify the existing category',
                     details: {
                         category_name: categoryName,
                         sub_categories: subCategories,
-                        database_error_code: error.code,
-                        key_pattern: error.keyPattern,
-                        key_value: error.keyValue
+                        database_error_code: error.code
                     },
                     userInfo: { userId, userEmail, userRole }
                 });
                 return;
             }
 
-            // Handle Mongoose validation errors
             if (error.name === 'ValidationError') {
-                const validationErrors = Object.values(error.errors).map((err: any) => 
+                const validationErrors = Object.values(error.errors).map((err: any) =>
                     `${err.path}: ${err.message}`
                 );
-                
+
                 res.status(400).json({
                     success: false,
                     message: 'Validation error',
@@ -1258,11 +1210,10 @@ export class CategoryController {
                 return;
             }
 
-            // Generic error response
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
-                
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     }
@@ -1271,25 +1222,22 @@ export class CategoryController {
      * Get category by ID
      */
     async getCategoryById(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Fetching category with ID: ${id}`);
 
-            // Extract user info for audit (if available)
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
             } catch (authError) {
-                // User not authenticated - continue anyway for GET requests
                 console.log('Request without authentication');
             }
 
@@ -1300,23 +1248,21 @@ export class CategoryController {
                     success: false,
                     message: 'Category not found',
                     requestedId: id,
-                    requestedBy: {
-                        userId,
-                        userEmail,
-                        userRole
-                    }
+                    requestedBy: { userId, userEmail, userRole }
                 });
                 return;
             }
 
-            // Parse sub-categories for response
-            const subCategoriesList = category.sub_details.sub_categories
-                .split(',')
-                .map(s => s.trim())
-                .filter(s => s);
-
-            // Get product count for this category
+            // Get product count for this category and sub-categories
             const productCount = await categoryService.getProductCountByCategory(id);
+
+            // Get product count for each sub-category
+            const subCategoryProductCounts = await Promise.all(
+                category.sub_categories.map(async (subCat) => ({
+                    sub_category_id: subCat._id,
+                    count: await categoryService.getProductCountBySubCategory(subCat._id)
+                }))
+            );
 
             res.status(200).json({
                 success: true,
@@ -1325,14 +1271,17 @@ export class CategoryController {
                     id: category._id,
                     category_name: category.category_name,
                     description: category.description,
-                    sub_details: {
-                        sub_categories: category.sub_details.sub_categories,
-                        sub_categories_list: subCategoriesList,
-                        description_sub_category: category.sub_details.description_sub_category
-                    },
+                    sub_categories: category.sub_categories.map(subCat => ({
+                        id: subCat._id,
+                        sub_category_name: subCat.sub_category_name,
+                        description: subCat.description,
+                        product_count: subCategoryProductCounts.find(sc =>
+                            sc.sub_category_id.toString() === subCat._id.toString()
+                        )?.count || 0
+                    })),
                     category_image: category.category_image,
                     category_status: category.category_status,
-                    product_count: productCount, // Add product count
+                    product_count: productCount,
                     createdAt: category.createdAt,
                     updatedAt: category.updatedAt
                 }
@@ -1341,7 +1290,6 @@ export class CategoryController {
         } catch (error: any) {
             console.error('Error fetching category:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -1350,9 +1298,7 @@ export class CategoryController {
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
-            } catch (userError) {
-                // User not authenticated
-            }
+            } catch (userError) { }
 
             const statusCode = error.message.includes('Invalid category ID') ? 400 : 500;
 
@@ -1369,25 +1315,22 @@ export class CategoryController {
      * Update category by ID
      */
     async updateCategory(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Updating category ${id} with data:`, req.body);
 
-            // Extract user info for audit - REQUIRED for update operations
             let userId: string;
             let userEmail: string;
             let userRole: string;
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
             } catch (authError) {
-                // Authentication is required for update operations
                 res.status(401).json({
                     success: false,
                     message: 'Authentication required for update operations',
@@ -1396,7 +1339,7 @@ export class CategoryController {
                 return;
             }
 
-            // Handle file upload if present (for updating image)
+            // Handle file upload if present
             const files = req.files as Express.Multer.File[];
             if (files && files.length > 0) {
                 console.log(`Uploading new category image to Cloudinary`);
@@ -1408,38 +1351,13 @@ export class CategoryController {
                     folder
                 );
 
-                // Create metadata object for the uploaded image
                 const categoryImageData = imageUploadService.createCategoryDocumentMetadata(
                     files[0],
                     url,
                     publicId
                 );
 
-                // Set the new image data
                 req.body.category_image = categoryImageData;
-                console.log('New category image uploaded:', url);
-            }
-
-            // Handle both flat and nested formats for sub_details
-            let subCategories: string | undefined;
-            let descriptionSubCategory: string | undefined;
-
-            // Parse sub_details if it's a JSON string (from form-data)
-            let subDetails = req.body.sub_details;
-            if (typeof subDetails === 'string') {
-                try {
-                    subDetails = JSON.parse(subDetails);
-                } catch (e) {
-                    // If parsing fails, ignore
-                }
-            }
-
-            if (subDetails) {
-                subCategories = subDetails.sub_categories;
-                descriptionSubCategory = subDetails.description_sub_category;
-            } else {
-                subCategories = req.body.sub_categories;
-                descriptionSubCategory = req.body.description_sub_category;
             }
 
             // Prepare update data
@@ -1449,22 +1367,32 @@ export class CategoryController {
             if (req.body.description) updateData.description = req.body.description;
             if (req.body.category_image) updateData.category_image = req.body.category_image;
             if (req.body.category_status) updateData.category_status = req.body.category_status;
-            
-            if (subCategories || descriptionSubCategory) {
-                updateData.sub_details = {
-                    sub_categories: subCategories || '',
-                    description_sub_category: descriptionSubCategory || ''
-                };
+
+            // Handle sub-categories update
+            if (req.body.sub_categories) {
+                let subCategoriesData: Array<{
+                    sub_category_name: string;
+                    description: string;
+                }> = [];
+
+                if (typeof req.body.sub_categories === 'string') {
+                    try {
+                        subCategoriesData = JSON.parse(req.body.sub_categories);
+                    } catch {
+                        subCategoriesData = [{
+                            sub_category_name: req.body.sub_categories,
+                            description: req.body.description_sub_category || ''
+                        }];
+                    }
+                } else if (Array.isArray(req.body.sub_categories)) {
+                    subCategoriesData = req.body.sub_categories;
+                }
+
+                updateData.sub_categories = subCategoriesData;
             }
 
             // Update category
             const updatedCategory = await categoryService.updateCategory(id, updateData);
-
-            // Parse sub-categories for response
-            const subCategoriesList = updatedCategory.sub_details.sub_categories
-                .split(',')
-                .map(s => s.trim())
-                .filter(s => s);
 
             res.status(200).json({
                 success: true,
@@ -1473,11 +1401,11 @@ export class CategoryController {
                     id: updatedCategory._id,
                     category_name: updatedCategory.category_name,
                     description: updatedCategory.description,
-                    sub_details: {
-                        sub_categories: updatedCategory.sub_details.sub_categories,
-                        sub_categories_list: subCategoriesList,
-                        description_sub_category: updatedCategory.sub_details.description_sub_category
-                    },
+                    sub_categories: updatedCategory.sub_categories.map(subCat => ({
+                        id: subCat._id,
+                        sub_category_name: subCat.sub_category_name,
+                        description: subCat.description
+                    })),
                     category_image: updatedCategory.category_image,
                     category_status: updatedCategory.category_status,
                     updatedAt: updatedCategory.updatedAt
@@ -1492,7 +1420,6 @@ export class CategoryController {
         } catch (error: any) {
             console.error('Error updating category:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -1501,11 +1428,8 @@ export class CategoryController {
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
-            } catch (userError) {
-                // User not authenticated
-            }
+            } catch (userError) { }
 
-            // Handle specific error cases
             let statusCode = 500;
             let errorMessage = error.message || 'Failed to update category';
 
@@ -1532,7 +1456,6 @@ export class CategoryController {
      * Update category status only
      */
     async updateCategoryStatus(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
 
         try {
@@ -1541,7 +1464,6 @@ export class CategoryController {
 
             console.log(`Updating category ${id} status to: ${status}`);
 
-            // Extract user info for audit - REQUIRED for update operations
             let userId: string;
             let userEmail: string;
             let userRole: string;
@@ -1560,7 +1482,6 @@ export class CategoryController {
                 return;
             }
 
-            // Validate status value
             if (!status || !['active', 'inactive'].includes(status)) {
                 res.status(400).json({
                     success: false,
@@ -1570,7 +1491,6 @@ export class CategoryController {
                 return;
             }
 
-            // Update only the status
             const updateData = { category_status: status };
             const updatedCategory = await categoryService.updateCategory(id, updateData);
 
@@ -1593,7 +1513,6 @@ export class CategoryController {
         } catch (error: any) {
             console.error('Error updating category status:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -1602,9 +1521,7 @@ export class CategoryController {
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
-            } catch (userError) {
-                // User not authenticated
-            }
+            } catch (userError) { }
 
             let statusCode = 500;
             let errorMessage = error.message || 'Failed to update category status';
@@ -1628,25 +1545,22 @@ export class CategoryController {
      * Delete category by ID
      */
     async deleteCategory(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
-        
+
         try {
             const { id } = req.params;
             console.log(`Deleting category ${id}`);
 
-            // Extract user info for audit - REQUIRED for delete operations
             let userId: string;
             let userEmail: string;
             let userRole: string;
-            
+
             try {
                 const user = CatalogueController.getLoggedInUser(req);
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
             } catch (authError) {
-                // Authentication is required for delete operations
                 res.status(401).json({
                     success: false,
                     message: 'Authentication required for delete operations',
@@ -1674,7 +1588,6 @@ export class CategoryController {
         } catch (error: any) {
             console.error('Error deleting category:', error);
 
-            // Extract user info for error logging
             let userId = 'unknown';
             let userEmail = 'unknown';
             let userRole = 'unknown';
@@ -1683,11 +1596,8 @@ export class CategoryController {
                 userId = user._id.toString();
                 userEmail = user.email;
                 userRole = user.roles[0]?.key || 'unknown';
-            } catch (userError) {
-                // User not authenticated
-            }
+            } catch (userError) { }
 
-            // Handle specific error cases
             let statusCode = 500;
             let errorMessage = error.message || 'Failed to delete category';
 
@@ -1696,7 +1606,7 @@ export class CategoryController {
             } else if (error.message.includes('not found')) {
                 statusCode = 404;
             } else if (error.message.includes('Cannot delete category')) {
-                statusCode = 409; // Conflict - category is in use
+                statusCode = 409;
             }
 
             res.status(statusCode).json({
@@ -1712,7 +1622,6 @@ export class CategoryController {
      * Get category dashboard statistics
      */
     async getCategoryDashboardStats(req: Request, res: Response): Promise<void> {
-        // Create service (no request context needed for stats)
         const categoryService = createCategoryService();
 
         try {
@@ -1741,13 +1650,11 @@ export class CategoryController {
      * Get all categories with pagination and filtering
      */
     async getAllCategories(req: Request, res: Response): Promise<void> {
-        // Create service with request context
         const categoryService = createCategoryService(req);
 
         try {
             console.log('Fetching all categories with filters:', req.query);
 
-            // Parse query parameters
             const filters: CategoryFilterDTO = {
                 status: req.query.status as 'active' | 'inactive',
                 category_name: req.query.category_name as string,
@@ -1755,11 +1662,9 @@ export class CategoryController {
                 limit: req.query.limit ? parseInt(req.query.limit as string) : 10
             };
 
-            // Validate pagination
             if (filters.page! < 1) filters.page = 1;
             if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
 
-            // Get categories with filters
             const result = await categoryService.getAllCategoriesWithFilters(filters);
 
             res.status(200).json({
@@ -1780,11 +1685,10 @@ export class CategoryController {
     }
 
     /**
-     * Upload category image to Cloudinary (typically just one image)
+     * Upload category image to Cloudinary
      */
     async uploadCategoryImage(req: Request, res: Response): Promise<void> {
         try {
-            // Check if files exist
             const files = req.files as Express.Multer.File[];
 
             if (!files || files.length === 0) {
@@ -1795,13 +1699,11 @@ export class CategoryController {
                 return;
             }
 
-            // Get user info for audit
             const { email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
 
             console.log(`Uploading ${files.length} category image(s) by user: ${userEmail}`);
 
-            // Upload all images to Cloudinary
             const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
             const uploadPromises = files.map(file =>
                 imageUploadService.uploadToCloudinary(
@@ -1817,8 +1719,6 @@ export class CategoryController {
             );
 
             const uploadedImages = await Promise.all(uploadPromises);
-
-            // For category, typically we use just the first image
             const primaryImage = uploadedImages[0];
 
             res.status(200).json({

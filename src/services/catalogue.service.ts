@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { CatalogueModel, ICatalogue, CategoryModel, ICategory } from '../models/Catalogue.model';
+import { CatalogueModel, ICatalogue, CategoryModel, ICategory, ISubCategory } from '../models/Catalogue.model';
 import { historyCatalogueService } from './historyCatalogue.service';
 import { Request } from 'express';
 
@@ -7,11 +7,12 @@ import { Request } from 'express';
 export interface CreateCategoryDTO {
     category_name: string;
     description: string;
-    sub_details: {
-        sub_categories: string;
-        description_sub_category: string;
-    }
-    category_image: any; // Can be string URL or ICategoryImageData object
+    sub_categories: Array<{
+        _id?: Types.ObjectId;
+        sub_category_name: string;
+        description: string;
+    }>;
+    category_image: any;
     category_status?: 'active' | 'inactive';
 }
 
@@ -22,23 +23,17 @@ export interface CategoryStatsDTO {
     total_sub_categories: number;
     active_sub_categories: number;
     inactive_sub_categories: number;
-    total_products: number; // Total products across all categories
+    total_products: number;
     categories_by_status: Array<{
         category_name: string;
         category_status: 'active' | 'inactive';
         sub_categories_count: number;
-        product_count: number; // Products in this category
+        product_count: number;
         sub_categories: Array<{
+            id: string;
             name: string;
-            status: string;
             description: string;
         }>;
-    }>;
-    sub_categories_by_category: Array<{
-        category_name: string;
-        sub_categories: string[];
-        count: number;
-        product_count: number; // Products in this category
     }>;
     status_distribution: {
         active_percentage: number;
@@ -59,10 +54,14 @@ export interface CategoryListResponseDTO {
         category_name: string;
         description: string;
         category_status: 'active' | 'inactive';
-        category_image: string;
+        category_image: any;
         sub_categories_count: number;
-        sub_categories_list: string[];
-        product_count: number; // Number of products in this category
+        sub_categories: Array<{
+            id: string;
+            sub_category_name: string;
+            description: string;
+        }>;
+        product_count: number;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -79,13 +78,12 @@ export interface CategoryListResponseDTO {
 
 // CATALOGUE DTOs
 export interface CreateCatalogueDTO {
-    [x: string]: any;
     sku_id: string;
     product_name: string;
     brand_name: string;
     description: string;
-    category_id: string; // Changed from category to category_id
-    sub_category?: string; // Made optional
+    category: Types.ObjectId; // Category ObjectId
+    sub_category: Types.ObjectId; // Sub-category ObjectId
     manufacturer_name: string;
     manufacturer_address: string;
     shell_life: string;
@@ -97,7 +95,7 @@ export interface CreateCatalogueDTO {
     barcode: string;
     nutrition_information: string;
     ingredients: string;
-    product_images: any[]; // Array of image metadata objects
+    product_images: any[];
     status?: 'active' | 'inactive';
 }
 
@@ -116,10 +114,17 @@ export interface DashboardFilterDTO {
 
 export interface DashboardResponseDTO {
     products: Array<{
+        id: string;
         sku_id: string;
         product_name: string;
-        category: string;
-        sub_category: string;
+        category: {
+            id: string;
+            name: string;
+        };
+        sub_category: {
+            id: string;
+            name: string;
+        };
         brand_name: string;
         unit_size: string;
         base_price: number;
@@ -135,6 +140,9 @@ export interface DashboardResponseDTO {
     filters: DashboardFilterDTO;
 }
 
+// Import Types from mongoose
+import { Types } from 'mongoose';
+
 export class CategoryService {
     private req: Request | null = null;
 
@@ -146,7 +154,7 @@ export class CategoryService {
     }
 
     /**
-     * Get category by ID with full details
+     * Get category by ID with full details including all sub-categories
      */
     async getCategoryById(categoryId: string): Promise<ICategory | null> {
         try {
@@ -176,7 +184,8 @@ export class CategoryService {
             console.log('Category found:', {
                 id: category._id,
                 name: category.category_name,
-                status: category.category_status
+                status: category.category_status,
+                sub_categories_count: category.sub_categories?.length || 0
             });
 
             return category;
@@ -190,7 +199,7 @@ export class CategoryService {
      * Update category by ID
      */
     async updateCategory(
-        categoryId: string, 
+        categoryId: string,
         updateData: Partial<CreateCategoryDTO>
     ): Promise<ICategory> {
         try {
@@ -207,35 +216,64 @@ export class CategoryService {
             }
 
             // If updating category_name or sub_categories, check for duplicates
-            if (updateData.category_name || updateData.sub_details?.sub_categories) {
+            if (updateData.category_name || updateData.sub_categories) {
                 const nameToCheck = updateData.category_name || existingCategory.category_name;
-                const subCategoriesToCheck = updateData.sub_details?.sub_categories || 
-                    existingCategory.sub_details.sub_categories;
 
+                // Check for category name uniqueness
                 const duplicateCategory = await CategoryModel.findOne({
-                    _id: { $ne: categoryId }, // Exclude current category
-                    category_name: nameToCheck,
-                    'sub_details.sub_categories': subCategoriesToCheck
+                    _id: { $ne: categoryId },
+                    category_name: nameToCheck
                 });
 
                 if (duplicateCategory) {
                     throw new Error(
-                        `Category "${nameToCheck}" with sub-categories "${subCategoriesToCheck}" already exists`
+                        `Category "${nameToCheck}" already exists`
                     );
+                }
+
+                // Check for sub-category name uniqueness within this category
+                if (updateData.sub_categories) {
+                    const subCategoryNames = updateData.sub_categories.map(sc => sc.sub_category_name);
+                    const existingSubCategories = existingCategory.sub_categories || [];
+
+                    // Check for duplicates within the update data
+                    const uniqueNames = new Set(subCategoryNames);
+                    if (uniqueNames.size !== subCategoryNames.length) {
+                        throw new Error('Duplicate sub-category names are not allowed within the same category');
+                    }
+
+                    // Check for conflicts with existing sub-categories in other categories
+                    for (const subCat of updateData.sub_categories) {
+                        const existingSubCat = await CategoryModel.findOne({
+                            _id: { $ne: categoryId },
+                            'sub_categories.sub_category_name': subCat.sub_category_name
+                        });
+
+                        if (existingSubCat) {
+                            throw new Error(
+                                `Sub-category "${subCat.sub_category_name}" already exists in category "${existingSubCat.category_name}"`
+                            );
+                        }
+                    }
                 }
             }
 
             // Prepare update object
             const updateObject: any = {};
-            
+
             if (updateData.category_name) updateObject.category_name = updateData.category_name;
             if (updateData.description) updateObject.description = updateData.description;
             if (updateData.category_image) updateObject.category_image = updateData.category_image;
             if (updateData.category_status) updateObject.category_status = updateData.category_status;
-            
-            if (updateData.sub_details) {
-                updateObject['sub_details.sub_categories'] = updateData.sub_details.sub_categories;
-                updateObject['sub_details.description_sub_category'] = updateData.sub_details.description_sub_category;
+
+            if (updateData.sub_categories) {
+                // Generate IDs for new sub-categories if not provided
+                const subCategoriesWithIds = updateData.sub_categories.map(subCat => ({
+                    _id: subCat._id || new mongoose.Types.ObjectId(),
+                    sub_category_name: subCat.sub_category_name,
+                    description: subCat.description
+                }));
+                updateObject.sub_categories = subCategoriesWithIds;
             }
 
             // Store before state for audit
@@ -266,7 +304,8 @@ export class CategoryService {
 
             console.log('Category updated successfully:', {
                 id: updatedCategory._id,
-                name: updatedCategory.category_name
+                name: updatedCategory.category_name,
+                sub_categories_count: updatedCategory.sub_categories?.length || 0
             });
 
             return updatedCategory;
@@ -297,8 +336,8 @@ export class CategoryService {
     /**
      * Delete category by ID
      */
-    async deleteCategory(categoryId: string): Promise<{ 
-        success: boolean; 
+    async deleteCategory(categoryId: string): Promise<{
+        success: boolean;
         message: string;
         affectedCatalogues?: number;
     }> {
@@ -315,14 +354,18 @@ export class CategoryService {
                 throw new Error('Category not found');
             }
 
-            // Check if any catalogue items are using this category
+            // Check if any catalogue items are using this category or its sub-categories
+            const subCategoryIds = category.sub_categories.map(sc => sc._id);
             const catalogueCount = await CatalogueModel.countDocuments({
-                category: categoryId
+                $or: [
+                    { category: categoryId },
+                    { sub_category: { $in: subCategoryIds } }
+                ]
             });
 
             if (catalogueCount > 0) {
                 throw new Error(
-                    `Cannot delete category. ${catalogueCount} catalogue item(s) are using this category. ` +
+                    `Cannot delete category. ${catalogueCount} catalogue item(s) are using this category or its sub-categories. ` +
                     `Please reassign or delete those items first.`
                 );
             }
@@ -352,7 +395,7 @@ export class CategoryService {
             return {
                 success: true,
                 message: 'Category deleted successfully',
-                affectedCatalogues: 0
+                affectedCatalogues: catalogueCount
             };
         } catch (error: any) {
             console.error('Error deleting category:', error);
@@ -384,17 +427,20 @@ export class CategoryService {
         try {
             console.log('Fetching category dashboard statistics');
 
-            // Get all categories
+            // Get all categories with sub-categories
             const allCategories = await CategoryModel.find({})
-                .select('category_name category_status sub_details description category_image')
+                .select('category_name category_status sub_categories description category_image')
                 .lean();
 
-            // Get product counts for all categories
-            const productCountMap = await this.getProductCountsForAllCategories();
+            // Get product counts for all categories and sub-categories
+            const [categoryProductCounts, subCategoryProductCounts] = await Promise.all([
+                this.getProductCountsForAllCategories(),
+                this.getProductCountsForAllSubCategories()
+            ]);
 
             // Calculate total products
             let totalProducts = 0;
-            productCountMap.forEach(count => {
+            categoryProductCounts.forEach(count => {
                 totalProducts += count;
             });
 
@@ -404,47 +450,28 @@ export class CategoryService {
             let inactiveSubCategories = 0;
 
             const categoriesByStatus = allCategories.map(category => {
-                const subCategories = category.sub_details?.sub_categories || '';
-                const subCategoriesList = subCategories.split(',').map(s => s.trim()).filter(s => s);
+                const subCategories = category.sub_categories || [];
+                totalSubCategories += subCategories.length;
 
-                totalSubCategories += subCategoriesList.length;
-
-                // Assuming all sub-categories inherit category status
+                // Count active/inactive sub-categories based on parent category status
                 if (category.category_status === 'active') {
-                    activeSubCategories += subCategoriesList.length;
+                    activeSubCategories += subCategories.length;
                 } else {
-                    inactiveSubCategories += subCategoriesList.length;
+                    inactiveSubCategories += subCategories.length;
                 }
 
-                // Get product count for this category
-                const productCount = productCountMap.get(category._id.toString()) || 0;
+                const productCount = categoryProductCounts.get(category._id.toString()) || 0;
 
                 return {
                     category_name: category.category_name,
                     category_status: category.category_status,
-                    sub_categories_count: subCategoriesList.length,
+                    sub_categories_count: subCategories.length,
                     product_count: productCount,
-                    sub_categories: subCategoriesList.map(name => ({
-                        name,
-                        status: category.category_status,
-                        description: category.sub_details?.description_sub_category || ''
+                    sub_categories: subCategories.map(subCat => ({
+                        id: subCat._id.toString(),
+                        name: subCat.sub_category_name,
+                        description: subCat.description
                     }))
-                };
-            });
-
-            // Group sub-categories by category
-            const subCategoriesByCategory = allCategories.map(category => {
-                const subCategories = category.sub_details?.sub_categories || '';
-                const subCategoriesList = subCategories.split(',').map(s => s.trim()).filter(s => s);
-
-                // Get product count for this category
-                const productCount = productCountMap.get(category._id.toString()) || 0;
-
-                return {
-                    category_name: category.category_name,
-                    sub_categories: subCategoriesList,
-                    count: subCategoriesList.length,
-                    product_count: productCount
                 };
             });
 
@@ -464,9 +491,8 @@ export class CategoryService {
                 total_sub_categories: totalSubCategories,
                 active_sub_categories: activeSubCategories,
                 inactive_sub_categories: inactiveSubCategories,
-                total_products: totalProducts, // Add total products count
+                total_products: totalProducts,
                 categories_by_status: categoriesByStatus,
-                sub_categories_by_category: subCategoriesByCategory,
                 status_distribution: {
                     active_percentage: Math.round(activePercentage * 100) / 100,
                     inactive_percentage: Math.round(inactivePercentage * 100) / 100
@@ -480,42 +506,68 @@ export class CategoryService {
     }
 
     /**
-     * Create a new category with detailed debugging
+     * Create a new category with multiple sub-categories
      */
     async createCategory(categoryData: CreateCategoryDTO): Promise<ICategory> {
         try {
             console.log('Attempting to create category with data:', {
                 category_name: categoryData.category_name,
-                sub_categories: categoryData.sub_details.sub_categories,
+                sub_categories_count: categoryData.sub_categories?.length || 0,
                 full_data: categoryData
             });
 
-            // Check if the exact combination exists with detailed logging
-            const query = { 
-                category_name: categoryData.category_name,
-                'sub_details.sub_categories': categoryData.sub_details.sub_categories
-            };
-            
-            console.log('Query for existing category:', query);
-            
-            const existingCategory = await CategoryModel.findOne(query);
-            
+            // Check if category name already exists
+            const existingCategory = await CategoryModel.findOne({
+                category_name: categoryData.category_name
+            });
+
             if (existingCategory) {
-                console.log('Found existing category:', {
+                console.log('Found existing category with same name:', {
                     _id: existingCategory._id,
-                    category_name: existingCategory.category_name,
-                    sub_categories: existingCategory.sub_details.sub_categories,
-                    exists: true
+                    category_name: existingCategory.category_name
                 });
-                throw new Error(`Category "${categoryData.category_name}" with sub-categories "${categoryData.sub_details.sub_categories}" already exists`);
-            } else {
-                console.log('No existing category found with this combination');
+                throw new Error(`Category "${categoryData.category_name}" already exists`);
             }
 
+            // Check for duplicate sub-category names within the new category
+            if (categoryData.sub_categories && categoryData.sub_categories.length > 0) {
+                const subCategoryNames = categoryData.sub_categories.map(sc => sc.sub_category_name);
+                const uniqueNames = new Set(subCategoryNames);
+                if (uniqueNames.size !== subCategoryNames.length) {
+                    throw new Error('Duplicate sub-category names are not allowed within the same category');
+                }
+
+                // Check if any sub-category name exists in other categories
+                for (const subCat of categoryData.sub_categories) {
+                    const existingSubCat = await CategoryModel.findOne({
+                        'sub_categories.sub_category_name': subCat.sub_category_name
+                    });
+
+                    if (existingSubCat) {
+                        throw new Error(
+                            `Sub-category "${subCat.sub_category_name}" already exists in category "${existingSubCat.category_name}"`
+                        );
+                    }
+                }
+            }
+
+            // Generate IDs for sub-categories
+            const subCategoriesWithIds = categoryData.sub_categories?.map(subCat => ({
+                _id: new mongoose.Types.ObjectId(),
+                sub_category_name: subCat.sub_category_name,
+                description: subCat.description
+            })) || [];
+
+            // Create category data with generated IDs
+            const categoryToCreate = {
+                ...categoryData,
+                sub_categories: subCategoriesWithIds
+            };
+
             // Create and save the category
-            const category = new CategoryModel(categoryData);
+            const category = new CategoryModel(categoryToCreate);
             const savedCategory = await category.save();
-            
+
             // Log create operation
             if (this.req) {
                 await historyCatalogueService.logCreate(
@@ -526,13 +578,13 @@ export class CategoryService {
                     savedCategory.toObject()
                 ).catch(err => console.error('Failed to log create:', err));
             }
-            
+
             console.log('Category created successfully:', {
                 _id: savedCategory._id,
                 category_name: savedCategory.category_name,
-                sub_categories: savedCategory.sub_details.sub_categories
+                sub_categories_count: savedCategory.sub_categories?.length || 0
             });
-            
+
             return savedCategory;
         } catch (error: any) {
             console.error('Error in createCategory service:', {
@@ -555,76 +607,16 @@ export class CategoryService {
                     error.message
                 ).catch(err => console.error('Failed to log failed create:', err));
             }
-            
-            // If it's a MongoDB duplicate key error, check what's duplicate
+
+            // If it's a MongoDB duplicate key error
             if (error.code === 11000) {
-                console.error('Duplicate key error details:', {
-                    duplicateFields: error.keyPattern,
-                    duplicateValues: error.keyValue
-                });
-                
-                // Try to find what's actually conflicting
-                if (error.keyValue) {
-                    const conflictingCategory = await CategoryModel.findOne({
-                        category_name: error.keyValue.category_name,
-                        'sub_details.sub_categories': error.keyValue['sub_details.sub_categories']
-                    });
-                    
-                    if (conflictingCategory) {
-                        console.log('Conflicting category found:', {
-                            _id: conflictingCategory._id,
-                            category_name: conflictingCategory.category_name,
-                            sub_categories: conflictingCategory.sub_details.sub_categories
-                        });
-                    }
+                const field = Object.keys(error.keyPattern)[0];
+                if (field === 'category_name') {
+                    throw new Error(`Category "${categoryData.category_name}" already exists`);
+                } else if (field.includes('sub_categories.sub_category_name')) {
+                    throw new Error('A sub-category with this name already exists in another category');
                 }
-                
-                throw new Error(`Category "${categoryData.category_name}" with sub-categories "${categoryData.sub_details.sub_categories}" already exists`);
             }
-            throw error;
-        }
-    }
-
-    /**
-     * Get all categories for debugging
-     */
-    async getAllCategories(): Promise<ICategory[]> {
-        try {
-            const categories = await CategoryModel.find({});
-            console.log('All categories in database:', 
-                categories.map(cat => ({
-                    id: cat._id,
-                    name: cat.category_name,
-                    sub_categories: cat.sub_details.sub_categories
-                }))
-            );
-            return categories;
-        } catch (error: any) {
-            console.error('Error getting all categories:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Find categories by name for debugging
-     */
-    async findCategoriesByName(categoryName: string): Promise<ICategory[]> {
-        try {
-            const categories = await CategoryModel.find({
-                category_name: categoryName
-            });
-
-            console.log(`Categories with name "${categoryName}":`,
-                categories.map(cat => ({
-                    id: cat._id,
-                    name: cat.category_name,
-                    sub_categories: cat.sub_details.sub_categories
-                }))
-            );
-
-            return categories;
-        } catch (error: any) {
-            console.error('Error finding categories by name:', error);
             throw error;
         }
     }
@@ -651,11 +643,31 @@ export class CategoryService {
     }
 
     /**
+     * Get product count for a specific sub-category
+     */
+    async getProductCountBySubCategory(subCategoryId: Types.ObjectId): Promise<number> {
+        try {
+            if (!mongoose.Types.ObjectId.isValid(subCategoryId)) {
+                throw new Error('Invalid sub-category ID format');
+            }
+
+            const count = await CatalogueModel.countDocuments({
+                sub_category: subCategoryId
+            });
+
+            console.log(`Sub-category ${subCategoryId} has ${count} products`);
+            return count;
+        } catch (error: any) {
+            console.error('Error getting product count for sub-category:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Get product counts for all categories
      */
     async getProductCountsForAllCategories(): Promise<Map<string, number>> {
         try {
-            // Use aggregation to get counts efficiently
             const counts = await CatalogueModel.aggregate([
                 {
                     $group: {
@@ -665,7 +677,6 @@ export class CategoryService {
                 }
             ]);
 
-            // Convert to Map for easy lookup
             const countMap = new Map<string, number>();
             counts.forEach(item => {
                 if (item._id) {
@@ -677,6 +688,35 @@ export class CategoryService {
             return countMap;
         } catch (error: any) {
             console.error('Error getting product counts for all categories:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get product counts for all sub-categories
+     */
+    async getProductCountsForAllSubCategories(): Promise<Map<string, number>> {
+        try {
+            const counts = await CatalogueModel.aggregate([
+                {
+                    $group: {
+                        _id: '$sub_category',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            const countMap = new Map<string, number>();
+            counts.forEach(item => {
+                if (item._id) {
+                    countMap.set(item._id.toString(), item.count);
+                }
+            });
+
+            console.log('Product counts by sub-category:', Object.fromEntries(countMap));
+            return countMap;
+        } catch (error: any) {
+            console.error('Error getting product counts for all sub-categories:', error);
             throw error;
         }
     }
@@ -717,33 +757,32 @@ export class CategoryService {
                 .limit(limit)
                 .lean();
 
-            // Get product counts for all categories efficiently
-            const productCountMap = await this.getProductCountsForAllCategories();
+            // Get product counts for all categories and sub-categories efficiently
+            const [categoryProductCountMap, subCategoryProductCountMap] = await Promise.all([
+                this.getProductCountsForAllCategories(),
+                this.getProductCountsForAllSubCategories()
+            ]);
 
             // Transform response
             const categoriesData = categories.map(category => {
-                const subCategoriesList = category.sub_details.sub_categories
-                    .split(',')
-                    .map(s => s.trim())
-                    .filter(s => s);
+                const subCategories = category.sub_categories || [];
 
-                // Handle category_image - it could be an object (ICategoryImageData) or a string
-                const categoryImage = typeof category.category_image === 'string'
-                    ? category.category_image
-                    : (category.category_image as any)?.file_url || '';
-
-                // Get product count for this category
-                const productCount = productCountMap.get(category._id.toString()) || 0;
+                const productCount = categoryProductCountMap.get(category._id.toString()) || 0;
 
                 return {
                     id: category._id.toString(),
                     category_name: category.category_name,
                     description: category.description,
                     category_status: category.category_status,
-                    category_image: categoryImage,
-                    sub_categories_count: subCategoriesList.length,
-                    sub_categories_list: subCategoriesList,
-                    product_count: productCount, // Add product count
+                    category_image: category.category_image,
+                    sub_categories_count: subCategories.length,
+                    sub_categories: subCategories.map(subCat => ({
+                        id: subCat._id.toString(),
+                        sub_category_name: subCat.sub_category_name,
+                        description: subCat.description,
+                        product_count: subCategoryProductCountMap.get(subCat._id.toString()) || 0
+                    })),
+                    product_count: productCount,
                     createdAt: category.createdAt,
                     updatedAt: category.updatedAt
                 };
@@ -771,6 +810,64 @@ export class CategoryService {
             throw error;
         }
     }
+
+    /**
+     * Validate sub-category ID exists in category
+     */
+    async validateSubCategoryBelongsToCategory(
+        categoryId: Types.ObjectId,
+        subCategoryId: Types.ObjectId
+    ): Promise<boolean> {
+        try {
+            const category = await CategoryModel.findOne({
+                _id: categoryId,
+                'sub_categories._id': subCategoryId
+            });
+
+            return !!category;
+        } catch (error) {
+            console.error('Error validating sub-category:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sub-category by ID
+     */
+    async getSubCategoryById(subCategoryId: Types.ObjectId): Promise<ISubCategory | null> {
+        try {
+            const category = await CategoryModel.findOne({
+                'sub_categories._id': subCategoryId
+            });
+
+            if (!category) return null;
+
+            const subCategory = category.sub_categories.find(
+                sc => sc._id.toString() === subCategoryId.toString()
+            );
+
+            return subCategory || null;
+        } catch (error) {
+            console.error('Error getting sub-category:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Find categories by name
+     */
+    async findCategoriesByName(categoryName: string): Promise<ICategory[]> {
+        try {
+            const categories = await CategoryModel.find({
+                category_name: { $regex: categoryName, $options: 'i' }
+            });
+
+            return categories;
+        } catch (error) {
+            console.error('Error finding categories by name:', error);
+            throw error;
+        }
+    }
 }
 
 export class CatalogueService {
@@ -784,7 +881,7 @@ export class CatalogueService {
     }
 
     /**
-     * Get catalogue product by ID with full details
+     * Get catalogue product by ID with populated category and sub-category details
      */
     async getCatalogueById(productId: string): Promise<ICatalogue | null> {
         try {
@@ -794,22 +891,11 @@ export class CatalogueService {
                 throw new Error('Invalid product ID format');
             }
 
-            const product = await CatalogueModel.findById(productId).lean();
+            const product = await CatalogueModel.findById(productId);
 
             if (!product) {
                 console.log(`Product with ID ${productId} not found`);
                 return null;
-            }
-
-            // Resolve category name if it's stored as ObjectId
-            let categoryName = 'Unknown';
-            if (product.category) {
-                if (mongoose.Types.ObjectId.isValid(product.category.toString())) {
-                    const category = await CategoryModel.findById(product.category);
-                    categoryName = category?.category_name || 'Unknown';
-                } else {
-                    categoryName = product.category.toString();
-                }
             }
 
             // Log view operation
@@ -825,14 +911,10 @@ export class CatalogueService {
             console.log('Product found:', {
                 id: product._id,
                 sku: product.sku_id,
-                name: product.product_name,
-                category: categoryName
+                name: product.product_name
             });
 
-            return {
-                ...product,
-                category: categoryName
-            } as any;
+            return product;
         } catch (error: any) {
             console.error('Error fetching catalogue by ID:', error);
             throw error;
@@ -843,7 +925,7 @@ export class CatalogueService {
      * Update catalogue product by ID
      */
     async updateCatalogue(
-        productId: string, 
+        productId: string,
         updateData: Partial<CreateCatalogueDTO>
     ): Promise<ICatalogue> {
         try {
@@ -883,37 +965,38 @@ export class CatalogueService {
                 }
             }
 
-            // If updating category_id or sub_category, validate them
-            if (updateData.category_id) {
+            // If updating category or sub-category, validate the relationship
+            if (updateData.category || updateData.sub_category) {
+                const categoryId = updateData.category || existingProduct.category;
+                const subCategoryId = updateData.sub_category || existingProduct.sub_category;
+
                 // Validate category_id format
-                if (!mongoose.Types.ObjectId.isValid(updateData.category_id)) {
+                if (!mongoose.Types.ObjectId.isValid(categoryId.toString())) {
                     throw new Error('Invalid category ID format');
                 }
 
-                const category = await CategoryModel.findById(updateData.category_id);
-
-                if (!category) {
-                    throw new Error(`Category with ID "${updateData.category_id}" not found`);
+                // Validate sub_category_id format
+                if (!mongoose.Types.ObjectId.isValid(subCategoryId.toString())) {
+                    throw new Error('Invalid sub-category ID format');
                 }
 
-                // Update the category field in the database (internal field is 'category', not 'category_id')
-                // We need to set it properly for the update
-                const categoryIdToUpdate = updateData.category_id;
-                delete updateData.category_id; // Remove category_id from updateData
-                (updateData as any).category = categoryIdToUpdate; // Set category field instead
+                // Find the category
+                const category = await CategoryModel.findById(categoryId);
+                if (!category) {
+                    throw new Error(`Category with ID "${categoryId}" not found`);
+                }
 
-                // If sub_category is also being updated or exists
-                const subCategoryToCheck = updateData.sub_category || existingProduct.sub_category;
-                if (subCategoryToCheck) {
-                    const subCategories = category.sub_details.sub_categories
-                        .split(',')
-                        .map(s => s.trim());
+                // Validate that sub_category_id belongs to the category
+                const categoryService = new CategoryService();
+                const subCategoryBelongsToCategory = await categoryService.validateSubCategoryBelongsToCategory(
+                    categoryId as Types.ObjectId,
+                    subCategoryId as Types.ObjectId
+                );
 
-                    if (!subCategories.includes(subCategoryToCheck)) {
-                        throw new Error(
-                            `Sub-category "${subCategoryToCheck}" not found in category "${category.category_name}"`
-                        );
-                    }
+                if (!subCategoryBelongsToCategory) {
+                    throw new Error(
+                        `Sub-category with ID "${subCategoryId}" does not belong to category "${category.category_name}"`
+                    );
                 }
             }
 
@@ -1013,8 +1096,8 @@ export class CatalogueService {
     /**
      * Delete catalogue product by ID
      */
-    async deleteCatalogue(productId: string): Promise<{ 
-        success: boolean; 
+    async deleteCatalogue(productId: string): Promise<{
+        success: boolean;
         message: string;
         deletedProduct?: {
             sku_id: string;
@@ -1111,158 +1194,26 @@ export class CatalogueService {
 
             console.log('Building dashboard query with filters:', filters);
 
-            // Step 1: First get ALL catalogue items without category filtering
-            const query: any = {};
-
-            // Apply all filters except category
-            if (brand_name) {
-                query.brand_name = { $regex: brand_name, $options: 'i' };
-            }
-
-            if (status) {
-                query.status = status;
-            }
-
-            if (min_price !== undefined || max_price !== undefined) {
-                query.final_price = {};
-                if (min_price !== undefined) query.final_price.$gte = min_price;
-                if (max_price !== undefined) query.final_price.$lte = max_price;
-            }
-
-            if (search) {
-                query.$or = [
-                    { sku_id: { $regex: search, $options: 'i' } },
-                    { product_name: { $regex: search, $options: 'i' } },
-                    { brand_name: { $regex: search, $options: 'i' } },
-                    { description: { $regex: search, $options: 'i' } }
-                ];
-            }
-
-            // Step 2: Get all categories for mapping
-            const allCategories = await CategoryModel.find({}).select('_id category_name').lean();
-            const categoryMap = new Map();
-            
-            // Create two maps: one for ObjectId, one for string name
-            const categoryIdMap = new Map(); // _id -> category_name
-            const categoryNameMap = new Map(); // category_name -> category_name
-            
-            allCategories.forEach(cat => {
-                categoryIdMap.set(cat._id.toString(), cat.category_name);
-                categoryNameMap.set(cat.category_name, cat.category_name);
-            });
-
-            // Step 3: Get all catalogue items matching other filters
-            const [allProducts, total] = await Promise.all([
-                CatalogueModel.find(query)
-                    .select('sku_id product_name category sub_category brand_name unit_size base_price final_price status product_images createdAt')
-                    .sort({ [sort_by]: sort_order === 'asc' ? 1 : -1 })
-                    .lean()
-                    .exec(),
-                CatalogueModel.countDocuments(query)
-            ]);
-
-            console.log(`Found ${allProducts.length} products before category filtering`);
-
-            // Step 4: Transform products and resolve category names
-            const transformedProducts: any[] = [];
-            
-            for (const product of allProducts) {
-                let categoryName = 'Unknown';
-                
-                // Try to resolve category name
-                if (product.category) {
-                    if (mongoose.Types.ObjectId.isValid(product.category.toString())) {
-                        // It's an ObjectId
-                        categoryName = categoryIdMap.get(product.category.toString()) || 'Unknown';
-                    } else {
-                        // It's a string (category name)
-                        categoryName = categoryNameMap.get(product.category.toString()) || product.category.toString();
-                    }
-                }
-
-                // Apply category filter if specified
-                if (category) {
-                    if (!categoryName.toLowerCase().includes(category.toLowerCase())) {
-                        continue; // Skip this product if it doesn't match category filter
-                    }
-                }
-
-                transformedProducts.push({
-                    _id: product._id,
-                    sku_id: product.sku_id,
-                    product_name: product.product_name,
-                    category: categoryName,
-                    sub_category: product.sub_category,
-                    brand_name: product.brand_name,
-                    unit_size: product.unit_size,
-                    base_price: product.base_price,
-                    final_price: product.final_price,
-                    status: product.status,
-                    product_images: product.product_images || [],
-                    createdAt: product.createdAt
-                });
-            }
-
-            console.log(`After category filtering: ${transformedProducts.length} products`);
-
-            // Step 5: Apply pagination
-            const startIndex = (page - 1) * limit;
-            const endIndex = startIndex + limit;
-            const paginatedProducts = transformedProducts.slice(startIndex, endIndex);
-
-            return {
-                products: paginatedProducts,
-                total: transformedProducts.length,
-                page,
-                limit,
-                totalPages: Math.ceil(transformedProducts.length / limit),
-                filters
-            };
-
-        } catch (error: any) {
-            console.error('Error fetching dashboard data:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get dashboard data using aggregation pipeline (for complex filters)
-     */
-    private async getDashboardDataWithAggregation(filters: DashboardFilterDTO): Promise<DashboardResponseDTO> {
-        try {
-            const {
-                category,
-                brand_name,
-                status,
-                min_price,
-                max_price,
-                search,
-                page = 1,
-                limit = 10,
-                sort_by = 'createdAt',
-                sort_order = 'desc'
-            } = filters;
-
             // Build aggregation pipeline
             const pipeline: any[] = [];
 
-            // 1. Match stage for catalogue filters
+            // Step 1: Match stage for catalogue filters
             const matchStage: any = {};
-            
+
             if (brand_name) {
                 matchStage.brand_name = { $regex: brand_name, $options: 'i' };
             }
-            
+
             if (status) {
                 matchStage.status = status;
             }
-            
+
             if (min_price !== undefined || max_price !== undefined) {
                 matchStage.final_price = {};
                 if (min_price !== undefined) matchStage.final_price.$gte = min_price;
                 if (max_price !== undefined) matchStage.final_price.$lte = max_price;
             }
-            
+
             if (search) {
                 matchStage.$or = [
                     { sku_id: { $regex: search, $options: 'i' } },
@@ -1271,12 +1222,12 @@ export class CatalogueService {
                     { description: { $regex: search, $options: 'i' } }
                 ];
             }
-            
+
             if (Object.keys(matchStage).length > 0) {
                 pipeline.push({ $match: matchStage });
             }
 
-            // 2. Lookup to join with categories
+            // Step 2: Lookup to join with categories
             pipeline.push({
                 $lookup: {
                     from: 'categories',
@@ -1286,7 +1237,7 @@ export class CatalogueService {
                 }
             });
 
-            // 3. Unwind category array
+            // Step 3: Unwind category array
             pipeline.push({
                 $unwind: {
                     path: '$categoryInfo',
@@ -1294,25 +1245,52 @@ export class CatalogueService {
                 }
             });
 
-            // 4. Filter by category name (after lookup)
+            // Step 4: Lookup sub-category information
+            pipeline.push({
+                $addFields: {
+                    sub_category_obj: {
+                        $filter: {
+                            input: '$categoryInfo.sub_categories',
+                            as: 'subCat',
+                            cond: { $eq: ['$$subCat._id', '$sub_category'] }
+                        }
+                    }
+                }
+            });
+
+            // Step 5: Unwind sub-category array
+            pipeline.push({
+                $unwind: {
+                    path: '$sub_category_obj',
+                    preserveNullAndEmptyArrays: true
+                }
+            });
+
+            // Step 6: Filter by category name (after lookup)
             if (category) {
                 pipeline.push({
                     $match: {
-                        'categoryInfo.category_name': { 
-                            $regex: category, 
-                            $options: 'i' 
+                        'categoryInfo.category_name': {
+                            $regex: category,
+                            $options: 'i'
                         }
                     }
                 });
             }
 
-            // 5. Project required fields
+            // Step 7: Project required fields
             pipeline.push({
                 $project: {
                     sku_id: 1,
                     product_name: 1,
-                    category: '$categoryInfo.category_name',
-                    sub_category: 1,
+                    category: {
+                        id: '$categoryInfo._id',
+                        name: '$categoryInfo.category_name'
+                    },
+                    sub_category: {
+                        id: '$sub_category',
+                        name: '$sub_category_obj.sub_category_name'
+                    },
                     brand_name: 1,
                     unit_size: 1,
                     base_price: 1,
@@ -1323,42 +1301,35 @@ export class CatalogueService {
                 }
             });
 
-            // 6. Count total documents
+            // Step 8: Count total documents
             const countPipeline = [...pipeline];
             countPipeline.push({ $count: 'total' });
-            
+
             const [countResult] = await CatalogueModel.aggregate(countPipeline);
             const total = countResult ? countResult.total : 0;
 
-            // 7. Sort
+            // Step 9: Sort
             const sortStage: any = {};
-            // Map sort_by to actual field names
             const sortFieldMap: Record<string, string> = {
                 'product_name': 'product_name',
                 'base_price': 'final_price',
                 'createdAt': 'createdAt'
             };
-            
+
             const sortField = sortFieldMap[sort_by] || 'createdAt';
             sortStage[sortField] = sort_order === 'asc' ? 1 : -1;
             pipeline.push({ $sort: sortStage });
 
-            // 8. Skip and limit for pagination
+            // Step 10: Skip and limit for pagination
             const skip = (page - 1) * limit;
             pipeline.push({ $skip: skip });
             pipeline.push({ $limit: limit });
 
-            // 9. Execute aggregation
+            // Step 11: Execute aggregation
             const products = await CatalogueModel.aggregate(pipeline);
 
-            // Set default category name for null values
-            const transformedProducts = products.map(product => ({
-                ...product,
-                category: product.category || 'Unknown'
-            }));
-
             return {
-                products: transformedProducts,
+                products,
                 total,
                 page,
                 limit,
@@ -1367,7 +1338,7 @@ export class CatalogueService {
             };
 
         } catch (error: any) {
-            console.error('Error in aggregation pipeline:', error);
+            console.error('Error fetching dashboard data:', error);
             throw error;
         }
     }
@@ -1399,11 +1370,14 @@ export class CatalogueService {
     }
 
     /**
-     * Create a new catalogue product with category ID
+     * Create a new catalogue product with category ID and sub-category ID
      */
     async createCatalogue(productData: CreateCatalogueDTO): Promise<ICatalogue> {
         try {
-            console.log('Creating catalogue with category ID:', productData.category_id);
+            console.log('Creating catalogue with category and sub-category IDs:', {
+                category: productData.category,
+                sub_category: productData.sub_category
+            });
 
             // Check if SKU already exists
             const existingSku = await CatalogueModel.findOne({
@@ -1423,38 +1397,40 @@ export class CatalogueService {
                 throw new Error('Product with this barcode already exists');
             }
 
-            // Validate category_id format
-            if (!mongoose.Types.ObjectId.isValid(productData.category_id)) {
+            // Validate category format
+            if (!mongoose.Types.ObjectId.isValid(productData.category.toString())) {
                 throw new Error('Invalid category ID format');
             }
 
+            // Validate sub_category format
+            if (!mongoose.Types.ObjectId.isValid(productData.sub_category.toString())) {
+                throw new Error('Invalid sub-category ID format');
+            }
+
             // Find category by ID
-            const category = await CategoryModel.findById(productData.category_id);
+            const category = await CategoryModel.findById(productData.category);
 
             if (!category) {
-                throw new Error(`Category with ID "${productData.category_id}" not found. Please provide a valid category ID.`);
+                throw new Error(`Category with ID "${productData.category}" not found. Please provide a valid category ID.`);
             }
 
             console.log('Found category:', {
                 id: category._id,
                 name: category.category_name,
-                sub_categories: category.sub_details.sub_categories
+                sub_categories_count: category.sub_categories?.length || 0
             });
 
-            // Validate sub_category belongs to the category (only if sub_category is provided)
-            if (productData.sub_category) {
-                // Note: sub_details.sub_categories is a string like "burger,pizza,samosa"
-                const subCategoriesArray = category.sub_details.sub_categories
-                    .split(',')
-                    .map(s => s.trim())
-                    .filter(s => s); // Filter out empty strings
+            // Validate that sub_category belongs to this category
+            const categoryService = new CategoryService();
+            const subCategoryBelongsToCategory = await categoryService.validateSubCategoryBelongsToCategory(
+                productData.category,
+                productData.sub_category
+            );
 
-                if (subCategoriesArray.length > 0 && !subCategoriesArray.includes(productData.sub_category)) {
-                    throw new Error(
-                        `Sub-category "${productData.sub_category}" not found in category "${category.category_name}". ` +
-                        `Available sub-categories: ${subCategoriesArray.join(', ')}`
-                    );
-                }
+            if (!subCategoryBelongsToCategory) {
+                throw new Error(
+                    `Sub-category with ID "${productData.sub_category}" does not belong to category "${category.category_name}".`
+                );
             }
 
             // Validate prices
@@ -1480,41 +1456,10 @@ export class CatalogueService {
                 throw new Error('Maximum 10 images allowed');
             }
 
-            // Prepare catalogue data with category ObjectId
-            const catalogueData = {
-                sku_id: productData.sku_id,
-                product_name: productData.product_name,
-                brand_name: productData.brand_name,
-                description: productData.description,
-                category: productData.category_id, // Use the provided category_id directly
-                sub_category: productData.sub_category || '', // Use empty string if not provided
-                manufacturer_name: productData.manufacturer_name,
-                manufacturer_address: productData.manufacturer_address,
-                shell_life: productData.shell_life,
-                expiry_alert_threshold: productData.expiry_alert_threshold,
-                tages_label: productData.tages_label,
-                unit_size: productData.unit_size,
-                base_price: productData.base_price,
-                final_price: productData.final_price,
-                barcode: productData.barcode,
-                nutrition_information: productData.nutrition_information,
-                ingredients: productData.ingredients,
-                product_images: productData.product_images,
-                status: productData.status || 'active',
-                createdBy: productData.createdBy
-            };
-
-            console.log('Creating catalogue with data:', {
-                sku_id: catalogueData.sku_id,
-                category_id: catalogueData.category,
-                category_name: category.category_name,
-                sub_category: catalogueData.sub_category
-            });
-
             // Create and save the product
-            const product = new CatalogueModel(catalogueData);
+            const product = new CatalogueModel(productData);
             const savedProduct = await product.save();
-            
+
             // Log create operation
             if (this.req) {
                 await historyCatalogueService.logCreate(
@@ -1525,7 +1470,7 @@ export class CatalogueService {
                     savedProduct.toObject()
                 ).catch(err => console.error('Failed to log create:', err));
             }
-            
+
             console.log('Catalogue created successfully with ID:', savedProduct._id);
             return savedProduct;
 
@@ -1558,10 +1503,10 @@ export class CatalogueService {
     validateCatalogueData(data: Partial<CreateCatalogueDTO>): { isValid: boolean; errors: string[] } {
         const errors: string[] = [];
 
-        // Required fields (sub_category is now optional)
+        // Required fields (now using category and sub_category directly)
         const requiredFields = [
             'sku_id', 'product_name', 'brand_name', 'description',
-            'category_id', 'manufacturer_name',
+            'category', 'sub_category', 'manufacturer_name',
             'manufacturer_address', 'shell_life', 'expiry_alert_threshold',
             'tages_label', 'unit_size', 'base_price', 'final_price',
             'barcode', 'nutrition_information', 'ingredients', 'product_images'
@@ -1606,7 +1551,7 @@ export class CatalogueService {
             if (!Array.isArray(data.product_images)) {
                 errors.push('Product images must be an array');
             } else if (data.product_images.length === 0) {
-                errors.push('At least one product image URL is required');
+                errors.push('At least one product image is required');
             } else if (data.product_images.length > 10) {
                 errors.push('Maximum 10 product images allowed');
             }
@@ -1614,6 +1559,15 @@ export class CatalogueService {
 
         if (data.status && !['active', 'inactive'].includes(data.status)) {
             errors.push('Status must be either "active" or "inactive"');
+        }
+
+        // Validate ObjectId formats
+        if (data.category && !mongoose.Types.ObjectId.isValid(data.category.toString())) {
+            errors.push('Invalid category ID format');
+        }
+
+        if (data.sub_category && !mongoose.Types.ObjectId.isValid(data.sub_category.toString())) {
+            errors.push('Invalid sub-category ID format');
         }
 
         return {
