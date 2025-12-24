@@ -60,6 +60,7 @@ export interface CategoryListResponseDTO {
             id: string;
             sub_category_name: string;
             description: string;
+            product_count?: number;
         }>;
         product_count: number;
         createdAt: Date;
@@ -126,12 +127,22 @@ export interface DashboardResponseDTO {
             name: string;
         };
         brand_name: string;
+        description?: string;
+        manufacturer_name?: string;
+        manufacturer_address?: string;
+        shell_life?: string;
+        expiry_alert_threshold?: number;
+        tages_label?: string;
         unit_size: string;
         base_price: number;
         final_price: number;
+        barcode: string;
+        nutrition_information?: string;
+        ingredients?: string;
         status: 'active' | 'inactive';
         product_images: any[];
         createdAt: Date;
+        updatedAt?: Date;
     }>;
     total: number;
     page: number;
@@ -691,6 +702,69 @@ export class CategoryService {
             throw error;
         }
     }
+    /**
+ * Export all categories data to CSV
+ */
+    async exportAllCategoriesCSV(): Promise<string> {
+        try {
+            console.log('Exporting all categories to CSV');
+
+            // Get all categories without pagination
+            const filters: CategoryFilterDTO = {
+                page: 1,
+                limit: 10000 // Get all categories
+            };
+
+            const result = await this.getAllCategoriesWithFilters(filters);
+            const categories = result.categories;
+
+            // Convert to CSV
+            const headers = [
+                'Category ID',
+                'Category Name',
+                'Description',
+                'Status',
+                'Category Image URL',
+                'Sub Categories Count',
+                'Product Count',
+                'Created Date',
+                'Updated Date',
+                'Sub Categories (ID:Name:Description:Product Count)'
+            ];
+
+            const rows = categories.map(category => {
+                // Format sub-categories as a semicolon-separated string
+                const subCategoriesStr = category.sub_categories.map(sub =>
+                    `${sub.id}:${sub.sub_category_name}:${sub.description}:${sub.product_count || 0}`
+                ).join('; ');
+
+                return [
+                    category.id,
+                    `"${category.category_name.replace(/"/g, '""')}"`,
+                    `"${category.description.replace(/"/g, '""')}"`,
+                    category.category_status,
+                    category.category_image?.file_url || '',
+                    category.sub_categories_count,
+                    category.product_count,
+                    new Date(category.createdAt).toISOString().split('T')[0],
+                    new Date(category.updatedAt).toISOString().split('T')[0],
+                    `"${subCategoriesStr}"`
+                ];
+            });
+
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+
+            console.log(`Exported ${categories.length} categories to CSV`);
+            return csvContent;
+
+        } catch (error: any) {
+            console.error('Error exporting categories:', error);
+            throw error;
+        }
+    }
 
     /**
      * Get product counts for all sub-categories
@@ -1173,6 +1247,184 @@ export class CatalogueService {
             throw error;
         }
     }
+    // Add these export functions to your CatalogueService class:
+
+    /**
+     * Export all catalogue data to CSV
+     */
+    async exportAllCataloguesCSV(): Promise<string> {
+        try {
+            console.log('Exporting all catalogues to CSV');
+
+            // Get all catalogues without pagination
+            const filters: DashboardFilterDTO = {
+                page: 1,
+                limit: 10000 // Get all catalogues
+            };
+
+            const catalogueData = await this.getDashboardData(filters);
+            const products = catalogueData.products;
+
+            // Convert to CSV with detailed information
+            const headers = [
+                'SKU ID',
+                'Product Name',
+                'Brand Name',
+                'Category ID',
+                'Category Name',
+                'Sub Category ID',
+                'Sub Category Name',
+                'Description',
+                'Manufacturer Name',
+                'Manufacturer Address',
+                'Shell Life',
+                'Expiry Alert Threshold (days)',
+                'Tags Label',
+                'Unit Size',
+                'Base Price',
+                'Final Price',
+                'Barcode',
+                'Nutrition Information',
+                'Ingredients',
+                'Status',
+                'Created Date',
+                'Updated Date'
+            ];
+
+            const rows = products.map(product => [
+                product.sku_id,
+                `"${product.product_name.replace(/"/g, '""')}"`,
+                `"${product.brand_name.replace(/"/g, '""')}"`,
+                product.category.id,
+                `"${product.category.name.replace(/"/g, '""')}"`,
+                product.sub_category.id,
+                `"${product.sub_category.name.replace(/"/g, '""')}"`,
+                `"${(product.description || '').replace(/"/g, '""')}"`,
+                `"${(product.manufacturer_name || '').replace(/"/g, '""')}"`,
+                `"${(product.manufacturer_address || '').replace(/"/g, '""')}"`,
+                product.shell_life || '',
+                product.expiry_alert_threshold || '',
+                product.tages_label || '',
+                product.unit_size || '',
+                product.base_price,
+                product.final_price,
+                product.barcode,
+                `"${(product.nutrition_information || '').replace(/"/g, '""')}"`,
+                `"${(product.ingredients || '').replace(/"/g, '""')}"`,
+                product.status,
+                new Date(product.createdAt).toISOString().split('T')[0],
+                product.updatedAt ? new Date(product.updatedAt).toISOString().split('T')[0] : ''
+            ]);
+
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+
+            console.log(`Exported ${products.length} catalogue products to CSV`);
+            return csvContent;
+
+        } catch (error: any) {
+            console.error('Error exporting catalogues:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Export combined categories and catalogues data
+     */
+    async exportCombinedData(): Promise<{
+        summary: {
+            total_categories: number;
+            total_products: number;
+            export_date: string;
+        };
+        categories: any[];
+        products: any[];
+    }> {
+        try {
+            console.log('Exporting combined categories and catalogues data');
+
+            // Get category service instance
+            const categoryService = new CategoryService();
+
+            // Get all categories
+            const categoryFilters: CategoryFilterDTO = {
+                page: 1,
+                limit: 10000
+            };
+            const categoriesResult = await categoryService.getAllCategoriesWithFilters(categoryFilters);
+            const categories = categoriesResult.categories;
+
+            // Get all catalogues
+            const catalogueFilters: DashboardFilterDTO = {
+                page: 1,
+                limit: 10000
+            };
+            const catalogueData = await this.getDashboardData(catalogueFilters);
+            const products = catalogueData.products;
+
+            // Format categories for export
+            const formattedCategories = categories.map(cat => ({
+                id: cat.id,
+                name: cat.category_name,
+                description: cat.description,
+                status: cat.category_status,
+                image_url: cat.category_image?.file_url || '',
+                sub_categories_count: cat.sub_categories_count,
+                product_count: cat.product_count,
+                sub_categories: cat.sub_categories.map(sub => ({
+                    id: sub.id,
+                    name: sub.sub_category_name,
+                    description: sub.description,
+                    product_count: sub.product_count || 0
+                })),
+                created_at: cat.createdAt,
+                updated_at: cat.updatedAt
+            }));
+
+            // Format products for export
+            const formattedProducts = products.map(prod => ({
+                sku_id: prod.sku_id,
+                product_name: prod.product_name,
+                brand_name: prod.brand_name,
+                category_id: prod.category.id,
+                category_name: prod.category.name || '',
+                sub_category_id: prod.sub_category.id,
+                sub_category_name: prod.sub_category.name || '',
+                description: prod.description || '',
+                manufacturer_name: prod.manufacturer_name || '',
+                manufacturer_address: prod.manufacturer_address || '',
+                shell_life: prod.shell_life || '',
+                expiry_alert_threshold: prod.expiry_alert_threshold || '',
+                tags_label: prod.tages_label || '',
+                unit_size: prod.unit_size || '',
+                base_price: prod.base_price,
+                final_price: prod.final_price,
+                barcode: prod.barcode,
+                nutrition_information: prod.nutrition_information || '',
+                ingredients: prod.ingredients || '',
+                status: prod.status,
+                image_count: prod.product_images?.length || 0,
+                created_at: prod.createdAt,
+                updated_at: prod.updatedAt || ''
+            }));
+
+            return {
+                summary: {
+                    total_categories: categories.length,
+                    total_products: products.length,
+                    export_date: new Date().toISOString()
+                },
+                categories: formattedCategories,
+                products: formattedProducts
+            };
+
+        } catch (error: any) {
+            console.error('Error exporting combined data:', error);
+            throw error;
+        }
+    }
 
     /**
      * Get dashboard data with filtering, pagination, and sorting
@@ -1292,12 +1544,22 @@ export class CatalogueService {
                         name: '$sub_category_obj.sub_category_name'
                     },
                     brand_name: 1,
+                    description: 1,
+                    manufacturer_name: 1,
+                    manufacturer_address: 1,
+                    shell_life: 1,
+                    expiry_alert_threshold: 1,
+                    tages_label: 1,
                     unit_size: 1,
                     base_price: 1,
                     final_price: 1,
+                    barcode: 1,
+                    nutrition_information: 1,
+                    ingredients: 1,
                     status: 1,
                     product_images: 1,
-                    createdAt: 1
+                    createdAt: 1,
+                    updatedAt: 1
                 }
             });
 

@@ -926,6 +926,89 @@ export class CatalogueController {
             });
         }
     }
+    /**
+ * Export all catalogues to CSV
+ */
+async exportAllCataloguesCSV(req: Request, res: Response): Promise<void> {
+    try {
+        console.log('Exporting all catalogues to CSV');
+
+        // Get all catalogues without pagination
+        const filters: DashboardFilterDTO = {
+            page: 1,
+            limit: 10000 // Get all catalogues
+        };
+
+        const catalogueData = await catalogueService.getDashboardData(filters);
+        const products = catalogueData.products;
+
+        // Convert to CSV with detailed information
+        const headers = [
+            'SKU ID',
+            'Product Name',
+            'Brand Name',
+            'Category ID',
+            'Sub Category ID',
+            'Description',
+            'Manufacturer Name',
+            'Manufacturer Address',
+            'Shell Life',
+            'Expiry Alert Threshold (days)',
+            'Tags Label',
+            'Unit Size',
+            'Base Price',
+            'Final Price',
+            'Barcode',
+            'Nutrition Information',
+            'Ingredients',
+            'Status',
+            'Created Date',
+            'Updated Date'
+        ];
+
+        const rows = products.map(product => [
+            product.sku_id,
+            `"${product.product_name.replace(/"/g, '""')}"`,
+            `"${product.brand_name.replace(/"/g, '""')}"`,
+            product.category.id,
+            product.sub_category.id,
+            `"${(product.description || '').replace(/"/g, '""')}"`,
+            `"${(product.manufacturer_name || '').replace(/"/g, '""')}"`,
+            `"${(product.manufacturer_address || '').replace(/"/g, '""')}"`,
+            product.shell_life || '',
+            product.expiry_alert_threshold || '',
+            product.tages_label || '',
+            product.unit_size || '',
+            product.base_price,
+            product.final_price,
+            product.barcode,
+            `"${(product.nutrition_information || '').replace(/"/g, '""')}"`,
+            `"${(product.ingredients || '').replace(/"/g, '""')}"`,
+            product.status,
+            new Date(product.createdAt).toISOString().split('T')[0],
+            product.updatedAt ? new Date(product.updatedAt).toISOString().split('T')[0] : ''
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // Set headers for CSV download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=catalogues-export.csv');
+        res.status(200).send(csvContent);
+
+    } catch (error: any) {
+        console.error('Error exporting catalogues:', error);
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to export catalogues',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+}
 
     /**
      * Upload multiple product images to Cloudinary
@@ -1754,7 +1837,69 @@ export class CategoryController {
             });
         }
     }
+    /**
+ * Export all categories to CSV
+ */
+async exportAllCategoriesCSV(req: Request, res: Response): Promise<void> {
+    try {
+        console.log('Exporting all categories to CSV');
+
+        const categoryService = createCategoryService(req);
+
+        // Get all categories without pagination
+        const filters: CategoryFilterDTO = {
+            page: 1,
+            limit: 10000 // Get all categories
+        };
+
+        const result = await categoryService.getAllCategoriesWithFilters(filters);
+        const categories = result.categories;
+
+        // Convert to CSV
+        const headers = [
+            'Category ID',
+            'Category Name',
+            'Description',
+            'Status',
+            'Sub Categories Count',
+            'Product Count',
+            'Created Date',
+            'Updated Date'
+        ];
+
+        const rows = categories.map(category => [
+            category.id,
+            `"${category.category_name.replace(/"/g, '""')}"`,
+            `"${category.description.replace(/"/g, '""')}"`,
+            category.category_status,
+            category.sub_categories_count,
+            category.product_count,
+            new Date(category.createdAt).toISOString().split('T')[0],
+            new Date(category.updatedAt).toISOString().split('T')[0]
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // Set headers for CSV download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=categories-export.csv');
+        res.status(200).send(csvContent);
+
+    } catch (error: any) {
+        console.error('Error exporting categories:', error);
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to export categories',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 }
+}
+
 
 // Export instances for both controllers
 export const catalogueController = new CatalogueController();

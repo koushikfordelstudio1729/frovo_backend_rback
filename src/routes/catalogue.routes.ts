@@ -38,5 +38,11 @@ router.put('/catalogues/:id', authenticate, authorize(MANAGEMENT), uploadMultipl
 router.patch('/catalogues/:id/status', authenticate, authorize(MANAGEMENT), catalogueController.updateCatalogueStatus.bind(catalogueController));
 router.delete('/catalogues/:id', authorize(MANAGEMENT), catalogueController.deleteCatalogue.bind(catalogueController));
 
-
+router.get('/export/csv',authenticate,authorize(MANAGEMENT),catalogueController.exportAllCataloguesCSV.bind(catalogueController)
+);
+router.get('/export/dashboard-csv',authenticate,authorize(MANAGEMENT),catalogueController.exportDashboardCSV.bind(catalogueController)
+);
+router.get(
+    '/export/csv',authenticate, authorize(MANAGEMENT),categoryController.exportAllCategoriesCSV.bind(categoryController)
+);
 export default router;
