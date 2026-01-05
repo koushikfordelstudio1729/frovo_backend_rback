@@ -1,5 +1,6 @@
 import { PaymentStatus } from '../models/Order.model';
 import { OrderStatus } from '../models/Order.model';
+import { Types } from 'mongoose';
 export interface CreateOrderData {
     paymentMethod: string;
     paymentGateway: string;
@@ -7,18 +8,18 @@ export interface CreateOrderData {
 }
 declare class OrderService {
     createOrder(userId: string, orderData: CreateOrderData): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     getOrderById(orderId: string, userId?: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     getUserOrders(userId: string, status?: OrderStatus, limit?: number, skip?: number): Promise<{
         orders: (import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-            _id: unknown;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];
@@ -27,17 +28,17 @@ declare class OrderService {
         totalPages: number;
     }>;
     updateOrderStatus(orderId: string, status: OrderStatus, reason?: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus, transactionId?: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     markItemDispensed(orderId: string, productId: string, slotNumber: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
@@ -74,14 +75,14 @@ declare class OrderService {
         isCompleted: any;
     }>;
     cancelOrder(orderId: string, userId: string, reason: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     private restoreInventory;
     getOrdersByMachine(machineId: string, status?: OrderStatus, limit?: number, skip?: number): Promise<{
         orders: (import("mongoose").Document<unknown, {}, import("../models/Order.model").IOrder, {}, {}> & import("../models/Order.model").IOrder & Required<{
-            _id: unknown;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];

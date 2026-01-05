@@ -12,31 +12,97 @@ export interface IWarehouse extends Document {
     createdAt: Date;
     updatedAt: Date;
 }
-export interface IGoodsReceiving extends Document {
+export interface IGRNnumber extends Document {
     _id: Types.ObjectId;
-    poNumber: string;
+    delivery_challan: string;
+    transporter_name: string;
+    vehicle_number: string;
+    recieved_date: Date;
+    remarks?: string;
+    scanned_challan?: string;
+    qc_status: 'bad' | 'moderate' | 'excellent';
+    purchase_order: Types.ObjectId;
     vendor: Types.ObjectId;
-    sku: string;
-    productName: string;
-    quantity: number;
-    batchId: string;
-    warehouse: Types.ObjectId;
-    qcVerification: {
-        packaging: boolean;
-        expiry: boolean;
-        label: boolean;
-        documents: string[];
+    vendor_details: {
+        vendor_name: string;
+        vendor_billing_name: string;
+        vendor_email: string;
+        vendor_phone: string;
+        vendor_category: string;
+        gst_number: string;
+        verification_status: string;
+        vendor_address: string;
+        vendor_contact: string;
+        vendor_id: string;
     };
-    storage: {
-        zone: string;
-        aisle: string;
-        rack: string;
-        bin: string;
-    };
-    status: 'received' | 'qc_pending' | 'qc_passed' | 'qc_failed';
+    grn_line_items: Array<{
+        line_no: number;
+        sku: string;
+        productName: string;
+        quantity: number;
+        category: string;
+        pack_size: string;
+        uom: string;
+        unit_price: number;
+        expected_delivery_date: Date;
+        location: string;
+        received_quantity?: number;
+        accepted_quantity?: number;
+        rejected_quantity?: number;
+    }>;
     createdBy: Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
+}
+export declare const GRNnumber: mongoose.Model<IGRNnumber, {}, {}, {}, mongoose.Document<unknown, {}, IGRNnumber, {}, {}> & IGRNnumber & Required<{
+    _id: Types.ObjectId;
+}> & {
+    __v: number;
+}, any>;
+export interface IRaisePurchaseOrder extends Document {
+    _id: Types.ObjectId;
+    po_number: string;
+    vendor: Types.ObjectId;
+    warehouse: Types.ObjectId;
+    po_status: 'draft' | 'approved' | 'pending';
+    po_raised_date: Date;
+    remarks?: string;
+    po_line_items: Array<{
+        line_no: number;
+        sku: string;
+        productName: string;
+        quantity: number;
+        category: string;
+        pack_size: string;
+        uom: string;
+        unit_price: number;
+        expected_delivery_date: Date;
+        location: string;
+        images?: Array<{
+            file_name: string;
+            file_url: string;
+            cloudinary_public_id: string;
+            file_size: number;
+            mime_type: string;
+            uploaded_at: Date;
+        }>;
+    }>;
+    vendor_details: {
+        vendor_name: string;
+        vendor_billing_name: string;
+        vendor_email: string;
+        vendor_phone: string;
+        vendor_category: string;
+        gst_number: string;
+        verification_status: string;
+        vendor_address: string;
+        vendor_contact: string;
+        vendor_id: string;
+    };
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: Types.ObjectId;
+    generatePONumber(): Promise<string>;
 }
 export interface IDispatchOrder extends Document {
     _id: Types.ObjectId;
@@ -47,6 +113,7 @@ export interface IDispatchOrder extends Document {
         quantity: number;
     }[];
     assignedAgent: Types.ObjectId;
+    warehouse: Types.ObjectId;
     notes?: string;
     status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
     createdBy: Types.ObjectId;
@@ -70,6 +137,7 @@ export interface IReturnOrder extends Document {
     _id: Types.ObjectId;
     batchId: string;
     vendor: Types.ObjectId;
+    warehouse: Types.ObjectId;
     reason: string;
     quantity: number;
     status: 'pending' | 'approved' | 'returned' | 'rejected';
@@ -81,8 +149,14 @@ export interface IReturnOrder extends Document {
 }
 export interface IFieldAgent extends Document {
     _id: Types.ObjectId;
+    userId?: Types.ObjectId;
     name: string;
+    email?: string;
+    phone?: string;
     assignedRoutes: string[];
+    assignedWarehouse?: Types.ObjectId;
+    assignedArea?: Types.ObjectId;
+    isActive: boolean;
     createdBy: Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -134,7 +208,7 @@ export declare const Warehouse: mongoose.Model<IWarehouse, {}, {}, {}, mongoose.
 }> & {
     __v: number;
 }, any>;
-export declare const GoodsReceiving: mongoose.Model<IGoodsReceiving, {}, {}, {}, mongoose.Document<unknown, {}, IGoodsReceiving, {}, {}> & IGoodsReceiving & Required<{
+export declare const RaisePurchaseOrder: mongoose.Model<IRaisePurchaseOrder, {}, {}, {}, mongoose.Document<unknown, {}, IRaisePurchaseOrder, {}, {}> & IRaisePurchaseOrder & Required<{
     _id: Types.ObjectId;
 }> & {
     __v: number;

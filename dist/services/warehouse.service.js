@@ -1,20 +1,63 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.warehouseService = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const Warehouse_model_1 = require("../models/Warehouse.model");
-const mongoose_1 = require("mongoose");
+const mongoose_2 = require("mongoose");
+const documentUpload_service_1 = require("./documentUpload.service");
+const FieldOpsTask_model_1 = require("../models/FieldOpsTask.model");
+const models_1 = require("../models");
 class WarehouseService {
+    constructor() {
+        this.documentUploadService = new documentUpload_service_1.DocumentUploadService();
+    }
     async getDashboard(warehouseId, filters) {
         const dateFilter = this.getDateFilter(filters?.dateRange);
         const baseQuery = {};
-        if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-            baseQuery.warehouse = new mongoose_1.Types.ObjectId(warehouseId);
+        if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            baseQuery.warehouse = new mongoose_2.Types.ObjectId(warehouseId);
         }
         if (filters?.category) {
             baseQuery.productName = { $regex: filters.category, $options: 'i' };
         }
         const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
-            Warehouse_model_1.GoodsReceiving.countDocuments({
+            Warehouse_model_1.RaisePurchaseOrder.countDocuments({
                 ...baseQuery,
                 ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
             }),
@@ -22,9 +65,9 @@ class WarehouseService {
                 ...baseQuery,
                 ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter })
             }),
-            Warehouse_model_1.GoodsReceiving.countDocuments({
+            Warehouse_model_1.RaisePurchaseOrder.countDocuments({
                 ...baseQuery,
-                status: 'qc_pending'
+                po_status: 'draft'
             }),
             Warehouse_model_1.DispatchOrder.countDocuments({
                 ...baseQuery,
@@ -52,15 +95,11 @@ class WarehouseService {
         const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
         const pendingPercentages = [100, 90, 60, 40, 20, 50, 70];
         const refillPercentages = [80, 70, 90, 60, 40, 85, 95];
-        return {
-            days,
-            pendingPercentages,
-            refillPercentages
-        };
+        return { days, pendingPercentages, refillPercentages };
     }
     async getFilterOptions() {
         try {
-            const categories = await Warehouse_model_1.GoodsReceiving.aggregate([
+            const categories = await Warehouse_model_1.Inventory.aggregate([
                 {
                     $match: {
                         productName: { $exists: true, $ne: '' }
@@ -80,10 +119,10 @@ class WarehouseService {
                 { $limit: 10 }
             ]);
             const categoryNames = categories.map((cat) => cat.name.charAt(0).toUpperCase() + cat.name.slice(1)).filter((name) => name.length > 0);
-            const partners = await Warehouse_model_1.GoodsReceiving.aggregate([
+            const partners = await Warehouse_model_1.RaisePurchaseOrder.aggregate([
                 {
                     $lookup: {
-                        from: 'vendors',
+                        from: 'vendorcreates',
                         localField: 'vendor',
                         foreignField: '_id',
                         as: 'vendorData'
@@ -98,7 +137,7 @@ class WarehouseService {
                 {
                     $group: {
                         _id: '$vendor',
-                        vendorName: { $first: '$vendorData.name' }
+                        vendorName: { $first: '$vendorData.vendor_name' }
                     }
                 },
                 {
@@ -130,11 +169,11 @@ class WarehouseService {
     }
     async getWarehouseInfo(warehouseId) {
         try {
-            const pendingBatches = await Warehouse_model_1.GoodsReceiving.countDocuments({
-                ...(warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId) && {
-                    warehouse: new mongoose_1.Types.ObjectId(warehouseId)
+            const pendingBatches = await Warehouse_model_1.RaisePurchaseOrder.countDocuments({
+                ...(warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId) && {
+                    warehouse: new mongoose_2.Types.ObjectId(warehouseId)
                 }),
-                status: 'qc_pending'
+                po_status: 'draft'
             });
             return {
                 name: 'XYZ WAREHOUSE',
@@ -156,21 +195,17 @@ class WarehouseService {
             try {
                 const parts = dateRange.split('-');
                 const [dayStr, monthStr, yearStr] = parts;
-                const day = dayStr ? Number(dayStr) : NaN;
-                const month = monthStr ? Number(monthStr) : NaN;
-                const year = yearStr ? Number(yearStr) : NaN;
-                if (![day, month, year].every(n => Number.isInteger(n) && !Number.isNaN(n))) {
-                    throw new Error(`Invalid custom date format: ${dateRange}`);
+                const day = Number(dayStr);
+                const month = Number(monthStr);
+                const year = Number(yearStr);
+                if ([day, month, year].every(n => Number.isInteger(n) && !Number.isNaN(n))) {
+                    const customDate = new Date(year, month - 1, day);
+                    const startOfDay = new Date(customDate);
+                    startOfDay.setHours(0, 0, 0, 0);
+                    const endOfDay = new Date(customDate);
+                    endOfDay.setHours(23, 59, 59, 999);
+                    return { $gte: startOfDay, $lte: endOfDay };
                 }
-                const customDate = new Date(year, month - 1, day);
-                const startOfDay = new Date(customDate);
-                startOfDay.setHours(0, 0, 0, 0);
-                const endOfDay = new Date(customDate);
-                endOfDay.setHours(23, 59, 59, 999);
-                return {
-                    $gte: startOfDay,
-                    $lte: endOfDay
-                };
             }
             catch (error) {
                 console.error('Error parsing custom date:', error);
@@ -191,52 +226,381 @@ class WarehouseService {
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 endOfWeek.setHours(23, 59, 59, 999);
-                return {
-                    $gte: startOfWeek,
-                    $lte: endOfWeek
-                };
+                return { $gte: startOfWeek, $lte: endOfWeek };
             case 'this_month':
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
                 const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
                 endOfMonth.setHours(23, 59, 59, 999);
-                return {
-                    $gte: startOfMonth,
-                    $lte: endOfMonth
-                };
+                return { $gte: startOfMonth, $lte: endOfMonth };
             default:
                 return {};
         }
     }
-    async receiveGoods(data, createdBy) {
-        const batchId = data.batchId || `BATCH-${Date.now()}`;
-        const qcPassed = data.qcVerification.packaging &&
-            data.qcVerification.expiry &&
-            data.qcVerification.label;
-        const status = qcPassed ? 'qc_passed' : 'qc_failed';
-        const goodsReceiving = await Warehouse_model_1.GoodsReceiving.create({
-            ...data,
-            batchId,
-            status,
-            createdBy
-        });
-        if (status === 'qc_passed') {
-            await this.upsertInventory({
-                sku: data.sku,
-                productName: data.productName,
-                batchId,
+    async createPurchaseOrder(data, createdBy) {
+        try {
+            console.log('📦 Received PO data:', {
+                vendor: data.vendor,
                 warehouse: data.warehouse,
-                quantity: data.quantity,
-                location: data.storage,
+                po_line_items_count: data.po_line_items?.length || 0,
+                vendor_details_present: data.vendor_details ? 'Yes' : 'No'
+            });
+            const VendorModel = mongoose_1.default.model('VendorCreate');
+            const vendor = await VendorModel.findById(data.vendor);
+            if (!vendor) {
+                throw new Error('Vendor not found');
+            }
+            if (!data.warehouse) {
+                throw new Error('Warehouse ID is required when creating a purchase order');
+            }
+            const warehouseId = new mongoose_2.Types.ObjectId(data.warehouse);
+            console.log('🏢 Using warehouse ID:', warehouseId);
+            const warehouseExists = await Warehouse_model_1.Warehouse.findOne({
+                _id: warehouseId,
+                isActive: true
+            });
+            if (!warehouseExists) {
+                throw new Error('Warehouse not found or inactive');
+            }
+            const vendorDetails = {
+                vendor_name: vendor.vendor_name,
+                vendor_billing_name: vendor.vendor_billing_name,
+                vendor_email: vendor.vendor_email,
+                vendor_phone: vendor.contact_phone,
+                vendor_category: vendor.vendor_category,
+                gst_number: vendor.gst_number,
+                verification_status: vendor.verification_status,
+                vendor_address: vendor.vendor_address,
+                vendor_contact: vendor.primary_contact_name,
+                vendor_id: vendor.vendor_id
+            };
+            const purchaseOrder = await Warehouse_model_1.RaisePurchaseOrder.create({
+                vendor: data.vendor,
+                warehouse: warehouseId,
+                vendor_details: vendorDetails,
+                po_raised_date: data.po_raised_date || new Date(),
+                po_status: data.po_status || 'draft',
+                remarks: data.remarks,
+                po_line_items: data.po_line_items || [],
                 createdBy
             });
+            console.log('✅ PO created with vendor details and warehouse stored in document');
+            return purchaseOrder;
         }
-        return goodsReceiving;
+        catch (error) {
+            console.error('❌ Error creating PO:', error);
+            throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
-    async getReceivings(warehouseId, filters) {
-        let query = {};
-        if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-            query.warehouseId = new mongoose_1.Types.ObjectId(warehouseId);
+    async createGRN(purchaseOrderId, grnData, createdBy, uploadedFile) {
+        try {
+            console.log('📦 Creating GRN for PO:', purchaseOrderId);
+            if (!mongoose_2.Types.ObjectId.isValid(purchaseOrderId)) {
+                throw new Error('Invalid purchase order ID');
+            }
+            if (!grnData.delivery_challan || !grnData.transporter_name || !grnData.vehicle_number) {
+                throw new Error('Missing required GRN fields: delivery_challan, transporter_name, vehicle_number');
+            }
+            const purchaseOrder = await Warehouse_model_1.RaisePurchaseOrder.findById(purchaseOrderId)
+                .populate('vendor');
+            if (!purchaseOrder) {
+                throw new Error('Purchase order not found');
+            }
+            if (purchaseOrder.po_status !== 'approved') {
+                throw new Error('Cannot create GRN for non-approved purchase order');
+            }
+            const existingGRN = await Warehouse_model_1.GRNnumber.findOne({ purchase_order: purchaseOrderId });
+            if (existingGRN) {
+                throw new Error('GRN already exists for this purchase order');
+            }
+            const grnNumber = await this.generateGRNNumber();
+            let scannedChallanUrl = grnData.scanned_challan;
+            if (uploadedFile) {
+                console.log('📤 Uploading scanned challan to Cloudinary...');
+                const documentUploadService = new documentUpload_service_1.DocumentUploadService();
+                const uploadResult = await documentUploadService.uploadToCloudinary(uploadedFile.buffer, uploadedFile.originalname, 'frovo/grn_challans');
+                scannedChallanUrl = uploadResult.url;
+                console.log('✅ Scanned challan uploaded:', uploadResult.url);
+            }
+            const grnPayload = {
+                grn_number: grnNumber,
+                purchase_order: purchaseOrderId,
+                delivery_challan: grnData.delivery_challan,
+                transporter_name: grnData.transporter_name,
+                vehicle_number: grnData.vehicle_number,
+                recieved_date: grnData.recieved_date,
+                remarks: grnData.remarks,
+                scanned_challan: scannedChallanUrl,
+                qc_status: grnData.qc_status,
+                vendor: purchaseOrder.vendor,
+                vendor_details: purchaseOrder.vendor_details,
+                grn_line_items: purchaseOrder.po_line_items.map(item => {
+                    const quantityData = grnData.quantities?.find((q) => q.sku === item.sku);
+                    return {
+                        line_no: item.line_no,
+                        sku: item.sku,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        category: item.category,
+                        pack_size: item.pack_size,
+                        uom: item.uom,
+                        unit_price: item.unit_price,
+                        expected_delivery_date: item.expected_delivery_date,
+                        location: item.location,
+                        received_quantity: quantityData?.received_quantity || 0,
+                        accepted_quantity: quantityData?.accepted_quantity || 0,
+                        rejected_quantity: quantityData?.rejected_quantity || 0
+                    };
+                }),
+                createdBy,
+                po_status: 'received'
+            };
+            const grn = await Warehouse_model_1.GRNnumber.create(grnPayload);
+            await Warehouse_model_1.RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, { po_status: 'received' });
+            console.log('✅ GRN created successfully:', grn.delivery_challan);
+            const warehouseId = purchaseOrder.warehouse;
+            if (!warehouseId) {
+                console.warn('⚠️  Warning: Purchase order does not have warehouse assigned. Skipping inventory creation.');
+                console.warn('   Please add warehouse field to existing POs for inventory tracking.');
+            }
+            else {
+                console.log('📦 Adding inventory from GRN to warehouse:', warehouseId);
+                for (const item of purchaseOrder.po_line_items) {
+                    const quantityData = grnData.quantities?.find((q) => q.sku === item.sku);
+                    const existingInventory = await Warehouse_model_1.Inventory.findOne({
+                        sku: item.sku,
+                        warehouse: warehouseId
+                    });
+                    if (existingInventory) {
+                        const updateData = {
+                            $inc: { quantity: item.quantity }
+                        };
+                        if (quantityData?.expiry_date) {
+                            const newExpiryDate = new Date(quantityData.expiry_date);
+                            if (!existingInventory.expiryDate || newExpiryDate < existingInventory.expiryDate) {
+                                updateData.expiryDate = newExpiryDate;
+                            }
+                        }
+                        await Warehouse_model_1.Inventory.findByIdAndUpdate(existingInventory._id, updateData);
+                        console.log(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
+                    }
+                    else {
+                        const inventoryData = {
+                            sku: item.sku,
+                            productName: item.productName,
+                            batchId: grn.delivery_challan,
+                            warehouse: warehouseId,
+                            quantity: item.quantity,
+                            minStockLevel: 0,
+                            maxStockLevel: 10000,
+                            age: 0,
+                            location: {
+                                zone: item.location || 'A',
+                                aisle: '1',
+                                rack: '1',
+                                bin: '1'
+                            },
+                            status: 'active',
+                            isArchived: false,
+                            createdBy
+                        };
+                        if (quantityData?.expiry_date) {
+                            inventoryData.expiryDate = new Date(quantityData.expiry_date);
+                        }
+                        await Warehouse_model_1.Inventory.create(inventoryData);
+                        console.log(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
+                    }
+                }
+            }
+            const populatedGRN = await Warehouse_model_1.GRNnumber.findById(grn._id)
+                .populate('vendor')
+                .populate('purchase_order')
+                .populate('createdBy', 'name email');
+            return populatedGRN;
         }
+        catch (error) {
+            console.error('❌ Error creating GRN:', error);
+            throw new Error(`Failed to create GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async generateGRNNumber() {
+        let isUnique = false;
+        let grnNumber = '';
+        let attempts = 0;
+        const maxAttempts = 10;
+        while (!isUnique && attempts < maxAttempts) {
+            attempts++;
+            const randomNum = Math.floor(10000000 + Math.random() * 90000000);
+            grnNumber = `GRN${randomNum}`;
+            const existingGRN = await Warehouse_model_1.GRNnumber.findOne({ grn_number: grnNumber });
+            if (!existingGRN) {
+                isUnique = true;
+            }
+        }
+        if (!isUnique) {
+            throw new Error('Failed to generate unique GRN number after multiple attempts');
+        }
+        return grnNumber;
+    }
+    async deletePurchaseOrder(id) {
+        try {
+            if (!mongoose_2.Types.ObjectId.isValid(id)) {
+                throw new Error('Invalid purchase order ID');
+            }
+            const purchaseOrder = await Warehouse_model_1.RaisePurchaseOrder.findById(id);
+            if (!purchaseOrder) {
+                throw new Error('Purchase order not found');
+            }
+            const existingGRN = await Warehouse_model_1.GRNnumber.findOne({ purchase_order: id });
+            if (existingGRN) {
+                throw new Error('Cannot delete purchase order - GRN already exists for this PO');
+            }
+            if (purchaseOrder.po_status === 'approved') {
+                throw new Error('Cannot delete approved purchase order');
+            }
+            await Warehouse_model_1.RaisePurchaseOrder.findByIdAndDelete(id);
+            console.log(`✅ Purchase order ${id} deleted successfully`);
+        }
+        catch (error) {
+            console.error('❌ Error deleting purchase order:', error);
+            throw new Error(`Failed to delete purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async getGRNById(grnId) {
+        try {
+            if (!mongoose_2.Types.ObjectId.isValid(grnId)) {
+                console.warn('⚠️ Invalid GRN ID format:', grnId);
+                return null;
+            }
+            const grn = await Warehouse_model_1.GRNnumber.findById(grnId)
+                .populate('vendor')
+                .populate('purchase_order')
+                .populate('createdBy', 'name email');
+            if (!grn) {
+                console.warn('⚠️ GRN not found with ID:', grnId);
+                return null;
+            }
+            return grn;
+        }
+        catch (error) {
+            console.error('❌ Error fetching GRN by ID:', error);
+            throw new Error(`Failed to fetch GRN: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async getGRNs(filters) {
+        try {
+            let query = {};
+            if (filters?.qc_status) {
+                query.qc_status = filters.qc_status;
+            }
+            if (filters?.transporter_name) {
+                query.transporter_name = {
+                    $regex: filters.transporter_name.trim(),
+                    $options: 'i'
+                };
+            }
+            if (filters?.startDate || filters?.endDate) {
+                query.recieved_date = {};
+                if (filters.startDate) {
+                    query.recieved_date.$gte = new Date(filters.startDate);
+                }
+                if (filters.endDate) {
+                    const endDate = new Date(filters.endDate);
+                    endDate.setHours(23, 59, 59, 999);
+                    query.recieved_date.$lte = endDate;
+                }
+            }
+            if (filters?.vendor && mongoose_2.Types.ObjectId.isValid(filters.vendor)) {
+                query.vendor = new mongoose_2.Types.ObjectId(filters.vendor);
+            }
+            if (filters?.purchase_order && mongoose_2.Types.ObjectId.isValid(filters.purchase_order)) {
+                query.purchase_order = new mongoose_2.Types.ObjectId(filters.purchase_order);
+            }
+            const grns = await Warehouse_model_1.GRNnumber.find(query)
+                .populate('vendor')
+                .populate('purchase_order')
+                .populate('createdBy', 'name email')
+                .sort({ recieved_date: -1, createdAt: -1 });
+            console.log(`✅ Found ${grns.length} GRNs with applied filters`);
+            return grns;
+        }
+        catch (error) {
+            console.error('❌ Error fetching GRNs:', error);
+            throw new Error(`Failed to fetch GRNs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async updateGRNStatus(grnId, qc_status, remarks, lineItems) {
+        try {
+            if (!mongoose_2.Types.ObjectId.isValid(grnId)) {
+                throw new Error('Invalid GRN ID');
+            }
+            const updateData = {
+                qc_status,
+                updatedAt: new Date()
+            };
+            if (remarks) {
+                updateData.remarks = remarks;
+            }
+            if (lineItems && lineItems.length > 0) {
+                const grn = await Warehouse_model_1.GRNnumber.findById(grnId);
+                if (!grn) {
+                    throw new Error('GRN not found');
+                }
+                lineItems.forEach(updateItem => {
+                    const existingItem = grn.grn_line_items.find(item => item.line_no === updateItem.line_no);
+                });
+                updateData.grn_line_items = grn.grn_line_items;
+            }
+            const updatedGRN = await Warehouse_model_1.GRNnumber.findByIdAndUpdate(grnId, updateData, { new: true, runValidators: true })
+                .populate('vendor')
+                .populate('purchase_order')
+                .populate('createdBy', 'name email');
+            if (!updatedGRN) {
+                throw new Error('GRN not found');
+            }
+            console.log(`✅ GRN ${grnId} status updated to: ${qc_status}`);
+            return updatedGRN;
+        }
+        catch (error) {
+            console.error('❌ Error updating GRN status:', error);
+            throw new Error(`Failed to update GRN status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async updateGRNLineItems(grnId, lineItems) {
+        try {
+            if (!mongoose_2.Types.ObjectId.isValid(grnId)) {
+                throw new Error('Invalid GRN ID');
+            }
+            const grn = await Warehouse_model_1.GRNnumber.findById(grnId);
+            if (!grn) {
+                throw new Error('GRN not found');
+            }
+            lineItems.forEach(item => {
+                if (item.received_quantity < 0 || item.accepted_quantity < 0 || item.rejected_quantity < 0) {
+                    throw new Error('Quantities cannot be negative');
+                }
+                if (item.received_quantity !== item.accepted_quantity + item.rejected_quantity) {
+                    throw new Error(`Received quantity must equal accepted + rejected for line ${item.line_no}`);
+                }
+            });
+            lineItems.forEach(updateItem => {
+                const existingItem = grn.grn_line_items.find(item => item.line_no === updateItem.line_no);
+            });
+            grn.updatedAt = new Date();
+            await grn.save();
+            const populatedGRN = await Warehouse_model_1.GRNnumber.findById(grn._id)
+                .populate('vendor')
+                .populate('purchase_order')
+                .populate('createdBy', 'name email');
+            console.log(`✅ GRN ${grnId} line items updated successfully`);
+            return populatedGRN;
+        }
+        catch (error) {
+            console.error('❌ Error updating GRN line items:', error);
+            throw new Error(`Failed to update GRN line items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    async getPurchaseOrders(warehouseId, filters) {
+        let query = {};
         if (filters?.startDate || filters?.endDate) {
             query.createdAt = {};
             if (filters.startDate)
@@ -244,52 +608,36 @@ class WarehouseService {
             if (filters.endDate)
                 query.createdAt.$lte = new Date(filters.endDate);
         }
-        if (filters?.status)
-            query.status = filters.status;
-        if (filters?.poNumber)
-            query.poNumber = { $regex: filters.poNumber, $options: 'i' };
-        if (filters?.vendor && mongoose_1.Types.ObjectId.isValid(filters.vendor)) {
-            query.vendor = new mongoose_1.Types.ObjectId(filters.vendor);
+        if (filters?.po_status)
+            query.po_status = filters.po_status;
+        if (filters?.po_number)
+            query.po_number = { $regex: filters.po_number, $options: 'i' };
+        if (filters?.vendor && mongoose_2.Types.ObjectId.isValid(filters.vendor)) {
+            query.vendor = new mongoose_2.Types.ObjectId(filters.vendor);
         }
-        return await Warehouse_model_1.GoodsReceiving.find(query)
-            .populate('warehouse', 'name code')
-            .populate('vendor', 'name code')
+        return await Warehouse_model_1.RaisePurchaseOrder.find(query)
+            .populate('vendor', 'vendor_name vendor_email vendor_contact')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
     }
-    async getReceivingById(id) {
-        if (!mongoose_1.Types.ObjectId.isValid(id))
+    async getPurchaseOrderById(id) {
+        if (!mongoose_2.Types.ObjectId.isValid(id))
             return null;
-        return await Warehouse_model_1.GoodsReceiving.findById(id)
-            .populate('warehouse', 'name code')
-            .populate('vendor', 'name code contactPerson')
+        return await Warehouse_model_1.RaisePurchaseOrder.findById(id)
+            .populate('vendor', 'vendor_name vendor_email vendor_contact vendor_phone')
             .populate('createdBy', 'name email');
     }
-    async updateQCVerification(id, qcData) {
-        if (!mongoose_1.Types.ObjectId.isValid(id))
+    async updatePurchaseOrderStatus(id, po_status, remarks) {
+        if (!mongoose_2.Types.ObjectId.isValid(id))
             return null;
-        const receiving = await Warehouse_model_1.GoodsReceiving.findById(id);
-        if (!receiving)
-            return null;
-        const updatedQC = { ...receiving.qcVerification, ...qcData };
-        const qcPassed = updatedQC.packaging && updatedQC.expiry && updatedQC.label;
-        const status = qcPassed ? 'qc_passed' : 'qc_failed';
-        const updatedReceiving = await Warehouse_model_1.GoodsReceiving.findByIdAndUpdate(id, { qcVerification: updatedQC, status }, { new: true })
-            .populate('warehouse', 'name code')
-            .populate('vendor', 'name code')
-            .populate('createdBy', 'name email');
-        if (status === 'qc_passed' && receiving.status !== 'qc_passed') {
-            await this.upsertInventory({
-                sku: receiving.sku,
-                productName: receiving.productName,
-                batchId: receiving.batchId,
-                warehouse: receiving.warehouse,
-                quantity: receiving.quantity,
-                location: receiving.storage,
-                createdBy: receiving.createdBy
-            });
+        const updateData = { po_status };
+        if (remarks) {
+            updateData.remarks = remarks;
         }
-        return updatedReceiving;
+        const updatedPO = await Warehouse_model_1.RaisePurchaseOrder.findByIdAndUpdate(id, updateData, { new: true })
+            .populate('vendor', 'vendor_name vendor_email')
+            .populate('createdBy', 'name email');
+        return updatedPO;
     }
     async upsertInventory(data) {
         const existingInventory = await Warehouse_model_1.Inventory.findOne({
@@ -307,7 +655,6 @@ class WarehouseService {
         else {
             await Warehouse_model_1.Inventory.create({
                 ...data,
-                warehouse: data.warehouse,
                 minStockLevel: 0,
                 maxStockLevel: 1000,
                 age: 0,
@@ -329,35 +676,44 @@ class WarehouseService {
             destination: data.destination,
             products: formattedProducts,
             assignedAgent: data.assignedAgent,
+            warehouse: data.warehouse,
             notes: data.notes,
             status: 'pending',
             createdBy
         });
+        if (data.assignedAgent) {
+            await FieldOpsTask_model_1.FieldOpsTask.create({
+                taskType: 'warehouse_pickup',
+                title: `Warehouse Pickup - ${dispatchId}`,
+                description: `Pickup products from ${data.destination || 'warehouse'} for dispatch ${dispatchId}`,
+                assignedAgent: data.assignedAgent,
+                warehouseId: data.warehouse,
+                dispatchId: dispatch._id,
+                status: 'pending',
+                priority: 'medium',
+                dueDate: new Date(),
+                createdBy
+            });
+        }
         await this.reduceStockBySku(data.products);
         return dispatch;
     }
     async getDispatches(warehouseId, filters) {
         let query = {};
-        if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-            query.warehouse = new mongoose_1.Types.ObjectId(warehouseId);
+        if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            query.warehouse = new mongoose_2.Types.ObjectId(warehouseId);
         }
         if (filters?.status) {
             query.status = filters.status;
         }
-        if (filters?.vendor && mongoose_1.Types.ObjectId.isValid(filters.vendor)) {
-            query.vendor = new mongoose_1.Types.ObjectId(filters.vendor);
-        }
         if (filters?.startDate || filters?.endDate) {
             query.createdAt = {};
-            if (filters.startDate) {
+            if (filters.startDate)
                 query.createdAt.$gte = new Date(filters.startDate);
-            }
-            if (filters.endDate) {
+            if (filters.endDate)
                 query.createdAt.$lte = new Date(filters.endDate);
-            }
         }
         return await Warehouse_model_1.DispatchOrder.find(query)
-            .populate('vendor', 'name code contactPerson phone')
             .populate('assignedAgent', 'name email phone vehicleType')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
@@ -367,7 +723,7 @@ class WarehouseService {
         if (!validStatuses.includes(status)) {
             throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
         }
-        if (!mongoose_1.Types.ObjectId.isValid(dispatchId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(dispatchId)) {
             throw new Error('Invalid dispatch ID');
         }
         const updateData = { status };
@@ -375,17 +731,16 @@ class WarehouseService {
             updateData.deliveredAt = new Date();
         }
         const dispatch = await Warehouse_model_1.DispatchOrder.findByIdAndUpdate(dispatchId, updateData, { new: true })
-            .populate('vendor assignedAgent createdBy');
+            .populate('assignedAgent createdBy');
         if (!dispatch) {
             throw new Error('Dispatch order not found');
         }
         return dispatch;
     }
     async getDispatchById(dispatchId) {
-        if (!mongoose_1.Types.ObjectId.isValid(dispatchId))
+        if (!mongoose_2.Types.ObjectId.isValid(dispatchId))
             return null;
         return await Warehouse_model_1.DispatchOrder.findById(dispatchId)
-            .populate('vendor', 'name code contactPerson phone address')
             .populate('assignedAgent', 'name email phone vehicleType licensePlate')
             .populate('createdBy', 'name email');
     }
@@ -407,18 +762,16 @@ class WarehouseService {
             .sort({ title: 1 });
     }
     async updateQCTemplate(templateId, updateData) {
-        if (!mongoose_1.Types.ObjectId.isValid(templateId))
+        if (!mongoose_2.Types.ObjectId.isValid(templateId))
             return null;
         return await Warehouse_model_1.QCTemplate.findByIdAndUpdate(templateId, updateData, { new: true }).populate('createdBy', 'name email');
     }
     async deleteQCTemplate(templateId) {
-        if (!mongoose_1.Types.ObjectId.isValid(templateId))
+        if (!mongoose_2.Types.ObjectId.isValid(templateId))
             return;
         await Warehouse_model_1.QCTemplate.findByIdAndUpdate(templateId, { isActive: false });
     }
     async createReturnOrder(data, createdBy) {
-        console.log('=== 📦 CREATING RETURN ORDER ===');
-        console.log('Input data:', data);
         const inventory = await Warehouse_model_1.Inventory.findOne({
             batchId: data.batchId,
             isArchived: false
@@ -434,6 +787,7 @@ class WarehouseService {
         const returnOrderData = {
             batchId: data.batchId,
             vendor: data.vendor,
+            warehouse: data.warehouse,
             reason: data.reason,
             status: data.status || 'pending',
             quantity: quantity,
@@ -442,7 +796,6 @@ class WarehouseService {
             returnType: returnType,
             createdBy
         };
-        console.log('Auto-populated return order:', returnOrderData);
         return await Warehouse_model_1.ReturnOrder.create(returnOrderData);
     }
     determineReturnType(reason) {
@@ -463,8 +816,8 @@ class WarehouseService {
     }
     async getReturnQueue(warehouseId, filters) {
         let query = {};
-        if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-            query.warehouse = new mongoose_1.Types.ObjectId(warehouseId);
+        if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            query.warehouse = new mongoose_2.Types.ObjectId(warehouseId);
         }
         if (filters?.status) {
             query.status = filters.status;
@@ -473,12 +826,12 @@ class WarehouseService {
             query.returnType = filters.returnType;
         }
         return await Warehouse_model_1.ReturnOrder.find(query)
-            .populate('vendor', 'name code contactPerson')
+            .populate('vendor', 'vendor_name vendor_email vendor_contact')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
     }
     async approveReturn(returnId) {
-        if (!mongoose_1.Types.ObjectId.isValid(returnId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(returnId)) {
             throw new Error('Invalid return ID');
         }
         const returnOrder = await Warehouse_model_1.ReturnOrder.findById(returnId);
@@ -491,40 +844,123 @@ class WarehouseService {
         }, {
             $inc: { quantity: -returnOrder.quantity }
         });
-        const updated = await Warehouse_model_1.ReturnOrder.findByIdAndUpdate(returnId, { status: 'approved' }, { new: true }).populate('vendor', 'name code');
+        const updated = await Warehouse_model_1.ReturnOrder.findByIdAndUpdate(returnId, { status: 'approved' }, { new: true }).populate('vendor', 'vendor_name vendor_email');
         if (!updated) {
             throw new Error('Return order not found');
         }
         return updated;
     }
     async rejectReturn(returnId) {
-        if (!mongoose_1.Types.ObjectId.isValid(returnId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(returnId)) {
             throw new Error('Invalid return ID');
         }
-        const updated = await Warehouse_model_1.ReturnOrder.findByIdAndUpdate(returnId, { status: 'rejected' }, { new: true }).populate('vendor', 'name code');
+        const updated = await Warehouse_model_1.ReturnOrder.findByIdAndUpdate(returnId, { status: 'rejected' }, { new: true }).populate('vendor', 'vendor_name vendor_email');
         if (!updated) {
             throw new Error('Return order not found');
         }
         return updated;
     }
     async getFieldAgents(isActive) {
-        let query = {};
-        if (isActive !== undefined) {
-            query.isActive = isActive;
+        const fieldAgentRole = await models_1.Role.findOne({ key: 'field_agent' });
+        if (!fieldAgentRole) {
+            return [];
         }
-        return await Warehouse_model_1.FieldAgent.find(query)
-            .populate('createdBy', 'name')
+        let userQuery = {
+            roles: { $in: [fieldAgentRole._id] }
+        };
+        if (isActive !== undefined) {
+            userQuery.status = isActive ? 'active' : 'inactive';
+        }
+        const users = await models_1.User.find(userQuery)
+            .populate('roles', 'name key')
+            .select('name email phone status lastLogin createdAt')
             .sort({ name: 1 });
+        const usersWithRoutes = await Promise.all(users.map(async (user) => {
+            const fieldAgentRecord = await Warehouse_model_1.FieldAgent.findOne({ userId: user._id })
+                .populate('assignedWarehouse', 'name code')
+                .populate('assignedArea', 'name');
+            return {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                status: user.status,
+                lastLogin: user.lastLogin,
+                createdAt: user.createdAt,
+                roles: user.roles,
+                assignedRoutes: fieldAgentRecord?.assignedRoutes || [],
+                assignedWarehouse: fieldAgentRecord?.assignedWarehouse || null,
+                assignedArea: fieldAgentRecord?.assignedArea || null,
+                fieldAgentId: fieldAgentRecord?._id || null,
+                createdBy: fieldAgentRecord?.createdBy || null
+            };
+        }));
+        return usersWithRoutes;
+    }
+    async updateFieldAgent(userId, data) {
+        let fieldAgent = await Warehouse_model_1.FieldAgent.findOne({ userId });
+        if (!fieldAgent) {
+            const user = await models_1.User.findById(userId).select('name email phone');
+            if (!user) {
+                throw new Error('User not found');
+            }
+            fieldAgent = await Warehouse_model_1.FieldAgent.create({
+                userId,
+                name: data.name || user.name,
+                email: user.email,
+                phone: user.phone,
+                assignedRoutes: data.assignedRoutes || [],
+                assignedWarehouse: data.assignedWarehouse,
+                assignedArea: data.assignedArea,
+                isActive: true,
+                createdBy: userId
+            });
+        }
+        else {
+            if (data.name !== undefined) {
+                fieldAgent.name = data.name;
+            }
+            if (data.assignedRoutes !== undefined) {
+                fieldAgent.assignedRoutes = data.assignedRoutes;
+            }
+            if (data.assignedWarehouse !== undefined) {
+                fieldAgent.assignedWarehouse = data.assignedWarehouse;
+            }
+            if (data.assignedArea !== undefined) {
+                fieldAgent.assignedArea = data.assignedArea;
+            }
+            await fieldAgent.save();
+        }
+        return await Warehouse_model_1.FieldAgent.findById(fieldAgent._id)
+            .populate('userId', 'name email phone')
+            .populate('assignedWarehouse', 'name code')
+            .populate('assignedArea', 'name');
     }
     async createFieldAgent(data, createdBy) {
-        return await Warehouse_model_1.FieldAgent.create({
-            ...data,
+        const existingAgent = await Warehouse_model_1.FieldAgent.findOne({ userId: data.userId });
+        if (existingAgent) {
+            throw new Error('Field agent record already exists for this user');
+        }
+        const user = await models_1.User.findById(data.userId).select('name email phone');
+        if (!user) {
+            throw new Error('User not found');
+        }
+        const fieldAgent = await Warehouse_model_1.FieldAgent.create({
+            userId: data.userId,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            assignedRoutes: data.assignedRoutes || [],
             isActive: true,
             createdBy
         });
+        return await Warehouse_model_1.FieldAgent.findById(fieldAgent._id)
+            .populate('userId', 'name email phone')
+            .populate('assignedWarehouse', 'name code')
+            .populate('assignedArea', 'name');
     }
     async getInventoryDashboard(warehouseId, filters = {}, page = 1, limit = 50) {
-        let query = { warehouse: new mongoose_1.Types.ObjectId(warehouseId) };
+        let query = { warehouse: new mongoose_2.Types.ObjectId(warehouseId) };
         if (filters.archived !== undefined) {
             query.isArchived = filters.archived;
         }
@@ -549,10 +985,7 @@ class WarehouseService {
                 case 'expiring_soon':
                     const next30Days = new Date(today);
                     next30Days.setDate(today.getDate() + 30);
-                    query.expiryDate = {
-                        $gte: today,
-                        $lte: next30Days
-                    };
+                    query.expiryDate = { $gte: today, $lte: next30Days };
                     break;
                 case 'expired':
                     query.expiryDate = { $lt: today };
@@ -603,7 +1036,7 @@ class WarehouseService {
         };
     }
     async getInventoryById(inventoryId) {
-        if (!mongoose_1.Types.ObjectId.isValid(inventoryId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(inventoryId)) {
             throw new Error('Invalid inventory ID');
         }
         return await Warehouse_model_1.Inventory.findById(inventoryId)
@@ -611,7 +1044,7 @@ class WarehouseService {
             .populate('createdBy', 'name email');
     }
     async updateInventoryItem(inventoryId, updateData) {
-        if (!mongoose_1.Types.ObjectId.isValid(inventoryId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(inventoryId)) {
             throw new Error('Invalid inventory ID');
         }
         const inventory = await Warehouse_model_1.Inventory.findById(inventoryId);
@@ -653,7 +1086,7 @@ class WarehouseService {
         return updated;
     }
     async archiveInventoryItem(inventoryId) {
-        if (!mongoose_1.Types.ObjectId.isValid(inventoryId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(inventoryId)) {
             throw new Error('Invalid inventory ID');
         }
         const updated = await Warehouse_model_1.Inventory.findByIdAndUpdate(inventoryId, {
@@ -668,7 +1101,7 @@ class WarehouseService {
         return updated;
     }
     async unarchiveInventoryItem(inventoryId) {
-        if (!mongoose_1.Types.ObjectId.isValid(inventoryId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(inventoryId)) {
             throw new Error('Invalid inventory ID');
         }
         const inventory = await Warehouse_model_1.Inventory.findById(inventoryId);
@@ -693,69 +1126,28 @@ class WarehouseService {
         return updated;
     }
     async getInventoryStats(warehouseId) {
-        if (!mongoose_1.Types.ObjectId.isValid(warehouseId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(warehouseId)) {
             throw new Error('Invalid warehouse ID');
         }
-        const warehouseObjectId = new mongoose_1.Types.ObjectId(warehouseId);
+        const warehouseObjectId = new mongoose_2.Types.ObjectId(warehouseId);
         const [totalItems, activeItems, archivedItems, lowStockItems, expiredItems, nearExpiryItems, statusBreakdown, stockValueResult] = await Promise.all([
             Warehouse_model_1.Inventory.countDocuments({ warehouse: warehouseObjectId }),
+            Warehouse_model_1.Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: false }),
+            Warehouse_model_1.Inventory.countDocuments({ warehouse: warehouseObjectId, isArchived: true }),
+            Warehouse_model_1.Inventory.countDocuments({ warehouse: warehouseObjectId, status: 'low_stock', isArchived: false }),
+            Warehouse_model_1.Inventory.countDocuments({ warehouse: warehouseObjectId, expiryDate: { $lt: new Date() }, isArchived: false }),
             Warehouse_model_1.Inventory.countDocuments({
                 warehouse: warehouseObjectId,
-                isArchived: false
-            }),
-            Warehouse_model_1.Inventory.countDocuments({
-                warehouse: warehouseObjectId,
-                isArchived: true
-            }),
-            Warehouse_model_1.Inventory.countDocuments({
-                warehouse: warehouseObjectId,
-                status: 'low_stock',
-                isArchived: false
-            }),
-            Warehouse_model_1.Inventory.countDocuments({
-                warehouse: warehouseObjectId,
-                expiryDate: { $lt: new Date() },
-                isArchived: false
-            }),
-            Warehouse_model_1.Inventory.countDocuments({
-                warehouse: warehouseObjectId,
-                expiryDate: {
-                    $gte: new Date(),
-                    $lte: new Date(new Date().setDate(new Date().getDate() + 30))
-                },
+                expiryDate: { $gte: new Date(), $lte: new Date(new Date().setDate(new Date().getDate() + 30)) },
                 isArchived: false
             }),
             Warehouse_model_1.Inventory.aggregate([
-                {
-                    $match: {
-                        warehouse: warehouseObjectId,
-                        isArchived: false
-                    }
-                },
-                {
-                    $group: {
-                        _id: '$status',
-                        count: { $sum: 1 }
-                    }
-                }
+                { $match: { warehouse: warehouseObjectId, isArchived: false } },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
             ]),
             Warehouse_model_1.Inventory.aggregate([
-                {
-                    $match: {
-                        warehouse: warehouseObjectId,
-                        isArchived: false
-                    }
-                },
-                {
-                    $group: {
-                        _id: null,
-                        totalValue: {
-                            $sum: {
-                                $multiply: ['$quantity', 100]
-                            }
-                        }
-                    }
-                }
+                { $match: { warehouse: warehouseObjectId, isArchived: false } },
+                { $group: { _id: null, totalValue: { $sum: { $multiply: ['$quantity', 100] } } } }
             ])
         ]);
         const statusBreakdownObj = {};
@@ -775,29 +1167,17 @@ class WarehouseService {
         };
     }
     async bulkArchiveInventory(inventoryIds) {
-        const validIds = inventoryIds.filter(id => mongoose_1.Types.ObjectId.isValid(id));
+        const validIds = inventoryIds.filter(id => mongoose_2.Types.ObjectId.isValid(id));
         if (validIds.length === 0) {
             throw new Error('No valid inventory IDs provided');
         }
-        const objectIds = validIds.map(id => new mongoose_1.Types.ObjectId(id));
-        const result = await Warehouse_model_1.Inventory.updateMany({
-            _id: { $in: objectIds },
-            isArchived: false
-        }, {
-            $set: {
-                isArchived: true,
-                status: 'archived',
-                archivedAt: new Date()
-            }
-        });
+        const objectIds = validIds.map(id => new mongoose_2.Types.ObjectId(id));
+        const result = await Warehouse_model_1.Inventory.updateMany({ _id: { $in: objectIds }, isArchived: false }, { $set: { isArchived: true, status: 'archived', archivedAt: new Date() } });
         const archivedCount = result.modifiedCount;
         const failedCount = validIds.length - archivedCount;
         let failedIds = [];
         if (failedCount > 0) {
-            const archivedItems = await Warehouse_model_1.Inventory.find({
-                _id: { $in: objectIds },
-                isArchived: true
-            }).select('_id');
+            const archivedItems = await Warehouse_model_1.Inventory.find({ _id: { $in: objectIds }, isArchived: true }).select('_id');
             const archivedItemIds = archivedItems.map(item => item._id.toString());
             failedIds = validIds.filter(id => !archivedItemIds.includes(id));
         }
@@ -810,15 +1190,12 @@ class WarehouseService {
         };
     }
     async bulkUnarchiveInventory(inventoryIds) {
-        const validIds = inventoryIds.filter(id => mongoose_1.Types.ObjectId.isValid(id));
+        const validIds = inventoryIds.filter(id => mongoose_2.Types.ObjectId.isValid(id));
         if (validIds.length === 0) {
             throw new Error('No valid inventory IDs provided');
         }
-        const objectIds = validIds.map(id => new mongoose_1.Types.ObjectId(id));
-        const itemsToUnarchive = await Warehouse_model_1.Inventory.find({
-            _id: { $in: objectIds },
-            isArchived: true
-        });
+        const objectIds = validIds.map(id => new mongoose_2.Types.ObjectId(id));
+        const itemsToUnarchive = await Warehouse_model_1.Inventory.find({ _id: { $in: objectIds }, isArchived: true });
         const updatePromises = itemsToUnarchive.map(async (item) => {
             const status = this.calculateInventoryStatus({
                 quantity: item.quantity,
@@ -826,23 +1203,14 @@ class WarehouseService {
                 maxStockLevel: item.maxStockLevel,
                 expiryDate: item.expiryDate
             });
-            return Warehouse_model_1.Inventory.findByIdAndUpdate(item._id, {
-                $set: {
-                    isArchived: false,
-                    status: status,
-                    archivedAt: null
-                }
-            });
+            return Warehouse_model_1.Inventory.findByIdAndUpdate(item._id, { $set: { isArchived: false, status: status, archivedAt: null } });
         });
         await Promise.all(updatePromises);
         const unarchivedCount = itemsToUnarchive.length;
         const failedCount = validIds.length - unarchivedCount;
         let failedIds = [];
         if (failedCount > 0) {
-            const unarchivedItems = await Warehouse_model_1.Inventory.find({
-                _id: { $in: objectIds },
-                isArchived: false
-            }).select('_id');
+            const unarchivedItems = await Warehouse_model_1.Inventory.find({ _id: { $in: objectIds }, isArchived: false }).select('_id');
             const unarchivedItemIds = unarchivedItems.map(item => item._id.toString());
             failedIds = validIds.filter(id => !unarchivedItemIds.includes(id));
         }
@@ -856,7 +1224,7 @@ class WarehouseService {
     }
     async getArchivedInventory(warehouseId, page = 1, limit = 50) {
         const query = {
-            warehouse: new mongoose_1.Types.ObjectId(warehouseId),
+            warehouse: new mongoose_2.Types.ObjectId(warehouseId),
             isArchived: true
         };
         const skip = (page - 1) * limit;
@@ -884,8 +1252,8 @@ class WarehouseService {
     }
     async getExpenses(warehouseId, filters) {
         let query = {};
-        if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-            query.warehouseId = new mongoose_1.Types.ObjectId(warehouseId);
+        if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            query.warehouseId = new mongoose_2.Types.ObjectId(warehouseId);
         }
         if (filters?.category) {
             query.category = filters.category;
@@ -898,12 +1266,10 @@ class WarehouseService {
         }
         if (filters?.startDate || filters?.endDate) {
             query.date = {};
-            if (filters.startDate) {
+            if (filters.startDate)
                 query.date.$gte = new Date(filters.startDate);
-            }
-            if (filters.endDate) {
+            if (filters.endDate)
                 query.date.$lte = new Date(filters.endDate);
-            }
         }
         if (filters?.month) {
             const [year, month] = filters.month.split('-');
@@ -911,13 +1277,10 @@ class WarehouseService {
             startDate.setHours(0, 0, 0, 0);
             const endDate = new Date(Number(year), Number(month), 0);
             endDate.setHours(23, 59, 59, 999);
-            query.date = {
-                $gte: startDate,
-                $lte: endDate
-            };
+            query.date = { $gte: startDate, $lte: endDate };
         }
         return await Warehouse_model_1.Expense.find(query)
-            .populate('vendor', 'name code contactPerson')
+            .populate('vendor', 'vendor_name vendor_email vendor_contact')
             .populate('warehouseId', 'name code')
             .populate('createdBy', 'name email')
             .populate('approvedBy', 'name email')
@@ -939,7 +1302,7 @@ class WarehouseService {
             updateData.approvedAt = null;
         }
         const expense = await Warehouse_model_1.Expense.findByIdAndUpdate(expenseId, updateData, { new: true })
-            .populate('vendor warehouse createdBy approvedBy');
+            .populate('vendor warehouseId createdBy approvedBy');
         if (!expense) {
             throw new Error('Expense not found');
         }
@@ -951,7 +1314,7 @@ class WarehouseService {
             throw new Error(`Invalid payment status. Must be one of: ${validPaymentStatuses.join(', ')}`);
         }
         const expense = await Warehouse_model_1.Expense.findByIdAndUpdate(expenseId, { paymentStatus }, { new: true })
-            .populate('vendor warehouse createdBy approvedBy');
+            .populate('vendor warehouseId createdBy approvedBy');
         if (!expense) {
             throw new Error('Expense not found');
         }
@@ -965,9 +1328,7 @@ class WarehouseService {
                 updates[key] = updateData[key];
             }
         });
-        if (updates.amount !== undefined ||
-            updates.category !== undefined ||
-            updates.date !== undefined) {
+        if (updates.amount !== undefined || updates.category !== undefined || updates.date !== undefined) {
             updates.status = 'pending';
             updates.approvedBy = null;
             updates.approvedAt = null;
@@ -980,7 +1341,7 @@ class WarehouseService {
         return expense;
     }
     async deleteExpense(expenseId) {
-        if (!mongoose_1.Types.ObjectId.isValid(expenseId)) {
+        if (!mongoose_2.Types.ObjectId.isValid(expenseId)) {
             throw new Error('Invalid expense ID');
         }
         const result = await Warehouse_model_1.Expense.findByIdAndDelete(expenseId);
@@ -988,17 +1349,35 @@ class WarehouseService {
             throw new Error('Expense not found');
         }
     }
+    async uploadExpenseBill(expenseId, file) {
+        if (!mongoose_2.Types.ObjectId.isValid(expenseId)) {
+            throw new Error('Invalid expense ID');
+        }
+        const expense = await Warehouse_model_1.Expense.findById(expenseId);
+        if (!expense) {
+            throw new Error('Expense not found');
+        }
+        const { url } = await this.documentUploadService.uploadToCloudinary(file.buffer, file.originalname, `frovo/expenses/${expenseId}`);
+        expense.billUrl = url;
+        await expense.save();
+        return await Warehouse_model_1.Expense.findById(expenseId)
+            .populate('vendor', 'vendor_name vendor_email vendor_contact')
+            .populate('warehouseId', 'name code location')
+            .populate('createdBy', 'name email')
+            .populate('approvedBy', 'name email')
+            .then(e => e);
+    }
     async getExpenseById(expenseId) {
-        if (!mongoose_1.Types.ObjectId.isValid(expenseId))
+        if (!mongoose_2.Types.ObjectId.isValid(expenseId))
             return null;
         return await Warehouse_model_1.Expense.findById(expenseId)
-            .populate('vendor', 'name code contactPerson phone email')
+            .populate('vendor', 'vendor_name vendor_email vendor_contact vendor_phone')
             .populate('warehouseId', 'name code location')
             .populate('createdBy', 'name email')
             .populate('approvedBy', 'name email');
     }
     async getExpenseSummary(warehouseId, filters) {
-        const matchStage = { warehouseId: new mongoose_1.Types.ObjectId(warehouseId) };
+        const matchStage = { warehouseId: new mongoose_2.Types.ObjectId(warehouseId) };
         if (filters?.dateRange) {
             matchStage.date = this.getDateFilter(filters.dateRange);
         }
@@ -1008,10 +1387,7 @@ class WarehouseService {
             startDate.setHours(0, 0, 0, 0);
             const endDate = new Date(Number(year), Number(month), 0);
             endDate.setHours(23, 59, 59, 999);
-            matchStage.date = {
-                $gte: startDate,
-                $lte: endDate
-            };
+            matchStage.date = { $gte: startDate, $lte: endDate };
         }
         const summary = await Warehouse_model_1.Expense.aggregate([
             { $match: matchStage },
@@ -1019,61 +1395,20 @@ class WarehouseService {
                 $group: {
                     _id: null,
                     total: { $sum: '$amount' },
-                    approved: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-                        }
-                    },
-                    pending: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-                        }
-                    },
-                    rejected: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0]
-                        }
-                    },
-                    byCategory: {
-                        $push: {
-                            category: '$category',
-                            amount: '$amount'
-                        }
-                    },
-                    byMonth: {
-                        $push: {
-                            month: { $dateToString: { format: "%Y-%m", date: "$date" } },
-                            amount: '$amount'
-                        }
-                    },
-                    paid: {
-                        $sum: {
-                            $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0]
-                        }
-                    },
-                    unpaid: {
-                        $sum: {
-                            $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0]
-                        }
-                    },
-                    partially_paid: {
-                        $sum: {
-                            $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0]
-                        }
-                    }
+                    approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
+                    rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, '$amount', 0] } },
+                    byCategory: { $push: { category: '$category', amount: '$amount' } },
+                    byMonth: { $push: { month: { $dateToString: { format: "%Y-%m", date: "$date" } }, amount: '$amount' } },
+                    paid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$amount', 0] } },
+                    unpaid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$amount', 0] } },
+                    partially_paid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'partially_paid'] }, '$amount', 0] } }
                 }
             }
         ]);
         const result = summary[0] || {
-            total: 0,
-            approved: 0,
-            pending: 0,
-            rejected: 0,
-            byCategory: [],
-            byMonth: [],
-            paid: 0,
-            unpaid: 0,
-            partially_paid: 0
+            total: 0, approved: 0, pending: 0, rejected: 0,
+            byCategory: [], byMonth: [], paid: 0, unpaid: 0, partially_paid: 0
         };
         const byCategory = {};
         if (result.byCategory) {
@@ -1108,30 +1443,16 @@ class WarehouseService {
         return await Warehouse_model_1.Expense.aggregate([
             {
                 $match: {
-                    warehouseId: new mongoose_1.Types.ObjectId(warehouseId),
-                    date: {
-                        $gte: startDate,
-                        $lte: endDate
-                    }
+                    warehouseId: new mongoose_2.Types.ObjectId(warehouseId),
+                    date: { $gte: startDate, $lte: endDate }
                 }
             },
             {
                 $group: {
-                    _id: {
-                        year: { $year: '$date' },
-                        month: { $month: '$date' }
-                    },
+                    _id: { year: { $year: '$date' }, month: { $month: '$date' } },
                     totalAmount: { $sum: '$amount' },
-                    approvedAmount: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0]
-                        }
-                    },
-                    pendingAmount: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0]
-                        }
-                    },
+                    approvedAmount: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
+                    pendingAmount: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
                     expenseCount: { $sum: 1 }
                 }
             },
@@ -1172,17 +1493,47 @@ class WarehouseService {
                 throw new Error('Invalid report type');
         }
     }
-    getStockAgeingReport(_warehouse) {
-        throw new Error('Method not implemented.');
+    async getStockAgeingReport(warehouseId) {
+        const ageingBuckets = {
+            '0-30 days': 0,
+            '31-60 days': 0,
+            '61-90 days': 0,
+            '90+ days': 0
+        };
+        const inventory = await Warehouse_model_1.Inventory.find({
+            warehouse: new mongoose_2.Types.ObjectId(warehouseId),
+            isArchived: false
+        });
+        inventory.forEach(item => {
+            const age = item.age || 0;
+            if (age <= 30) {
+                ageingBuckets['0-30 days']++;
+            }
+            else if (age <= 60) {
+                ageingBuckets['31-60 days']++;
+            }
+            else if (age <= 90) {
+                ageingBuckets['61-90 days']++;
+            }
+            else {
+                ageingBuckets['90+ days']++;
+            }
+        });
+        return {
+            report: 'stock_ageing',
+            ageingBuckets,
+            totalItems: inventory.length,
+            generatedOn: new Date()
+        };
     }
     async generateInventorySummaryReport(filters) {
         const warehouseId = filters.warehouse;
-        if (!warehouseId || !mongoose_1.Types.ObjectId.isValid(warehouseId)) {
+        if (!warehouseId || !mongoose_2.Types.ObjectId.isValid(warehouseId)) {
             throw new Error('Valid warehouse ID is required');
         }
         const dateFilter = this.getDateFilter(filters.dateRange);
         let inventoryQuery = {
-            warehouse: new mongoose_1.Types.ObjectId(warehouseId),
+            warehouse: new mongoose_2.Types.ObjectId(warehouseId),
             isArchived: false
         };
         if (filters.category) {
@@ -1194,25 +1545,25 @@ class WarehouseService {
         const inventoryData = await Warehouse_model_1.Inventory.find(inventoryQuery)
             .populate('warehouse', 'name code');
         const totalSKUs = await Warehouse_model_1.Inventory.distinct('sku', {
-            warehouse: new mongoose_1.Types.ObjectId(warehouseId),
+            warehouse: new mongoose_2.Types.ObjectId(warehouseId),
             isArchived: false
         }).then(skus => skus.length);
         const stockOutSKUs = await Warehouse_model_1.Inventory.countDocuments({
-            warehouse: new mongoose_1.Types.ObjectId(warehouseId),
+            warehouse: new mongoose_2.Types.ObjectId(warehouseId),
             status: 'low_stock',
             isArchived: false
         });
-        const poQuery = { warehouse: new mongoose_1.Types.ObjectId(warehouseId) };
+        const poQuery = { warehouse: new mongoose_2.Types.ObjectId(warehouseId) };
         if (Object.keys(dateFilter).length > 0) {
             poQuery.createdAt = dateFilter;
         }
         if (filters.vendor) {
-            poQuery.vendor = new mongoose_1.Types.ObjectId(filters.vendor);
+            poQuery.vendor = new mongoose_2.Types.ObjectId(filters.vendor);
         }
-        const totalPOs = await Warehouse_model_1.GoodsReceiving.countDocuments(poQuery);
-        const pendingPOs = await Warehouse_model_1.GoodsReceiving.countDocuments({
+        const totalPOs = await Warehouse_model_1.RaisePurchaseOrder.countDocuments(poQuery);
+        const pendingPOs = await Warehouse_model_1.RaisePurchaseOrder.countDocuments({
             ...poQuery,
-            status: 'qc_pending'
+            po_status: 'draft'
         });
         const totalStockValue = inventoryData.reduce((sum, item) => {
             return sum + (item.quantity * 100);
@@ -1246,30 +1597,30 @@ class WarehouseService {
     }
     async generatePurchaseOrderReport(filters) {
         const warehouseId = filters.warehouse;
-        if (!warehouseId || !mongoose_1.Types.ObjectId.isValid(warehouseId)) {
+        if (!warehouseId || !mongoose_2.Types.ObjectId.isValid(warehouseId)) {
             throw new Error('Valid warehouse ID is required');
         }
         const dateFilter = this.getDateFilter(filters.dateRange);
-        let poQuery = { warehouse: new mongoose_1.Types.ObjectId(warehouseId) };
+        let poQuery = { warehouse: new mongoose_2.Types.ObjectId(warehouseId) };
         if (Object.keys(dateFilter).length > 0) {
             poQuery.createdAt = dateFilter;
         }
         if (filters.vendor) {
-            poQuery.vendor = new mongoose_1.Types.ObjectId(filters.vendor);
+            poQuery.vendor = new mongoose_2.Types.ObjectId(filters.vendor);
         }
-        if (filters.status) {
-            poQuery.status = filters.status;
+        if (filters.po_status) {
+            poQuery.po_status = filters.po_status;
         }
-        const purchaseOrders = await Warehouse_model_1.GoodsReceiving.find(poQuery)
-            .populate('vendor', 'name code contactPerson')
+        const purchaseOrders = await Warehouse_model_1.RaisePurchaseOrder.find(poQuery)
+            .populate('vendor', 'vendor_name vendor_email vendor_contact')
             .populate('warehouse', 'name code')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
         const totalPOs = purchaseOrders.length;
-        const pendingPOs = purchaseOrders.filter(po => po.status === 'qc_pending').length;
-        const approvedPOs = purchaseOrders.filter(po => po.status === 'qc_passed').length;
-        const rejectedPOs = purchaseOrders.filter(po => po.status === 'qc_failed').length;
-        const totalPOValue = purchaseOrders.reduce((sum, po) => sum + (po.quantity * 100), 0);
+        const pendingPOs = purchaseOrders.filter(po => po.po_status === 'draft').length;
+        const approvedPOs = purchaseOrders.filter(po => po.po_status === 'approved').length;
+        const rejectedPOs = purchaseOrders.filter(po => po.po_status === 'pending').length;
+        const totalPOValue = purchaseOrders.reduce((sum, po) => sum + 1000, 0);
         const averagePOValue = totalPOs > 0 ? totalPOValue / totalPOs : 0;
         return {
             summary: {
@@ -1293,11 +1644,11 @@ class WarehouseService {
     }
     async generateInventoryTurnoverReport(filters) {
         const { warehouse, startDate, endDate, category } = filters;
-        if (!warehouse || !mongoose_1.Types.ObjectId.isValid(warehouse)) {
+        if (!warehouse || !mongoose_2.Types.ObjectId.isValid(warehouse)) {
             throw new Error('Valid warehouse ID is required');
         }
         const matchStage = {
-            warehouse: new mongoose_1.Types.ObjectId(warehouse),
+            warehouse: new mongoose_2.Types.ObjectId(warehouse),
             isArchived: false
         };
         if (startDate && endDate) {
@@ -1365,11 +1716,11 @@ class WarehouseService {
     }
     async generateQCSummaryReport(filters) {
         const { warehouse, startDate, endDate, vendor } = filters;
-        if (!warehouse || !mongoose_1.Types.ObjectId.isValid(warehouse)) {
+        if (!warehouse || !mongoose_2.Types.ObjectId.isValid(warehouse)) {
             throw new Error('Valid warehouse ID is required');
         }
         const matchStage = {
-            warehouse: new mongoose_1.Types.ObjectId(warehouse)
+            warehouse: new mongoose_2.Types.ObjectId(warehouse)
         };
         if (startDate && endDate) {
             matchStage.createdAt = {
@@ -1378,25 +1729,23 @@ class WarehouseService {
             };
         }
         if (vendor) {
-            matchStage.vendor = new mongoose_1.Types.ObjectId(vendor);
+            matchStage.vendor = new mongoose_2.Types.ObjectId(vendor);
         }
-        const qcData = await Warehouse_model_1.GoodsReceiving.aggregate([
+        const qcData = await Warehouse_model_1.RaisePurchaseOrder.aggregate([
             { $match: matchStage },
             {
                 $group: {
-                    _id: '$status',
-                    count: { $sum: 1 },
-                    totalQuantity: { $sum: '$quantity' },
-                    totalValue: { $sum: { $multiply: ['$quantity', 100] } }
+                    _id: '$po_status',
+                    count: { $sum: 1 }
                 }
             }
         ]);
         const totalReceivings = qcData.reduce((acc, item) => acc + item.count, 0);
         const passRate = totalReceivings > 0
-            ? (qcData.find((item) => item._id === 'qc_passed')?.count || 0) / totalReceivings * 100
+            ? (qcData.find((item) => item._id === 'approved')?.count || 0) / totalReceivings * 100
             : 0;
-        const qcDetails = await Warehouse_model_1.GoodsReceiving.find(matchStage)
-            .populate('vendor', 'name code')
+        const qcDetails = await Warehouse_model_1.RaisePurchaseOrder.find(matchStage)
+            .populate('vendor', 'vendor_name vendor_email')
             .populate('warehouse', 'name code')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
@@ -1407,13 +1756,111 @@ class WarehouseService {
             summary: {
                 totalReceivings,
                 passRate: Math.round(passRate * 100) / 100,
-                failedCount: qcData.find((item) => item._id === 'qc_failed')?.count || 0,
-                pendingCount: qcData.find((item) => item._id === 'qc_pending')?.count || 0,
-                totalValue: qcData.reduce((acc, item) => acc + item.totalValue, 0)
+                failedCount: qcData.find((item) => item._id === 'pending')?.count || 0,
+                pendingCount: qcData.find((item) => item._id === 'draft')?.count || 0,
+                totalValue: totalReceivings * 1000
             },
             generatedOn: new Date(),
             filters: filters
         };
+    }
+    async generateEfficiencyReport(filters) {
+        const { warehouse, startDate, endDate } = filters;
+        if (!warehouse || !mongoose_2.Types.ObjectId.isValid(warehouse)) {
+            throw new Error('Valid warehouse ID is required');
+        }
+        const dateMatch = {};
+        if (startDate && endDate) {
+            dateMatch.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+        const [dispatchEfficiency, inventoryEfficiency] = await Promise.all([
+            Warehouse_model_1.DispatchOrder.aggregate([
+                {
+                    $match: {
+                        warehouse: new mongoose_2.Types.ObjectId(warehouse),
+                        status: 'delivered',
+                        ...dateMatch
+                    }
+                },
+                {
+                    $project: {
+                        dispatchId: 1,
+                        processingTime: {
+                            $divide: [
+                                { $subtract: ['$updatedAt', '$createdAt'] },
+                                1000 * 60 * 60
+                            ]
+                        },
+                        productsCount: { $size: '$products' }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        avgProcessingTime: { $avg: '$processingTime' },
+                        totalDispatches: { $sum: 1 },
+                        totalProductsDispatched: { $sum: '$productsCount' }
+                    }
+                }
+            ]),
+            Warehouse_model_1.Inventory.aggregate([
+                {
+                    $match: {
+                        warehouse: new mongoose_2.Types.ObjectId(warehouse),
+                        isArchived: false,
+                        ...dateMatch
+                    }
+                },
+                {
+                    $project: {
+                        utilizationRate: {
+                            $cond: [
+                                { $gt: ['$maxStockLevel', 0] },
+                                { $divide: ['$quantity', '$maxStockLevel'] },
+                                0
+                            ]
+                        },
+                        isLowStock: { $eq: ['$status', 'low_stock'] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        avgUtilization: { $avg: '$utilizationRate' },
+                        lowStockCount: { $sum: { $cond: ['$isLowStock', 1, 0] } },
+                        totalItems: { $sum: 1 }
+                    }
+                }
+            ])
+        ]);
+        return {
+            report: 'efficiency',
+            dispatchEfficiency: dispatchEfficiency[0] || {},
+            inventoryEfficiency: inventoryEfficiency[0] || {},
+            overallScore: this.calculateOverallEfficiencyScore(dispatchEfficiency[0], inventoryEfficiency[0]),
+            generatedOn: new Date(),
+            filters: filters
+        };
+    }
+    calculateOverallEfficiencyScore(dispatchData, inventoryData) {
+        let score = 0;
+        if (dispatchData?.avgProcessingTime) {
+            const processingScore = Math.max(0, 100 - (dispatchData.avgProcessingTime / 48 * 100));
+            score += processingScore * 0.4;
+        }
+        if (inventoryData?.avgUtilization) {
+            const utilizationScore = Math.min(100, inventoryData.avgUtilization * 100 * 1.25);
+            score += utilizationScore * 0.4;
+        }
+        if (inventoryData?.lowStockCount && inventoryData?.totalItems) {
+            const lowStockRate = inventoryData.lowStockCount / inventoryData.totalItems;
+            const lowStockScore = Math.max(0, 100 - (lowStockRate * 500));
+            score += lowStockScore * 0.2;
+        }
+        return Math.round(score);
     }
     async exportReport(type, format, filters) {
         const reportData = await this.generateReport(type, filters);
@@ -1483,12 +1930,42 @@ class WarehouseService {
         csv += `Total PO Value,${data.summary.totalPOValue}\n`;
         csv += `Average PO Value,${data.summary.averagePOValue.toFixed(2)}\n\n`;
         csv += 'PURCHASE ORDER DETAILS\n';
-        csv += 'PO Number,Vendor,SKU,Product Name,Quantity,Status,Received Date\n';
+        csv += 'PO Number,Vendor,Status,Created Date\n';
         data.purchaseOrders.forEach((po) => {
-            const receivedDate = po.createdAt.toISOString().split('T')[0];
-            const vendorName = po.vendor?.name || 'N/A';
-            csv += `"${po.poNumber}","${vendorName}","${po.sku}","${po.productName}",${po.quantity},"${po.status}","${receivedDate}"\n`;
+            const createdDate = po.createdAt.toISOString().split('T')[0];
+            const vendorName = po.vendor?.vendor_name || 'N/A';
+            csv += `"${po.po_number}","${vendorName}","${po.po_status}","${createdDate}"\n`;
         });
+        return csv;
+    }
+    convertStockAgeingToCSV(data) {
+        let csv = 'Stock Ageing Report\n';
+        csv += 'Age Range,Count\n';
+        if (data.ageingBuckets) {
+            Object.entries(data.ageingBuckets).forEach(([range, count]) => {
+                csv += `${range},${count}\n`;
+            });
+        }
+        return csv;
+    }
+    convertInventoryTurnoverToCSV(data) {
+        let csv = 'Inventory Turnover Report\n';
+        csv += 'SKU,Product Name,Turnover Rate,Average Stock,Total Received,Stock Out Count\n';
+        if (data.data && Array.isArray(data.data)) {
+            data.data.forEach((item) => {
+                csv += `"${item.sku}","${item.productName}",${item.turnoverRate},${item.averageStock},${item.totalReceived},${item.stockOutCount}\n`;
+            });
+        }
+        return csv;
+    }
+    convertQCSummaryToCSV(data) {
+        let csv = 'QC Summary Report\n';
+        csv += 'Status,Count\n';
+        if (data.data && Array.isArray(data.data)) {
+            data.data.forEach((item) => {
+                csv += `${item._id},${item.count}\n`;
+            });
+        }
         return csv;
     }
     getStockThreshold(quantity, minStock, maxStock) {
@@ -1533,18 +2010,18 @@ class WarehouseService {
         const alerts = [];
         try {
             const baseQuery = {};
-            if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-                baseQuery.warehouse = new mongoose_1.Types.ObjectId(warehouseId);
+            if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+                baseQuery.warehouse = new mongoose_2.Types.ObjectId(warehouseId);
             }
-            const qcFailed = await Warehouse_model_1.GoodsReceiving.countDocuments({
+            const pendingQC = await Warehouse_model_1.RaisePurchaseOrder.countDocuments({
                 ...baseQuery,
-                status: 'qc_failed'
+                po_status: 'draft'
             });
-            if (qcFailed > 0) {
+            if (pendingQC > 0) {
                 alerts.push({
                     type: 'qc_failed',
-                    message: `${qcFailed} batches failed QC`,
-                    count: qcFailed
+                    message: `${pendingQC} purchase orders pending approval`,
+                    count: pendingQC
                 });
             }
             const lowStock = await Warehouse_model_1.Inventory.countDocuments({
@@ -1568,11 +2045,11 @@ class WarehouseService {
     async getRecentActivities(warehouseId) {
         try {
             const baseQuery = {};
-            if (warehouseId && mongoose_1.Types.ObjectId.isValid(warehouseId)) {
-                baseQuery.warehouse = new mongoose_1.Types.ObjectId(warehouseId);
+            if (warehouseId && mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+                baseQuery.warehouse = new mongoose_2.Types.ObjectId(warehouseId);
             }
-            const [receivingActivities, dispatchActivities] = await Promise.all([
-                Warehouse_model_1.GoodsReceiving.find(baseQuery)
+            const [purchaseActivities, dispatchActivities] = await Promise.all([
+                Warehouse_model_1.RaisePurchaseOrder.find(baseQuery)
                     .sort({ createdAt: -1 })
                     .limit(5)
                     .populate('createdBy', 'name'),
@@ -1582,9 +2059,9 @@ class WarehouseService {
                     .populate('assignedAgent', 'name')
             ]);
             const activities = [
-                ...receivingActivities.map((item) => ({
+                ...purchaseActivities.map((item) => ({
                     type: 'inbound',
-                    message: `Received ${item.quantity} units of ${item.sku}`,
+                    message: `Purchase order ${item.po_number} created`,
                     timestamp: item.createdAt,
                     user: item.createdBy?.name || 'System'
                 })),
@@ -1636,139 +2113,148 @@ class WarehouseService {
         }
         return 'active';
     }
-    async generateEfficiencyReport(filters) {
-        const { warehouse, startDate, endDate } = filters;
-        if (!warehouse || !mongoose_1.Types.ObjectId.isValid(warehouse)) {
-            throw new Error('Valid warehouse ID is required');
+    async createWarehouse(data, createdBy) {
+        const { Warehouse } = await Promise.resolve().then(() => __importStar(require('../models/Warehouse.model')));
+        const existingWarehouse = await Warehouse.findOne({ code: data.code });
+        if (existingWarehouse) {
+            throw new Error('Warehouse with this code already exists');
         }
-        const dateMatch = {};
-        if (startDate && endDate) {
-            dateMatch.createdAt = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
+        const warehouse = await Warehouse.create({
+            ...data,
+            isActive: true,
+            createdBy
+        });
+        return await Warehouse.findById(warehouse._id)
+            .populate('manager', 'name email phone')
+            .populate('createdBy', 'name email');
+    }
+    async getWarehouses(filters, userId, userRoles) {
+        const { Warehouse } = await Promise.resolve().then(() => __importStar(require('../models/Warehouse.model')));
+        const page = filters.page || 1;
+        const limit = filters.limit || 10;
+        const skip = (page - 1) * limit;
+        const query = {};
+        const isWarehouseManager = userRoles.some((role) => role.systemRole === 'warehouse_manager');
+        if (isWarehouseManager) {
+            query.manager = userId;
         }
-        const [dispatchEfficiency, inventoryEfficiency] = await Promise.all([
-            Warehouse_model_1.DispatchOrder.aggregate([
-                {
-                    $match: {
-                        warehouse: new mongoose_1.Types.ObjectId(warehouse),
-                        status: 'delivered',
-                        ...dateMatch
-                    }
-                },
-                {
-                    $project: {
-                        dispatchId: 1,
-                        processingTime: {
-                            $divide: [
-                                { $subtract: ['$updatedAt', '$createdAt'] },
-                                1000 * 60 * 60
-                            ]
-                        },
-                        productsCount: { $size: '$products' }
-                    }
-                },
-                {
-                    $group: {
-                        _id: null,
-                        avgProcessingTime: { $avg: '$processingTime' },
-                        totalDispatches: { $sum: 1 },
-                        totalProductsDispatched: { $sum: '$productsCount' }
-                    }
-                }
-            ]),
-            Warehouse_model_1.Inventory.aggregate([
-                {
-                    $match: {
-                        warehouse: new mongoose_1.Types.ObjectId(warehouse),
-                        isArchived: false,
-                        ...dateMatch
-                    }
-                },
-                {
-                    $project: {
-                        utilizationRate: {
-                            $cond: [
-                                { $gt: ['$maxStockLevel', 0] },
-                                { $divide: ['$quantity', '$maxStockLevel'] },
-                                0
-                            ]
-                        },
-                        isLowStock: { $eq: ['$status', 'low_stock'] }
-                    }
-                },
-                {
-                    $group: {
-                        _id: null,
-                        avgUtilization: { $avg: '$utilizationRate' },
-                        lowStockCount: { $sum: { $cond: ['$isLowStock', 1, 0] } },
-                        totalItems: { $sum: 1 }
-                    }
-                }
-            ])
+        if (filters.search) {
+            query.$or = [
+                { name: { $regex: filters.search, $options: 'i' } },
+                { code: { $regex: filters.search, $options: 'i' } },
+                { location: { $regex: filters.search, $options: 'i' } }
+            ];
+        }
+        if (filters.isActive !== undefined) {
+            query.isActive = filters.isActive;
+        }
+        if (filters.partner) {
+            query.partner = { $regex: filters.partner, $options: 'i' };
+        }
+        const sortBy = filters.sortBy || 'createdAt';
+        const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
+        const sort = { [sortBy]: sortOrder };
+        const [warehouses, total] = await Promise.all([
+            Warehouse.find(query)
+                .populate('manager', 'name email phone')
+                .populate('createdBy', 'name email')
+                .sort(sort)
+                .skip(skip)
+                .limit(limit),
+            Warehouse.countDocuments(query)
         ]);
         return {
-            report: 'efficiency',
-            dispatchEfficiency: dispatchEfficiency[0] || {},
-            inventoryEfficiency: inventoryEfficiency[0] || {},
-            overallScore: this.calculateOverallEfficiencyScore(dispatchEfficiency[0], inventoryEfficiency[0]),
-            generatedOn: new Date(),
-            filters: filters
+            warehouses,
+            pagination: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit)
+            }
         };
     }
-    calculateOverallEfficiencyScore(dispatchData, inventoryData) {
-        let score = 0;
-        if (dispatchData?.avgProcessingTime) {
-            const processingScore = Math.max(0, 100 - (dispatchData.avgProcessingTime / 48 * 100));
-            score += processingScore * 0.4;
+    async getWarehouseById(warehouseId, userId, userRoles) {
+        const { Warehouse } = await Promise.resolve().then(() => __importStar(require('../models/Warehouse.model')));
+        if (!mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            throw new Error('Invalid warehouse ID');
         }
-        if (inventoryData?.avgUtilization) {
-            const utilizationScore = Math.min(100, inventoryData.avgUtilization * 100 * 1.25);
-            score += utilizationScore * 0.4;
+        const warehouse = await Warehouse.findById(warehouseId)
+            .populate('manager', 'name email phone')
+            .populate('createdBy', 'name email');
+        if (!warehouse) {
+            throw new Error('Warehouse not found');
         }
-        if (inventoryData?.lowStockCount && inventoryData?.totalItems) {
-            const lowStockRate = inventoryData.lowStockCount / inventoryData.totalItems;
-            const lowStockScore = Math.max(0, 100 - (lowStockRate * 500));
-            score += lowStockScore * 0.2;
+        const isWarehouseManager = userRoles.some((role) => role.systemRole === 'warehouse_manager');
+        if (isWarehouseManager && warehouse.manager?.toString() !== userId.toString()) {
+            throw new Error('Access denied: You can only view your assigned warehouse');
         }
-        return Math.round(score);
+        return warehouse;
     }
-    convertStockAgeingToCSV(data) {
-        let csv = 'Stock Ageing Report\n';
-        csv += 'Age Range,Count\n';
-        if (data.ageingBuckets) {
-            Object.entries(data.ageingBuckets).forEach(([range, count]) => {
-                csv += `${range},${count}\n`;
-            });
+    async updateWarehouse(warehouseId, updateData) {
+        const { Warehouse } = await Promise.resolve().then(() => __importStar(require('../models/Warehouse.model')));
+        if (!mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            throw new Error('Invalid warehouse ID');
         }
-        if (data.details && Array.isArray(data.details)) {
-            csv += '\nSKU,Product Name,Batch ID,Quantity,Age (Days),Location\n';
-            data.details.forEach((item) => {
-                csv += `"${item.sku}","${item.productName}","${item.batchId}",${item.quantity},${item.age},"${item.location.zone}-${item.location.aisle}-${item.location.rack}-${item.location.bin}"\n`;
+        if (updateData.code) {
+            const existingWarehouse = await Warehouse.findOne({
+                code: updateData.code,
+                _id: { $ne: warehouseId }
             });
+            if (existingWarehouse) {
+                throw new Error('Warehouse with this code already exists');
+            }
         }
-        return csv;
+        const warehouse = await Warehouse.findByIdAndUpdate(warehouseId, { $set: updateData }, { new: true, runValidators: true })
+            .populate('manager', 'name email phone')
+            .populate('createdBy', 'name email');
+        if (!warehouse) {
+            throw new Error('Warehouse not found');
+        }
+        return warehouse;
     }
-    convertInventoryTurnoverToCSV(data) {
-        let csv = 'Inventory Turnover Report\n';
-        csv += 'SKU,Product Name,Turnover Rate,Average Stock,Total Received,Stock Out Count\n';
-        if (data.data && Array.isArray(data.data)) {
-            data.data.forEach((item) => {
-                csv += `"${item.sku}","${item.productName}",${item.turnoverRate},${item.averageStock},${item.totalReceived},${item.stockOutCount}\n`;
-            });
+    async deleteWarehouse(warehouseId) {
+        const { Warehouse } = await Promise.resolve().then(() => __importStar(require('../models/Warehouse.model')));
+        if (!mongoose_2.Types.ObjectId.isValid(warehouseId)) {
+            throw new Error('Invalid warehouse ID');
         }
-        return csv;
+        const inventoryCount = await Warehouse_model_1.Inventory.countDocuments({
+            warehouse: warehouseId,
+            isArchived: false
+        });
+        if (inventoryCount > 0) {
+            throw new Error('Cannot delete warehouse with active inventory. Please archive or transfer inventory first.');
+        }
+        const warehouse = await Warehouse.findByIdAndDelete(warehouseId);
+        if (!warehouse) {
+            throw new Error('Warehouse not found');
+        }
+        return { message: 'Warehouse deleted successfully', warehouse };
     }
-    convertQCSummaryToCSV(data) {
-        let csv = 'QC Summary Report\n';
-        csv += 'Status,Count,Total Quantity\n';
-        if (data.data && Array.isArray(data.data)) {
-            data.data.forEach((item) => {
-                csv += `${item._id},${item.count},${item.totalQuantity}\n`;
-            });
+    async getMyWarehouse(managerId) {
+        const managerObjectId = typeof managerId === 'string'
+            ? new mongoose_2.Types.ObjectId(managerId)
+            : managerId;
+        console.log('🔍 Looking for warehouse with manager ID:', managerObjectId.toString());
+        const warehouse = await Warehouse_model_1.Warehouse.findOne({
+            manager: managerObjectId,
+            isActive: true
+        })
+            .populate('manager', 'name email phone')
+            .populate('createdBy', 'name email')
+            .lean();
+        if (!warehouse) {
+            const anyWarehouse = await Warehouse_model_1.Warehouse.findOne({
+                manager: managerObjectId
+            }).lean();
+            if (anyWarehouse) {
+                console.log('⚠️  Warehouse found but isActive:', anyWarehouse.isActive);
+                throw new Error('Warehouse assigned to this manager is not active');
+            }
+            console.log('❌ No warehouse found for manager ID:', managerObjectId.toString());
+            throw new Error('No warehouse assigned to this manager');
         }
-        return csv;
+        console.log('✅ Warehouse found:', warehouse.code);
+        return warehouse;
     }
 }
 exports.warehouseService = new WarehouseService();

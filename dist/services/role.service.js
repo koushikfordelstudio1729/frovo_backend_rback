@@ -14,6 +14,7 @@ class RoleService {
         }
         const role = await models_1.Role.create({
             ...roleData,
+            type: models_1.RoleType.CUSTOM,
             createdBy,
             status: models_1.RoleStatus.DRAFT
         });
@@ -32,9 +33,6 @@ class RoleService {
         const role = await models_1.Role.findById(id);
         if (!role) {
             throw new Error('Role not found');
-        }
-        if (role.type === models_1.RoleType.SYSTEM) {
-            throw new Error('System roles cannot be modified');
         }
         if (updateData.permissions && updateData.permissions.length > 0) {
             const permissionCount = await models_1.Permission.countDocuments({
@@ -66,9 +64,6 @@ class RoleService {
         const role = await models_1.Role.findById(id);
         if (!role) {
             throw new Error('Role not found');
-        }
-        if (role.type === models_1.RoleType.SYSTEM) {
-            throw new Error('System roles cannot be deleted');
         }
         const userCount = await models_1.User.countDocuments({ roles: { $in: [id] } });
         if (userCount > 0) {
@@ -169,9 +164,6 @@ class RoleService {
         const role = await models_1.Role.findById(id);
         if (!role) {
             throw new Error('Role not found');
-        }
-        if (role.type === models_1.RoleType.SYSTEM) {
-            throw new Error('System role permissions cannot be modified');
         }
         const permissionCount = await models_1.Permission.countDocuments({
             key: { $in: permissions }

@@ -48,7 +48,7 @@ const seedDatabase = async () => {
         const tempCreatedBy = new mongoose_1.Types.ObjectId();
         const departmentMap = await (0, departments_seeder_1.seedDepartments)(tempCreatedBy);
         const roleMap = await (0, roles_seeder_1.seedRoles)(tempCreatedBy, departmentMap);
-        const superAdminId = await (0, superAdmin_seeder_1.seedSuperAdmin)(departmentMap, roleMap);
+        const { superAdminId } = await (0, superAdmin_seeder_1.seedSuperAdmin)(departmentMap, roleMap);
         const { Department, Role } = await Promise.resolve().then(() => __importStar(require('../models')));
         await Promise.all([
             Department.updateMany({ createdBy: tempCreatedBy }, { createdBy: superAdminId }),
@@ -60,8 +60,19 @@ const seedDatabase = async () => {
         logger_util_1.logger.info(`   • Departments: ✅ (${Object.keys(departmentMap).length} created)`);
         logger_util_1.logger.info(`   • Roles: ✅ (${Object.keys(roleMap).length} created)`);
         logger_util_1.logger.info(`   • Super Admin: ✅`);
+        logger_util_1.logger.info(`   • Vendor Admin: ✅`);
         logger_util_1.logger.info('');
         logger_util_1.logger.info('🎉 Your RBAC system is ready to use!');
+        logger_util_1.logger.info('');
+        logger_util_1.logger.info('👑 Available Admin Accounts:');
+        logger_util_1.logger.info(`   • Super Admin: ${process.env['SUPER_ADMIN_EMAIL'] || 'superadmin@frovo.com'} / ${process.env['SUPER_ADMIN_PASSWORD'] || 'SuperAdmin@123'}`);
+        logger_util_1.logger.info(`   • Vendor Admin: ${process.env['VENDOR_ADMIN_EMAIL'] || 'vendor.admin@frovo.com'} / ${process.env['VENDOR_ADMIN_PASSWORD'] || 'VendorAdmin@123'}`);
+        logger_util_1.logger.info('');
+        logger_util_1.logger.info('📝 Vendor Management:');
+        logger_util_1.logger.info('   • Vendors will be created through the vendor management system');
+        logger_util_1.logger.info('   • Use the above admin accounts to create vendors via API');
+        logger_util_1.logger.info('');
+        logger_util_1.logger.info('⚠️  Please change the default passwords after first login!');
     }
     catch (error) {
         logger_util_1.logger.error('❌ Database seeding failed:', error);

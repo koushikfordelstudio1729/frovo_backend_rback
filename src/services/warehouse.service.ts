@@ -14,6 +14,8 @@ import {
 import { Types } from 'mongoose';
 import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IFieldAgent, IGRNnumber } from '../models/Warehouse.model';
 import { DocumentUploadService } from './documentUpload.service';
+import { FieldOpsTask } from '../models/FieldOpsTask.model';
+import { User, Role } from '../models';
 
 // Interfaces
 export interface InventoryStats {
@@ -1083,6 +1085,22 @@ async deletePurchaseOrder(id: string): Promise<void> {
       createdBy
     });
 
+    // Create Field Ops Task for the assigned agent
+    if (data.assignedAgent) {
+      await FieldOpsTask.create({
+        taskType: 'warehouse_pickup',
+        title: `Warehouse Pickup - ${dispatchId}`,
+        description: `Pickup products from ${data.destination || 'warehouse'} for dispatch ${dispatchId}`,
+        assignedAgent: data.assignedAgent,
+        warehouseId: data.warehouse,
+        dispatchId: dispatch._id,
+        status: 'pending',
+        priority: 'medium',
+        dueDate: new Date(),
+        createdBy
+      });
+    }
+
     await this.reduceStockBySku(data.products);
     return dispatch;
   }
@@ -1313,27 +1331,138 @@ async deletePurchaseOrder(id: string): Promise<void> {
   }
 
   // ==================== FIELD AGENT MANAGEMENT ====================
-  async getFieldAgents(isActive?: boolean): Promise<IFieldAgent[]> {
-    let query: any = {};
-    
-    if (isActive !== undefined) {
-      query.isActive = isActive;
+  async getFieldAgents(isActive?: boolean): Promise<any[]> {
+    // First, find the role with key "field_agent"
+    const fieldAgentRole = await Role.findOne({ key: 'field_agent' });
+
+    if (!fieldAgentRole) {
+      return [];
     }
-    
-    return await FieldAgent.find(query)
-      .populate('createdBy', 'name')
+
+    // Build query to find users with this role
+    let userQuery: any = {
+      roles: { $in: [fieldAgentRole._id] }
+    };
+
+    if (isActive !== undefined) {
+      userQuery.status = isActive ? 'active' : 'inactive';
+    }
+
+    const users = await User.find(userQuery)
+      .populate('roles', 'name key')
+      .select('name email phone status lastLogin createdAt')
       .sort({ name: 1 });
+
+    // For each user, get their FieldAgent record if it exists
+    const usersWithRoutes = await Promise.all(
+      users.map(async (user) => {
+        const fieldAgentRecord = await FieldAgent.findOne({ userId: user._id })
+          .populate('assignedWarehouse', 'name code')
+          .populate('assignedArea', 'name');
+
+        return {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          status: user.status,
+          lastLogin: user.lastLogin,
+          createdAt: user.createdAt,
+          roles: user.roles,
+          assignedRoutes: fieldAgentRecord?.assignedRoutes || [],
+          assignedWarehouse: fieldAgentRecord?.assignedWarehouse || null,
+          assignedArea: fieldAgentRecord?.assignedArea || null,
+          fieldAgentId: fieldAgentRecord?._id || null,
+          createdBy: fieldAgentRecord?.createdBy || null
+        };
+      })
+    );
+
+    return usersWithRoutes;
+  }
+
+  async updateFieldAgent(userId: string, data: {
+    name?: string;
+    assignedRoutes?: string[];
+    assignedWarehouse?: Types.ObjectId;
+    assignedArea?: Types.ObjectId;
+  }): Promise<any> {
+    // Find or create FieldAgent record for this user
+    let fieldAgent = await FieldAgent.findOne({ userId });
+
+    if (!fieldAgent) {
+      // Get user details to populate name
+      const user = await User.findById(userId).select('name email phone');
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Create new FieldAgent record if it doesn't exist
+      fieldAgent = await FieldAgent.create({
+        userId,
+        name: data.name || user.name,
+        email: user.email,
+        phone: user.phone,
+        assignedRoutes: data.assignedRoutes || [],
+        assignedWarehouse: data.assignedWarehouse,
+        assignedArea: data.assignedArea,
+        isActive: true,
+        createdBy: userId
+      });
+    } else {
+      // Update existing record
+      if (data.name !== undefined) {
+        fieldAgent.name = data.name;
+      }
+      if (data.assignedRoutes !== undefined) {
+        fieldAgent.assignedRoutes = data.assignedRoutes;
+      }
+      if (data.assignedWarehouse !== undefined) {
+        fieldAgent.assignedWarehouse = data.assignedWarehouse;
+      }
+      if (data.assignedArea !== undefined) {
+        fieldAgent.assignedArea = data.assignedArea;
+      }
+      await fieldAgent.save();
+    }
+
+    return await FieldAgent.findById(fieldAgent._id)
+      .populate('userId', 'name email phone')
+      .populate('assignedWarehouse', 'name code')
+      .populate('assignedArea', 'name');
   }
 
   async createFieldAgent(data: {
-    name: string;
-    assignedRoutes: string[];
-  }, createdBy: Types.ObjectId): Promise<IFieldAgent> {
-    return await FieldAgent.create({
-      ...data,
+    userId: string;
+    assignedRoutes?: string[];
+  }, createdBy: Types.ObjectId): Promise<any> {
+    // Check if FieldAgent record already exists for this user
+    const existingAgent = await FieldAgent.findOne({ userId: data.userId });
+    if (existingAgent) {
+      throw new Error('Field agent record already exists for this user');
+    }
+
+    // Get user details
+    const user = await User.findById(data.userId).select('name email phone');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Create FieldAgent record
+    const fieldAgent = await FieldAgent.create({
+      userId: data.userId,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      assignedRoutes: data.assignedRoutes || [],
       isActive: true,
       createdBy
     });
+
+    return await FieldAgent.findById(fieldAgent._id)
+      .populate('userId', 'name email phone')
+      .populate('assignedWarehouse', 'name code')
+      .populate('assignedArea', 'name');
   }
 
   // ==================== INVENTORY DASHBOARD METHODS ====================

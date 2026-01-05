@@ -4,7 +4,7 @@ export declare const createRoleSchema: z.ZodObject<{
     body: z.ZodEffects<z.ZodObject<{
         name: z.ZodString;
         description: z.ZodOptional<z.ZodString>;
-        type: z.ZodDefault<z.ZodOptional<z.ZodNativeEnum<typeof RoleType>>>;
+        type: z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodNativeEnum<typeof RoleType>>>, RoleType.CUSTOM, RoleType>;
         department: z.ZodOptional<z.ZodString>;
         permissions: z.ZodArray<z.ZodString, "many">;
         scope: z.ZodObject<{
@@ -20,7 +20,7 @@ export declare const createRoleSchema: z.ZodObject<{
         uiAccess: z.ZodNativeEnum<typeof UIAccess>;
     }, "strip", z.ZodTypeAny, {
         name?: string;
-        type?: RoleType;
+        type?: RoleType.CUSTOM;
         description?: string;
         department?: string;
         permissions?: string[];
@@ -42,7 +42,7 @@ export declare const createRoleSchema: z.ZodObject<{
         uiAccess?: UIAccess;
     }>, {
         name?: string;
-        type?: RoleType;
+        type?: RoleType.CUSTOM;
         description?: string;
         department?: string;
         permissions?: string[];
@@ -66,7 +66,7 @@ export declare const createRoleSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     body?: {
         name?: string;
-        type?: RoleType;
+        type?: RoleType.CUSTOM;
         description?: string;
         department?: string;
         permissions?: string[];

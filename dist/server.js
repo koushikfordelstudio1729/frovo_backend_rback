@@ -169,6 +169,12 @@ const startServer = async () => {
             logger_util_1.logger.info('   📋 Audit Logs: /api/audit-logs');
             logger_util_1.logger.info('   🔒 Security: /api/security');
             logger_util_1.logger.info('   🏭 Warehouse: /api/warehouse');
+            logger_util_1.logger.info('   🛒 Vendors: /api/vendors');
+            logger_util_1.logger.info('   📦Audit Trails :/api/audit-trails');
+            logger_util_1.logger.info('   🗺️ Area Routes: /api/area-route');
+            logger_util_1.logger.info('   🏪 Vending Machines: /api/vending');
+            logger_util_1.logger.info('   📦 Catalogue: /api/catalogue');
+            logger_util_1.logger.info('   🛍️ History Catalogue: /api/history-catalogue');
             logger_util_1.logger.info('');
             logger_util_1.logger.info('✅ Ready to accept requests!');
         });

@@ -17,6 +17,7 @@ import productRoutes from './product.routes';
 import areaRouteRoutes from './arearoute.route';
 import catalogueRoute from './catalogue.routes';
 import historyCatalogueRoutes from './historyCatalogue.routes';
+import fieldOpsRoutes from './fieldops.routes';
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.use('/cart', cartRoutes);
 router.use('/area-route', areaRouteRoutes);
 router.use('/catalogue', catalogueRoute);
 router.use('/history-catalogue', historyCatalogueRoutes);
+router.use('/field-ops', fieldOpsRoutes);
 router.use('/', productRoutes);
 
 export default router;

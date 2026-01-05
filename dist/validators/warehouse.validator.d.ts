@@ -1,127 +1,299 @@
 import { z } from 'zod';
-export declare const receiveGoodsSchema: z.ZodObject<{
+export declare const createInventorySchema: z.ZodObject<{
     body: z.ZodObject<{
-        poNumber: z.ZodString;
-        vendor: z.ZodString;
         sku: z.ZodString;
         productName: z.ZodString;
+        po_number: z.ZodString;
         quantity: z.ZodNumber;
-        batchId: z.ZodOptional<z.ZodString>;
-        warehouse: z.ZodString;
-        qcVerification: z.ZodObject<{
-            packaging: z.ZodBoolean;
-            expiry: z.ZodBoolean;
-            label: z.ZodBoolean;
-        }, "strip", z.ZodTypeAny, {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        }, {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        }>;
-        storage: z.ZodObject<{
-            zone: z.ZodString;
-            aisle: z.ZodString;
-            rack: z.ZodString;
-            bin: z.ZodString;
-        }, "strip", z.ZodTypeAny, {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        }, {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        }>;
-        documents: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        expiry_date: z.ZodOptional<z.ZodString>;
+        minStockLevel: z.ZodOptional<z.ZodNumber>;
+        maxStockLevel: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
+        sku?: string;
         productName?: string;
         quantity?: number;
-        poNumber?: string;
-        vendor?: string;
-        sku?: string;
-        batchId?: string;
-        warehouse?: string;
-        qcVerification?: {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        };
-        storage?: {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        };
-        documents?: string[];
+        po_number?: string;
+        minStockLevel?: number;
+        maxStockLevel?: number;
+        expiry_date?: string;
     }, {
+        sku?: string;
         productName?: string;
         quantity?: number;
-        poNumber?: string;
-        vendor?: string;
-        sku?: string;
-        batchId?: string;
-        warehouse?: string;
-        qcVerification?: {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        };
-        storage?: {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        };
-        documents?: string[];
+        po_number?: string;
+        minStockLevel?: number;
+        maxStockLevel?: number;
+        expiry_date?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
+        sku?: string;
         productName?: string;
         quantity?: number;
-        poNumber?: string;
-        vendor?: string;
-        sku?: string;
-        batchId?: string;
-        warehouse?: string;
-        qcVerification?: {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        };
-        storage?: {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        };
-        documents?: string[];
+        po_number?: string;
+        minStockLevel?: number;
+        maxStockLevel?: number;
+        expiry_date?: string;
     };
 }, {
     body?: {
+        sku?: string;
         productName?: string;
         quantity?: number;
-        poNumber?: string;
-        vendor?: string;
-        sku?: string;
-        batchId?: string;
+        po_number?: string;
+        minStockLevel?: number;
+        maxStockLevel?: number;
+        expiry_date?: string;
+    };
+}>;
+export declare const createPurchaseOrderSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        vendor: z.ZodString;
+        warehouse: z.ZodOptional<z.ZodString>;
+        po_raised_date: z.ZodOptional<z.ZodString>;
+        po_status: z.ZodDefault<z.ZodEnum<["draft", "approved", "pending"]>>;
+        remarks: z.ZodOptional<z.ZodString>;
+        po_line_items: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodObject<{
+            line_no: z.ZodNumber;
+            sku: z.ZodString;
+            productName: z.ZodString;
+            quantity: z.ZodNumber;
+            category: z.ZodString;
+            pack_size: z.ZodString;
+            uom: z.ZodString;
+            unit_price: z.ZodNumber;
+            expected_delivery_date: z.ZodString;
+            location: z.ZodString;
+        }, "strip", z.ZodTypeAny, {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }, {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }>, "many">>>;
+    }, "strip", z.ZodTypeAny, {
         warehouse?: string;
-        qcVerification?: {
-            packaging?: boolean;
-            expiry?: boolean;
-            label?: boolean;
-        };
-        storage?: {
-            zone?: string;
-            aisle?: string;
-            rack?: string;
-            bin?: string;
-        };
-        documents?: string[];
+        remarks?: string;
+        vendor?: string;
+        po_status?: "draft" | "pending" | "approved";
+        po_raised_date?: string;
+        po_line_items?: {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }[];
+    }, {
+        warehouse?: string;
+        remarks?: string;
+        vendor?: string;
+        po_status?: "draft" | "pending" | "approved";
+        po_raised_date?: string;
+        po_line_items?: {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }[];
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        warehouse?: string;
+        remarks?: string;
+        vendor?: string;
+        po_status?: "draft" | "pending" | "approved";
+        po_raised_date?: string;
+        po_line_items?: {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }[];
+    };
+}, {
+    body?: {
+        warehouse?: string;
+        remarks?: string;
+        vendor?: string;
+        po_status?: "draft" | "pending" | "approved";
+        po_raised_date?: string;
+        po_line_items?: {
+            line_no?: number;
+            sku?: string;
+            productName?: string;
+            quantity?: number;
+            category?: string;
+            pack_size?: string;
+            uom?: string;
+            unit_price?: number;
+            expected_delivery_date?: string;
+            location?: string;
+        }[];
+    };
+}>;
+export declare const createGRNSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        delivery_challan: z.ZodString;
+        transporter_name: z.ZodString;
+        vehicle_number: z.ZodString;
+        received_date: z.ZodOptional<z.ZodString>;
+        remarks: z.ZodOptional<z.ZodString>;
+        scanned_challan: z.ZodOptional<z.ZodString>;
+        qc_status: z.ZodEnum<["bad", "moderate", "excellent"]>;
+        quantities: z.ZodOptional<z.ZodUnion<[z.ZodEffects<z.ZodString, any, string>, z.ZodArray<z.ZodObject<{
+            sku: z.ZodString;
+            received_quantity: z.ZodNumber;
+            accepted_quantity: z.ZodNumber;
+            rejected_quantity: z.ZodNumber;
+            expiry_date: z.ZodOptional<z.ZodString>;
+            item_remarks: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            sku?: string;
+            received_quantity?: number;
+            accepted_quantity?: number;
+            rejected_quantity?: number;
+            expiry_date?: string;
+            item_remarks?: string;
+        }, {
+            sku?: string;
+            received_quantity?: number;
+            accepted_quantity?: number;
+            rejected_quantity?: number;
+            expiry_date?: string;
+            item_remarks?: string;
+        }>, "many">]>>;
+    }, "strip", z.ZodTypeAny, {
+        delivery_challan?: string;
+        transporter_name?: string;
+        vehicle_number?: string;
+        remarks?: string;
+        scanned_challan?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+        received_date?: string;
+        quantities?: any;
+    }, {
+        delivery_challan?: string;
+        transporter_name?: string;
+        vehicle_number?: string;
+        remarks?: string;
+        scanned_challan?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+        received_date?: string;
+        quantities?: string | {
+            sku?: string;
+            received_quantity?: number;
+            accepted_quantity?: number;
+            rejected_quantity?: number;
+            expiry_date?: string;
+            item_remarks?: string;
+        }[];
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        delivery_challan?: string;
+        transporter_name?: string;
+        vehicle_number?: string;
+        remarks?: string;
+        scanned_challan?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+        received_date?: string;
+        quantities?: any;
+    };
+}, {
+    body?: {
+        delivery_challan?: string;
+        transporter_name?: string;
+        vehicle_number?: string;
+        remarks?: string;
+        scanned_challan?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+        received_date?: string;
+        quantities?: string | {
+            sku?: string;
+            received_quantity?: number;
+            accepted_quantity?: number;
+            rejected_quantity?: number;
+            expiry_date?: string;
+            item_remarks?: string;
+        }[];
+    };
+}>;
+export declare const updateGRNStatusSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        qc_status: z.ZodEnum<["bad", "moderate", "excellent"]>;
+        remarks: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        remarks?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+    }, {
+        remarks?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        remarks?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+    };
+}, {
+    body?: {
+        remarks?: string;
+        qc_status?: "bad" | "moderate" | "excellent";
+    };
+}>;
+export declare const updatePurchaseOrderStatusSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        po_status: z.ZodEnum<["draft", "approved", "delivered"]>;
+        remarks: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        remarks?: string;
+        po_status?: "draft" | "approved" | "delivered";
+    }, {
+        remarks?: string;
+        po_status?: "draft" | "approved" | "delivered";
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        remarks?: string;
+        po_status?: "draft" | "approved" | "delivered";
+    };
+}, {
+    body?: {
+        remarks?: string;
+        po_status?: "draft" | "approved" | "delivered";
     };
 }>;
 export declare const createDispatchSchema: z.ZodObject<{
@@ -132,76 +304,81 @@ export declare const createDispatchSchema: z.ZodObject<{
             sku: z.ZodString;
             quantity: z.ZodNumber;
         }, "strip", z.ZodTypeAny, {
-            quantity?: number;
             sku?: string;
+            quantity?: number;
         }, {
-            quantity?: number;
             sku?: string;
+            quantity?: number;
         }>, "many">;
         assignedAgent: z.ZodString;
+        warehouse: z.ZodOptional<z.ZodString>;
         notes: z.ZodOptional<z.ZodString>;
         status: z.ZodOptional<z.ZodEnum<["pending", "assigned", "in_transit", "delivered", "cancelled"]>>;
     }, "strip", z.ZodTypeAny, {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
-        notes?: string;
-        products?: {
-            quantity?: number;
-            sku?: string;
-        }[];
+        warehouse?: string;
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
         dispatchId?: string;
         destination?: string;
+        products?: {
+            sku?: string;
+            quantity?: number;
+        }[];
         assignedAgent?: string;
+        notes?: string;
     }, {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
-        notes?: string;
-        products?: {
-            quantity?: number;
-            sku?: string;
-        }[];
+        warehouse?: string;
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
         dispatchId?: string;
         destination?: string;
+        products?: {
+            sku?: string;
+            quantity?: number;
+        }[];
         assignedAgent?: string;
+        notes?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
-        notes?: string;
-        products?: {
-            quantity?: number;
-            sku?: string;
-        }[];
+        warehouse?: string;
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
         dispatchId?: string;
         destination?: string;
+        products?: {
+            sku?: string;
+            quantity?: number;
+        }[];
         assignedAgent?: string;
+        notes?: string;
     };
 }, {
     body?: {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
-        notes?: string;
-        products?: {
-            quantity?: number;
-            sku?: string;
-        }[];
+        warehouse?: string;
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
         dispatchId?: string;
         destination?: string;
+        products?: {
+            sku?: string;
+            quantity?: number;
+        }[];
         assignedAgent?: string;
+        notes?: string;
     };
 }>;
 export declare const updateDispatchStatusSchema: z.ZodObject<{
     body: z.ZodObject<{
         status: z.ZodEnum<["pending", "assigned", "in_transit", "delivered", "cancelled"]>;
     }, "strip", z.ZodTypeAny, {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
     }, {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
     };
 }, {
     body?: {
-        status?: "pending" | "cancelled" | "assigned" | "in_transit" | "delivered";
+        status?: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
     };
 }>;
 export declare const createQCTemplateSchema: z.ZodObject<{
@@ -284,59 +461,64 @@ export declare const createReturnOrderSchema: z.ZodObject<{
     body: z.ZodObject<{
         batchId: z.ZodString;
         vendor: z.ZodString;
+        warehouse: z.ZodOptional<z.ZodString>;
         reason: z.ZodString;
         status: z.ZodDefault<z.ZodOptional<z.ZodEnum<["pending", "approved", "returned", "rejected"]>>>;
         quantity: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     }, "strip", z.ZodTypeAny, {
+        warehouse?: string;
         status?: "pending" | "approved" | "rejected" | "returned";
         reason?: string;
-        quantity?: number;
         vendor?: string;
+        quantity?: number;
         batchId?: string;
     }, {
+        warehouse?: string;
         status?: "pending" | "approved" | "rejected" | "returned";
         reason?: string;
-        quantity?: number;
         vendor?: string;
+        quantity?: number;
         batchId?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
+        warehouse?: string;
         status?: "pending" | "approved" | "rejected" | "returned";
         reason?: string;
-        quantity?: number;
         vendor?: string;
+        quantity?: number;
         batchId?: string;
     };
 }, {
     body?: {
+        warehouse?: string;
         status?: "pending" | "approved" | "rejected" | "returned";
         reason?: string;
-        quantity?: number;
         vendor?: string;
+        quantity?: number;
         batchId?: string;
     };
 }>;
 export declare const createFieldAgentSchema: z.ZodObject<{
     body: z.ZodObject<{
-        name: z.ZodString;
-        assignedRoutes: z.ZodOptional<z.ZodString>;
+        userId: z.ZodString;
+        assignedRoutes: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString, "many">>>;
     }, "strip", z.ZodTypeAny, {
-        name?: string;
-        assignedRoutes?: string;
+        userId?: string;
+        assignedRoutes?: string[];
     }, {
-        name?: string;
-        assignedRoutes?: string;
+        userId?: string;
+        assignedRoutes?: string[];
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
-        name?: string;
-        assignedRoutes?: string;
+        userId?: string;
+        assignedRoutes?: string[];
     };
 }, {
     body?: {
-        name?: string;
-        assignedRoutes?: string;
+        userId?: string;
+        assignedRoutes?: string[];
     };
 }>;
 export declare const warehouseReportSchema: z.ZodObject<{
@@ -348,37 +530,37 @@ export declare const warehouseReportSchema: z.ZodObject<{
         category: z.ZodOptional<z.ZodString>;
         format: z.ZodDefault<z.ZodEnum<["json", "csv"]>>;
     }, "strip", z.ZodTypeAny, {
+        warehouse?: string;
         type?: "inventory_turnover" | "qc_summary" | "efficiency" | "stock_ageing";
         startDate?: string;
         endDate?: string;
         format?: "csv" | "json";
         category?: string;
-        warehouse?: string;
     }, {
+        warehouse?: string;
         type?: "inventory_turnover" | "qc_summary" | "efficiency" | "stock_ageing";
         startDate?: string;
         endDate?: string;
         format?: "csv" | "json";
         category?: string;
-        warehouse?: string;
     }>;
 }, "strip", z.ZodTypeAny, {
     query?: {
+        warehouse?: string;
         type?: "inventory_turnover" | "qc_summary" | "efficiency" | "stock_ageing";
         startDate?: string;
         endDate?: string;
         format?: "csv" | "json";
         category?: string;
-        warehouse?: string;
     };
 }, {
     query?: {
+        warehouse?: string;
         type?: "inventory_turnover" | "qc_summary" | "efficiency" | "stock_ageing";
         startDate?: string;
         endDate?: string;
         format?: "csv" | "json";
         category?: string;
-        warehouse?: string;
     };
 }>;
 export declare const updateQCSchema: z.ZodObject<{
@@ -389,47 +571,47 @@ export declare const updateQCSchema: z.ZodObject<{
             label: z.ZodOptional<z.ZodBoolean>;
             documents: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         }, "strip", z.ZodTypeAny, {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         }, {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         }>;
     }, "strip", z.ZodTypeAny, {
         qcVerification?: {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         };
     }, {
         qcVerification?: {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         };
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
         qcVerification?: {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         };
     };
 }, {
     body?: {
         qcVerification?: {
+            documents?: string[];
             packaging?: boolean;
             expiry?: boolean;
             label?: boolean;
-            documents?: string[];
         };
     };
 }>;
@@ -459,6 +641,7 @@ export declare const updateInventorySchema: z.ZodObject<{
         minStockLevel: z.ZodOptional<z.ZodNumber>;
         maxStockLevel: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
+        sku?: string;
         productName?: string;
         quantity?: number;
         location?: {
@@ -467,12 +650,12 @@ export declare const updateInventorySchema: z.ZodObject<{
             rack?: string;
             bin?: string;
         };
-        sku?: string;
         batchId?: string;
         minStockLevel?: number;
         maxStockLevel?: number;
         expiryDate?: string;
     }, {
+        sku?: string;
         productName?: string;
         quantity?: number;
         location?: {
@@ -481,7 +664,6 @@ export declare const updateInventorySchema: z.ZodObject<{
             rack?: string;
             bin?: string;
         };
-        sku?: string;
         batchId?: string;
         minStockLevel?: number;
         maxStockLevel?: number;
@@ -489,6 +671,7 @@ export declare const updateInventorySchema: z.ZodObject<{
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
+        sku?: string;
         productName?: string;
         quantity?: number;
         location?: {
@@ -497,7 +680,6 @@ export declare const updateInventorySchema: z.ZodObject<{
             rack?: string;
             bin?: string;
         };
-        sku?: string;
         batchId?: string;
         minStockLevel?: number;
         maxStockLevel?: number;
@@ -505,6 +687,7 @@ export declare const updateInventorySchema: z.ZodObject<{
     };
 }, {
     body?: {
+        sku?: string;
         productName?: string;
         quantity?: number;
         location?: {
@@ -513,7 +696,6 @@ export declare const updateInventorySchema: z.ZodObject<{
             rack?: string;
             bin?: string;
         };
-        sku?: string;
         batchId?: string;
         minStockLevel?: number;
         maxStockLevel?: number;
@@ -535,20 +717,20 @@ export declare const createExpenseSchema: z.ZodObject<{
         status?: "pending" | "approved";
         date?: string;
         description?: string;
-        category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         vendor?: string;
+        category?: "staffing" | "supplies" | "equipment" | "transport";
         assignedAgent?: string;
+        amount?: number;
         billUrl?: string;
         warehouseId?: string;
     }, {
         status?: "pending" | "approved";
         date?: string;
         description?: string;
-        category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         vendor?: string;
+        category?: "staffing" | "supplies" | "equipment" | "transport";
         assignedAgent?: string;
+        amount?: number;
         billUrl?: string;
         warehouseId?: string;
     }>;
@@ -557,10 +739,10 @@ export declare const createExpenseSchema: z.ZodObject<{
         status?: "pending" | "approved";
         date?: string;
         description?: string;
-        category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         vendor?: string;
+        category?: "staffing" | "supplies" | "equipment" | "transport";
         assignedAgent?: string;
+        amount?: number;
         billUrl?: string;
         warehouseId?: string;
     };
@@ -569,10 +751,10 @@ export declare const createExpenseSchema: z.ZodObject<{
         status?: "pending" | "approved";
         date?: string;
         description?: string;
-        category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         vendor?: string;
+        category?: "staffing" | "supplies" | "equipment" | "transport";
         assignedAgent?: string;
+        amount?: number;
         billUrl?: string;
         warehouseId?: string;
     };
@@ -590,15 +772,15 @@ export declare const updateExpenseSchema: z.ZodObject<{
         date?: string;
         description?: string;
         category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         assignedAgent?: string;
+        amount?: number;
     }, {
         status?: "pending" | "approved";
         date?: string;
         description?: string;
         category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         assignedAgent?: string;
+        amount?: number;
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
@@ -606,8 +788,8 @@ export declare const updateExpenseSchema: z.ZodObject<{
         date?: string;
         description?: string;
         category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         assignedAgent?: string;
+        amount?: number;
     };
 }, {
     body?: {
@@ -615,8 +797,8 @@ export declare const updateExpenseSchema: z.ZodObject<{
         date?: string;
         description?: string;
         category?: "staffing" | "supplies" | "equipment" | "transport";
-        amount?: number;
         assignedAgent?: string;
+        amount?: number;
     };
 }>;
 export declare const updateExpenseStatusSchema: z.ZodObject<{
@@ -683,6 +865,142 @@ export declare const dashboardQuerySchema: z.ZodObject<{
         date?: string;
         category?: string;
         warehouseId?: string;
+    };
+}>;
+export declare const createWarehouseSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        name: z.ZodString;
+        code: z.ZodString;
+        partner: z.ZodString;
+        location: z.ZodString;
+        capacity: z.ZodNumber;
+        manager: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+    }, {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+    };
+}, {
+    body?: {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+    };
+}>;
+export declare const updateWarehouseSchema: z.ZodObject<{
+    body: z.ZodObject<{
+        name: z.ZodOptional<z.ZodString>;
+        code: z.ZodOptional<z.ZodString>;
+        partner: z.ZodOptional<z.ZodString>;
+        location: z.ZodOptional<z.ZodString>;
+        capacity: z.ZodOptional<z.ZodNumber>;
+        manager: z.ZodOptional<z.ZodString>;
+        isActive: z.ZodOptional<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+        isActive?: boolean;
+    }, {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+        isActive?: boolean;
+    }>;
+}, "strip", z.ZodTypeAny, {
+    body?: {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+        isActive?: boolean;
+    };
+}, {
+    body?: {
+        partner?: string;
+        name?: string;
+        code?: string;
+        location?: string;
+        capacity?: number;
+        manager?: string;
+        isActive?: boolean;
+    };
+}>;
+export declare const getWarehousesQuerySchema: z.ZodObject<{
+    query: z.ZodObject<{
+        page: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string>, number, string>;
+        limit: z.ZodEffects<z.ZodEffects<z.ZodDefault<z.ZodOptional<z.ZodString>>, number, string>, number, string>;
+        search: z.ZodOptional<z.ZodString>;
+        isActive: z.ZodOptional<z.ZodEnum<["true", "false"]>>;
+        partner: z.ZodOptional<z.ZodString>;
+        sortBy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["name", "code", "createdAt", "capacity"]>>>;
+        sortOrder: z.ZodDefault<z.ZodOptional<z.ZodEnum<["asc", "desc"]>>>;
+    }, "strip", z.ZodTypeAny, {
+        partner?: string;
+        search?: string;
+        limit?: number;
+        page?: number;
+        sortBy?: "name" | "createdAt" | "code" | "capacity";
+        sortOrder?: "asc" | "desc";
+        isActive?: "true" | "false";
+    }, {
+        partner?: string;
+        search?: string;
+        limit?: string;
+        page?: string;
+        sortBy?: "name" | "createdAt" | "code" | "capacity";
+        sortOrder?: "asc" | "desc";
+        isActive?: "true" | "false";
+    }>;
+}, "strip", z.ZodTypeAny, {
+    query?: {
+        partner?: string;
+        search?: string;
+        limit?: number;
+        page?: number;
+        sortBy?: "name" | "createdAt" | "code" | "capacity";
+        sortOrder?: "asc" | "desc";
+        isActive?: "true" | "false";
+    };
+}, {
+    query?: {
+        partner?: string;
+        search?: string;
+        limit?: string;
+        page?: string;
+        sortBy?: "name" | "createdAt" | "code" | "capacity";
+        sortOrder?: "asc" | "desc";
+        isActive?: "true" | "false";
     };
 }>;
 //# sourceMappingURL=warehouse.validator.d.ts.map

@@ -1,3 +1,41 @@
-export declare const getVendors: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
-export declare const createVendor: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+import { Request, Response } from 'express';
+export declare class VendorController {
+    private static getLoggedInUser;
+    static createCompany(req: Request, res: Response): Promise<void>;
+    static getAllCompanies(req: Request, res: Response): Promise<void>;
+    static getCompanyById(req: Request, res: Response): Promise<void>;
+    static updateCompany(req: Request, res: Response): Promise<void>;
+    static deleteCompany(req: Request, res: Response): Promise<void>;
+    static searchCompanies(req: Request, res: Response): Promise<void>;
+    static checkCompanyExists(req: Request, res: Response): Promise<void>;
+    getCommonDashboard(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getSuperAdminVendorManagement(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getAllVendorsForSuperAdmin(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getVendorStatistics(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getPendingApprovals(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    createCompleteVendor(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    createBulkVendors(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    static getVendorsByCompany(req: Request, res: Response): Promise<void>;
+    static getCompanyWithVendorStats(req: Request, res: Response): Promise<void>;
+    getVendorById(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getVendorByVendorId(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getMyVendorProfile(req: Request, res: Response): Promise<void>;
+    getVendorForEdit(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getAllVendors(req: Request, res: Response): Promise<void>;
+    updateVendor(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    updateVendorForAdmin(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    updateVendorVerification(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    quickVerifyOrRejectVendor(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    toggleVendorVerification(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    bulkUpdateVendorVerification(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    deleteVendor(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    deleteVendorForAdmin(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    generateTestAuditData(req: Request, res: Response): Promise<void>;
+    getVendorAuditTrail(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    getCompanyAuditTrail(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    uploadVendorDocument(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+    deleteVendorDocument(req: Request, res: Response): Promise<void>;
+    getVendorDocuments(req: Request, res: Response): Promise<void>;
+    getVendorDocument(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+}
 //# sourceMappingURL=vendor.controller.d.ts.map

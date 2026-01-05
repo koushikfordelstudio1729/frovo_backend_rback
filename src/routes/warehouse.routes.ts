@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import * as warehouseController from '../controllers/warehouse.controller';
 import { authenticate } from '../middleware/auth.middleware';
-import { requirePermission } from '../middleware/permission.middleware';
+import { requirePermission, requireRole } from '../middleware/permission.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { warehouseScopeMiddleware } from '../middleware/warehouseScope.middleware';
 import { uploadPOImages, uploadSingle, uploadGRN } from '../middleware/upload.middleware';
@@ -171,6 +171,11 @@ router.post('/field-agents',
   requirePermission('agents:manage'),
   validate({ body: createFieldAgentSchema.shape.body }),
   warehouseController.createFieldAgent
+);
+
+router.put('/field-agents/:id',
+  requirePermission('agents:manage'),
+  warehouseController.updateFieldAgent
 );
 
 // ==================== SCREEN 4: INVENTORY MANAGEMENT ====================

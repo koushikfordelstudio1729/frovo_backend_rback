@@ -44,12 +44,48 @@ const seedRoles = async (createdBy, departmentMap) => {
         if (existingCount > 0) {
             logger_util_1.logger.info(`✅ Roles already seeded (${existingCount} roles found)`);
             const existingRoles = await models_1.Role.find();
+            console.log('🔍 Existing roles in database:');
+            existingRoles.forEach(role => {
+                console.log(`   - ${role.name} (systemRole: ${role.systemRole})`);
+            });
+            const warehouseStaffExists = existingRoles.some(role => role.systemRole === models_1.SystemRole.WAREHOUSE_STAFF);
+            if (!warehouseStaffExists) {
+                logger_util_1.logger.info('⚠️ Warehouse Staff role missing, creating it now...');
+                const warehouseStaffRole = {
+                    name: 'Warehouse Staff',
+                    key: 'warehouse_staff',
+                    systemRole: models_1.SystemRole.WAREHOUSE_STAFF,
+                    type: models_1.RoleType.SYSTEM,
+                    department: departmentMap[models_1.DepartmentName.WAREHOUSE],
+                    permissions: [
+                        'warehouse:view',
+                        'inventory:receive',
+                        'batch:log',
+                        'dispatch:assign',
+                        'refills:view',
+                        'purchase_orders:view',
+                        'purchase_orders:create',
+                    ],
+                    scope: { level: models_1.ScopeLevel.PARTNER },
+                    uiAccess: models_1.UIAccess.WAREHOUSE_PORTAL,
+                    status: models_1.RoleStatus.PUBLISHED,
+                    description: 'Warehouse staff with limited permissions - can create POs but not update status or create GRNs',
+                    createdBy
+                };
+                const createdWarehouseStaff = await models_1.Role.create(warehouseStaffRole);
+                logger_util_1.logger.info(`✅ Warehouse Staff role created successfully: ${createdWarehouseStaff._id}`);
+                existingRoles.push(createdWarehouseStaff);
+            }
+            else {
+                logger_util_1.logger.info('✅ Warehouse Staff role already exists');
+            }
             const roleMap = {};
             existingRoles.forEach(role => {
                 if (role.systemRole) {
                     roleMap[role.systemRole] = role._id;
                 }
             });
+            console.log('🔍 Role map created:', Object.keys(roleMap));
             return roleMap;
         }
         const roles = [
@@ -66,6 +102,23 @@ const seedRoles = async (createdBy, departmentMap) => {
                 description: 'Full system access with all permissions'
             },
             {
+                name: 'Vendor Admin',
+                key: 'vendor_admin',
+                systemRole: models_1.SystemRole.VENDOR_ADMIN,
+                type: models_1.RoleType.SYSTEM,
+                department: departmentMap[models_1.DepartmentName.OPERATIONS],
+                permissions: [
+                    'vendors:view', 'vendors:create', 'vendors:edit', 'vendors:delete', 'vendors:approve',
+                    'vendors:financials_view', 'vendors:compliance_view',
+                    'users:view',
+                    'roles:view'
+                ],
+                scope: { level: models_1.ScopeLevel.GLOBAL },
+                uiAccess: models_1.UIAccess.ADMIN_PANEL,
+                status: models_1.RoleStatus.PUBLISHED,
+                description: 'Vendor management with full control over vendor lifecycle'
+            },
+            {
                 name: 'Ops Manager',
                 key: 'ops_manager',
                 systemRole: models_1.SystemRole.OPS_MANAGER,
@@ -75,7 +128,10 @@ const seedRoles = async (createdBy, departmentMap) => {
                     'machines:view', 'machines:edit', 'machines:assign',
                     'planogram:view', 'planogram:edit',
                     'refills:view', 'refills:assign',
-                    'users:view', 'roles:view'
+                    'users:view', 'roles:view',
+                    'vendors:view',
+                    'vendors:financials_view',
+                    'warehouse:view', 'warehouse:manage'
                 ],
                 scope: { level: models_1.ScopeLevel.PARTNER },
                 uiAccess: models_1.UIAccess.ADMIN_PANEL,
@@ -124,7 +180,9 @@ const seedRoles = async (createdBy, departmentMap) => {
                     'finance:view',
                     'settlement:view', 'settlement:compute',
                     'payout:compute',
-                    'orders:view'
+                    'orders:view',
+                    'vendors:view',
+                    'vendors:financials_view'
                 ],
                 scope: { level: models_1.ScopeLevel.GLOBAL },
                 uiAccess: models_1.UIAccess.FINANCE_DASHBOARD,
@@ -157,12 +215,35 @@ const seedRoles = async (createdBy, departmentMap) => {
                     'inventory:receive',
                     'batch:log',
                     'dispatch:assign',
-                    'refills:view'
+                    'refills:view',
+                    'warehouse:view', 'warehouse:manage', 'warehouse:admin',
+                    'purchase_orders:view', 'purchase_orders:create', 'purchase_orders:edit', 'purchase_orders:delete', 'purchase_orders:status_update',
+                    'grn:view', 'grn:create', 'grn:edit', 'grn:delete'
                 ],
                 scope: { level: models_1.ScopeLevel.PARTNER },
                 uiAccess: models_1.UIAccess.WAREHOUSE_PORTAL,
                 status: models_1.RoleStatus.PUBLISHED,
                 description: 'Warehouse operations with partner-level access'
+            },
+            {
+                name: 'Warehouse Staff',
+                key: 'warehouse_staff',
+                systemRole: models_1.SystemRole.WAREHOUSE_STAFF,
+                type: models_1.RoleType.SYSTEM,
+                department: departmentMap[models_1.DepartmentName.WAREHOUSE],
+                permissions: [
+                    'warehouse:view',
+                    'inventory:receive',
+                    'batch:log',
+                    'dispatch:assign',
+                    'refills:view',
+                    'purchase_orders:view',
+                    'purchase_orders:create',
+                ],
+                scope: { level: models_1.ScopeLevel.PARTNER },
+                uiAccess: models_1.UIAccess.WAREHOUSE_PORTAL,
+                status: models_1.RoleStatus.PUBLISHED,
+                description: 'Warehouse staff with limited permissions - can create POs but not update status or create GRNs'
             },
             {
                 name: 'Auditor',

@@ -180,8 +180,8 @@ export const createReturnOrderSchema = z.object({
 
 export const createFieldAgentSchema = z.object({
   body: z.object({
-    name: z.string().min(1, 'Name is required'),
-    assignedRoutes: z.array(z.string()).optional()
+    userId: objectIdSchema,
+    assignedRoutes: z.array(z.string()).optional().default([])
   })
 });
 
