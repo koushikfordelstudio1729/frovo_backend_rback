@@ -25,12 +25,14 @@ export declare enum AccessRequestStatus {
 }
 export declare enum SystemRole {
     SUPER_ADMIN = "super_admin",
+    VENDOR_ADMIN = "vendor_admin",
     OPS_MANAGER = "ops_manager",
     FIELD_AGENT = "field_agent",
     TECHNICIAN = "technician",
     FINANCE_MANAGER = "finance_manager",
     SUPPORT_AGENT = "support_agent",
     WAREHOUSE_MANAGER = "warehouse_manager",
+    WAREHOUSE_STAFF = "warehouse_staff",
     AUDITOR = "auditor",
     CUSTOMER = "customer"
 }
@@ -47,6 +49,7 @@ export declare enum DepartmentName {
 }
 export declare enum PermissionModule {
     MACHINES = "machines",
+    VENDORS = "vendors",
     PLANOGRAM = "planogram",
     ORDERS = "orders",
     FINANCE = "finance",
@@ -62,7 +65,10 @@ export declare enum PermissionModule {
     JOB = "job",
     TICKET = "ticket",
     BATCH = "batch",
-    DISPATCH = "dispatch"
+    DISPATCH = "dispatch",
+    WAREHOUSE = "warehouse",
+    PURCHASE_ORDERS = "purchase_orders",
+    GRN = "grn"
 }
 export declare enum PermissionAction {
     VIEW = "view",
@@ -80,7 +86,10 @@ export declare enum PermissionAction {
     RECEIVE = "receive",
     DISPATCH = "dispatch",
     UPDATE = "update",
-    LOG = "log"
+    LOG = "log",
+    STATUS_UPDATE = "status_update",
+    MANAGE = "manage",
+    ADMIN = "admin"
 }
 export declare enum UIAccess {
     ADMIN_PANEL = "Admin Panel",

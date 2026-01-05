@@ -1,29 +1,90 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.dashboardQuerySchema = exports.updateExpensePaymentStatusSchema = exports.updateExpenseStatusSchema = exports.updateExpenseSchema = exports.createExpenseSchema = exports.updateInventorySchema = exports.updateQCSchema = exports.warehouseReportSchema = exports.createFieldAgentSchema = exports.createReturnOrderSchema = exports.applyQCTemplateSchema = exports.createQCTemplateSchema = exports.updateDispatchStatusSchema = exports.createDispatchSchema = exports.receiveGoodsSchema = void 0;
+exports.getWarehousesQuerySchema = exports.updateWarehouseSchema = exports.createWarehouseSchema = exports.dashboardQuerySchema = exports.updateExpensePaymentStatusSchema = exports.updateExpenseStatusSchema = exports.updateExpenseSchema = exports.createExpenseSchema = exports.updateInventorySchema = exports.updateQCSchema = exports.warehouseReportSchema = exports.createFieldAgentSchema = exports.createReturnOrderSchema = exports.applyQCTemplateSchema = exports.createQCTemplateSchema = exports.updateDispatchStatusSchema = exports.createDispatchSchema = exports.updatePurchaseOrderStatusSchema = exports.updateGRNStatusSchema = exports.createGRNSchema = exports.createPurchaseOrderSchema = exports.createInventorySchema = void 0;
 const zod_1 = require("zod");
 const objectIdSchema = zod_1.z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId format');
-exports.receiveGoodsSchema = zod_1.z.object({
+exports.createInventorySchema = zod_1.z.object({
     body: zod_1.z.object({
-        poNumber: zod_1.z.string().min(1, 'PO Number is required'),
-        vendor: objectIdSchema,
         sku: zod_1.z.string().min(1, 'SKU is required'),
         productName: zod_1.z.string().min(1, 'Product name is required'),
-        quantity: zod_1.z.number().min(1, 'Quantity must be at least 1'),
-        batchId: zod_1.z.string().min(1, 'Batch ID is required').optional(),
-        warehouse: objectIdSchema,
-        qcVerification: zod_1.z.object({
-            packaging: zod_1.z.boolean(),
-            expiry: zod_1.z.boolean(),
-            label: zod_1.z.boolean()
+        po_number: zod_1.z.string().min(1, 'PO number is required'),
+        quantity: zod_1.z.number().min(0, 'Quantity must be positive'),
+        expiry_date: zod_1.z.string().datetime().optional(),
+        minStockLevel: zod_1.z.number().min(0).optional(),
+        maxStockLevel: zod_1.z.number().min(0).optional()
+    })
+});
+exports.createPurchaseOrderSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        vendor: zod_1.z.string().min(1, 'Vendor is required'),
+        warehouse: objectIdSchema.optional(),
+        po_raised_date: zod_1.z.string().datetime().optional(),
+        po_status: zod_1.z.enum(['draft', 'approved', 'pending']).default('draft'),
+        remarks: zod_1.z.string().optional(),
+        po_line_items: zod_1.z.array(zod_1.z.object({
+            line_no: zod_1.z.number().min(1, 'Line number is required'),
+            sku: zod_1.z.string().min(1, 'SKU is required'),
+            productName: zod_1.z.string().min(1, 'Product name is required'),
+            quantity: zod_1.z.number().min(1, 'Quantity must be at least 1'),
+            category: zod_1.z.string().min(1, 'Category is required'),
+            pack_size: zod_1.z.string().min(1, 'Pack size is required'),
+            uom: zod_1.z.string().min(1, 'Unit of measure is required'),
+            unit_price: zod_1.z.number().min(0, 'Unit price must be positive'),
+            expected_delivery_date: zod_1.z.string().datetime('Valid delivery date required'),
+            location: zod_1.z.string().min(1, 'Location is required')
+        })).optional().default([])
+    })
+});
+exports.createGRNSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        delivery_challan: zod_1.z.string().min(1, 'Delivery challan number is required'),
+        transporter_name: zod_1.z.string().min(1, 'Transporter name is required'),
+        vehicle_number: zod_1.z.string().min(1, 'Vehicle number is required'),
+        received_date: zod_1.z.string().datetime().optional(),
+        remarks: zod_1.z.string().optional(),
+        scanned_challan: zod_1.z.string().url('Valid URL required').optional(),
+        qc_status: zod_1.z.enum(['bad', 'moderate', 'excellent'], {
+            required_error: 'QC status is required'
         }),
-        storage: zod_1.z.object({
-            zone: zod_1.z.string().min(1, 'Zone is required'),
-            aisle: zod_1.z.string().min(1, 'Aisle is required'),
-            rack: zod_1.z.string().min(1, 'Rack is required'),
-            bin: zod_1.z.string().min(1, 'Bin is required')
+        quantities: zod_1.z.union([
+            zod_1.z.string().transform((str, ctx) => {
+                try {
+                    const parsed = JSON.parse(str);
+                    return parsed;
+                }
+                catch (e) {
+                    ctx.addIssue({
+                        code: zod_1.z.ZodIssueCode.custom,
+                        message: 'Invalid JSON string for quantities',
+                    });
+                    return zod_1.z.NEVER;
+                }
+            }),
+            zod_1.z.array(zod_1.z.object({
+                sku: zod_1.z.string().min(1, 'SKU is required'),
+                received_quantity: zod_1.z.number().min(0, 'Received quantity must be positive'),
+                accepted_quantity: zod_1.z.number().min(0, 'Accepted quantity must be positive'),
+                rejected_quantity: zod_1.z.number().min(0, 'Rejected quantity must be positive'),
+                expiry_date: zod_1.z.string().datetime().optional(),
+                item_remarks: zod_1.z.string().optional()
+            }))
+        ]).optional()
+    })
+});
+exports.updateGRNStatusSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        qc_status: zod_1.z.enum(['bad', 'moderate', 'excellent'], {
+            required_error: 'QC status is required'
         }),
-        documents: zod_1.z.array(zod_1.z.string()).optional()
+        remarks: zod_1.z.string().optional()
+    })
+});
+exports.updatePurchaseOrderStatusSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        po_status: zod_1.z.enum(['draft', 'approved', 'delivered'], {
+            required_error: 'Purchase order status is required'
+        }),
+        remarks: zod_1.z.string().optional()
     })
 });
 exports.createDispatchSchema = zod_1.z.object({
@@ -35,6 +96,7 @@ exports.createDispatchSchema = zod_1.z.object({
             quantity: zod_1.z.number().min(1, 'Quantity must be at least 1')
         })).min(1, 'At least one product is required'),
         assignedAgent: objectIdSchema,
+        warehouse: objectIdSchema.optional(),
         notes: zod_1.z.string().max(500, 'Notes too long').optional(),
         status: zod_1.z.enum(['pending', 'assigned', 'in_transit', 'delivered', 'cancelled']).optional()
     })
@@ -77,6 +139,7 @@ exports.createReturnOrderSchema = zod_1.z.object({
     body: zod_1.z.object({
         batchId: zod_1.z.string().min(1, 'Batch ID is required'),
         vendor: objectIdSchema,
+        warehouse: objectIdSchema.optional(),
         reason: zod_1.z.string().min(1, 'Reason is required'),
         status: zod_1.z.enum(['pending', 'approved', 'returned', 'rejected']).optional().default('pending'),
         quantity: zod_1.z.number().min(1, 'Quantity must be at least 1').optional().default(1),
@@ -84,8 +147,8 @@ exports.createReturnOrderSchema = zod_1.z.object({
 });
 exports.createFieldAgentSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().min(1, 'Name is required'),
-        assignedRoutes: zod_1.z.string().optional()
+        userId: objectIdSchema,
+        assignedRoutes: zod_1.z.array(zod_1.z.string()).optional().default([])
     })
 });
 exports.warehouseReportSchema = zod_1.z.object({
@@ -164,5 +227,80 @@ exports.dashboardQuerySchema = zod_1.z.object({
         category: zod_1.z.string().optional(),
         partner: zod_1.z.string().optional(),
         warehouseId: objectIdSchema.optional()
+    })
+});
+exports.createWarehouseSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        name: zod_1.z.string()
+            .min(2, 'Warehouse name must be at least 2 characters')
+            .max(100, 'Warehouse name cannot exceed 100 characters')
+            .trim(),
+        code: zod_1.z.string()
+            .min(2, 'Warehouse code must be at least 2 characters')
+            .max(20, 'Warehouse code cannot exceed 20 characters')
+            .trim()
+            .toUpperCase(),
+        partner: zod_1.z.string()
+            .min(1, 'Partner name is required')
+            .trim(),
+        location: zod_1.z.string()
+            .min(5, 'Location must be at least 5 characters')
+            .trim(),
+        capacity: zod_1.z.number()
+            .min(1, 'Capacity must be at least 1')
+            .max(1000000, 'Capacity cannot exceed 1,000,000'),
+        manager: objectIdSchema
+    })
+});
+exports.updateWarehouseSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        name: zod_1.z.string()
+            .min(2, 'Warehouse name must be at least 2 characters')
+            .max(100, 'Warehouse name cannot exceed 100 characters')
+            .trim()
+            .optional(),
+        code: zod_1.z.string()
+            .min(2, 'Warehouse code must be at least 2 characters')
+            .max(20, 'Warehouse code cannot exceed 20 characters')
+            .trim()
+            .toUpperCase()
+            .optional(),
+        partner: zod_1.z.string()
+            .min(1, 'Partner name is required')
+            .trim()
+            .optional(),
+        location: zod_1.z.string()
+            .min(5, 'Location must be at least 5 characters')
+            .trim()
+            .optional(),
+        capacity: zod_1.z.number()
+            .min(1, 'Capacity must be at least 1')
+            .max(1000000, 'Capacity cannot exceed 1,000,000')
+            .optional(),
+        manager: objectIdSchema.optional(),
+        isActive: zod_1.z.boolean().optional()
+    })
+});
+exports.getWarehousesQuerySchema = zod_1.z.object({
+    query: zod_1.z.object({
+        page: zod_1.z.string()
+            .optional()
+            .default('1')
+            .transform((val) => parseInt(val, 10))
+            .refine((val) => val > 0, 'Page must be greater than 0'),
+        limit: zod_1.z.string()
+            .optional()
+            .default('10')
+            .transform((val) => parseInt(val, 10))
+            .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
+        search: zod_1.z.string().trim().optional(),
+        isActive: zod_1.z.enum(['true', 'false']).optional(),
+        partner: zod_1.z.string().trim().optional(),
+        sortBy: zod_1.z.enum(['name', 'code', 'createdAt', 'capacity'])
+            .optional()
+            .default('createdAt'),
+        sortOrder: zod_1.z.enum(['asc', 'desc'])
+            .optional()
+            .default('desc')
     })
 });

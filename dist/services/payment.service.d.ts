@@ -1,5 +1,6 @@
 import { PaymentMethod } from '../models/Payment.model';
 import { PaymentGateway } from '../models/Payment.model';
+import { Types } from 'mongoose';
 export interface InitiatePaymentData {
     orderId: string;
     userId: string;
@@ -26,25 +27,25 @@ export interface RefundData {
 declare class PaymentService {
     initiatePayment(paymentData: InitiatePaymentData): Promise<{
         payment: import("mongoose").Document<unknown, {}, import("../models/Payment.model").IPayment, {}, {}> & import("../models/Payment.model").IPayment & Required<{
-            _id: unknown;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         };
         gatewayData: any;
     }>;
     processPaymentWebhook(webhookData: PaymentWebhookData): Promise<import("mongoose").Document<unknown, {}, import("../models/Payment.model").IPayment, {}, {}> & import("../models/Payment.model").IPayment & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     getPaymentById(paymentId: string, userId?: string): Promise<import("mongoose").Document<unknown, {}, import("../models/Payment.model").IPayment, {}, {}> & import("../models/Payment.model").IPayment & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;
     getPaymentsByUser(userId: string, limit?: number, skip?: number): Promise<{
         payments: (import("mongoose").Document<unknown, {}, import("../models/Payment.model").IPayment, {}, {}> & import("../models/Payment.model").IPayment & Required<{
-            _id: unknown;
+            _id: Types.ObjectId;
         }> & {
             __v: number;
         })[];
@@ -53,7 +54,7 @@ declare class PaymentService {
         totalPages: number;
     }>;
     processRefund(refundData: RefundData): Promise<import("mongoose").Document<unknown, {}, import("../models/Payment.model").IPayment, {}, {}> & import("../models/Payment.model").IPayment & Required<{
-        _id: unknown;
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     }>;

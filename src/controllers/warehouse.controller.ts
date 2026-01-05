@@ -529,6 +529,20 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
   }
 });
 
+export const updateFieldAgent = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  const { id } = req.params;
+  if (!id) return sendBadRequest(res, 'User ID is required');
+
+  try {
+    const agent = await warehouseService.updateFieldAgent(id, req.body);
+    return sendSuccess(res, agent, 'Field agent updated successfully');
+  } catch (error) {
+    return sendError(res, error instanceof Error ? error.message : 'Failed to update field agent', 500);
+  }
+});
+
 // Screen 4: Inventory Management
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
   const { warehouseId } = req.params;

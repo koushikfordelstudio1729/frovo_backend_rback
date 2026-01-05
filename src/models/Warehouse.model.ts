@@ -364,8 +364,13 @@ export interface IReturnOrder extends Document {
 
 export interface IFieldAgent extends Document {
   _id: Types.ObjectId;
+  userId?: Types.ObjectId; // Reference to User model for authentication
   name: string;
-  assignedRoutes: string[];
+  email?: string;
+  phone?: string;
+  assignedRoutes: string[]; // Text strings for route names
+  assignedWarehouse?: Types.ObjectId;
+  assignedArea?: Types.ObjectId;
   isActive: boolean;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -444,7 +449,7 @@ const dispatchOrderSchema = new Schema({
     quantity: { type: Number, required: true, min: 1 }
   }],
 
-  assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
+  assignedAgent: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
   warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
 
@@ -523,8 +528,13 @@ const returnOrderSchema = new Schema<IReturnOrder>({
 }, { timestamps: true });
 
 const fieldAgentSchema = new Schema<IFieldAgent>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User' },
   name: { type: String, required: true },
-  assignedRoutes: [{ type: String }],
+  email: { type: String, lowercase: true, trim: true },
+  phone: { type: String, trim: true },
+  assignedRoutes: [{ type: String }], // Changed to String array
+  assignedWarehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
+  assignedArea: { type: Schema.Types.ObjectId, ref: 'Area' },
   isActive: { type: Boolean, default: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });

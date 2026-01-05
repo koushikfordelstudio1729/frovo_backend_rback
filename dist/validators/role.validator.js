@@ -16,7 +16,10 @@ exports.createRoleSchema = zod_1.z.object({
             .optional(),
         type: zod_1.z.nativeEnum(enums_1.RoleType)
             .optional()
-            .default(enums_1.RoleType.CUSTOM),
+            .default(enums_1.RoleType.CUSTOM)
+            .refine((val) => val !== enums_1.RoleType.SYSTEM, {
+            message: 'Cannot create SYSTEM type roles through API'
+        }),
         department: objectIdSchema.optional(),
         permissions: zod_1.z.array(zod_1.z.string().trim())
             .min(1, 'At least one permission is required'),

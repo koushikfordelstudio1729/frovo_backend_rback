@@ -1,5 +1,6 @@
+import mongoose from 'mongoose';
 import { Types } from 'mongoose';
-import { IDispatchOrder, IExpense, IGoodsReceiving, IInventory, IQCTemplate, IReturnOrder, IFieldAgent } from '../models/Warehouse.model';
+import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IGRNnumber } from '../models/Warehouse.model';
 export interface InventoryStats {
     totalItems: number;
     activeItems: number;
@@ -58,25 +59,42 @@ export interface DashboardData {
         pendingBatches: number;
     };
 }
-export interface GoodsReceivingData {
-    poNumber: string;
+export interface RaisePurchaseOrderData {
+    po_number?: string;
     vendor: Types.ObjectId;
-    sku: string;
-    productName: string;
-    quantity: number;
-    batchId?: string;
-    warehouse: Types.ObjectId;
-    qcVerification: {
-        packaging: boolean;
-        expiry: boolean;
-        label: boolean;
-        documents?: string[];
-    };
-    storage: {
-        zone: string;
-        aisle: string;
-        rack: string;
-        bin: string;
+    warehouse: string;
+    po_raised_date: Date;
+    po_status: 'pending' | 'approved' | 'draft';
+    vendor_id: string;
+    vendor_address: string;
+    vendor_contact: string;
+    vendor_email: string;
+    vendor_phone: string;
+    gst_number: string;
+    remarks?: string;
+    po_line_items: Array<{
+        line_no: number;
+        sku: string;
+        productName: string;
+        quantity: number;
+        category: string;
+        pack_size: string;
+        uom: string;
+        unit_price: number;
+        expected_delivery_date: Date;
+        location: string;
+    }>;
+    vendor_details: {
+        vendor_name: string;
+        vendor_billing_name: string;
+        vendor_email: string;
+        vendor_phone: string;
+        vendor_category: string;
+        gst_number: string;
+        verification_status: string;
+        vendor_address: string;
+        vendor_contact: string;
+        vendor_id: string;
     };
 }
 export interface DispatchData {
@@ -90,20 +108,17 @@ export interface DispatchData {
         unitPrice?: number;
     }[];
     assignedAgent: Types.ObjectId;
+    warehouse: Types.ObjectId;
     route: string;
     notes?: string;
     estimatedDelivery?: Date;
 }
 export interface QCTemplateData {
-    sku: any | string;
-    title: any | string;
-    name: string;
-    category: 'snacks' | 'beverages' | 'perishable' | 'non_perishable';
+    title: string;
+    sku: string;
     parameters: {
         name: string;
-        type: 'boolean' | 'text' | 'number';
-        required: boolean;
-        options?: string[];
+        value: string;
     }[];
 }
 export interface ReturnOrderData {
@@ -112,6 +127,7 @@ export interface ReturnOrderData {
     sku: string;
     productName: string;
     vendor: Types.ObjectId;
+    warehouse: Types.ObjectId;
     reason: string;
     quantity: number;
     returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
@@ -173,16 +189,59 @@ export interface PurchaseOrderReport {
     generatedOn: Date;
     filters: ReportFilters;
 }
+export interface GRNData {
+    delivery_challan: string;
+    transporter_name: string;
+    vehicle_number: string;
+    recieved_date: Date;
+    remarks?: string;
+    scanned_challan?: string;
+    qc_status: 'bad' | 'moderate' | 'excellent';
+    quantities?: Array<{
+        sku: string;
+        received_quantity: number;
+        accepted_quantity: number;
+        rejected_quantity: number;
+        expiry_date?: string;
+        item_remarks?: string;
+    }>;
+}
 declare class WarehouseService {
+    private documentUploadService;
+    constructor();
     getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData>;
     private generatePendingVsRefillData;
     private getFilterOptions;
     private getWarehouseInfo;
     private getDateFilter;
-    receiveGoods(data: GoodsReceivingData, createdBy: Types.ObjectId): Promise<IGoodsReceiving>;
-    getReceivings(warehouseId?: string, filters?: any): Promise<IGoodsReceiving[]>;
-    getReceivingById(id: string): Promise<IGoodsReceiving | null>;
-    updateQCVerification(id: string, qcData: Partial<GoodsReceivingData['qcVerification']>): Promise<IGoodsReceiving | null>;
+    createPurchaseOrder(data: RaisePurchaseOrderData, createdBy: Types.ObjectId): Promise<IRaisePurchaseOrder>;
+    createGRN(purchaseOrderId: string, grnData: GRNData, createdBy: Types.ObjectId, uploadedFile?: Express.Multer.File): Promise<IGRNnumber>;
+    private generateGRNNumber;
+    deletePurchaseOrder(id: string): Promise<void>;
+    getGRNById(grnId: string): Promise<IGRNnumber | null>;
+    getGRNs(filters?: {
+        qc_status?: 'bad' | 'moderate' | 'excellent';
+        transporter_name?: string;
+        startDate?: string;
+        endDate?: string;
+        vendor?: string;
+        purchase_order?: string;
+    }): Promise<IGRNnumber[]>;
+    updateGRNStatus(grnId: string, qc_status: 'bad' | 'moderate' | 'excellent', remarks?: string, lineItems?: Array<{
+        line_no: number;
+        received_quantity: number;
+        accepted_quantity: number;
+        rejected_quantity: number;
+    }>): Promise<IGRNnumber>;
+    updateGRNLineItems(grnId: string, lineItems: Array<{
+        line_no: number;
+        received_quantity: number;
+        accepted_quantity: number;
+        rejected_quantity: number;
+    }>): Promise<IGRNnumber>;
+    getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]>;
+    getPurchaseOrderById(id: string): Promise<IRaisePurchaseOrder | null>;
+    updatePurchaseOrderStatus(id: string, po_status: 'draft' | 'approved' | 'pending', remarks?: string): Promise<IRaisePurchaseOrder | null>;
     upsertInventory(data: InventoryUpsertData): Promise<void>;
     createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder>;
     getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]>;
@@ -197,11 +256,17 @@ declare class WarehouseService {
     getReturnQueue(warehouseId?: string, filters?: any): Promise<IReturnOrder[]>;
     approveReturn(returnId: string): Promise<IReturnOrder>;
     rejectReturn(returnId: string): Promise<IReturnOrder>;
-    getFieldAgents(isActive?: boolean): Promise<IFieldAgent[]>;
+    getFieldAgents(isActive?: boolean): Promise<any[]>;
+    updateFieldAgent(userId: string, data: {
+        name?: string;
+        assignedRoutes?: string[];
+        assignedWarehouse?: Types.ObjectId;
+        assignedArea?: Types.ObjectId;
+    }): Promise<any>;
     createFieldAgent(data: {
-        name: string;
-        assignedRoutes: string[];
-    }, createdBy: Types.ObjectId): Promise<IFieldAgent>;
+        userId: string;
+        assignedRoutes?: string[];
+    }, createdBy: Types.ObjectId): Promise<any>;
     getInventoryDashboard(warehouseId: string, filters?: InventoryDashboardFilters, page?: number, limit?: number): Promise<InventoryDashboardResponse>;
     getInventoryById(inventoryId: string): Promise<IInventory | null>;
     updateInventoryItem(inventoryId: string, updateData: {
@@ -261,6 +326,7 @@ declare class WarehouseService {
         date?: Date;
     }): Promise<IExpense>;
     deleteExpense(expenseId: string): Promise<void>;
+    uploadExpenseBill(expenseId: string, file: Express.Multer.File): Promise<IExpense>;
     getExpenseById(expenseId: string): Promise<IExpense | null>;
     getExpenseSummary(warehouseId: string, filters?: any): Promise<{
         total: number;
@@ -281,16 +347,21 @@ declare class WarehouseService {
     }>;
     getMonthlyExpenseTrend(warehouseId: string, months?: number): Promise<any[]>;
     generateReport(type: string, filters: any): Promise<any>;
-    getStockAgeingReport(_warehouse: any): any;
-    generateInventorySummaryReport(filters: any): Promise<InventorySummaryReport>;
-    generatePurchaseOrderReport(filters: any): Promise<PurchaseOrderReport>;
+    private getStockAgeingReport;
+    private generateInventorySummaryReport;
+    private generatePurchaseOrderReport;
     private getRefillMetrics;
     private generateInventoryTurnoverReport;
     private generateQCSummaryReport;
+    private generateEfficiencyReport;
+    private calculateOverallEfficiencyScore;
     exportReport(type: string, format: string, filters: any): Promise<any>;
     private convertToCSV;
     private convertInventorySummaryToCSV;
     private convertPurchaseOrdersToCSV;
+    private convertStockAgeingToCSV;
+    private convertInventoryTurnoverToCSV;
+    private convertQCSummaryToCSV;
     private getStockThreshold;
     private extractCategory;
     private convertToPDF;
@@ -300,11 +371,70 @@ declare class WarehouseService {
     private validateSkuStock;
     private reduceStockBySku;
     private calculateInventoryStatus;
-    private generateEfficiencyReport;
-    private calculateOverallEfficiencyScore;
-    private convertStockAgeingToCSV;
-    private convertInventoryTurnoverToCSV;
-    private convertQCSummaryToCSV;
+    createWarehouse(data: {
+        name: string;
+        code: string;
+        partner: string;
+        location: string;
+        capacity: number;
+        manager: Types.ObjectId;
+    }, createdBy: Types.ObjectId): Promise<mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    getWarehouses(filters: {
+        page?: number;
+        limit?: number;
+        search?: string;
+        isActive?: boolean;
+        partner?: string;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+    }, userId: Types.ObjectId, userRoles: any[]): Promise<{
+        warehouses: (mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        })[];
+        pagination: {
+            total: number;
+            page: number;
+            limit: number;
+            pages: number;
+        };
+    }>;
+    getWarehouseById(warehouseId: string, userId: Types.ObjectId, userRoles: any[]): Promise<mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    updateWarehouse(warehouseId: string, updateData: Partial<{
+        name: string;
+        code: string;
+        partner: string;
+        location: string;
+        capacity: number;
+        manager: Types.ObjectId;
+        isActive: boolean;
+    }>): Promise<mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
+    deleteWarehouse(warehouseId: string): Promise<{
+        message: string;
+        warehouse: mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
+            _id: Types.ObjectId;
+        }> & {
+            __v: number;
+        };
+    }>;
+    getMyWarehouse(managerId: Types.ObjectId | string): Promise<mongoose.FlattenMaps<import("../models/Warehouse.model").IWarehouse> & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
 }
 export declare const warehouseService: WarehouseService;
 export {};

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.optionalAuth = exports.authenticate = void 0;
+exports.requirePermission = exports.checkPermission = exports.optionalAuth = exports.authenticate = void 0;
 const models_1 = require("../models");
 const jwt_util_1 = require("../utils/jwt.util");
 const response_util_1 = require("../utils/response.util");
@@ -73,3 +73,35 @@ exports.optionalAuth = (0, asyncHandler_util_1.asyncHandler)(async (req, _res, n
     }
     return next();
 });
+const checkPermission = (user, requiredPermission) => {
+    if (!user || !user.roles) {
+        return false;
+    }
+    const userRoles = user.roles || [];
+    return userRoles.some((role) => {
+        if (role.permissions?.includes('*:*')) {
+            return true;
+        }
+        if (role.permissions?.includes(requiredPermission)) {
+            return true;
+        }
+        const [module] = requiredPermission.split(':');
+        if (role.permissions?.includes(`${module}:*`)) {
+            return true;
+        }
+        return false;
+    });
+};
+exports.checkPermission = checkPermission;
+const requirePermission = (requiredPermission) => {
+    return (0, asyncHandler_util_1.asyncHandler)(async (req, res, next) => {
+        if (!req.user) {
+            return (0, response_util_1.sendForbidden)(res, constants_1.MESSAGES.UNAUTHORIZED);
+        }
+        if (!(0, exports.checkPermission)(req.user, requiredPermission)) {
+            return (0, response_util_1.sendForbidden)(res, constants_1.MESSAGES.PERMISSION_DENIED);
+        }
+        return next();
+    });
+};
+exports.requirePermission = requirePermission;

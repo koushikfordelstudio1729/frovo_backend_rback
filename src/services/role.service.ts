@@ -56,13 +56,15 @@ class RoleService {
         throw new Error('One or more permissions not found');
       }
     }
-    
+
+    // Force type to CUSTOM for API-created roles (SYSTEM roles should only be created via seeders)
     const role = await Role.create({
       ...roleData,
+      type: RoleType.CUSTOM,
       createdBy,
       status: RoleStatus.DRAFT
     });
-    
+
     return await this.getRoleById(role._id.toString());
   }
   
@@ -83,12 +85,7 @@ class RoleService {
     if (!role) {
       throw new Error('Role not found');
     }
-    
-    // Check if it's a system role
-    if (role.type === RoleType.SYSTEM) {
-      throw new Error('System roles cannot be modified');
-    }
-    
+
     // Validate permissions if provided
     if (updateData.permissions && updateData.permissions.length > 0) {
       const permissionCount = await Permission.countDocuments({
@@ -98,7 +95,7 @@ class RoleService {
         throw new Error('One or more permissions not found');
       }
     }
-    
+
     const updatedRole = await Role.findByIdAndUpdate(
       id,
       updateData,
@@ -106,7 +103,7 @@ class RoleService {
     )
       .populate('department', 'name systemName')
       .populate('createdBy', 'name email');
-    
+
     return updatedRole!;
   }
   
@@ -136,18 +133,13 @@ class RoleService {
     if (!role) {
       throw new Error('Role not found');
     }
-    
-    // Check if it's a system role
-    if (role.type === RoleType.SYSTEM) {
-      throw new Error('System roles cannot be deleted');
-    }
-    
+
     // Check if role is assigned to any users
     const userCount = await User.countDocuments({ roles: { $in: [id] } });
     if (userCount > 0) {
       throw new Error('Role is currently assigned to users and cannot be deleted');
     }
-    
+
     await Role.findByIdAndDelete(id);
   }
   
@@ -288,11 +280,7 @@ class RoleService {
     if (!role) {
       throw new Error('Role not found');
     }
-    
-    if (role.type === RoleType.SYSTEM) {
-      throw new Error('System role permissions cannot be modified');
-    }
-    
+
     // Validate permissions exist
     const permissionCount = await Permission.countDocuments({
       key: { $in: permissions }
@@ -300,7 +288,7 @@ class RoleService {
     if (permissionCount !== permissions.length) {
       throw new Error('One or more permissions not found');
     }
-    
+
     const updatedRole = await Role.findByIdAndUpdate(
       id,
       { permissions },
@@ -308,7 +296,7 @@ class RoleService {
     )
       .populate('department', 'name systemName')
       .populate('createdBy', 'name email');
-    
+
     return updatedRole!;
   }
   

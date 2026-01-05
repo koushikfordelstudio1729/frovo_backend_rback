@@ -34,12 +34,14 @@ var AccessRequestStatus;
 var SystemRole;
 (function (SystemRole) {
     SystemRole["SUPER_ADMIN"] = "super_admin";
+    SystemRole["VENDOR_ADMIN"] = "vendor_admin";
     SystemRole["OPS_MANAGER"] = "ops_manager";
     SystemRole["FIELD_AGENT"] = "field_agent";
     SystemRole["TECHNICIAN"] = "technician";
     SystemRole["FINANCE_MANAGER"] = "finance_manager";
     SystemRole["SUPPORT_AGENT"] = "support_agent";
     SystemRole["WAREHOUSE_MANAGER"] = "warehouse_manager";
+    SystemRole["WAREHOUSE_STAFF"] = "warehouse_staff";
     SystemRole["AUDITOR"] = "auditor";
     SystemRole["CUSTOMER"] = "customer";
 })(SystemRole || (exports.SystemRole = SystemRole = {}));
@@ -58,6 +60,7 @@ var DepartmentName;
 var PermissionModule;
 (function (PermissionModule) {
     PermissionModule["MACHINES"] = "machines";
+    PermissionModule["VENDORS"] = "vendors";
     PermissionModule["PLANOGRAM"] = "planogram";
     PermissionModule["ORDERS"] = "orders";
     PermissionModule["FINANCE"] = "finance";
@@ -74,6 +77,9 @@ var PermissionModule;
     PermissionModule["TICKET"] = "ticket";
     PermissionModule["BATCH"] = "batch";
     PermissionModule["DISPATCH"] = "dispatch";
+    PermissionModule["WAREHOUSE"] = "warehouse";
+    PermissionModule["PURCHASE_ORDERS"] = "purchase_orders";
+    PermissionModule["GRN"] = "grn";
 })(PermissionModule || (exports.PermissionModule = PermissionModule = {}));
 var PermissionAction;
 (function (PermissionAction) {
@@ -93,6 +99,9 @@ var PermissionAction;
     PermissionAction["DISPATCH"] = "dispatch";
     PermissionAction["UPDATE"] = "update";
     PermissionAction["LOG"] = "log";
+    PermissionAction["STATUS_UPDATE"] = "status_update";
+    PermissionAction["MANAGE"] = "manage";
+    PermissionAction["ADMIN"] = "admin";
 })(PermissionAction || (exports.PermissionAction = PermissionAction = {}));
 var UIAccess;
 (function (UIAccess) {

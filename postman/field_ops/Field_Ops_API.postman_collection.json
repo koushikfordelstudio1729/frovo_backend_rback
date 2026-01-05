@@ -1,0 +1,690 @@
+{
+  "info": {
+    "name": "Field Ops API",
+    "description": "Complete API collection for Field Operations Mobile App",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"agent@frovo.in\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "dashboard"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Tasks",
+      "item": [
+        {
+          "name": "Get All Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/tasks?status=pending&type=all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "type",
+                  "value": "all"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tasks - Filtered",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/tasks?status=completed&type=machine_refill&date=2025-01-05",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                },
+                {
+                  "key": "type",
+                  "value": "machine_refill"
+                },
+                {
+                  "key": "date",
+                  "value": "2025-01-05"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Warehouse Pickup",
+      "item": [
+        {
+          "name": "Get All Warehouse Pickups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/warehouse-pickups?status=pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "warehouse-pickups"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Warehouse Pickup By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/warehouse-pickups/{{pickup_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "warehouse-pickups", "{{pickup_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Pickup as Collected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collectedAt\": \"2025-01-05T10:30:00Z\",\n  \"notes\": \"All items collected successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/warehouse-pickups/{{pickup_id}}/collect",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "warehouse-pickups", "{{pickup_id}}", "collect"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Handover",
+      "item": [
+        {
+          "name": "Create Handover Summary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dispatchId\": \"{{dispatch_id}}\",\n  \"warehouseId\": \"{{warehouse_id}}\",\n  \"machineId\": \"VM-221\",\n  \"agentName\": \"John Doe\",\n  \"date\": \"2025-01-05T12:00:00Z\",\n  \"code\": \"123 / 8-256\",\n  \"grade\": \"9/10\",\n  \"category\": \"Coke 250ml / Beverages\",\n  \"reason\": \"Missing item\",\n  \"notes\": \"Some items were damaged during transit\",\n  \"images\": [\"https://example.com/image1.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/handover",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "handover"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Routes",
+      "item": [
+        {
+          "name": "Get My Routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/routes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "routes"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Route Machines",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/routes/{{route_id}}/machines",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "routes", "{{route_id}}", "machines"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Machine Verification",
+      "item": [
+        {
+          "name": "Verify Machine - By ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"machineId\": \"VM-221\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/verify",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "verify"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Machine - By QR Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrCode\": \"VM-221-QR-CODE-DATA\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/verify",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "verify"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Machine Details",
+      "item": [
+        {
+          "name": "Get Machine Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Machine Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Machine Refill",
+      "item": [
+        {
+          "name": "Get Machine Refill Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/refill-data",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "refill-data"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Slot Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/slots/A1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "slots", "A1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Refill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refillData\": [\n    {\n      \"slotId\": \"Rack 1 Slot A1\",\n      \"productCode\": \"27lmx\",\n      \"productName\": \"Coke 250ml\",\n      \"transUnitsDispensed\": 80,\n      \"existingQty\": 5,\n      \"totalUnitsRefilled\": 65,\n      \"currentStock\": 70,\n      \"variance\": 5,\n      \"varianceReason\": \"Damaged\",\n      \"removedQty\": 2,\n      \"removedReason\": \"Damaged\",\n      \"expiryDate\": \"2025-12-31T00:00:00Z\"\n    },\n    {\n      \"slotId\": \"Rack 1 Slot A2\",\n      \"productCode\": \"28abc\",\n      \"productName\": \"Pepsi 250ml\",\n      \"transUnitsDispensed\": 45,\n      \"existingQty\": 10,\n      \"totalUnitsRefilled\": 40,\n      \"currentStock\": 50,\n      \"variance\": 0,\n      \"removedQty\": 0\n    }\n  ],\n  \"beforePhoto\": \"https://example.com/before.jpg\",\n  \"afterPhoto\": \"https://example.com/after.jpg\",\n  \"completedAt\": \"2025-01-05T14:30:00Z\",\n  \"notes\": \"All slots refilled successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/refill",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "refill"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Refill Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/refills/{{refill_id}}/summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "refills", "{{refill_id}}", "summary"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Skip Machine",
+      "item": [
+        {
+          "name": "Skip Machine",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routeId\": \"{{route_id}}\",\n  \"reason\": \"Reception Closed\",\n  \"notes\": \"Office was closed, will visit tomorrow\",\n  \"photos\": [\"https://example.com/closed-sign.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/skip",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "skip"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11. Maintenance",
+      "item": [
+        {
+          "name": "Raise Maintenance Issue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"issueType\": \"Jammed Slot\",\n  \"machineName\": \"VM-221 - Tech Park\",\n  \"dateTime\": \"2025-01-05T15:00:00Z\",\n  \"lastVisit\": \"2025-01-03T10:00:00Z\",\n  \"description\": \"Slot D4 is jammed and products are stuck. Machine is making unusual noise.\",\n  \"affectedSlots\": [\"D4\", \"D5\"],\n  \"photos\": [\"https://example.com/jammed-slot.jpg\"],\n  \"officialNote\": \"Requires immediate attention\",\n  \"priority\": \"high\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/machines/{{machine_id}}/raise-issue",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "machines", "{{machine_id}}", "raise-issue"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "12. Work Summary",
+      "item": [
+        {
+          "name": "Get Work Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/work-summary?date=2025-01-05",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "work-summary"],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2025-01-05"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "13. Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/notifications?read=false&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "notifications"],
+              "query": [
+                {
+                  "key": "read",
+                  "value": "false"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/notifications/{{notification_id}}/read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "notifications", "{{notification_id}}", "read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/notifications/mark-all-read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "notifications", "mark-all-read"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "14. Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "profile"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"phone\": \"+91 9876543210\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "profile"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "15. Help & Support",
+      "item": [
+        {
+          "name": "Get Help Sections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/field-ops/help/sections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "field-ops", "help", "sections"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    }
+  ]
+}

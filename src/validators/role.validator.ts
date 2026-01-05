@@ -15,7 +15,10 @@ export const createRoleSchema = z.object({
       .optional(),
     type: z.nativeEnum(RoleType)
       .optional()
-      .default(RoleType.CUSTOM),
+      .default(RoleType.CUSTOM)
+      .refine((val) => val !== RoleType.SYSTEM, {
+        message: 'Cannot create SYSTEM type roles through API'
+      }),
     department: objectIdSchema.optional(),
     permissions: z.array(z.string().trim())
       .min(1, 'At least one permission is required'),

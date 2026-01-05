@@ -40,75 +40,162 @@ const email_service_1 = require("../services/email.service");
 const mongoose_1 = require("mongoose");
 const seedSuperAdmin = async (departmentMap, roleMap) => {
     try {
-        logger_util_1.logger.info('🌱 Seeding Super Admin...');
+        logger_util_1.logger.info('🌱 Seeding Super Admin and Vendor Admin...');
+        console.log('🔍 Department Map Keys:', Object.keys(departmentMap));
+        console.log('🔍 Role Map Keys:', Object.keys(roleMap));
+        console.log('🔍 Looking for Vendor Admin role:', models_1.SystemRole.VENDOR_ADMIN in roleMap);
+        console.log('🔍 Looking for Operations department:', 'Operations' in departmentMap);
         const existingUserCount = await models_1.User.countDocuments();
         if (existingUserCount > 0) {
-            logger_util_1.logger.info(`✅ Super Admin already exists (${existingUserCount} users found)`);
+            logger_util_1.logger.info(`✅ Users already exist (${existingUserCount} users found)`);
             const existingSuperAdmin = await models_1.User.findOne({ roles: { $in: [roleMap[models_1.SystemRole.SUPER_ADMIN]] } });
-            if (existingSuperAdmin) {
-                const email = process.env['SUPER_ADMIN_EMAIL'] || 'superadmin@vendingapp.com';
-                const password = process.env['SUPER_ADMIN_PASSWORD'] || 'SuperAdmin@123';
-                const name = process.env['SUPER_ADMIN_NAME'] || 'System Administrator';
-                const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
-                const shouldSendEmail = process.env['SEND_WELCOME_EMAIL'] === 'true';
-                if (emailConfigured && shouldSendEmail) {
-                    try {
-                        await email_service_1.emailService.sendWelcomeEmail(email, name, password);
-                        logger_util_1.logger.info('📧 Welcome email sent to existing Super Admin');
-                    }
-                    catch (emailError) {
-                        logger_util_1.logger.warn('⚠️  Failed to send welcome email to existing Super Admin:', emailError);
-                    }
-                }
-                return existingSuperAdmin._id;
+            const existingVendorAdmin = await models_1.User.findOne({ email: process.env['VENDOR_ADMIN_EMAIL'] || 'vendor.admin@frovo.com' });
+            if (existingSuperAdmin && existingVendorAdmin) {
+                logger_util_1.logger.info('✅ Both Super Admin and Vendor Admin already exist');
+                return {
+                    superAdminId: existingSuperAdmin._id,
+                    vendorAdminId: existingVendorAdmin._id
+                };
             }
-            throw new Error('Users exist but no Super Admin found. Manual intervention required.');
-        }
-        const superAdminRoleId = roleMap[models_1.SystemRole.SUPER_ADMIN];
-        const systemAdminDeptId = departmentMap['System Admin'];
-        if (!superAdminRoleId || !systemAdminDeptId) {
-            throw new Error('Super Admin role or System Admin department not found');
-        }
-        const email = process.env['SUPER_ADMIN_EMAIL'] || 'superadmin@vendingapp.com';
-        const password = process.env['SUPER_ADMIN_PASSWORD'] || 'SuperAdmin@123';
-        const name = process.env['SUPER_ADMIN_NAME'] || 'System Administrator';
-        const tempCreatedBy = new mongoose_1.Types.ObjectId();
-        const superAdmin = await models_1.User.create({
-            name,
-            email,
-            password,
-            departments: [systemAdminDeptId],
-            roles: [superAdminRoleId],
-            status: models_1.UserStatus.ACTIVE,
-            createdBy: tempCreatedBy
-        });
-        await models_1.User.findByIdAndUpdate(superAdmin._id, { createdBy: superAdmin._id });
-        logger_util_1.logger.info('✅ Successfully created Super Admin user');
-        logger_util_1.logger.info(`📧 Email: ${email}`);
-        logger_util_1.logger.info(`🔑 Password: ${password}`);
-        logger_util_1.logger.info('⚠️  Please change the default password after first login!');
-        const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
-        if (emailConfigured) {
-            try {
-                await email_service_1.emailService.sendWelcomeEmail(email, name, password);
-                logger_util_1.logger.info('📧 Welcome email sent successfully to Super Admin');
+            const result = {};
+            if (!existingSuperAdmin) {
+                logger_util_1.logger.info('⚠️ Creating missing Super Admin...');
+                result.superAdminId = await createSuperAdmin(departmentMap, roleMap);
             }
-            catch (emailError) {
-                logger_util_1.logger.warn('⚠️  Failed to send welcome email to Super Admin:', emailError);
-                logger_util_1.logger.info('Super Admin created successfully but email notification failed');
+            else {
+                result.superAdminId = existingSuperAdmin._id;
             }
+            if (!existingVendorAdmin) {
+                logger_util_1.logger.info('⚠️ Creating missing Vendor Admin...');
+                result.vendorAdminId = await createVendorAdmin(result.superAdminId, departmentMap, roleMap);
+            }
+            else {
+                result.vendorAdminId = existingVendorAdmin._id;
+            }
+            return result;
         }
-        else {
-            logger_util_1.logger.info('📧 Email not configured, skipping welcome email');
-        }
-        return superAdmin._id;
+        const superAdminId = await createSuperAdmin(departmentMap, roleMap);
+        const vendorAdminId = await createVendorAdmin(superAdminId, departmentMap, roleMap);
+        logger_util_1.logger.info('✅ Successfully created both Super Admin and Vendor Admin users');
+        return {
+            superAdminId,
+            vendorAdminId
+        };
     }
     catch (error) {
-        logger_util_1.logger.error('❌ Error seeding Super Admin:', error);
+        logger_util_1.logger.error('❌ Error seeding admin users:', error);
         throw error;
     }
 };
 exports.seedSuperAdmin = seedSuperAdmin;
+const createSuperAdmin = async (departmentMap, roleMap) => {
+    const email = process.env['SUPER_ADMIN_EMAIL'] || 'superadmin@frovo.com';
+    const password = process.env['SUPER_ADMIN_PASSWORD'] || 'SuperAdmin@123';
+    const name = process.env['SUPER_ADMIN_NAME'] || 'System Administrator';
+    const superAdminRoleId = roleMap[models_1.SystemRole.SUPER_ADMIN];
+    const systemAdminDeptId = departmentMap['System Admin'];
+    if (!superAdminRoleId || !systemAdminDeptId) {
+        throw new Error('Super Admin role or System Admin department not found');
+    }
+    const existingSuperAdmin = await models_1.User.findOne({ email });
+    if (existingSuperAdmin) {
+        logger_util_1.logger.info('✅ Super Admin user already exists');
+        return existingSuperAdmin._id;
+    }
+    const superAdmin = await models_1.User.create({
+        name,
+        email,
+        password,
+        departments: [systemAdminDeptId],
+        roles: [superAdminRoleId],
+        status: models_1.UserStatus.ACTIVE,
+        createdBy: new mongoose_1.Types.ObjectId()
+    });
+    await models_1.User.findByIdAndUpdate(superAdmin._id, { createdBy: superAdmin._id });
+    logger_util_1.logger.info('✅ Successfully created Super Admin user');
+    logger_util_1.logger.info(`📧 Email: ${email}`);
+    logger_util_1.logger.info(`🔑 Password: ${password}`);
+    const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+    if (emailConfigured) {
+        try {
+            await email_service_1.emailService.sendWelcomeEmail(email, name, password);
+            logger_util_1.logger.info('📧 Welcome email sent successfully to Super Admin');
+        }
+        catch (emailError) {
+            logger_util_1.logger.warn('⚠️ Failed to send welcome email to Super Admin:', emailError);
+        }
+    }
+    return superAdmin._id;
+};
+const ensureVendorAdminRole = async (departmentMap, createdBy) => {
+    const { Role, RoleType, RoleStatus, ScopeLevel, SystemRole, UIAccess } = await Promise.resolve().then(() => __importStar(require('../models')));
+    let vendorAdminRole = await Role.findOne({ systemRole: SystemRole.VENDOR_ADMIN });
+    if (!vendorAdminRole) {
+        logger_util_1.logger.info('⚠️ Vendor Admin role not found, creating it now...');
+        const operationsDeptId = departmentMap['Operations'];
+        if (!operationsDeptId) {
+            throw new Error('Operations department not found for Vendor Admin role');
+        }
+        vendorAdminRole = await Role.create({
+            name: 'Vendor Admin',
+            key: 'vendor_admin',
+            systemRole: SystemRole.VENDOR_ADMIN,
+            type: RoleType.SYSTEM,
+            department: operationsDeptId,
+            permissions: [
+                'vendors:view', 'vendors:create', 'vendors:edit', 'vendors:delete', 'vendors:approve',
+                'vendors:financials_view', 'vendors:compliance_view',
+                'users:view',
+                'roles:view'
+            ],
+            scope: { level: ScopeLevel.GLOBAL },
+            uiAccess: UIAccess.ADMIN_PANEL,
+            status: RoleStatus.PUBLISHED,
+            description: 'Vendor management with full control over vendor lifecycle',
+            createdBy: createdBy
+        });
+        logger_util_1.logger.info('✅ Vendor Admin role created successfully');
+    }
+    return vendorAdminRole._id;
+};
+const createVendorAdmin = async (createdBy, departmentMap, roleMap) => {
+    const email = process.env['VENDOR_ADMIN_EMAIL'] || 'vendor.admin@frovo.com';
+    const password = process.env['VENDOR_ADMIN_PASSWORD'] || 'VendorAdmin@123';
+    const name = process.env['VENDOR_ADMIN_NAME'] || 'Vendor Administrator';
+    const vendorAdminRoleId = await ensureVendorAdminRole(departmentMap, createdBy);
+    const operationsDeptId = departmentMap['Operations'];
+    if (!operationsDeptId) {
+        throw new Error('Operations department not found');
+    }
+    const existingVendorAdmin = await models_1.User.findOne({ email });
+    if (existingVendorAdmin) {
+        logger_util_1.logger.info('✅ Vendor Admin user already exists');
+        return existingVendorAdmin._id;
+    }
+    const vendorAdmin = await models_1.User.create({
+        name,
+        email,
+        password,
+        departments: [operationsDeptId],
+        roles: [vendorAdminRoleId],
+        status: models_1.UserStatus.ACTIVE,
+        createdBy: createdBy
+    });
+    logger_util_1.logger.info('✅ Successfully created Vendor Admin user');
+    logger_util_1.logger.info(`📧 Email: ${email}`);
+    logger_util_1.logger.info(`🔑 Password: ${password}`);
+    const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+    if (emailConfigured) {
+        try {
+            await email_service_1.emailService.sendWelcomeEmail(email, name, password);
+            logger_util_1.logger.info('📧 Welcome email sent successfully to Vendor Admin');
+        }
+        catch (emailError) {
+            logger_util_1.logger.warn('⚠️ Failed to send welcome email to Vendor Admin:', emailError);
+        }
+    }
+    return vendorAdmin._id;
+};
 if (require.main === module) {
     Promise.resolve().then(() => __importStar(require('../config/database'))).then(({ connectDB }) => {
         Promise.resolve().then(() => __importStar(require('./departments.seeder'))).then(({ seedDepartments }) => {
@@ -120,7 +207,7 @@ if (require.main === module) {
                             (0, exports.seedSuperAdmin)(departmentMap, roleMap).then(() => {
                                 process.exit(0);
                             }).catch((error) => {
-                                logger_util_1.logger.error('Failed to seed Super Admin:', error);
+                                logger_util_1.logger.error('Failed to seed admin users:', error);
                                 process.exit(1);
                             });
                         });
