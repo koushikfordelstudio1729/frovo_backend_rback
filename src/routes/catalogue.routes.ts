@@ -78,7 +78,12 @@ router.get('/export/category/csv',
     authorize(MANAGEMENT),
     categoryController.exportAllCategoriesCSV.bind(categoryController)
 );
-
+// Add this route in your routes file
+router.get('/export/category/csv/:id',
+    authenticate,
+    authorize(MANAGEMENT),
+    categoryController.exportCategoryWithSubCategoriesCSV.bind(categoryController)
+);
 // ==================== SUB-CATEGORY ROUTES ====================
 // Create a new sub-category under a category
 router.post('/sub-category',

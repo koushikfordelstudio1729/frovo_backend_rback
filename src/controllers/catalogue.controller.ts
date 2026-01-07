@@ -1180,7 +1180,198 @@ async deactivateCategory(req: Request, res: Response): Promise<void> {
             });
         }
     }
+async exportCategoryWithSubCategoriesCSV(req: Request, res: Response): Promise<void> {
+    const categoryService = createCategoryService(req);
+    const subCategoryService = createSubCategoryService(req);
 
+    try {
+        const { id } = req.params;
+        
+        // Get the specific category
+        const category = await categoryService.getCategoryById(id);
+        
+        if (!category) {
+            res.status(404).json({
+                success: false,
+                message: 'Category not found'
+            });
+            return;
+        }
+
+        // Get all sub-categories for this category
+        const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
+
+        // Get product counts for category and sub-categories
+        const categoryProductCount = await categoryService.getProductCountByCategory(id);
+        
+        const subCategoryIds = subCategories.map(subCat => subCat._id.toString());
+        const subCategoryProductCounts = subCategoryIds.length > 0 
+            ? await subCategoryService.getProductCountsForSubCategories(subCategoryIds)
+            : new Map<string, number>();
+
+        // Format data for CSV
+        const categoryData = {
+            category: {
+                id: category._id.toString(),
+                category_name: category.category_name,
+                description: category.description,
+                category_status: category.category_status,
+                category_image: category.category_image,
+                product_count: categoryProductCount,
+                createdAt: category.createdAt,
+                updatedAt: category.updatedAt
+            },
+            sub_categories: subCategories.map(subCat => ({
+                id: subCat._id.toString(),
+                sub_category_name: subCat.sub_category_name,
+                description: subCat.description,
+                sub_category_status: subCat.sub_category_status,
+                sub_category_image: subCat.sub_category_image,
+                product_count: subCategoryProductCounts.get(subCat._id.toString()) || 0,
+                createdAt: subCat.createdAt,
+                updatedAt: subCat.updatedAt
+            }))
+        };
+
+        // Generate CSV
+        const csv = this.convertCategoryWithSubCategoriesToCSV(categoryData);
+
+        // Set headers for CSV download
+        const fileName = `category-${category.category_name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.status(200).send(csv);
+
+    } catch (error: any) {
+        console.error('Error exporting category with sub-categories CSV:', error);
+        
+        let statusCode = 500;
+        if (error.message.includes('Invalid category ID')) {
+            statusCode = 400;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to export category with sub-categories'
+        });
+    }
+}
+private convertCategoryWithSubCategoriesToCSV(data: any): string {
+    const { category, sub_categories } = data;
+    
+    // Category section header
+    const categoryHeaders = [
+        'CATEGORY DETAILS',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        ''
+    ];
+
+    const categoryDataHeaders = [
+        'Category ID',
+        'Category Name',
+        'Description',
+        'Status',
+        'Image URL',
+        'Total Products',
+        'Total Sub-Categories',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    // Handle category image
+    let categoryImage = '';
+    if (typeof category.category_image === 'object' && category.category_image !== null) {
+        categoryImage = category.category_image.file_url || '';
+    } else if (typeof category.category_image === 'string') {
+        categoryImage = category.category_image;
+    }
+
+    const categoryDataRow = [
+        category.id || '',
+        `"${(category.category_name || '').replace(/"/g, '""')}"`,
+        `"${(category.description || '').replace(/"/g, '""')}"`,
+        category.category_status || 'active',
+        categoryImage,
+        category.product_count || 0,
+        sub_categories.length,
+        category.createdAt ? new Date(category.createdAt).toISOString().split('T')[0] : '',
+        category.updatedAt ? new Date(category.updatedAt).toISOString().split('T')[0] : ''
+    ];
+
+    // Blank row separator
+    const blankRow = ['', '', '', '', '', '', '', '', ''];
+
+    // Sub-categories section header
+    const subCategorySectionHeader = [
+        'SUB-CATEGORIES LIST',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        ''
+    ];
+
+    const subCategoryHeaders = [
+        'Sub-Category ID',
+        'Sub-Category Name',
+        'Description',
+        'Status',
+        'Image URL',
+        'Product Count',
+        'Category ID',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    // Sub-category rows
+    const subCategoryRows = sub_categories.map((subCat: any) => {
+        let subCategoryImage = '';
+        if (typeof subCat.sub_category_image === 'object' && subCat.sub_category_image !== null) {
+            subCategoryImage = subCat.sub_category_image.file_url || '';
+        } else if (typeof subCat.sub_category_image === 'string') {
+            subCategoryImage = subCat.sub_category_image;
+        }
+
+        return [
+            subCat.id || '',
+            `"${(subCat.sub_category_name || '').replace(/"/g, '""')}"`,
+            `"${(subCat.description || '').replace(/"/g, '""')}"`,
+            subCat.sub_category_status || 'active',
+            subCategoryImage,
+            subCat.product_count || 0,
+            category.id || '',
+            subCat.createdAt ? new Date(subCat.createdAt).toISOString().split('T')[0] : '',
+            subCat.updatedAt ? new Date(subCat.updatedAt).toISOString().split('T')[0] : ''
+        ];
+    });
+
+    // Combine all sections
+    const csvContent = [
+        categoryHeaders.join(','),
+        categoryDataHeaders.join(','),
+        categoryDataRow.join(','),
+        blankRow.join(','),
+        subCategorySectionHeader.join(','),
+        subCategoryHeaders.join(','),
+        ...subCategoryRows.map(row => row.join(',')),
+        blankRow.join(','),
+        'Total Sub-Categories:, ' + sub_categories.length,
+        'Total Products in Category:, ' + category.product_count,
+        'Export Date:, ' + new Date().toISOString().split('T')[0]
+    ].join('\n');
+
+    return csvContent;
+}
     async exportAllCategoriesCSV(req: Request, res: Response): Promise<void> {
         const categoryService = createCategoryService(req);
 

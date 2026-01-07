@@ -214,7 +214,82 @@ export class CategoryService {
             throw error;
         }
     }
+// Add this method to your CategoryService class
+async getCategoryWithSubCategories(categoryId: string): Promise<any> {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+            throw new Error('Invalid category ID format');
+        }
 
+        // Get category
+        const category = await CategoryModel.findById(categoryId);
+        if (!category) {
+            throw new Error('Category not found');
+        }
+
+        // Get all sub-categories for this category
+        const subCategories = await SubCategoryModel.find({
+            category_id: categoryId
+        }).lean();
+
+        // Get product count for category
+        const productCount = await CatalogueModel.countDocuments({
+            category: categoryId
+        });
+
+        // Get product counts for each sub-category
+        const subCategoryIds = subCategories.map(sc => sc._id);
+        const subCategoryProductCounts = new Map<string, number>();
+        
+        if (subCategoryIds.length > 0) {
+            const counts = await CatalogueModel.aggregate([
+                {
+                    $match: {
+                        sub_category: { $in: subCategoryIds }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$sub_category',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            counts.forEach(item => {
+                subCategoryProductCounts.set(item._id.toString(), item.count);
+            });
+        }
+
+        return {
+            category: {
+                _id: category._id,
+                category_name: category.category_name,
+                description: category.description,
+                category_status: category.category_status,
+                category_image: category.category_image,
+                createdAt: category.createdAt,
+                updatedAt: category.updatedAt
+            },
+            sub_categories: subCategories.map(subCat => ({
+                _id: subCat._id,
+                sub_category_name: subCat.sub_category_name,
+                description: subCat.description,
+                sub_category_status: subCat.sub_category_status,
+                sub_category_image: subCat.sub_category_image,
+                product_count: subCategoryProductCounts.get(subCat._id.toString()) || 0,
+                createdAt: subCat.createdAt,
+                updatedAt: subCat.updatedAt
+            })),
+            product_count: productCount,
+            sub_categories_count: subCategories.length
+        };
+
+    } catch (error: any) {
+        console.error('Error getting category with sub-categories:', error);
+        throw error;
+    }
+}
     // Get Category by ID
     async getCategoryById(categoryId: string): Promise<ICategory | null> {
         try {
