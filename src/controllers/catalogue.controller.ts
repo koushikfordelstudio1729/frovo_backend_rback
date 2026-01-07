@@ -491,53 +491,96 @@ export class CatalogueController extends BaseController {
         }
     }
 
-    async updateCatalogueStatus(req: Request, res: Response): Promise<void> {
-        const catalogueService = createCatalogueService(req);
+// In CatalogueController class
+async activateCatalogue(req: Request, res: Response): Promise<void> {
+    const catalogueService = createCatalogueService(req);
 
-        try {
-            const { id } = req.params;
-            const { status } = req.body;
-            const user = CatalogueController.getLoggedInUser(req);
+    try {
+        const { id } = req.params;
+        const user = CatalogueController.getLoggedInUser(req);
 
-            if (!status || !['active', 'inactive'].includes(status)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Valid status (active/inactive) is required'
-                });
-                return;
+        // Set status to active
+        const updateData: UpdateCatalogueDTO = { status: 'active' };
+        const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Product activated successfully',
+            data: {
+                id: updatedCatalogue._id,
+                product_name: updatedCatalogue.product_name,
+                sku_id: updatedCatalogue.sku_id,
+                status: updatedCatalogue.status,
+                updatedAt: updatedCatalogue.updatedAt
+            },
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
             }
+        });
 
-            const updateData: UpdateCatalogueDTO = { status };
-            const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
+    } catch (error: any) {
+        console.error('Error activating product:', error);
 
-            res.status(200).json({
-                success: true,
-                message: 'Catalogue status updated successfully',
-                data: updatedCatalogue,
-                meta: {
-                    updatedBy: user.email,
-                    userRole: user.roles[0]?.key || 'unknown',
-                    timestamp: new Date().toISOString()
-                }
-            });
-
-        } catch (error: any) {
-            console.error('Error updating catalogue status:', error);
-
-            let statusCode = 500;
-            if (error.message.includes('Invalid product ID')) {
-                statusCode = 400;
-            } else if (error.message.includes('not found')) {
-                statusCode = 404;
-            }
-
-            res.status(statusCode).json({
-                success: false,
-                message: error.message || 'Failed to update catalogue status'
-            });
+        let statusCode = 500;
+        if (error.message.includes('Invalid product ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
         }
-    }
 
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to activate product'
+        });
+    }
+}
+
+async deactivateCatalogue(req: Request, res: Response): Promise<void> {
+    const catalogueService = createCatalogueService(req);
+
+    try {
+        const { id } = req.params;
+        const user = CatalogueController.getLoggedInUser(req);
+
+        // Set status to inactive
+        const updateData: UpdateCatalogueDTO = { status: 'inactive' };
+        const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Product deactivated successfully',
+            data: {
+                id: updatedCatalogue._id,
+                product_name: updatedCatalogue.product_name,
+                sku_id: updatedCatalogue.sku_id,
+                status: updatedCatalogue.status,
+                updatedAt: updatedCatalogue.updatedAt
+            },
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error deactivating product:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('Invalid product ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to deactivate product'
+        });
+    }
+}
     async exportDashboardCSV(req: Request, res: Response): Promise<void> {
         try {
             const filters: DashboardFilterDTO = {

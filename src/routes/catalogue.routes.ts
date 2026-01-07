@@ -205,26 +205,31 @@ router.get('/dashboard/export',
 );
 
 // ==================== CATALOGUE DETAIL ROUTES ====================
-router.get('/catalogues/:id',
+router.get('/sku-catalogue/:id',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.getCatalogueById.bind(catalogueController)
 );
 
-router.put('/catalogues/:id',
+router.put('/sku-catalogue/:id',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
     catalogueController.updateCatalogue.bind(catalogueController)
 );
-
-router.patch('/catalogues/:id/status',
+router.patch('/sku-catalogue/:id/status/active',
     authenticate,
     authorize(MANAGEMENT),
-    catalogueController.updateCatalogueStatus.bind(catalogueController)
+    catalogueController.activateCatalogue.bind(catalogueController)
 );
 
-router.delete('/catalogues/:id',
+router.patch('/sku-catalogue/:id/status/inactive',
+    authenticate,
+    authorize(MANAGEMENT),
+    catalogueController.deactivateCatalogue.bind(catalogueController)
+);
+
+router.delete('/sku-catalogue/:id',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.deleteCatalogue.bind(catalogueController)
