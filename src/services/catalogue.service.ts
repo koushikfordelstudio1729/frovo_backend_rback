@@ -190,6 +190,112 @@ export class CategoryService {
             throw error;
         }
     }
+    /**
+ * Get all categories data for CSV export
+ */
+async getAllCategoriesForExport(filters: CategoryFilterDTO = {}): Promise<Array<any>> {
+    try {
+        console.log('Getting all categories for CSV export with filters:', filters);
+
+        const {
+            status,
+            category_name,
+            page = 1,
+            limit = 10000 // Large limit to get all data for export
+        } = filters;
+
+        // Build query
+        const query: any = {};
+
+        if (status) {
+            query.category_status = status;
+        }
+
+        if (category_name) {
+            query.category_name = { $regex: category_name, $options: 'i' };
+        }
+
+        // Get all categories
+        const allCategories = await CategoryModel.find(query)
+            .select('category_name description category_status category_image sub_categories createdAt updatedAt')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Get product counts for all categories
+        const productCountMap = await this.getProductCountsForAllCategories();
+
+        // Transform response
+        const categoriesData = allCategories.map(category => {
+            const subCategoriesList = category.sub_categories.map(sc => sc.sub_category_name);
+
+            // Handle category_image - it could be an object (ICategoryImageData) or a string
+            const categoryImage = typeof category.category_image === 'string'
+                ? category.category_image
+                : (category.category_image as any)?.file_url || '';
+
+            // Get product count for this category
+            const productCount = productCountMap.get(category._id.toString()) || 0;
+
+            return {
+                id: category._id.toString(),
+                category_name: category.category_name,
+                description: category.description,
+                category_status: category.category_status,
+                category_image: categoryImage,
+                sub_categories_count: subCategoriesList.length,
+                sub_categories_list: subCategoriesList.join(', '),
+                product_count: productCount,
+                created_at: category.createdAt,
+                updated_at: category.updatedAt
+            };
+        });
+
+        console.log(`Found ${categoriesData.length} categories for CSV export`);
+        return categoriesData;
+
+    } catch (error: any) {
+        console.error('Error getting categories for CSV export:', error);
+        throw error;
+    }
+}
+
+/**
+ * Convert categories data to CSV format
+ */
+convertCategoriesToCSV(categories: any[]): string {
+    const headers = [
+        'Category ID',
+        'Category Name',
+        'Description',
+        'Status',
+        'Image URL',
+        'Sub Categories Count',
+        'Sub Categories List',
+        'Product Count',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    const rows = categories.map(category => [
+        category.id,
+        `"${(category.category_name || '').replace(/"/g, '""')}"`,
+        `"${(category.description || '').replace(/"/g, '""')}"`,
+        category.category_status || 'active',
+        category.category_image || '',
+        category.sub_categories_count || 0,
+        `"${(category.sub_categories_list || '').replace(/"/g, '""')}"`,
+        category.product_count || 0,
+        category.created_at ? new Date(category.created_at).toISOString().split('T')[0] : '',
+        category.updated_at ? new Date(category.updated_at).toISOString().split('T')[0] : ''
+    ]);
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+}
 
     /**
      * Update category by ID
@@ -1054,7 +1160,187 @@ export class CatalogueService {
             throw error;
         }
     }
+/**
+ * Get all catalogues data for CSV export
+ */
+async getAllCataloguesForExport(filters: DashboardFilterDTO = {}): Promise<Array<any>> {
+    try {
+        console.log('Getting all catalogues for CSV export with filters:', filters);
 
+        const {
+            category,
+            brand_name,
+            status,
+            min_price,
+            max_price,
+            search,
+            sort_by = 'createdAt',
+            sort_order = 'desc'
+        } = filters;
+
+        // Build query
+        const query: any = {};
+
+        // Apply all filters except category
+        if (brand_name) {
+            query.brand_name = { $regex: brand_name, $options: 'i' };
+        }
+
+        if (status) {
+            query.status = status;
+        }
+
+        if (min_price !== undefined || max_price !== undefined) {
+            query.final_price = {};
+            if (min_price !== undefined) query.final_price.$gte = min_price;
+            if (max_price !== undefined) query.final_price.$lte = max_price;
+        }
+
+        if (search) {
+            query.$or = [
+                { sku_id: { $regex: search, $options: 'i' } },
+                { product_name: { $regex: search, $options: 'i' } },
+                { brand_name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Get all categories for mapping
+        const allCategories = await CategoryModel.find({}).select('_id category_name').lean();
+        const categoryIdMap = new Map(); // _id -> category_name
+        const categoryNameMap = new Map(); // category_name -> category_name
+
+        allCategories.forEach(cat => {
+            categoryIdMap.set(cat._id.toString(), cat.category_name);
+            categoryNameMap.set(cat.category_name, cat.category_name);
+        });
+
+        // Get all catalogue items
+        const allProducts = await CatalogueModel.find(query)
+            .select('sku_id product_name category sub_category brand_name description manufacturer_name manufacturer_address shell_life expiry_alert_threshold tages_label unit_size base_price final_price barcode nutrition_information ingredients status product_images createdAt updatedAt')
+            .sort({ [sort_by]: sort_order === 'asc' ? 1 : -1 })
+            .lean()
+            .exec();
+
+        console.log(`Found ${allProducts.length} products for CSV export`);
+
+        // Transform products and resolve category names
+        const transformedProducts: any[] = [];
+
+        for (const product of allProducts) {
+            let categoryName = 'Unknown';
+
+            // Try to resolve category name
+            if (product.category) {
+                if (mongoose.Types.ObjectId.isValid(product.category.toString())) {
+                    // It's an ObjectId
+                    categoryName = categoryIdMap.get(product.category.toString()) || 'Unknown';
+                } else {
+                    // It's a string (category name)
+                    categoryName = categoryNameMap.get(product.category.toString()) || product.category.toString();
+                }
+            }
+
+            // Apply category filter if specified
+            if (category) {
+                if (!categoryName.toLowerCase().includes(category.toLowerCase())) {
+                    continue; // Skip this product if it doesn't match category filter
+                }
+            }
+
+            transformedProducts.push({
+                id: product._id.toString(),
+                sku_id: product.sku_id,
+                product_name: product.product_name,
+                brand_name: product.brand_name,
+                category: categoryName,
+                sub_category: product.sub_category,
+                description: product.description,
+                manufacturer_name: product.manufacturer_name,
+                manufacturer_address: product.manufacturer_address,
+                shell_life: product.shell_life,
+                expiry_alert_threshold: product.expiry_alert_threshold,
+                tages_label: product.tages_label,
+                unit_size: product.unit_size,
+                base_price: product.base_price,
+                final_price: product.final_price,
+                barcode: product.barcode,
+                nutrition_information: product.nutrition_information,
+                ingredients: product.ingredients,
+                status: product.status,
+                product_images_count: product.product_images,
+                created_at: product.createdAt,
+                updated_at: product.updatedAt
+            });
+        }
+
+        return transformedProducts;
+
+    } catch (error: any) {
+        console.error('Error getting catalogues for CSV export:', error);
+        throw error;
+    }
+}
+
+/**
+ * Convert catalogue data to CSV format
+ */
+convertCataloguesToCSV(products: any[]): string {
+    const headers = [
+        'SKU ID',
+        'Product Name',
+        'Brand Name',
+        'Category',
+        'Sub Category',
+        'Description',
+        'Manufacturer Name',
+        'Manufacturer Address',
+        'Shell Life',
+        'Expiry Alert Threshold (days)',
+        'Tags Label',
+        'Unit Size',
+        'Base Price',
+        'Final Price',
+        'Barcode',
+        'Nutrition Information',
+        'Ingredients',
+        'Status',
+        'Product Images Count',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    const rows = products.map(product => [
+        product.sku_id || '',
+        `"${(product.product_name || '').replace(/"/g, '""')}"`,
+        `"${(product.brand_name || '').replace(/"/g, '""')}"`,
+        product.category || '',
+        product.sub_category || '',
+        `"${(product.description || '').replace(/"/g, '""')}"`,
+        `"${(product.manufacturer_name || '').replace(/"/g, '""')}"`,
+        `"${(product.manufacturer_address || '').replace(/"/g, '""')}"`,
+        product.shell_life || '',
+        product.expiry_alert_threshold || 0,
+        product.tages_label || '',
+        product.unit_size || '',
+        product.base_price || 0,
+        product.final_price || 0,
+        product.barcode || '',
+        `"${(product.nutrition_information || '').replace(/"/g, '""')}"`,
+        `"${(product.ingredients || '').replace(/"/g, '""')}"`,
+        product.status || 'active',
+        product.product_images_count || 0,
+        product.created_at ? new Date(product.created_at).toISOString().split('T')[0] : '',
+        product.updated_at ? new Date(product.updated_at).toISOString().split('T')[0] : ''
+    ]);
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+}
     /**
      * Delete catalogue product by ID
      */

@@ -894,7 +894,155 @@ export class CatalogueController {
             });
         }
     }
+    /**
+     * Export all catalogues to CSV
+     */
+    async exportAllCataloguesCSV(req: Request, res: Response): Promise<void> {
+        try {
+            console.log('Exporting all catalogues to CSV');
 
+            // Extract user info for audit
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                // Continue anyway for export
+            }
+
+            // Parse query parameters
+            const filters: DashboardFilterDTO = {
+                category: req.query.category as string,
+                brand_name: req.query.brand_name as string,
+                status: req.query.status as 'active' | 'inactive',
+                search: req.query.search as string,
+                page: 1,
+                limit: 10000, // Large limit to get all data
+                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
+                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
+            };
+
+            // Parse price filters
+            if (req.query.min_price) {
+                filters.min_price = parseFloat(req.query.min_price as string);
+            }
+            if (req.query.max_price) {
+                filters.max_price = parseFloat(req.query.max_price as string);
+            }
+
+            // Get all data
+            const catalogueService = createCatalogueService(req);
+            const cataloguesData = await catalogueService.getDashboardData(filters);
+
+            // Convert to CSV
+            const csvData = this.convertAllCataloguesToCSV(cataloguesData.products);
+
+            // Set headers for CSV download
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `catalogues-export-${timestamp}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.status(200).send(csvData);
+
+            console.log(`CSV export completed: ${cataloguesData.products.length} records exported by ${userEmail}`);
+
+        } catch (error: any) {
+            console.error('Error exporting catalogues to CSV:', error);
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to export catalogues to CSV',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                exportedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+    /**
+     * Convert all catalogues data to CSV format
+     */
+    private convertAllCataloguesToCSV(products: any[]): string {
+        const headers = [
+            'SKU ID',
+            'Product Name',
+            'Brand Name',
+            'Category',
+            'Sub Category',
+            'Description',
+            'Manufacturer Name',
+            'Manufacturer Address',
+            'Shell Life',
+            'Expiry Alert Threshold (days)',
+            'Tags Label',
+            'Unit Size',
+            'Base Price',
+            'Final Price',
+            'Barcode',
+            'Nutrition Information',
+            'Ingredients',
+            'Status',
+            'Created Date',
+            'Updated Date'
+        ];
+
+        const rows = products.map(product => {
+            // ✅ FIXED: Handle all possible undefined values
+            const productName = product.product_name || '';
+            const brandName = product.brand_name || '';
+            const description = product.description || '';
+            const manufacturerName = product.manufacturer_name || '';
+            const manufacturerAddress = product.manufacturer_address || '';
+            const nutritionInformation = product.nutrition_information || '';
+            const ingredients = product.ingredients || '';
+
+            return [
+                product.sku_id || '',
+                `"${productName.replace(/"/g, '""')}"`,
+                `"${brandName.replace(/"/g, '""')}"`,
+                product.category || '',
+                product.sub_category || '',
+                `"${description.replace(/"/g, '""')}"`,
+                `"${manufacturerName.replace(/"/g, '""')}"`,
+                `"${manufacturerAddress.replace(/"/g, '""')}"`,
+                product.shell_life || '',
+                product.expiry_alert_threshold || 0,
+                product.tages_label || '',
+                product.unit_size || '',
+                product.base_price || 0,
+                product.final_price || 0,
+                product.barcode || '',
+                `"${nutritionInformation.replace(/"/g, '""')}"`,
+                `"${ingredients.replace(/"/g, '""')}"`,
+                product.status || 'active',
+                product.createdAt ? new Date(product.createdAt).toISOString().split('T')[0] : '',
+                product.updatedAt ? new Date(product.updatedAt).toISOString().split('T')[0] : ''
+            ];
+        });
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        return csvContent;
+    }
     /**
      * Get all catalogue products with pagination and filtering
      */
@@ -1353,6 +1501,211 @@ export class CategoryController {
     }
 
     /**
+     * Export all categories to CSV
+     */
+    async exportAllCategoriesCSV(req: Request, res: Response): Promise<void> {
+        // Create service with request context
+        const categoryService = createCategoryService(req);
+
+        try {
+            console.log('Exporting all categories to CSV');
+
+            // Extract user info for audit
+            let userId: string;
+            let userEmail: string;
+            let userRole: string;
+
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (authError) {
+                res.status(401).json({
+                    success: false,
+                    message: 'Authentication required for export operations',
+                    error: 'User authentication required'
+                });
+                return;
+            }
+
+            // Parse query parameters
+            const filters: CategoryFilterDTO = {
+                status: req.query.status as 'active' | 'inactive',
+                category_name: req.query.category_name as string,
+                page: 1,
+                limit: 10000
+            };
+
+            console.log('Calling getAllCategoriesWithFilters with filters:', filters);
+
+            // Get all categories
+            const categoriesData = await categoryService.getAllCategoriesWithFilters(filters);
+
+            // ✅ CRITICAL DEBUG: Log the full response structure
+            console.log('DEBUG - Full categoriesData response:', {
+                type: typeof categoriesData,
+                isObject: categoriesData && typeof categoriesData === 'object',
+                keys: categoriesData ? Object.keys(categoriesData) : 'NO DATA',
+                hasCategories: categoriesData ? 'categories' in categoriesData : false,
+                categoriesType: categoriesData && categoriesData.categories ? typeof categoriesData.categories : 'NO CATEGORIES',
+                categoriesIsArray: categoriesData && categoriesData.categories ? Array.isArray(categoriesData.categories) : false,
+                categoriesLength: categoriesData && categoriesData.categories ? categoriesData.categories.length : 0,
+                fullResponse: JSON.stringify(categoriesData, null, 2).substring(0, 1000) // First 1000 chars
+            });
+
+            // ✅ FIXED: Check if categoriesData exists and has categories array
+            if (!categoriesData) {
+                console.error('❌ ERROR: categoriesData is null or undefined');
+                res.status(500).json({
+                    success: false,
+                    message: 'No data returned from service',
+                    exportedBy: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            if (!categoriesData.categories) {
+                console.error('❌ ERROR: categoriesData.categories is missing. Full response:', categoriesData);
+                // Try to extract categories from different possible structures
+                const categories = categoriesData.categories || categoriesData;
+
+                if (Array.isArray(categories)) {
+                    console.log('Found categories as direct array');
+                    const csvData = this.convertAllCategoriesToCSV(categories);
+
+                    const timestamp = new Date().toISOString().split('T')[0];
+                    const filename = `categories-export-${timestamp}.csv`;
+
+                    res.setHeader('Content-Type', 'text/csv');
+                    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                    res.status(200).send(csvData);
+                    return;
+                } else {
+                    res.status(500).json({
+                        success: false,
+                        message: 'Categories data structure is invalid',
+                        details: {
+                            expected: 'object with categories array',
+                            actual: typeof categoriesData
+                        },
+                        exportedBy: { userId, userEmail, userRole }
+                    });
+                    return;
+                }
+            }
+
+            if (!Array.isArray(categoriesData.categories)) {
+                console.error('❌ ERROR: categoriesData.categories is not an array. Type:', typeof categoriesData.categories, 'Value:', categoriesData.categories);
+                res.status(500).json({
+                    success: false,
+                    message: 'Categories data is not in array format',
+                    error: `Expected array but got ${typeof categoriesData.categories}`,
+                    exportedBy: { userId, userEmail, userRole }
+                });
+                return;
+            }
+
+            console.log(`✅ Found ${categoriesData.categories.length} categories for CSV export`);
+
+            // Convert to CSV
+            const csvData = this.convertAllCategoriesToCSV(categoriesData.categories);
+
+            // Set headers for CSV download
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `categories-export-${timestamp}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.status(200).send(csvData);
+
+            console.log(`✅ CSV export completed: ${categoriesData.categories.length} categories exported by ${userEmail}`);
+
+        } catch (error: any) {
+            console.error('❌ ERROR exporting categories to CSV:', {
+                message: error.message,
+                stack: error.stack,
+                error: error
+            });
+
+            // Extract user info for error logging
+            let userId = 'unknown';
+            let userEmail = 'unknown';
+            let userRole = 'unknown';
+            try {
+                const user = CatalogueController.getLoggedInUser(req);
+                userId = user._id.toString();
+                userEmail = user.email;
+                userRole = user.roles[0]?.key || 'unknown';
+            } catch (userError) {
+                // User not authenticated
+            }
+
+            res.status(500).json({
+                success: false,
+                message: 'Failed to export categories to CSV',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                exportedBy: { userId, userEmail, userRole }
+            });
+        }
+    }
+    /**
+     * Convert all categories data to CSV format
+     */
+    private convertAllCategoriesToCSV(categories: any[]): string {
+        const headers = [
+            'Category ID',
+            'Category Name',
+            'Description',
+            'Status',
+            'Image URL',
+            'Sub Categories Count',
+            'Sub Categories List',
+            'Product Count',
+            'Created Date',
+            'Updated Date'
+        ];
+
+        const rows = categories.map(category => {
+            // ✅ FIXED: Handle undefined or non-array sub_categories_list
+            const subCategoriesList = Array.isArray(category.sub_categories_list)
+                ? category.sub_categories_list
+                : [];
+            const subCategoriesString = subCategoriesList.join(', ');
+
+            // Handle category_image - it could be an object or string
+            let categoryImage = '';
+            if (typeof category.category_image === 'object' && category.category_image !== null) {
+                categoryImage = category.category_image.file_url || '';
+            } else if (typeof category.category_image === 'string') {
+                categoryImage = category.category_image;
+            }
+
+            // Handle description - might be undefined
+            const description = category.description || '';
+
+            return [
+                category.id || '',
+                `"${(category.category_name || '').replace(/"/g, '""')}"`,
+                `"${description.replace(/"/g, '""')}"`,
+                category.category_status || 'active',
+                categoryImage,
+                category.sub_categories_count || 0,
+                `"${subCategoriesString.replace(/"/g, '""')}"`,
+                category.product_count || 0,
+                category.createdAt ? new Date(category.createdAt).toISOString().split('T')[0] : '',
+                category.updatedAt ? new Date(category.updatedAt).toISOString().split('T')[0] : ''
+            ];
+        });
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        return csvContent;
+    }
+    /**
      * Update category by ID
      */
     async updateCategory(req: Request, res: Response): Promise<void> {
@@ -1685,7 +2038,7 @@ export class CategoryController {
             });
         }
     }
-
+   
     /**
      * Get category dashboard statistics
      */
