@@ -947,7 +947,93 @@ export class CategoryController extends BaseController {
             });
         }
     }
+async activateCategory(req: Request, res: Response): Promise<void> {
+    const categoryService = createCategoryService(req);
 
+    try {
+        const { id } = req.params;
+        const user = CategoryController.getLoggedInUser(req);
+
+        // Set status to active
+        const updateData: UpdateCategoryDTO = { category_status: 'active' };
+        const updatedCategory = await categoryService.updateCategory(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Category activated successfully',
+            data: {
+                id: updatedCategory._id,
+                category_name: updatedCategory.category_name,
+                category_status: updatedCategory.category_status,
+                updatedAt: updatedCategory.updatedAt
+            },
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error activating category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('Invalid category ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to activate category'
+        });
+    }
+}
+
+async deactivateCategory(req: Request, res: Response): Promise<void> {
+    const categoryService = createCategoryService(req);
+
+    try {
+        const { id } = req.params;
+        const user = CategoryController.getLoggedInUser(req);
+
+        // Set status to inactive
+        const updateData: UpdateCategoryDTO = { category_status: 'inactive' };
+        const updatedCategory = await categoryService.updateCategory(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Category deactivated successfully',
+            data: {
+                id: updatedCategory._id,
+                category_name: updatedCategory.category_name,
+                category_status: updatedCategory.category_status,
+                updatedAt: updatedCategory.updatedAt
+            },
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error deactivating category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('Invalid category ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to deactivate category'
+        });
+    }
+}
     async deleteCategory(req: Request, res: Response): Promise<void> {
         const categoryService = createCategoryService(req);
 

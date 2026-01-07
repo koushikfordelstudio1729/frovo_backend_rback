@@ -54,6 +54,18 @@ router.patch('/categories/:id/status',
     authorize(MANAGEMENT),
     categoryController.updateCategoryStatus.bind(categoryController)
 );
+// Category Status Routes
+router.patch('/categories/:id/status/active',
+    authenticate,
+    authorize(MANAGEMENT),
+    categoryController.activateCategory.bind(categoryController)
+);
+
+router.patch('/categories/:id/status/inactive',
+    authenticate,
+    authorize(MANAGEMENT),
+    categoryController.deactivateCategory.bind(categoryController)
+);
 
 router.delete('/categories/:id',
     authenticate,
