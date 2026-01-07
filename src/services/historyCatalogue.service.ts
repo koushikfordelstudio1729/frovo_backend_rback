@@ -14,7 +14,7 @@ export class HistoryCatalogueService {
         user_role: string;
     } {
         const user = (req as any).user;
-        
+
         return {
             user_id: user?._id || new mongoose.Types.ObjectId('000000000000000000000000'),
             user_email: user?.email || 'unknown',
@@ -65,7 +65,7 @@ export class HistoryCatalogueService {
             const newValue = newData?.[key];
 
             // Handle nested objects (like sub_details)
-            if (typeof oldValue === 'object' && typeof newValue === 'object' && 
+            if (typeof oldValue === 'object' && typeof newValue === 'object' &&
                 !Array.isArray(oldValue) && !Array.isArray(newValue)) {
                 const nestedChanges = this.calculateChanges(oldValue, newValue);
                 nestedChanges.forEach(change => {
@@ -96,7 +96,7 @@ export class HistoryCatalogueService {
      */
     async logCreate(
         req: Request,
-        entityType: 'category' | 'catalogue',
+        entityType: 'category' | 'sub_category' | 'catalogue',
         entityId: mongoose.Types.ObjectId,
         entityName: string,
         entityData: any,
@@ -133,7 +133,7 @@ export class HistoryCatalogueService {
      */
     async logUpdate(
         req: Request,
-        entityType: 'category' | 'catalogue',
+        entityType: 'category' | 'sub_category' | 'catalogue',
         entityId: mongoose.Types.ObjectId,
         entityName: string,
         beforeState: any,
@@ -174,7 +174,7 @@ export class HistoryCatalogueService {
      */
     async logDelete(
         req: Request,
-        entityType: 'category' | 'catalogue',
+        entityType: 'category' | 'sub_category' | 'catalogue',
         entityId: mongoose.Types.ObjectId,
         entityName: string,
         entityData: any,
@@ -211,7 +211,7 @@ export class HistoryCatalogueService {
      */
     async logView(
         req: Request,
-        entityType: 'category' | 'catalogue',
+        entityType: 'category' | 'sub_category' | 'catalogue',
         entityId: mongoose.Types.ObjectId,
         entityName: string
     ): Promise<void> {
@@ -242,7 +242,7 @@ export class HistoryCatalogueService {
      * Get audit logs for specific entity
      */
     async getEntityHistoryLogs(
-        entityType: 'category' | 'catalogue',
+        entityType: 'category' | 'sub_category' | 'catalogue',
         entityId: string,
         options?: {
             limit?: number;
@@ -281,7 +281,7 @@ export class HistoryCatalogueService {
         options?: {
             limit?: number;
             skip?: number;
-            entityType?: 'category' | 'catalogue';
+            entityType?: 'category' | 'sub_category' | 'catalogue';
             operation?: 'create' | 'update' | 'delete' | 'view';
             startDate?: Date;
             endDate?: Date;
@@ -323,7 +323,7 @@ export class HistoryCatalogueService {
      * Get audit logs with advanced filtering
      */
     async getAuditLogs(filters: {
-        entityType?: 'category' | 'catalogue';
+        entityType?: 'category' | 'sub_category' | 'catalogue';
         operation?: 'create' | 'update' | 'delete' | 'view';
         userId?: string;
         userEmail?: string;
@@ -370,7 +370,7 @@ export class HistoryCatalogueService {
     async getAuditStatistics(filters?: {
         startDate?: Date;
         endDate?: Date;
-        entityType?: 'category' | 'catalogue';
+        entityType?: 'category' | 'sub_category' | 'catalogue';
     }): Promise<{
         total_operations: number;
         operations_by_type: Array<{ operation: string; count: number }>;

@@ -38,55 +38,88 @@ const categoryImageSchema = new Schema<ICategoryImageData>({
     default: Date.now
   }
 }, { _id: true });
+
 // CATEGORY SCHEMA
 export interface ICategory extends Document {
   category_name: string;
   description: string;
-  sub_categories: ISubCategory[];
   category_status?: 'active' | 'inactive';
   category_image: ICategoryImageData;
-  // In interface but not in schema
   createdAt: Date;
   updatedAt: Date;
 }
-export interface ISubCategory {
-  _id: Types.ObjectId;
-  sub_category_name: string;
-  description: string;
-}
-const SubCategorySchema = new Schema<ISubCategory>({
-  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
-  sub_category_name: { type: String, required: true },
-  description: { type: String, required: true }
-}, { _id: true });
 
 const CategorySchema = new mongoose.Schema<ICategory>(
   {
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
-    category_name: { type: String, required: true },
+    category_name: { 
+      type: String, 
+      required: true,
+      unique: true,
+      trim: true 
+    },
     description: { type: String, required: true },
-    sub_categories: [SubCategorySchema], // Array of sub-categories
-    category_status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    category_status: { 
+      type: String, 
+      enum: ['active', 'inactive'], 
+      default: 'active' 
+    },
     category_image: categoryImageSchema,
   },
   { timestamps: true }
 );
 
-// Compound unique index for category name + sub-category name combination
-CategorySchema.index({
-  category_name: 1,
-  'sub_categories.sub_category_name': 1
-}, { 
-  unique: true, 
-  name: 'category_subcategories_unique',
-  sparse: true
-});
+// SUB-CATEGORY SCHEMA
+export interface ISubCategory extends Document {
+  sub_category_name: string;
+  description: string;
+  category_id: Types.ObjectId;
+  sub_category_status?: 'active' | 'inactive';
+  sub_category_image?: ICategoryImageData;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const SubCategorySchema = new Schema<ISubCategory>(
+  {
+    sub_category_name: { 
+      type: String, 
+      required: true,
+      trim: true 
+    },
+    description: { type: String, required: true },
+    category_id: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Category', 
+      required: true 
+    },
+    sub_category_status: { 
+      type: String, 
+      enum: ['active', 'inactive'], 
+      default: 'active' 
+    },
+    sub_category_image: categoryImageSchema,
+  },
+  { timestamps: true }
+);
+
+// Compound unique index for category + sub-category name combination
+SubCategorySchema.index(
+  { category_id: 1, sub_category_name: 1 },
+  { unique: true, name: 'category_subcategory_unique' }
+);
 
 export const CategoryModel = mongoose.model<ICategory>(
   "Category",
   CategorySchema
 );
 
+export const SubCategoryModel = mongoose.model<ISubCategory>(
+  "SubCategory",
+  SubCategorySchema
+);
+
+// PRODUCT IMAGE INTERFACE
 export interface IProductImageData {
   image_name: string;
   file_url: string;
@@ -124,14 +157,15 @@ const productImageSchema = new Schema<IProductImageData>({
     default: Date.now
   }
 }, { _id: true });
+
 // CATALOGUE SCHEMA
 export interface ICatalogue extends Document {
   sku_id: string;
   product_name: string;
   brand_name: string;
   description: string;
-  category: Types.ObjectId; // Category ID reference
-  sub_category: Types.ObjectId; // Sub-category ID reference
+  category: Types.ObjectId;
+  sub_category: Types.ObjectId;
   manufacturer_name: string;
   manufacturer_address: string;
   shell_life: string;
@@ -143,9 +177,8 @@ export interface ICatalogue extends Document {
   barcode: string;
   nutrition_information: string;
   ingredients: string;
-  product_images: IProductImageData;
+  product_images: IProductImageData[];
   status: 'active' | 'inactive';
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -156,21 +189,15 @@ const CatalogueSchema = new mongoose.Schema<ICatalogue>(
     product_name: { type: String, required: true },
     brand_name: { type: String, required: true },
     description: { type: String, required: true },
-    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true }, // Changed to ObjectId
+    category: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Category', 
+      required: true 
+    },
     sub_category: { 
       type: mongoose.Schema.Types.ObjectId, 
-      required: true,
-      validate: {
-        validator: async function(value: mongoose.Types.ObjectId) {
-          // ✅ FIXED: Updated to match new sub_categories array structure
-          const category = await mongoose.model('Category').findOne({
-            _id: this.category,
-            'sub_categories._id': value // Updated to match new structure
-          });
-          return !!category;
-        },
-        message: 'Sub-category ID does not exist in the specified category'
-      }
+      ref: 'SubCategory', 
+      required: true 
     },
     manufacturer_name: { type: String, required: true },
     manufacturer_address: { type: String, required: true },
@@ -185,16 +212,14 @@ const CatalogueSchema = new mongoose.Schema<ICatalogue>(
     ingredients: { type: String, required: true },
     product_images: [productImageSchema],
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-    // Added missing field
   },
   { timestamps: true }
 );
 
-// Optional: Index for faster queries
+// Indexes for faster queries
 CatalogueSchema.index({ category: 1 });
 CatalogueSchema.index({ sub_category: 1 });
 CatalogueSchema.index({ status: 1 });
-CatalogueSchema.index({ createdBy: 1 });
 
 export const CatalogueModel = mongoose.model<ICatalogue>(
   "Catalogue",
