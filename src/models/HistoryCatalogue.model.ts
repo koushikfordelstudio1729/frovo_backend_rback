@@ -4,41 +4,41 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IHistoryCatalogue extends Document {
     // Operation Details
     operation: 'create' | 'update' | 'delete' | 'view';
-    entity_type: 'category' | 'catalogue';
+    entity_type: 'category' | 'sub_category' | 'catalogue';
     entity_id: mongoose.Types.ObjectId;
     entity_name: string; // Category name or Product name for easy reference
-    
+
     // User Details
     user_id: mongoose.Types.ObjectId;
     user_email: string;
     user_role: string;
-    
+
     // Request Details
     ip_address: string;
     user_agent: string;
     request_method: string;
     request_path: string;
-    
+
     // Change Details (for updates)
     changes?: {
         field: string;
         old_value: any;
         new_value: any;
     }[];
-    
+
     // Before and After State (for updates and deletes)
     before_state?: any;
     after_state?: any;
-    
+
     // Additional Context
     description: string;
     status: 'success' | 'failed';
     error_message?: string;
-    
+
     // Metadata
     timestamp: Date;
     session_id?: string;
-    
+
     createdAt: Date;
     updatedAt: Date;
 }
@@ -55,7 +55,7 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
         },
         entity_type: {
             type: String,
-            enum: ['category', 'catalogue'],
+            enum: ['category', 'sub_category', 'catalogue'],
             required: true,
             index: true
         },
@@ -69,7 +69,7 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
             required: true,
             index: true
         },
-        
+
         // User Details
         user_id: {
             type: Schema.Types.ObjectId,
@@ -86,7 +86,7 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
             required: true,
             index: true
         },
-        
+
         // Request Details
         ip_address: {
             type: String,
@@ -104,14 +104,14 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
             type: String,
             required: true
         },
-        
+
         // Change Details
         changes: [{
             field: String,
             old_value: Schema.Types.Mixed,
             new_value: Schema.Types.Mixed
         }],
-        
+
         // State Snapshots
         before_state: {
             type: Schema.Types.Mixed
@@ -119,7 +119,7 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
         after_state: {
             type: Schema.Types.Mixed
         },
-        
+
         // Additional Context
         description: {
             type: String,
@@ -135,7 +135,7 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
         error_message: {
             type: String
         },
-        
+
         // Metadata
         timestamp: {
             type: Date,

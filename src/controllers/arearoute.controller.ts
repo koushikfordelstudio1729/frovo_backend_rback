@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { AreaRouteModel, RouteModel } from '../models/AreaRoute.model';
+
 import { AreaRouteService } from '../services/arearoute.service';
 import { CheckInModel, MachineReassignmentModel } from '../models/RouteTracking.model';
 

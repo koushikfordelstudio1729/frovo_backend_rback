@@ -35,7 +35,7 @@ router.delete('/categories/:id', authenticate, authorize(MANAGEMENT), categoryCo
 // Catalogue Dashboard Routes
 router.get('/catalogues/:id', catalogueController.getCatalogueById.bind(catalogueController));
 router.put('/catalogues/:id', authenticate, authorize(MANAGEMENT), uploadMultiple, catalogueController.updateCatalogue.bind(catalogueController));
-router.patch('/catalogues/:id/status', authenticate, authorize(MANAGEMENT), catalogueController.updateCatalogueStatus.bind(catalogueController));
+//router.patch('/catalogues/:id/status', authenticate, authorize(MANAGEMENT), catalogueController.updateCatalogueStatus.bind(catalogueController));
 router.delete('/catalogues/:id', authorize(MANAGEMENT), catalogueController.deleteCatalogue.bind(catalogueController));
 
 
