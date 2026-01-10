@@ -403,83 +403,108 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
     }
 
     // Update Category
-    async updateCategory(
-        categoryId: string,
-        updateData: UpdateCategoryDTO
-    ): Promise<ICategory> {
-        try {
-            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-                throw new Error('Invalid category ID format');
+    // Update Category
+async updateCategory(
+    categoryId: string,
+    updateData: UpdateCategoryDTO
+): Promise<ICategory> {
+    try {
+        console.log(`Updating category ${categoryId} with data:`, updateData);
+
+        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+            throw new Error('Invalid category ID format');
+        }
+
+        // Check if category exists
+        const existingCategory = await CategoryModel.findById(categoryId);
+        if (!existingCategory) {
+            throw new Error('Category not found');
+        }
+
+        // If updating category_name, check for duplicates
+        if (updateData.category_name && updateData.category_name !== existingCategory.category_name) {
+            const duplicateCategory = await CategoryModel.findOne({
+                _id: { $ne: categoryId },
+                category_name: { $regex: new RegExp(`^${updateData.category_name}$`, 'i') }
+            });
+
+            if (duplicateCategory) {
+                throw new Error(`Category "${updateData.category_name}" already exists`);
+            }
+        }
+
+        // Validate images if being updated
+        if (updateData.category_image) {
+            if (!Array.isArray(updateData.category_image)) {
+                throw new Error('Category images must be an array');
             }
 
-            // Check if category exists
-            const existingCategory = await CategoryModel.findById(categoryId);
-            if (!existingCategory) {
-                throw new Error('Category not found');
+            const maxImages = parseInt(process.env.MAX_CATEGORY_IMAGES || '10');
+            if (updateData.category_image.length > maxImages) {
+                throw new Error(`Maximum ${maxImages} category images allowed`);
             }
 
-            // If updating category_name, check for duplicates
-            if (updateData.category_name && updateData.category_name !== existingCategory.category_name) {
-                const duplicateCategory = await CategoryModel.findOne({
-                    _id: { $ne: categoryId },
-                    category_name: { $regex: new RegExp(`^${updateData.category_name}$`, 'i') }
-                });
-
-                if (duplicateCategory) {
-                    throw new Error(`Category "${updateData.category_name}" already exists`);
-                }
+            if (updateData.category_image.length === 0) {
+                throw new Error('At least one category image is required');
             }
+        }
 
-            // Store before state for audit
-            const beforeState = existingCategory.toObject();
+        // Store before state for audit
+        const beforeState = existingCategory.toObject();
 
-            // Update category
-            const updatedCategory = await CategoryModel.findByIdAndUpdate(
-                categoryId,
-                { $set: updateData },
-                { new: true, runValidators: true }
-            );
+        // Update category
+        const updatedCategory = await CategoryModel.findByIdAndUpdate(
+            categoryId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        );
 
-            if (!updatedCategory) {
-                throw new Error('Failed to update category');
-            }
+        if (!updatedCategory) {
+            throw new Error('Failed to update category');
+        }
 
-            // Log update operation
-            if (this.req) {
+        // Log update operation
+        if (this.req) {
+            await historyCatalogueService.logUpdate(
+                this.req,
+                'category',
+                updatedCategory._id,
+                updatedCategory.category_name,
+                beforeState,
+                updatedCategory.toObject()
+            ).catch(err => console.error('Failed to log update:', err));
+        }
+
+        console.log('Category updated successfully:', {
+            id: updatedCategory._id,
+            name: updatedCategory.category_name,
+            imagesCount: updatedCategory.category_image.length
+        });
+
+        return updatedCategory;
+    } catch (error: any) {
+        console.error('Error updating category:', error);
+
+        // Log failed operation
+        if (this.req) {
+            const category = await CategoryModel.findById(categoryId);
+            if (category) {
                 await historyCatalogueService.logUpdate(
                     this.req,
                     'category',
-                    updatedCategory._id,
-                    updatedCategory.category_name,
-                    beforeState,
-                    updatedCategory.toObject()
-                ).catch(err => console.error('Failed to log update:', err));
+                    category._id,
+                    category.category_name,
+                    {},
+                    {},
+                    'failed',
+                    error.message
+                ).catch(err => console.error('Failed to log failed update:', err));
             }
-
-            return updatedCategory;
-        } catch (error: any) {
-            console.error('Error updating category:', error);
-
-            // Log failed operation
-            if (this.req) {
-                const category = await CategoryModel.findById(categoryId);
-                if (category) {
-                    await historyCatalogueService.logUpdate(
-                        this.req,
-                        'category',
-                        category._id,
-                        category.category_name,
-                        {},
-                        {},
-                        'failed',
-                        error.message
-                    ).catch(err => console.error('Failed to log failed update:', err));
-                }
-            }
-
-            throw error;
         }
+
+        throw error;
     }
+}
 
     // Delete Category
     async deleteCategory(categoryId: string): Promise<{

@@ -889,65 +889,78 @@ export class CategoryController extends BaseController {
     }
 
     async updateCategory(req: Request, res: Response): Promise<void> {
-        const categoryService = createCategoryService(req);
+    const categoryService = createCategoryService(req);
 
-        try {
-            const { id } = req.params;
-            const user = CategoryController.getLoggedInUser(req);
+    try {
+        const { id } = req.params;
+        const user = CategoryController.getLoggedInUser(req);
 
-            // Handle file upload if present
-            const files = req.files as Express.Multer.File[];
-            if (files && files.length > 0) {
-                const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
-                const { url, publicId } = await imageUploadService.uploadToCloudinary(
-                    files[0].buffer,
-                    files[0].originalname,
+        // Handle file upload if present (for updating images)
+        const files = req.files as Express.Multer.File[];
+        if (files && files.length > 0) {
+            const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+            
+            // Upload all new images to Cloudinary
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
                     folder
-                );
+                ).then(({ url, publicId }) =>
+                    imageUploadService.createCategoryDocumentMetadata(file, url, publicId)
+                )
+            );
 
-                const categoryImageData = imageUploadService.createCategoryDocumentMetadata(
-                    files[0],
-                    url,
-                    publicId
-                );
-
-                req.body.category_image = categoryImageData;
-            }
-
-            // Update category
-            const updateData: UpdateCategoryDTO = { ...req.body };
-            const updatedCategory = await categoryService.updateCategory(id, updateData);
-
-            res.status(200).json({
-                success: true,
-                message: 'Category updated successfully',
-                data: updatedCategory,
-                meta: {
-                    updatedBy: user.email,
-                    userRole: user.roles[0]?.key || 'unknown',
-                    timestamp: new Date().toISOString()
+            const newCategoryImages = await Promise.all(uploadPromises);
+            
+            // If replacing all images, set the new images
+            if (req.body.replace_images === 'true') {
+                req.body.category_images = newCategoryImages;
+            } else {
+                // If adding to existing images, we need to get current images first
+                const currentCategory = await categoryService.getCategoryById(id);
+                if (currentCategory) {
+                    const currentImages = (currentCategory as any).category_images || [];
+                    req.body.category_images = [...currentImages, ...newCategoryImages];
                 }
-            });
-
-        } catch (error: any) {
-            console.error('Error updating category:', error);
-
-            let statusCode = 500;
-            if (error.message.includes('Invalid category ID')) {
-                statusCode = 400;
-            } else if (error.message.includes('not found')) {
-                statusCode = 404;
-            } else if (error.message.includes('already exists')) {
-                statusCode = 409;
             }
-
-            res.status(statusCode).json({
-                success: false,
-                message: error.message || 'Failed to update category'
-            });
+            
+            console.log(`Uploaded ${newCategoryImages.length} new category images`);
         }
-    }
 
+        // Update category
+        const updateData: UpdateCategoryDTO = { ...req.body };
+        const updatedCategory = await categoryService.updateCategory(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Category updated successfully',
+            data: updatedCategory,
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error updating category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('Invalid category ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        } else if (error.message.includes('already exists')) {
+            statusCode = 409;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to update category'
+        });
+    }
+}
     async updateCategoryStatus(req: Request, res: Response): Promise<void> {
         const categoryService = createCategoryService(req);
 
@@ -1402,41 +1415,48 @@ private convertCategoryWithSubCategoriesToCSV(data: any): string {
     }
 
     private convertAllCategoriesToCSV(categories: any[]): string {
-        const headers = [
-            'Category ID',
-            'Category Name',
-            'Description',
-            'Status',
-            'Image URL',
-            'Sub Categories Count',
-            'Product Count',
-            'Created Date',
-            'Updated Date'
+    const headers = [
+        'Category ID',
+        'Category Name',
+        'Description',
+        'Status',
+        'Image URLs',
+        'Sub Categories Count',
+        'Product Count',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    const rows = categories.map(category => {
+        // Handle multiple images
+        let imageUrls = '';
+        if (Array.isArray(category.category_images)) {
+            imageUrls = category.category_images
+                .map((img: any) => img.file_url || '')
+                .filter((url: string) => url)
+                .join('; ');
+        } else if (typeof category.category_images === 'object' && category.category_images !== null) {
+            // Backward compatibility for single image
+            imageUrls = category.category_images.file_url || '';
+        } else if (typeof category.category_images === 'string') {
+            imageUrls = category.category_images;
+        }
+
+        return [
+            category.id || '',
+            `"${(category.category_name || '').replace(/"/g, '""')}"`,
+            `"${(category.description || '').replace(/"/g, '""')}"`,
+            category.category_status || 'active',
+            `"${imageUrls.replace(/"/g, '""')}"`,
+            category.sub_categories_count || 0,
+            category.product_count || 0,
+            category.createdAt ? new Date(category.createdAt).toISOString().split('T')[0] : '',
+            category.updatedAt ? new Date(category.updatedAt).toISOString().split('T')[0] : ''
         ];
+    });
 
-        const rows = categories.map(category => {
-            let categoryImage = '';
-            if (typeof category.category_image === 'object' && category.category_image !== null) {
-                categoryImage = category.category_image.file_url || '';
-            } else if (typeof category.category_image === 'string') {
-                categoryImage = category.category_image;
-            }
-
-            return [
-                category.id || '',
-                `"${(category.category_name || '').replace(/"/g, '""')}"`,
-                `"${(category.description || '').replace(/"/g, '""')}"`,
-                category.category_status || 'active',
-                categoryImage,
-                category.sub_categories_count || 0,
-                category.product_count || 0,
-                category.createdAt ? new Date(category.createdAt).toISOString().split('T')[0] : '',
-                category.updatedAt ? new Date(category.updatedAt).toISOString().split('T')[0] : ''
-            ];
-        });
-
-        return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    }
+    return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+}
 }
 
 // ==================== SUB-CATEGORY CONTROLLER ====================
