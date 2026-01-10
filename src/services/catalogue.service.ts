@@ -9,7 +9,7 @@ import { Request } from 'express';
 export interface CreateCategoryDTO {
     category_name: string;
     description: string;
-    category_image: any;
+    category_image: any[];
     category_status?: 'active' | 'inactive';
 }
 
@@ -20,7 +20,7 @@ export interface CreateSubCategoryDTO {
     sub_category_name: string;
     description: string;
     category_id: string;
-    sub_category_image?: any;
+    sub_category_image?: any[];
     sub_category_status?: 'active' | 'inactive';
 }
 
@@ -164,56 +164,71 @@ export class CategoryService {
     }
 
     // Create Category
-    async createCategory(categoryData: CreateCategoryDTO): Promise<ICategory> {
-        try {
-            console.log('Creating category:', categoryData.category_name);
+async createCategory(categoryData: CreateCategoryDTO): Promise<ICategory> {
+    try {
+        console.log('Creating category:', categoryData.category_name);
 
-            // Check if category already exists
-            const existingCategory = await CategoryModel.findOne({
-                category_name: { $regex: new RegExp(`^${categoryData.category_name}$`, 'i') }
-            });
+        // Check if category already exists
+        const existingCategory = await CategoryModel.findOne({
+            category_name: { $regex: new RegExp(`^${categoryData.category_name}$`, 'i') }
+        });
 
-            if (existingCategory) {
-                throw new Error(`Category "${categoryData.category_name}" already exists`);
-            }
-
-            // Create and save category
-            const category = new CategoryModel(categoryData);
-            const savedCategory = await category.save();
-
-            // Log create operation
-            if (this.req) {
-                await historyCatalogueService.logCreate(
-                    this.req,
-                    'category',
-                    savedCategory._id,
-                    savedCategory.category_name,
-                    savedCategory.toObject()
-                ).catch(err => console.error('Failed to log create:', err));
-            }
-
-            console.log('Category created successfully:', savedCategory._id);
-            return savedCategory;
-
-        } catch (error: any) {
-            console.error('Error creating category:', error);
-
-            // Log failed operation
-            if (this.req) {
-                await historyCatalogueService.logCreate(
-                    this.req,
-                    'category',
-                    new mongoose.Types.ObjectId(),
-                    categoryData.category_name,
-                    categoryData,
-                    'failed',
-                    error.message
-                ).catch(err => console.error('Failed to log failed create:', err));
-            }
-
-            throw error;
+        if (existingCategory) {
+            throw new Error(`Category "${categoryData.category_name}" already exists`);
         }
+
+        // Validate that at least one image is provided
+        if (!categoryData.category_image || categoryData.category_image.length === 0) {
+            throw new Error('At least one category image is required');
+        }
+
+        // Validate maximum number of images
+        const maxImages = parseInt(process.env.MAX_CATEGORY_IMAGES || '10');
+        if (categoryData.category_image.length > maxImages) {
+            throw new Error(`Maximum ${maxImages} category images allowed`);
+        }
+
+        // Create and save category
+        const category = new CategoryModel(categoryData);
+        const savedCategory = await category.save();
+
+        // Log create operation
+        if (this.req) {
+            await historyCatalogueService.logCreate(
+                this.req,
+                'category',
+                savedCategory._id,
+                savedCategory.category_name,
+                savedCategory.toObject()
+            ).catch(err => console.error('Failed to log create:', err));
+        }
+
+        console.log('Category created successfully:', {
+            id: savedCategory._id,
+            name: savedCategory.category_name,
+            imagesCount: savedCategory.category_image.length
+        });
+        return savedCategory;
+
+    } catch (error: any) {
+        console.error('Error creating category:', error);
+
+        // Log failed operation
+        if (this.req) {
+            await historyCatalogueService.logCreate(
+                this.req,
+                'category',
+                new mongoose.Types.ObjectId(),
+                categoryData.category_name,
+                categoryData,
+                'failed',
+                error.message
+            ).catch(err => console.error('Failed to log failed create:', err));
+        }
+
+        throw error;
     }
+}
 // Add this method to your CategoryService class
 async getCategoryWithSubCategories(categoryId: string): Promise<any> {
     try {

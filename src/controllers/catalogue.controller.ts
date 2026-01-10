@@ -729,69 +729,73 @@ async deactivateCatalogue(req: Request, res: Response): Promise<void> {
 export class CategoryController extends BaseController {
 
     async createCategory(req: Request, res: Response): Promise<void> {
-        const categoryService = createCategoryService(req);
+    const categoryService = createCategoryService(req);
 
-        try {
-            const user = CategoryController.getLoggedInUser(req);
+    try {
+        const user = CategoryController.getLoggedInUser(req);
 
-            // Handle file upload if present
-            let categoryImageData: any = req.body.category_image || '';
-            const files = req.files as Express.Multer.File[];
+        // Handle multiple file uploads
+        let categoryImagesData: any[] = [];
+        const files = req.files as Express.Multer.File[];
 
-            if (files && files.length > 0) {
-                const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
-                const { url, publicId } = await imageUploadService.uploadToCloudinary(
-                    files[0].buffer,
-                    files[0].originalname,
+        if (files && files.length > 0) {
+            const folder = process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+            
+            // Upload all images to Cloudinary
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
                     folder
-                );
+                ).then(({ url, publicId }) =>
+                    imageUploadService.createCategoryDocumentMetadata(file, url, publicId)
+                )
+            );
 
-                categoryImageData = imageUploadService.createCategoryDocumentMetadata(
-                    files[0],
-                    url,
-                    publicId
-                );
-            }
-
-            // Extract data from request
-            const categoryData: CreateCategoryDTO = {
-                category_name: req.body.category_name,
-                description: req.body.description,
-                category_image: categoryImageData,
-                category_status: req.body.category_status || 'active'
-            };
-
-            // Create category
-            const category = await categoryService.createCategory(categoryData);
-
-            res.status(201).json({
-                success: true,
-                message: 'Category created successfully',
-                data: category,
-                meta: {
-                    createdBy: user.email,
-                    userRole: user.roles[0]?.key || 'unknown',
-                    timestamp: new Date().toISOString()
-                }
-            });
-
-        } catch (error: any) {
-            console.error('Error creating category:', error);
-
-            let statusCode = 500;
-            if (error.message.includes('already exists')) {
-                statusCode = 409;
-            } else if (error.name === 'ValidationError') {
-                statusCode = 400;
-            }
-
-            res.status(statusCode).json({
-                success: false,
-                message: error.message || 'Failed to create category'
-            });
+            categoryImagesData = await Promise.all(uploadPromises);
+            
+            console.log(`Uploaded ${categoryImagesData.length} category images`);
         }
-    }
 
+        // Extract data from request
+        const categoryData: CreateCategoryDTO = {
+            category_name: req.body.category_name,
+            description: req.body.description,
+            category_image: categoryImagesData, // Changed to array
+            category_status: req.body.category_status || 'active'
+        };
+
+        // Create category
+        const category = await categoryService.createCategory(categoryData);
+
+        res.status(201).json({
+            success: true,
+            message: 'Category created successfully',
+            data: category,
+            meta: {
+                createdBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString(),
+                imagesCount: categoryImagesData.length
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error creating category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('already exists')) {
+            statusCode = 409;
+        } else if (error.name === 'ValidationError') {
+            statusCode = 400;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to create category'
+        });
+    }
+}
     async getCategoryById(req: Request, res: Response): Promise<void> {
     const categoryService = createCategoryService(req);
     const subCategoryService = createSubCategoryService(req);

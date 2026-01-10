@@ -44,7 +44,7 @@ export interface ICategory extends Document {
   category_name: string;
   description: string;
   category_status?: 'active' | 'inactive';
-  category_image: ICategoryImageData;
+  category_image: ICategoryImageData[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,7 +64,7 @@ const CategorySchema = new mongoose.Schema<ICategory>(
       enum: ['active', 'inactive'], 
       default: 'active' 
     },
-    category_image: categoryImageSchema,
+    category_image: [categoryImageSchema],
   },
   { timestamps: true }
 );
@@ -75,7 +75,7 @@ export interface ISubCategory extends Document {
   description: string;
   category_id: Types.ObjectId;
   sub_category_status?: 'active' | 'inactive';
-  sub_category_image?: ICategoryImageData;
+  sub_category_image?: ICategoryImageData[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,7 +98,7 @@ const SubCategorySchema = new Schema<ISubCategory>(
       enum: ['active', 'inactive'], 
       default: 'active' 
     },
-    sub_category_image: categoryImageSchema,
+    sub_category_image: [categoryImageSchema],
   },
   { timestamps: true }
 );
