@@ -17,14 +17,14 @@ export interface UpdateCategoryDTO extends Partial<CreateCategoryDTO> { }
 
 // SUB-CATEGORY DTOs
 export interface CreateSubCategoryDTO {
-    sub_category_name: string;
-    description: string;
-    category_id: string;
-    sub_category_image?: any[];
-    sub_category_status?: 'active' | 'inactive';
+  sub_category_name: string;
+  description: string;
+  category_id: string;
+  sub_category_images?: any[]; // Changed to array
+  sub_category_status?: 'active' | 'inactive';
 }
 
-export interface UpdateSubCategoryDTO extends Partial<CreateSubCategoryDTO> { }
+export interface UpdateSubCategoryDTO extends Partial<CreateSubCategoryDTO> {}
 
 // CATALOGUE DTOs
 export interface CreateCatalogueDTO {
@@ -688,69 +688,90 @@ export class SubCategoryService {
     }
 
     // Create Sub-Category
-    async createSubCategory(subCategoryData: CreateSubCategoryDTO): Promise<ISubCategory> {
-        try {
-            // Validate category_id
-            if (!mongoose.Types.ObjectId.isValid(subCategoryData.category_id)) {
-                throw new Error('Invalid category ID format');
-            }
-
-            // Check if category exists
-            const category = await CategoryModel.findById(subCategoryData.category_id);
-            if (!category) {
-                throw new Error('Category not found');
-            }
-
-            // Check if sub-category already exists in this category
-            const existingSubCategory = await SubCategoryModel.findOne({
-                category_id: subCategoryData.category_id,
-                sub_category_name: { $regex: new RegExp(`^${subCategoryData.sub_category_name}$`, 'i') }
-            });
-
-            if (existingSubCategory) {
-                throw new Error(
-                    `Sub-category "${subCategoryData.sub_category_name}" already exists in this category`
-                );
-            }
-
-            // Create and save sub-category
-            const subCategory = new SubCategoryModel(subCategoryData);
-            const savedSubCategory = await subCategory.save();
-
-            // Log create operation
-            if (this.req) {
-                await historyCatalogueService.logCreate(
-                    this.req,
-                    'sub_category',
-                    savedSubCategory._id,
-                    savedSubCategory.sub_category_name,
-                    savedSubCategory.toObject()
-                ).catch(err => console.error('Failed to log create:', err));
-            }
-
-            console.log('Sub-category created successfully:', savedSubCategory._id);
-            return savedSubCategory;
-
-        } catch (error: any) {
-            console.error('Error creating sub-category:', error);
-
-            // Log failed operation
-            if (this.req) {
-                await historyCatalogueService.logCreate(
-                    this.req,
-                    'sub_category',
-                    new mongoose.Types.ObjectId(),
-                    subCategoryData.sub_category_name,
-                    subCategoryData,
-                    'failed',
-                    error.message
-                ).catch(err => console.error('Failed to log failed create:', err));
-            }
-
-            throw error;
+async createSubCategory(subCategoryData: CreateSubCategoryDTO): Promise<ISubCategory> {
+    try {
+        // Validate category_id
+        if (!mongoose.Types.ObjectId.isValid(subCategoryData.category_id)) {
+            throw new Error('Invalid category ID format');
         }
-    }
 
+        // Check if category exists
+        const category = await CategoryModel.findById(subCategoryData.category_id);
+        if (!category) {
+            throw new Error('Category not found');
+        }
+
+        // Check if sub-category already exists in this category
+        const existingSubCategory = await SubCategoryModel.findOne({
+            category_id: subCategoryData.category_id,
+            sub_category_name: { $regex: new RegExp(`^${subCategoryData.sub_category_name}$`, 'i') }
+        });
+
+        if (existingSubCategory) {
+            throw new Error(
+                `Sub-category "${subCategoryData.sub_category_name}" already exists in this category`
+            );
+        }
+
+        // Validate that at least one image is provided
+        if (!subCategoryData.sub_category_images || subCategoryData.sub_category_images.length === 0) {
+            throw new Error('At least one sub-category image is required');
+        }
+
+        // Validate maximum number of images
+        const maxImages = parseInt(process.env.MAX_SUBCATEGORY_IMAGES || '10');
+        if (subCategoryData.sub_category_images.length > maxImages) {
+            throw new Error(`Maximum ${maxImages} sub-category images allowed`);
+        }
+
+        // Create and save sub-category
+        const subCategory = new SubCategoryModel({
+            sub_category_name: subCategoryData.sub_category_name,
+            description: subCategoryData.description,
+            category_id: subCategoryData.category_id,
+            sub_category_status: subCategoryData.sub_category_status || 'active',
+            sub_category_image: subCategoryData.sub_category_images // Map to the correct field name
+        });
+
+        const savedSubCategory = await subCategory.save();
+
+        // Log create operation
+        if (this.req) {
+            await historyCatalogueService.logCreate(
+                this.req,
+                'sub_category',
+                savedSubCategory._id,
+                savedSubCategory.sub_category_name,
+                savedSubCategory.toObject()
+            ).catch(err => console.error('Failed to log create:', err));
+        }
+
+        console.log('Sub-category created successfully:', {
+            id: savedSubCategory._id,
+            name: savedSubCategory.sub_category_name,
+            imagesCount: savedSubCategory.sub_category_image.length
+        });
+        return savedSubCategory;
+
+    } catch (error: any) {
+        console.error('Error creating sub-category:', error);
+
+        // Log failed operation
+        if (this.req) {
+            await historyCatalogueService.logCreate(
+                this.req,
+                'sub_category',
+                new mongoose.Types.ObjectId(),
+                subCategoryData.sub_category_name,
+                subCategoryData,
+                'failed',
+                error.message
+            ).catch(err => console.error('Failed to log failed create:', err));
+        }
+
+        throw error;
+    }
+}
     // Get Sub-Category by ID
     async getSubCategoryById(subCategoryId: string): Promise<ISubCategory | null> {
         try {
@@ -875,111 +896,142 @@ export class SubCategoryService {
     }
 
     // Update Sub-Category
-    async updateSubCategory(
-        subCategoryId: string,
-        updateData: UpdateSubCategoryDTO
-    ): Promise<ISubCategory> {
-        try {
-            if (!mongoose.Types.ObjectId.isValid(subCategoryId)) {
-                throw new Error('Invalid sub-category ID format');
+async updateSubCategory(
+    subCategoryId: string,
+    updateData: UpdateSubCategoryDTO
+): Promise<ISubCategory> {
+    try {
+        console.log(`Updating sub-category ${subCategoryId} with data:`, updateData);
+
+        if (!mongoose.Types.ObjectId.isValid(subCategoryId)) {
+            throw new Error('Invalid sub-category ID format');
+        }
+
+        // Check if sub-category exists
+        const existingSubCategory = await SubCategoryModel.findById(subCategoryId);
+        if (!existingSubCategory) {
+            throw new Error('Sub-category not found');
+        }
+
+        // If updating sub_category_name, check for duplicates
+        if (updateData.sub_category_name && 
+            updateData.sub_category_name !== existingSubCategory.sub_category_name) {
+            const duplicateSubCategory = await SubCategoryModel.findOne({
+                _id: { $ne: subCategoryId },
+                category_id: existingSubCategory.category_id,
+                sub_category_name: { $regex: new RegExp(`^${updateData.sub_category_name}$`, 'i') }
+            });
+
+            if (duplicateSubCategory) {
+                throw new Error(
+                    `Sub-category "${updateData.sub_category_name}" already exists in this category`
+                );
+            }
+        }
+
+        // If updating category_id, validate the new category exists
+        if (updateData.category_id && updateData.category_id !== existingSubCategory.category_id.toString()) {
+            if (!mongoose.Types.ObjectId.isValid(updateData.category_id)) {
+                throw new Error('Invalid category ID format');
             }
 
-            // Check if sub-category exists
-            const existingSubCategory = await SubCategoryModel.findById(subCategoryId);
-            if (!existingSubCategory) {
-                throw new Error('Sub-category not found');
+            const newCategory = await CategoryModel.findById(updateData.category_id);
+            if (!newCategory) {
+                throw new Error('New category not found');
             }
 
-            // If updating sub_category_name, check for duplicates
-            if (updateData.sub_category_name &&
-                updateData.sub_category_name !== existingSubCategory.sub_category_name) {
-                const duplicateSubCategory = await SubCategoryModel.findOne({
-                    _id: { $ne: subCategoryId },
-                    category_id: existingSubCategory.category_id,
-                    sub_category_name: { $regex: new RegExp(`^${updateData.sub_category_name}$`, 'i') }
-                });
+            // Check if sub-category name already exists in the new category
+            const duplicateInNewCategory = await SubCategoryModel.findOne({
+                category_id: updateData.category_id,
+                sub_category_name: existingSubCategory.sub_category_name
+            });
 
-                if (duplicateSubCategory) {
-                    throw new Error(
-                        `Sub-category "${updateData.sub_category_name}" already exists in this category`
-                    );
-                }
+            if (duplicateInNewCategory) {
+                throw new Error(
+                    `Sub-category "${existingSubCategory.sub_category_name}" already exists in the new category`
+                );
+            }
+        }
+
+        // Validate images if being updated
+        if (updateData.sub_category_images) {
+            if (!Array.isArray(updateData.sub_category_images)) {
+                throw new Error('Sub-category images must be an array');
             }
 
-            // If updating category_id, validate the new category exists
-            if (updateData.category_id && updateData.category_id !== existingSubCategory.category_id.toString()) {
-                if (!mongoose.Types.ObjectId.isValid(updateData.category_id)) {
-                    throw new Error('Invalid category ID format');
-                }
-
-                const newCategory = await CategoryModel.findById(updateData.category_id);
-                if (!newCategory) {
-                    throw new Error('New category not found');
-                }
-
-                // Check if sub-category name already exists in the new category
-                const duplicateInNewCategory = await SubCategoryModel.findOne({
-                    category_id: updateData.category_id,
-                    sub_category_name: existingSubCategory.sub_category_name
-                });
-
-                if (duplicateInNewCategory) {
-                    throw new Error(
-                        `Sub-category "${existingSubCategory.sub_category_name}" already exists in the new category`
-                    );
-                }
+            const maxImages = parseInt(process.env.MAX_SUBCATEGORY_IMAGES || '10');
+            if (updateData.sub_category_images.length > maxImages) {
+                throw new Error(`Maximum ${maxImages} sub-category images allowed`);
             }
 
-            // Store before state for audit
-            const beforeState = existingSubCategory.toObject();
-
-            // Update sub-category
-            const updatedSubCategory = await SubCategoryModel.findByIdAndUpdate(
-                subCategoryId,
-                { $set: updateData },
-                { new: true, runValidators: true }
-            ).populate('category_id', 'category_name');
-
-            if (!updatedSubCategory) {
-                throw new Error('Failed to update sub-category');
+            if (updateData.sub_category_images.length === 0) {
+                throw new Error('At least one sub-category image is required');
             }
+        }
 
-            // Log update operation
-            if (this.req) {
+        // Store before state for audit
+        const beforeState = existingSubCategory.toObject();
+
+        // Map sub_category_images to sub_category_image field in the model
+        const updateObject: any = { ...updateData };
+        if (updateData.sub_category_images) {
+            updateObject.sub_category_image = updateData.sub_category_images;
+            delete updateObject.sub_category_images;
+        }
+
+        // Update sub-category
+        const updatedSubCategory = await SubCategoryModel.findByIdAndUpdate(
+            subCategoryId,
+            { $set: updateObject },
+            { new: true, runValidators: true }
+        ).populate('category_id', 'category_name');
+
+        if (!updatedSubCategory) {
+            throw new Error('Failed to update sub-category');
+        }
+
+        // Log update operation
+        if (this.req) {
+            await historyCatalogueService.logUpdate(
+                this.req,
+                'sub_category',
+                updatedSubCategory._id,
+                updatedSubCategory.sub_category_name,
+                beforeState,
+                updatedSubCategory.toObject()
+            ).catch(err => console.error('Failed to log update:', err));
+        }
+
+        console.log('Sub-category updated successfully:', {
+            id: updatedSubCategory._id,
+            name: updatedSubCategory.sub_category_name,
+            imagesCount: updatedSubCategory.sub_category_image.length
+        });
+
+        return updatedSubCategory;
+    } catch (error: any) {
+        console.error('Error updating sub-category:', error);
+
+        // Log failed operation
+        if (this.req) {
+            const subCategory = await SubCategoryModel.findById(subCategoryId);
+            if (subCategory) {
                 await historyCatalogueService.logUpdate(
                     this.req,
                     'sub_category',
-                    updatedSubCategory._id,
-                    updatedSubCategory.sub_category_name,
-                    beforeState,
-                    updatedSubCategory.toObject()
-                ).catch(err => console.error('Failed to log update:', err));
+                    subCategory._id,
+                    subCategory.sub_category_name,
+                    {},
+                    {},
+                    'failed',
+                    error.message
+                ).catch(err => console.error('Failed to log failed update:', err));
             }
-
-            return updatedSubCategory;
-        } catch (error: any) {
-            console.error('Error updating sub-category:', error);
-
-            // Log failed operation
-            if (this.req) {
-                const subCategory = await SubCategoryModel.findById(subCategoryId);
-                if (subCategory) {
-                    await historyCatalogueService.logUpdate(
-                        this.req,
-                        'sub_category',
-                        subCategory._id,
-                        subCategory.sub_category_name,
-                        {},
-                        {},
-                        'failed',
-                        error.message
-                    ).catch(err => console.error('Failed to log failed update:', err));
-                }
-            }
-
-            throw error;
         }
+
+        throw error;
     }
+}
     // In SubCategoryService class
     async getProductCountBySubCategory(subCategoryId: string): Promise<number> {
         try {

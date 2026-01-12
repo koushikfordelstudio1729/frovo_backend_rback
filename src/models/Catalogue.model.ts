@@ -70,8 +70,8 @@ export interface ISubCategory extends Document {
   sub_category_name: string;
   description: string;
   category_id: Types.ObjectId;
-  sub_category_status?: 'active' | 'inactive';
-  sub_category_image?: ISubCategoryImageData[];
+  sub_category_status: 'active' | 'inactive';
+  sub_category_image: ISubCategoryImageData[];
   createdAt: Date;
   updatedAt: Date;
 }

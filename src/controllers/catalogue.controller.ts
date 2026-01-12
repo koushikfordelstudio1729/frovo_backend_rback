@@ -1463,72 +1463,76 @@ private convertCategoryWithSubCategoriesToCSV(data: any): string {
 export class SubCategoryController extends BaseController {
 
     async createSubCategory(req: Request, res: Response): Promise<void> {
-        const subCategoryService = createSubCategoryService(req);
+    const subCategoryService = createSubCategoryService(req);
 
-        try {
-            const user = SubCategoryController.getLoggedInUser(req);
+    try {
+        const user = SubCategoryController.getLoggedInUser(req);
 
-            // Handle file upload if present
-            let subCategoryImageData: any = req.body.sub_category_image || '';
-            const files = req.files as Express.Multer.File[];
+        // Handle multiple file uploads
+        let subCategoryImagesData: any[] = [];
+        const files = req.files as Express.Multer.File[];
 
-            if (files && files.length > 0) {
-                const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || 'frovo/subcategory_images';
-                const { url, publicId } = await imageUploadService.uploadToCloudinary(
-                    files[0].buffer,
-                    files[0].originalname,
+        if (files && files.length > 0) {
+            const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || 'frovo/subcategory_images';
+            
+            // Upload all images to Cloudinary
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
                     folder
-                );
+                ).then(({ url, publicId }) =>
+                    imageUploadService.createSubCategoryDocumentMetadata(file, url, publicId)
+                )
+            );
 
-                subCategoryImageData = imageUploadService.createSubCategoryDocumentMetadata(
-                    files[0],
-                    url,
-                    publicId
-                );
-            }
-
-            // Extract data from request
-            const subCategoryData: CreateSubCategoryDTO = {
-                sub_category_name: req.body.sub_category_name,
-                description: req.body.description,
-                category_id: req.body.category_id,
-                sub_category_image: subCategoryImageData,
-                sub_category_status: req.body.sub_category_status || 'active'
-            };
-
-            // Create sub-category
-            const subCategory = await subCategoryService.createSubCategory(subCategoryData);
-
-            res.status(201).json({
-                success: true,
-                message: 'Sub-category created successfully',
-                data: subCategory,
-                meta: {
-                    createdBy: user.email,
-                    userRole: user.roles[0]?.key || 'unknown',
-                    timestamp: new Date().toISOString()
-                }
-            });
-
-        } catch (error: any) {
-            console.error('Error creating sub-category:', error);
-
-            let statusCode = 500;
-            if (error.message.includes('already exists')) {
-                statusCode = 409;
-            } else if (error.message.includes('not found')) {
-                statusCode = 404;
-            } else if (error.name === 'ValidationError') {
-                statusCode = 400;
-            }
-
-            res.status(statusCode).json({
-                success: false,
-                message: error.message || 'Failed to create sub-category'
-            });
+            subCategoryImagesData = await Promise.all(uploadPromises);
+            
+            console.log(`Uploaded ${subCategoryImagesData.length} sub-category images`);
         }
-    }
 
+        // Extract data from request
+        const subCategoryData: CreateSubCategoryDTO = {
+            sub_category_name: req.body.sub_category_name,
+            description: req.body.description,
+            category_id: req.body.category_id,
+            sub_category_images: subCategoryImagesData, // Changed to array
+            sub_category_status: req.body.sub_category_status || 'active'
+        };
+
+        // Create sub-category
+        const subCategory = await subCategoryService.createSubCategory(subCategoryData);
+
+        res.status(201).json({
+            success: true,
+            message: 'Sub-category created successfully',
+            data: subCategory,
+            meta: {
+                createdBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString(),
+                imagesCount: subCategoryImagesData.length
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error creating sub-category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('already exists')) {
+            statusCode = 409;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        } else if (error.name === 'ValidationError') {
+            statusCode = 400;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to create sub-category'
+        });
+    }
+}
     async getSubCategoryById(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
 
@@ -1616,65 +1620,78 @@ export class SubCategoryController extends BaseController {
     }
 
     async updateSubCategory(req: Request, res: Response): Promise<void> {
-        const subCategoryService = createSubCategoryService(req);
+    const subCategoryService = createSubCategoryService(req);
 
-        try {
-            const { id } = req.params;
-            const user = SubCategoryController.getLoggedInUser(req);
+    try {
+        const { id } = req.params;
+        const user = SubCategoryController.getLoggedInUser(req);
 
-            // Handle file upload if present
-            const files = req.files as Express.Multer.File[];
-            if (files && files.length > 0) {
-                const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || 'frovo/subcategory_images';
-                const { url, publicId } = await imageUploadService.uploadToCloudinary(
-                    files[0].buffer,
-                    files[0].originalname,
+        // Handle file upload if present (for updating images)
+        const files = req.files as Express.Multer.File[];
+        if (files && files.length > 0) {
+            const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || 'frovo/subcategory_images';
+            
+            // Upload all new images to Cloudinary
+            const uploadPromises = files.map(file =>
+                imageUploadService.uploadToCloudinary(
+                    file.buffer,
+                    file.originalname,
                     folder
-                );
+                ).then(({ url, publicId }) =>
+                    imageUploadService.createSubCategoryDocumentMetadata(file, url, publicId)
+                )
+            );
 
-                const subCategoryImageData = imageUploadService.createCategoryDocumentMetadata(
-                    files[0],
-                    url,
-                    publicId
-                );
-
-                req.body.sub_category_image = subCategoryImageData;
-            }
-
-            // Update sub-category
-            const updateData: UpdateSubCategoryDTO = { ...req.body };
-            const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
-
-            res.status(200).json({
-                success: true,
-                message: 'Sub-category updated successfully',
-                data: updatedSubCategory,
-                meta: {
-                    updatedBy: user.email,
-                    userRole: user.roles[0]?.key || 'unknown',
-                    timestamp: new Date().toISOString()
+            const newSubCategoryImages = await Promise.all(uploadPromises);
+            
+            // If replacing all images, set the new images
+            if (req.body.replace_images === 'true') {
+                req.body.sub_category_images = newSubCategoryImages;
+            } else {
+                // If adding to existing images, we need to get current images first
+                const currentSubCategory = await subCategoryService.getSubCategoryById(id);
+                if (currentSubCategory) {
+                    const currentImages = (currentSubCategory as any).sub_category_image || [];
+                    req.body.sub_category_images = [...currentImages, ...newSubCategoryImages];
                 }
-            });
-
-        } catch (error: any) {
-            console.error('Error updating sub-category:', error);
-
-            let statusCode = 500;
-            if (error.message.includes('Invalid sub-category ID')) {
-                statusCode = 400;
-            } else if (error.message.includes('not found')) {
-                statusCode = 404;
-            } else if (error.message.includes('already exists')) {
-                statusCode = 409;
             }
-
-            res.status(statusCode).json({
-                success: false,
-                message: error.message || 'Failed to update sub-category'
-            });
+            
+            console.log(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
         }
-    }
 
+        // Update sub-category
+        const updateData: UpdateSubCategoryDTO = { ...req.body };
+        const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: 'Sub-category updated successfully',
+            data: updatedSubCategory,
+            meta: {
+                updatedBy: user.email,
+                userRole: user.roles[0]?.key || 'unknown',
+                timestamp: new Date().toISOString()
+            }
+        });
+
+    } catch (error: any) {
+        console.error('Error updating sub-category:', error);
+
+        let statusCode = 500;
+        if (error.message.includes('Invalid sub-category ID')) {
+            statusCode = 400;
+        } else if (error.message.includes('not found')) {
+            statusCode = 404;
+        } else if (error.message.includes('already exists')) {
+            statusCode = 409;
+        }
+
+        res.status(statusCode).json({
+            success: false,
+            message: error.message || 'Failed to update sub-category'
+        });
+    }
+}
     async updateSubCategoryStatus(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
 
@@ -1924,44 +1941,52 @@ async deactivateSubCategory(req: Request, res: Response): Promise<void> {
         }
     }
 
-    private convertAllSubCategoriesToCSV(subCategories: any[]): string {
-        const headers = [
-            'Sub-Category ID',
-            'Sub-Category Name',
-            'Description',
-            'Category ID',
-            'Category Name',
-            'Status',
-            'Image URL',
-            'Product Count',
-            'Created Date',
-            'Updated Date'
+    // In SubCategoryController
+private convertAllSubCategoriesToCSV(subCategories: any[]): string {
+    const headers = [
+        'Sub-Category ID',
+        'Sub-Category Name',
+        'Description',
+        'Category ID',
+        'Category Name',
+        'Status',
+        'Image URLs',
+        'Product Count',
+        'Created Date',
+        'Updated Date'
+    ];
+
+    const rows = subCategories.map(subCategory => {
+        // Handle multiple images
+        let subCategoryImageUrls = '';
+        if (Array.isArray(subCategory.sub_category_image)) {
+            subCategoryImageUrls = subCategory.sub_category_image
+                .map((img: any) => img.file_url || '')
+                .filter((url: string) => url)
+                .join('; ');
+        } else if (typeof subCategory.sub_category_image === 'object' && subCategory.sub_category_image !== null) {
+            // Backward compatibility for single image
+            subCategoryImageUrls = subCategory.sub_category_image.file_url || '';
+        } else if (typeof subCategory.sub_category_image === 'string') {
+            subCategoryImageUrls = subCategory.sub_category_image;
+        }
+
+        return [
+            subCategory.id || '',
+            `"${(subCategory.sub_category_name || '').replace(/"/g, '""')}"`,
+            `"${(subCategory.description || '').replace(/"/g, '""')}"`,
+            subCategory.category_id || '',
+            `"${(subCategory.category_name || '').replace(/"/g, '""')}"`,
+            subCategory.sub_category_status || 'active',
+            `"${subCategoryImageUrls.replace(/"/g, '""')}"`,
+            subCategory.product_count || 0,
+            subCategory.createdAt ? new Date(subCategory.createdAt).toISOString().split('T')[0] : '',
+            subCategory.updatedAt ? new Date(subCategory.updatedAt).toISOString().split('T')[0] : ''
         ];
+    });
 
-        const rows = subCategories.map(subCategory => {
-            let subCategoryImage = '';
-            if (typeof subCategory.sub_category_image === 'object' && subCategory.sub_category_image !== null) {
-                subCategoryImage = subCategory.sub_category_image.file_url || '';
-            } else if (typeof subCategory.sub_category_image === 'string') {
-                subCategoryImage = subCategory.sub_category_image;
-            }
-
-            return [
-                subCategory.id || '',
-                `"${(subCategory.sub_category_name || '').replace(/"/g, '""')}"`,
-                `"${(subCategory.description || '').replace(/"/g, '""')}"`,
-                subCategory.category_id || '',
-                `"${(subCategory.category_name || '').replace(/"/g, '""')}"`,
-                subCategory.sub_category_status || 'active',
-                subCategoryImage,
-                subCategory.product_count || 0,
-                subCategory.createdAt ? new Date(subCategory.createdAt).toISOString().split('T')[0] : '',
-                subCategory.updatedAt ? new Date(subCategory.updatedAt).toISOString().split('T')[0] : ''
-            ];
-        });
-
-        return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    }
+    return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+}
 }
 
 // Export controller instances
