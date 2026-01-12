@@ -1480,7 +1480,7 @@ export class SubCategoryController extends BaseController {
                     folder
                 );
 
-                subCategoryImageData = imageUploadService.createCategoryDocumentMetadata(
+                subCategoryImageData = imageUploadService.createSubCategoryDocumentMetadata(
                     files[0],
                     url,
                     publicId
