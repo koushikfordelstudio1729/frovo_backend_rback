@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { ICategoryImageData, IProductImageData } from '../models/Catalogue.model';
+import { ICategoryImageData, IProductImageData, ISubCategoryImageData } from '../models/Catalogue.model';
 
 export class ImageUploadService {
     private cloudinaryConfigured = false;
@@ -104,6 +104,20 @@ export class ImageUploadService {
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): ICategoryImageData {
+        return {
+            image_name: file.originalname,
+            file_url: cloudinaryUrl,
+            cloudinary_public_id: cloudinaryPublicId,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_at: new Date(),
+        };
+    }
+     createSubCategoryDocumentMetadata(
+        file: Express.Multer.File,
+        cloudinaryUrl: string,
+        cloudinaryPublicId: string,
+    ): ISubCategoryImageData {
         return {
             image_name: file.originalname,
             file_url: cloudinaryUrl,

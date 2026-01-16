@@ -1,6 +1,16 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 // Plain data interface for category images (without Mongoose methods)
+// CATEGORY SCHEMA
+export interface ICategory extends Document {
+  category_name: string;
+  description: string;
+  category_status?: 'active' | 'inactive';
+  category_image: ICategoryImageData[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ICategoryImageData {
   image_name: string;
   file_url: string;
@@ -9,8 +19,6 @@ export interface ICategoryImageData {
   mime_type: string;
   uploaded_at: Date;
 }
-
-// Document Sub-Schema
 const categoryImageSchema = new Schema<ICategoryImageData>({
   image_name: {
     type: String,
@@ -38,17 +46,6 @@ const categoryImageSchema = new Schema<ICategoryImageData>({
     default: Date.now
   }
 }, { _id: true });
-
-// CATEGORY SCHEMA
-export interface ICategory extends Document {
-  category_name: string;
-  description: string;
-  category_status?: 'active' | 'inactive';
-  category_image: ICategoryImageData;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 const CategorySchema = new mongoose.Schema<ICategory>(
   {
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
@@ -64,21 +61,57 @@ const CategorySchema = new mongoose.Schema<ICategory>(
       enum: ['active', 'inactive'], 
       default: 'active' 
     },
-    category_image: categoryImageSchema,
+    category_image: [categoryImageSchema],
   },
   { timestamps: true }
 );
-
 // SUB-CATEGORY SCHEMA
 export interface ISubCategory extends Document {
   sub_category_name: string;
   description: string;
   category_id: Types.ObjectId;
-  sub_category_status?: 'active' | 'inactive';
-  sub_category_image?: ICategoryImageData;
+  sub_category_status: 'active' | 'inactive';
+  sub_category_image: ISubCategoryImageData[];
   createdAt: Date;
   updatedAt: Date;
 }
+export interface ISubCategoryImageData {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+const subCategoryImageSchema = new Schema<ISubCategoryImageData>({
+  image_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  file_url: {
+    type: String,
+    required: true
+  },
+  cloudinary_public_id: {
+    type: String,
+    required: true
+  },
+  file_size: {
+    type: Number,
+    required: true
+  },
+  mime_type: {
+    type: String,
+    required: true
+  },
+  uploaded_at: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
+
 
 const SubCategorySchema = new Schema<ISubCategory>(
   {
@@ -98,7 +131,7 @@ const SubCategorySchema = new Schema<ISubCategory>(
       enum: ['active', 'inactive'], 
       default: 'active' 
     },
-    sub_category_image: categoryImageSchema,
+    sub_category_image: [subCategoryImageSchema],
   },
   { timestamps: true }
 );
