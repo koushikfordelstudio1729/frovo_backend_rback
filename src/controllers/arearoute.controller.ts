@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { AreaService } from '../services/arearoute.service';
 import {
   CreateAreaDto,
@@ -421,7 +422,7 @@ export class AreaController {
   /**
    * Get dashboard table data (optimized for frontend table)
    */
-static async getDashboardTable(req: Request, res: Response): Promise<void> {
+  static async getDashboardTable(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
         status: (req.query.status as 'active' | 'inactive' | 'all') || 'all',
@@ -457,9 +458,9 @@ static async getDashboardTable(req: Request, res: Response): Promise<void> {
       });
     }
   }
- /**
-   * Export dashboard data to CSV/Excel
-   */
+  /**
+    * Export dashboard data to CSV/Excel
+    */
   static async exportDashboardData(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
@@ -526,7 +527,7 @@ static async getDashboardTable(req: Request, res: Response): Promise<void> {
     ];
 
     const csvRows = [];
-    
+
     // Add headers
     csvRows.push(headers.join(','));
 
@@ -549,5 +550,146 @@ static async getDashboardTable(req: Request, res: Response): Promise<void> {
     }
 
     return csvRows.join('\n');
+  }
+
+  /**
+   * Export areas by IDs - CSV format only
+   * GET /api/v1/area/export/696a230ee3dce8a83c7dc6ea,696a20606685d00b82e0c6e8
+   */
+/**
+ * Export areas by IDs - CSV format only
+ * GET /api/v1/area/export/696a230ee3dce8a83c7dc6ea,696a20606685d00b82e0c6e8
+ */
+static async exportAreasByIds(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const format = req.query.format as string || 'csv';
+
+    // Parse IDs from URL parameter (comma-separated)
+    const areaIds = id.split(',').map(id => id.trim()).filter(id => id);
+
+    // Validate input
+    if (!areaIds || areaIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide area IDs in the URL parameter'
+      });
+      return;
+    }
+
+    // Validate MongoDB ObjectIds
+    const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Invalid area IDs: ${invalidIds.join(', ')}`,
+        invalidIds
+      });
+      return;
+    }
+
+    // Fetch areas by IDs
+    const areas = await AreaService.getAreasByIds(areaIds);
+
+    if (areas.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: 'No areas found with the provided IDs'
+      });
+      return;
+    }
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `areas-export-${timestamp}.csv`;
+    
+    // Generate CSV - Use the class name to call the static method
+    const csv = AreaController.generateCSV(areas); // Change this.generateCSV to AreaController.generateCSV
+    
+    // Set headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.status(200).send(csv);
+    
+  } catch (error) {
+    console.error('Error exporting areas by IDs:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+}
+
+  /**
+   * Generate CSV format (one row per area)
+   * ID,Area Name,State,District,Pincode,Status,Sub-locations Count,Total Machines,Campuses,Last Updated,Created At
+   */
+  private static generateCSV(areas: any[]): string {
+    if (!areas || areas.length === 0) {
+      return 'No data available for export';
+    }
+
+    try {
+      // Headers exactly as you want
+      const headers = [
+        'ID',
+        'Area Name',
+        'State',
+        'District',
+        'Pincode',
+        'Status',
+        'Sub-locations Count',
+        'Total Machines',
+        'Campuses',
+        'Last Updated',
+        'Created At'
+      ];
+
+      // Add BOM for UTF-8 Excel compatibility
+      let csv = '\ufeff';
+      csv += headers.join(',') + '\n';
+
+      // Process each area
+      areas.forEach(area => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+        
+        // Calculate summary data
+        const subLocationsCount = areaDoc.sub_locations?.length || 0;
+        
+        // Calculate total machines across all sub-locations
+        const totalMachines = areaDoc.sub_locations?.reduce(
+          (sum: number, subLoc: any) => sum + (subLoc.select_machine?.length || 0), 0
+        ) || 0;
+        
+        // Get unique campuses (remove duplicates)
+        const uniqueCampuses = [...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || [])];
+        const campuses = uniqueCampuses.join(', ');
+        
+        // Format dates (if you want empty for now, remove the date conversion)
+        const lastUpdated = areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : '';
+        const createdAt = areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : '';
+        
+        const row = [
+          areaDoc._id?.toString() || '', // ID - no quotes
+          `"${(areaDoc.area_name || '').replace(/"/g, '""')}"`, // Area Name - quoted
+          `"${(areaDoc.state || '').replace(/"/g, '""')}"`, // State - quoted
+          `"${(areaDoc.district || '').replace(/"/g, '""')}"`, // District - quoted
+          areaDoc.pincode || '', // Pincode - no quotes (number)
+          areaDoc.status || '', // Status - no quotes
+          subLocationsCount, // Sub-locations Count - no quotes
+          totalMachines, // Total Machines - no quotes
+          `"${campuses.replace(/"/g, '""')}"`, // Campuses - quoted
+          lastUpdated, // Last Updated - no quotes (ISO string)
+          createdAt // Created At - no quotes (ISO string)
+        ];
+        
+        csv += row.join(',') + '\n';
+      });
+
+      return csv;
+    } catch (error) {
+      console.error('Error generating CSV:', error);
+      return 'Error generating CSV data';
+    }
   }
 }

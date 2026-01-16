@@ -728,4 +728,52 @@ static async getDashboardTableData(params: DashboardFilterParams): Promise<{
   };
 }
 
+
+  
+  static async getAreasByIds(areaIds: string[]): Promise<ICreateArea[]> {
+    // Validate all IDs
+    const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid area IDs: ${invalidIds.join(', ')}`);
+    }
+
+    return await AreaRouteModel.find({
+      _id: { $in: areaIds }
+    })
+    .sort({ area_name: 1 })
+    .select('area_name state district pincode status latitude longitude address area_description sub_locations createdAt updatedAt');
+  }
+
+  /**
+   * Get summarized areas data for export
+   */
+  static async getSummarizedAreasByIds(areaIds: string[]): Promise<any[]> {
+    const areas = await this.getAreasByIds(areaIds);
+    
+    return areas.map(area => {
+      const areaDoc = area.toObject ? area.toObject() : area;
+      
+      const subLocationsCount = areaDoc.sub_locations?.length || 0;
+      const totalMachines = areaDoc.sub_locations?.reduce(
+        (sum: number, subLoc: any) => sum + (subLoc.select_machine?.length || 0), 0
+      ) || 0;
+      
+      const uniqueCampuses = [...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || [])];
+      
+      return {
+        id: areaDoc._id,
+        area_name: areaDoc.area_name,
+        state: areaDoc.state,
+        district: areaDoc.district,
+        pincode: areaDoc.pincode,
+        status: areaDoc.status,
+        address: areaDoc.address,
+        sub_locations_count: subLocationsCount,
+        total_machines: totalMachines,
+        campuses: uniqueCampuses,
+        created_at: areaDoc.createdAt,
+        updated_at: areaDoc.updatedAt
+      };
+    });
+  }
 }

@@ -90,4 +90,8 @@ router.get('/dashboard/export',
   requireSuperAdmin(),
   AreaController.exportDashboardData
 );
+router.get('/export/:id',
+  requireSuperAdmin(),
+  AreaController.exportAreasByIds
+)
 export default router;
