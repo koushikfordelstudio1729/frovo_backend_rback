@@ -14,11 +14,19 @@ router.get('/area/:id/audit-logs',
   requireSuperAdmin(),
   AreaController.getAuditLogs
 );
+router.get('/area/:id/audit-logs/export',
+  requireSuperAdmin(),
+  AreaController.exportAreaAuditLogs
+);
 
 // Get recent activities for dashboard
 router.get('/area/audit/recent-activities',
   requireSuperAdmin(),
   AreaController.getRecentActivities
+);
+router.get('/area/audit/recent-activities/export',
+  requireSuperAdmin(),
+  AreaController.exportRecentAuditActivities
 );
 
 // ==================== SCREEN 1: AREA MANAGEMENT ====================

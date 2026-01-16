@@ -1001,14 +1001,27 @@ export class AreaService {
     });
   }
 
-  /**
-   * Get recent audit activities for dashboard
-   */
-  static async getRecentActivities(limit: number = 10): Promise<any[]> {
-    const activities = await HistoryAreaModel.find()
+  // Add this method to the AreaService class:
+
+/**
+ * Get recent audit activities with optional filters
+ */
+static async getRecentActivities(
+  limit: number = 10,
+  filter?: any
+): Promise<any[]> {
+  try {
+    let query = HistoryAreaModel.find();
+
+    // Apply filter if provided
+    if (filter) {
+      query = query.where(filter);
+    }
+
+    const activities = await query
       .sort({ timestamp: -1 })
       .limit(limit)
-      .populate('area_id', 'area_name')
+      .populate('area_id', 'area_name state district')
       .lean();
 
     return activities.map(activity => ({
@@ -1016,9 +1029,19 @@ export class AreaService {
       action: activity.action,
       area_id: activity.area_id?._id,
       area_name: (activity.area_id as any)?.area_name || 'Deleted Area',
+      area_state: (activity.area_id as any)?.state,
+      area_district: (activity.area_id as any)?.district,
       performed_by: activity.performed_by,
+      ip_address: activity.ip_address,
+      user_agent: activity.user_agent,
       timestamp: activity.timestamp,
-      changes: activity.changes
+      changes: activity.changes,
+      old_data: activity.old_data,
+      new_data: activity.new_data
     }));
+  } catch (error) {
+    console.error('Error fetching recent activities:', error);
+    throw error;
   }
+}
 }
