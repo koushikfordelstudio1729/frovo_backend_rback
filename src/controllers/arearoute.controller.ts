@@ -6,11 +6,82 @@ import {
   UpdateAreaDto,
   AreaQueryParams,
   DashboardFilterParams,
+  AuditLogParams
 } from '../services/arearoute.service';
 
 export class AreaController {
   /**
-   * Create a new area route
+   * Helper method to get audit parameters from request
+   */
+  private static getAuditParams(req: Request): AuditLogParams {
+    const user = (req as any).user || {};
+    return {
+      userId: user.id || user._id || 'unknown',
+      userEmail: user.email || 'unknown@example.com',
+      userName: user.name || user.username,
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown'
+    };
+  }
+
+  /**
+   * Get audit logs for an area
+   */
+  static async getAuditLogs(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid area ID'
+        });
+        return;
+      }
+
+      const result = await AreaService.getAuditLogs(id, page, limit);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          logs: result.logs,
+          pagination: result.pagination
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Get recent activities for dashboard
+   */
+  static async getRecentActivities(req: Request, res: Response): Promise<void> {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const activities = await AreaService.getRecentActivities(limit);
+
+      res.status(200).json({
+        success: true,
+        data: activities
+      });
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Create a new area route with audit trail
    */
   static async createAreaRoute(req: Request, res: Response): Promise<void> {
     try {
@@ -28,7 +99,8 @@ export class AreaController {
         return;
       }
 
-      const newArea = await AreaService.createArea(areaData);
+      const auditParams = AreaController.getAuditParams(req); // Fixed: Use AreaController.getAuditParams
+      const newArea = await AreaService.createArea(areaData, auditParams);
 
       res.status(201).json({
         success: true,
@@ -114,14 +186,15 @@ export class AreaController {
   }
 
   /**
-   * Update area route
+   * Update area route with audit trail
    */
   static async updateAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const updateData: UpdateAreaDto = req.body;
 
-      const updatedAreaRoute = await AreaService.updateArea(id, updateData);
+      const auditParams = AreaController.getAuditParams(req); // Fixed: Use AreaController.getAuditParams
+      const updatedAreaRoute = await AreaService.updateArea(id, updateData, auditParams);
 
       if (!updatedAreaRoute) {
         res.status(404).json({
@@ -148,12 +221,15 @@ export class AreaController {
       });
     }
   }
+
+  /**
+   * Add sub-location with audit trail
+   */
   static async addSubLocation(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const { sub_location } = req.body;
 
-      // Validate required fields
       if (!sub_location || !sub_location.campus || !sub_location.tower || !sub_location.floor) {
         res.status(400).json({
           success: false,
@@ -162,7 +238,6 @@ export class AreaController {
         return;
       }
 
-      // Validate select_machine array
       if (!Array.isArray(sub_location.select_machine) || sub_location.select_machine.length === 0) {
         res.status(400).json({
           success: false,
@@ -171,7 +246,8 @@ export class AreaController {
         return;
       }
 
-      const updatedArea = await AreaService.addSubLocation(id, sub_location);
+      const auditParams = AreaController.getAuditParams(req); // Fixed: Use AreaController.getAuditParams
+      const updatedArea = await AreaService.addSubLocation(id, sub_location, auditParams);
 
       if (!updatedArea) {
         res.status(404).json({
@@ -201,13 +277,14 @@ export class AreaController {
   }
 
   /**
-   * Delete area route
+   * Delete area route with audit trail
    */
   static async deleteAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
 
-      const deletedAreaRoute = await AreaService.deleteArea(id);
+      const auditParams = AreaController.getAuditParams(req); // Fixed: Use AreaController.getAuditParams
+      const deletedAreaRoute = await AreaService.deleteArea(id, auditParams);
 
       if (!deletedAreaRoute) {
         res.status(404).json({
@@ -233,14 +310,16 @@ export class AreaController {
       });
     }
   }
+
   /**
-   * Toggle area status
+   * Toggle area status with audit trail
    */
   static async toggleAreaStatus(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
 
-      const updatedAreaRoute = await AreaService.toggleAreaStatus(id);
+      const auditParams = AreaController.getAuditParams(req); // Fixed: Use AreaController.getAuditParams
+      const updatedAreaRoute = await AreaService.toggleAreaStatus(id, auditParams);
 
       if (!updatedAreaRoute) {
         res.status(404).json({
@@ -263,7 +342,6 @@ export class AreaController {
       });
     }
   }
-
 
   /**
    * Get filter options
@@ -325,7 +403,7 @@ export class AreaController {
     try {
       const queryParams: AreaQueryParams = {
         page: 1,
-        limit: 10000, // Large limit for export
+        limit: 10000,
         status: req.query.status as 'active' | 'inactive',
         state: req.query.state as string,
         district: req.query.district as string,
@@ -336,13 +414,11 @@ export class AreaController {
       const format = req.query.format || 'json';
 
       if (format === 'csv') {
-        // Convert to CSV
-        const csv = this.convertToCSV(result.data);
+        const csv = AreaController.convertToCSV(result.data);
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename=areas.csv');
         res.status(200).send(csv);
       } else {
-        // Default to JSON
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', 'attachment; filename=areas.json');
         res.status(200).json({
@@ -359,32 +435,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Convert data to CSV format
-   */
-  private static convertToCSV(data: any[]): string {
-    if (data.length === 0) return '';
-
-    const headers = Object.keys(data[0].toObject ? data[0].toObject() : data[0]);
-    const csvRows = [];
-
-    // Add headers
-    csvRows.push(headers.join(','));
-
-    // Add data rows
-    for (const item of data) {
-      const row = headers.map(header => {
-        const value = item[header];
-        if (typeof value === 'object') {
-          return JSON.stringify(value).replace(/"/g, '""');
-        }
-        return `"${String(value).replace(/"/g, '""')}"`;
-      });
-      csvRows.push(row.join(','));
-    }
-
-    return csvRows.join('\n');
-  }
   /**
    * Get dashboard data with filters
    */
@@ -420,7 +470,7 @@ export class AreaController {
   }
 
   /**
-   * Get dashboard table data (optimized for frontend table)
+   * Get dashboard table data
    */
   static async getDashboardTable(req: Request, res: Response): Promise<void> {
     try {
@@ -458,9 +508,10 @@ export class AreaController {
       });
     }
   }
+
   /**
-    * Export dashboard data to CSV/Excel
-    */
+   * Export dashboard data to CSV/Excel
+   */
   static async exportDashboardData(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
@@ -471,14 +522,13 @@ export class AreaController {
         tower: req.query.tower as string,
         floor: req.query.floor as string,
         search: req.query.search as string,
-        limit: 10000 // Large limit for export
+        limit: 10000
       };
 
       const tableData = await AreaService.getDashboardTableData(params);
       const format = req.query.format || 'csv';
 
       if (format === 'csv') {
-        // Convert to CSV
         const csv = AreaController.convertTableToCSV(tableData.data);
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename=dashboard-export.csv');
@@ -506,12 +556,92 @@ export class AreaController {
   }
 
   /**
+   * Export areas by IDs
+   */
+  static async exportAreasByIds(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const format = req.query.format as string || 'csv';
+
+      const areaIds = id.split(',').map(id => id.trim()).filter(id => id);
+
+      if (!areaIds || areaIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Please provide area IDs in the URL parameter'
+        });
+        return;
+      }
+
+      const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid area IDs: ${invalidIds.join(', ')}`,
+          invalidIds
+        });
+        return;
+      }
+
+      const areas = await AreaService.getAreasByIds(areaIds);
+
+      if (areas.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: 'No areas found with the provided IDs'
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `areas-export-${timestamp}.csv`;
+      
+      const csv = AreaController.generateCSV(areas);
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+      
+    } catch (error) {
+      console.error('Error exporting areas by IDs:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Convert data to CSV format
+   */
+  private static convertToCSV(data: any[]): string {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0].toObject ? data[0].toObject() : data[0]);
+    const csvRows = [];
+
+    csvRows.push(headers.join(','));
+
+    for (const item of data) {
+      const row = headers.map(header => {
+        const value = item[header];
+        if (typeof value === 'object') {
+          return JSON.stringify(value).replace(/"/g, '""');
+        }
+        return `"${String(value).replace(/"/g, '""')}"`;
+      });
+      csvRows.push(row.join(','));
+    }
+
+    return csvRows.join('\n');
+  }
+
+  /**
    * Convert table data to CSV format
    */
   private static convertTableToCSV(data: any[]): string {
     if (data.length === 0) return '';
 
-    // Define CSV headers
     const headers = [
       'ID',
       'Area Name',
@@ -528,10 +658,8 @@ export class AreaController {
 
     const csvRows = [];
 
-    // Add headers
     csvRows.push(headers.join(','));
 
-    // Add data rows
     for (const item of data) {
       const row = [
         item.id,
@@ -553,76 +681,7 @@ export class AreaController {
   }
 
   /**
-   * Export areas by IDs - CSV format only
-   * GET /api/v1/area/export/696a230ee3dce8a83c7dc6ea,696a20606685d00b82e0c6e8
-   */
-/**
- * Export areas by IDs - CSV format only
- * GET /api/v1/area/export/696a230ee3dce8a83c7dc6ea,696a20606685d00b82e0c6e8
- */
-static async exportAreasByIds(req: Request, res: Response): Promise<void> {
-  try {
-    const { id } = req.params;
-    const format = req.query.format as string || 'csv';
-
-    // Parse IDs from URL parameter (comma-separated)
-    const areaIds = id.split(',').map(id => id.trim()).filter(id => id);
-
-    // Validate input
-    if (!areaIds || areaIds.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Please provide area IDs in the URL parameter'
-      });
-      return;
-    }
-
-    // Validate MongoDB ObjectIds
-    const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-    if (invalidIds.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Invalid area IDs: ${invalidIds.join(', ')}`,
-        invalidIds
-      });
-      return;
-    }
-
-    // Fetch areas by IDs
-    const areas = await AreaService.getAreasByIds(areaIds);
-
-    if (areas.length === 0) {
-      res.status(404).json({
-        success: false,
-        message: 'No areas found with the provided IDs'
-      });
-      return;
-    }
-
-    // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `areas-export-${timestamp}.csv`;
-    
-    // Generate CSV - Use the class name to call the static method
-    const csv = AreaController.generateCSV(areas); // Change this.generateCSV to AreaController.generateCSV
-    
-    // Set headers for CSV download
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.status(200).send(csv);
-    
-  } catch (error) {
-    console.error('Error exporting areas by IDs:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Internal server error'
-    });
-  }
-}
-
-  /**
    * Generate CSV format (one row per area)
-   * ID,Area Name,State,District,Pincode,Status,Sub-locations Count,Total Machines,Campuses,Last Updated,Created At
    */
   private static generateCSV(areas: any[]): string {
     if (!areas || areas.length === 0) {
@@ -630,7 +689,6 @@ static async exportAreasByIds(req: Request, res: Response): Promise<void> {
     }
 
     try {
-      // Headers exactly as you want
       const headers = [
         'ID',
         'Area Name',
@@ -645,42 +703,36 @@ static async exportAreasByIds(req: Request, res: Response): Promise<void> {
         'Created At'
       ];
 
-      // Add BOM for UTF-8 Excel compatibility
       let csv = '\ufeff';
       csv += headers.join(',') + '\n';
 
-      // Process each area
       areas.forEach(area => {
         const areaDoc = area.toObject ? area.toObject() : area;
         
-        // Calculate summary data
         const subLocationsCount = areaDoc.sub_locations?.length || 0;
         
-        // Calculate total machines across all sub-locations
         const totalMachines = areaDoc.sub_locations?.reduce(
           (sum: number, subLoc: any) => sum + (subLoc.select_machine?.length || 0), 0
         ) || 0;
         
-        // Get unique campuses (remove duplicates)
         const uniqueCampuses = [...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || [])];
         const campuses = uniqueCampuses.join(', ');
         
-        // Format dates (if you want empty for now, remove the date conversion)
         const lastUpdated = areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : '';
         const createdAt = areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : '';
         
         const row = [
-          areaDoc._id?.toString() || '', // ID - no quotes
-          `"${(areaDoc.area_name || '').replace(/"/g, '""')}"`, // Area Name - quoted
-          `"${(areaDoc.state || '').replace(/"/g, '""')}"`, // State - quoted
-          `"${(areaDoc.district || '').replace(/"/g, '""')}"`, // District - quoted
-          areaDoc.pincode || '', // Pincode - no quotes (number)
-          areaDoc.status || '', // Status - no quotes
-          subLocationsCount, // Sub-locations Count - no quotes
-          totalMachines, // Total Machines - no quotes
-          `"${campuses.replace(/"/g, '""')}"`, // Campuses - quoted
-          lastUpdated, // Last Updated - no quotes (ISO string)
-          createdAt // Created At - no quotes (ISO string)
+          areaDoc._id?.toString() || '',
+          `"${(areaDoc.area_name || '').replace(/"/g, '""')}"`,
+          `"${(areaDoc.state || '').replace(/"/g, '""')}"`,
+          `"${(areaDoc.district || '').replace(/"/g, '""')}"`,
+          areaDoc.pincode || '',
+          areaDoc.status || '',
+          subLocationsCount,
+          totalMachines,
+          `"${campuses.replace(/"/g, '""')}"`,
+          lastUpdated,
+          createdAt
         ];
         
         csv += row.join(',') + '\n';

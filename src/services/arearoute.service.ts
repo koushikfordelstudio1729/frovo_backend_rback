@@ -1,5 +1,5 @@
 import mongoose, { Types } from 'mongoose';
-import { AreaRouteModel, ICreateArea } from '../models/AreaRoute.model';
+import { AreaRouteModel, ICreateArea, HistoryAreaModel, IHistoryArea } from '../models/AreaRoute.model';
 
 export interface DashboardFilterParams {
   status?: 'active' | 'inactive' | 'all';
@@ -109,14 +109,132 @@ export interface LocationSearchParams {
   district?: string;
 }
 
+export interface AuditLogParams {
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 export class AreaService {
   /**
-   * Create a new area
+   * Create audit trail entry
    */
-  static async createArea(areaData: CreateAreaDto): Promise<ICreateArea> {
+  private static async createAuditLog(
+    areaId: string,
+    action: IHistoryArea['action'],
+    oldData: Partial<ICreateArea> | null,
+    newData: Partial<ICreateArea> | null,
+    changes?: Record<string, { old: any; new: any }>,
+    auditParams?: AuditLogParams
+  ): Promise<void> {
+    try {
+      const auditLog = new HistoryAreaModel({
+        area_id: new Types.ObjectId(areaId),
+        action,
+        old_data: oldData,
+        new_data: newData,
+        changes: changes || null,
+        performed_by: {
+          user_id: auditParams?.userId || 'system',
+          email: auditParams?.userEmail || 'system@example.com',
+          name: auditParams?.userName
+        },
+        ip_address: auditParams?.ipAddress,
+        user_agent: auditParams?.userAgent,
+        timestamp: new Date()
+      });
+
+      await auditLog.save();
+    } catch (error) {
+      console.error('Error creating audit log:', error);
+      // Don't throw error here to avoid breaking main operation
+    }
+  }
+
+  /**
+   * Compare two objects and find differences
+   */
+  private static findChanges(oldObj: any, newObj: any): Record<string, { old: any; new: any }> {
+    const changes: Record<string, { old: any; new: any }> = {};
+    
+    const allKeys = new Set([...Object.keys(oldObj || {}), ...Object.keys(newObj || {})]);
+    
+    for (const key of allKeys) {
+      const oldValue = oldObj?.[key];
+      const newValue = newObj?.[key];
+      
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        changes[key] = { old: oldValue, new: newValue };
+      }
+    }
+    
+    return changes;
+  }
+
+  /**
+   * Get audit logs for an area
+   */
+  static async getAuditLogs(
+    areaId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    logs: IHistoryArea[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+    };
+  }> {
+    this.validateObjectId(areaId);
+
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.max(1, Math.min(limit, 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [logs, totalItems] = await Promise.all([
+      HistoryAreaModel.find({ area_id: new Types.ObjectId(areaId) })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      HistoryAreaModel.countDocuments({ area_id: new Types.ObjectId(areaId) })
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limitNum);
+
+    return {
+      logs,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems,
+        itemsPerPage: limitNum
+      }
+    };
+  }
+
+  /**
+   * Get audit trail summary for dashboard
+   */
+  static async getAuditSummary(limit: number = 10): Promise<IHistoryArea[]> {
+    return await HistoryAreaModel.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .populate('area_id', 'area_name state district');
+  }
+
+  /**
+   * Create a new area with audit trail
+   */
+  static async createArea(
+    areaData: CreateAreaDto,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea> {
     try {
       // Check for duplicate area name WITH SAME SUB-LOCATIONS
-      // You need to check all sub-locations for duplicates
       const existingAreas = await AreaRouteModel.find({
         area_name: areaData.area_name
       });
@@ -150,7 +268,19 @@ export class AreaService {
       }
 
       const newArea = new AreaRouteModel(areaData);
-      return await newArea.save();
+      const savedArea = await newArea.save();
+
+      // Create audit log
+      await this.createAuditLog(
+        savedArea._id.toString(),
+        'CREATE',
+        null,
+        savedArea.toObject(),
+        undefined,
+        auditParams
+      );
+
+      return savedArea;
     } catch (error) {
       if (error instanceof mongoose.Error.ValidationError) {
         const errorMessages = Object.values(error.errors).map(err => err.message);
@@ -159,6 +289,7 @@ export class AreaService {
       throw error;
     }
   }
+
   /**
    * Get area by ID
    */
@@ -185,7 +316,7 @@ export class AreaService {
     const filter = this.buildFilter({ status, state, district, search });
 
     const pageNum = Math.max(1, page);
-    const limitNum = Math.max(1, Math.min(limit, 100)); // Limit to 100 items per page
+    const limitNum = Math.max(1, Math.min(limit, 100));
     const skip = (pageNum - 1) * limitNum;
 
     const sort = this.buildSort(sortBy, sortOrder);
@@ -212,19 +343,29 @@ export class AreaService {
   }
 
   /**
-   * Update area by ID
+   * Update area by ID with audit trail
    */
-  static async updateArea(id: string, updateData: UpdateAreaDto): Promise<ICreateArea | null> {
+  static async updateArea(
+    id: string,
+    updateData: UpdateAreaDto,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
     this.validateObjectId(id);
+
+    // Get the existing area before update
+    const existingArea = await AreaRouteModel.findById(id);
+    if (!existingArea) {
+      throw new Error('Area not found');
+    }
 
     // Check for duplicate area name if updating
     if (updateData.area_name) {
-      const existingArea = await AreaRouteModel.findOne({
+      const duplicateArea = await AreaRouteModel.findOne({
         area_name: updateData.area_name,
         _id: { $ne: id }
       });
 
-      if (existingArea) {
+      if (duplicateArea) {
         throw new Error('Area with this name already exists');
       }
     }
@@ -239,21 +380,63 @@ export class AreaService {
       this.validateCoordinates(updateData.latitude, updateData.longitude);
     }
 
+    // Find changes
+    const oldData = existingArea.toObject();
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
 
+    if (updatedArea) {
+      const newData = updatedArea.toObject();
+      const changes = this.findChanges(oldData, newData);
+
+      // Create audit log only if there are actual changes
+      if (Object.keys(changes).length > 0) {
+        await this.createAuditLog(
+          id,
+          'UPDATE',
+          oldData,
+          newData,
+          changes,
+          auditParams
+        );
+      }
+    }
+
     return updatedArea;
   }
 
   /**
-   * Delete area by ID
+   * Delete area by ID with audit trail
    */
-  static async deleteArea(id: string): Promise<ICreateArea | null> {
+  static async deleteArea(
+    id: string,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
     this.validateObjectId(id);
-    return await AreaRouteModel.findByIdAndDelete(id);
+
+    // Get the area before deletion
+    const existingArea = await AreaRouteModel.findById(id);
+    if (!existingArea) {
+      return null;
+    }
+
+    const deletedArea = await AreaRouteModel.findByIdAndDelete(id);
+
+    if (deletedArea) {
+      await this.createAuditLog(
+        id,
+        'DELETE',
+        existingArea.toObject(),
+        null,
+        undefined,
+        auditParams
+      );
+    }
+
+    return deletedArea;
   }
 
   /**
@@ -268,20 +451,47 @@ export class AreaService {
   }
 
   /**
-   * Update area status
+   * Update area status with audit trail
    */
-  static async updateAreaStatus(id: string, status: 'active' | 'inactive'): Promise<ICreateArea | null> {
+  static async updateAreaStatus(
+    id: string,
+    status: 'active' | 'inactive',
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
     this.validateObjectId(id);
 
     if (!['active', 'inactive'].includes(status)) {
       throw new Error('Invalid status value');
     }
 
-    return await AreaRouteModel.findByIdAndUpdate(
+    // Get the existing area before update
+    const existingArea = await AreaRouteModel.findById(id);
+    if (!existingArea) {
+      return null;
+    }
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       id,
       { $set: { status } },
       { new: true }
     );
+
+    if (updatedArea && existingArea.status !== status) {
+      const changes = {
+        status: { old: existingArea.status, new: status }
+      };
+
+      await this.createAuditLog(
+        id,
+        'STATUS_CHANGE',
+        { status: existingArea.status },
+        { status },
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedArea;
   }
 
   /**
@@ -297,11 +507,13 @@ export class AreaService {
     return count > 0;
   }
 
-
   /**
-   * Toggle area status
+   * Toggle area status with audit trail
    */
-  static async toggleAreaStatus(id: string): Promise<ICreateArea | null> {
+  static async toggleAreaStatus(
+    id: string,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
     this.validateObjectId(id);
 
     const area = await this.getAreaById(id);
@@ -310,7 +522,7 @@ export class AreaService {
     }
 
     const newStatus = area.status === 'active' ? 'inactive' : 'active';
-    return await this.updateAreaStatus(id, newStatus);
+    return await this.updateAreaStatus(id, newStatus, auditParams);
   }
 
   /**
@@ -326,9 +538,7 @@ export class AreaService {
    * Validate sub-location structure
    */
   private static validateSubLocation(subLocation: any): void {
-    // Check if it's an array
     if (Array.isArray(subLocation)) {
-      // Validate each sub-location in the array
       if (subLocation.length === 0) {
         throw new Error('At least one sub-location must be provided');
       }
@@ -343,7 +553,6 @@ export class AreaService {
         }
       }
     }
-    // Handle single object (backward compatibility)
     else if (typeof subLocation === 'object' && subLocation !== null) {
       if (!subLocation.campus || !subLocation.tower || !subLocation.floor) {
         throw new Error('Campus, tower, and floor are required in sub-location');
@@ -353,12 +562,10 @@ export class AreaService {
         throw new Error('At least one machine must be selected in sub-location');
       }
     }
-    // Invalid type
     else {
       throw new Error('Invalid sub-location format');
     }
   }
-
 
   /**
    * Validate coordinates
@@ -372,6 +579,7 @@ export class AreaService {
       throw new Error('Longitude must be between -180 and 180');
     }
   }
+
   /**
    * Build filter for querying
    */
@@ -406,7 +614,6 @@ export class AreaService {
   private static buildSort(sortBy: string, sortOrder: 'asc' | 'desc'): any {
     const sort: any = {};
 
-    // Ensure sortBy is a valid field
     const allowedSortFields = [
       'area_name', 'state', 'district', 'pincode',
       'status', 'createdAt', 'updatedAt'
@@ -417,7 +624,6 @@ export class AreaService {
 
     return sort;
   }
-
 
   /**
    * Get unique values for filtering
@@ -432,7 +638,7 @@ export class AreaService {
     const [states, districts, campuses, towers, floors] = await Promise.all([
       AreaRouteModel.distinct('state') as Promise<string[]>,
       AreaRouteModel.distinct('district') as Promise<string[]>,
-      AreaRouteModel.distinct('sub_location.campus') as Promise<string[]>,
+      AreaRouteModel.distinct('sub_locations.campus') as Promise<string[]>,
       AreaRouteModel.distinct('sub_location.tower') as Promise<string[]>,
       AreaRouteModel.distinct('sub_location.floor') as Promise<string[]>
     ]);
@@ -445,6 +651,10 @@ export class AreaService {
       floors: floors.filter(Boolean).sort()
     };
   }
+
+  /**
+   * Add sub-location with audit trail
+   */
   static async addSubLocation(
     areaId: string,
     newSubLocation: {
@@ -452,41 +662,69 @@ export class AreaService {
       tower: string;
       floor: string;
       select_machine: string[];
-    }
+    },
+    auditParams?: AuditLogParams
   ): Promise<ICreateArea | null> {
     this.validateObjectId(areaId);
 
     // Validate the new sub-location
     this.validateSubLocation(newSubLocation);
 
-    // Check if this exact sub-location already exists for this area
-    const existingArea = await AreaRouteModel.findOne({
-      _id: areaId,
-      'sub_locations.campus': newSubLocation.campus,
-      'sub_locations.tower': newSubLocation.tower,
-      'sub_locations.floor': newSubLocation.floor
-    });
+    // Get existing area data
+    const existingArea = await AreaRouteModel.findById(areaId);
+    if (!existingArea) {
+      return null;
+    }
 
-    if (existingArea) {
+    const oldSubLocations = [...(existingArea.sub_locations || [])];
+
+    // Check if this exact sub-location already exists for this area
+    const duplicateExists = existingArea.sub_locations?.some(subLoc =>
+      subLoc.campus === newSubLocation.campus &&
+      subLoc.tower === newSubLocation.tower &&
+      subLoc.floor === newSubLocation.floor
+    );
+
+    if (duplicateExists) {
       throw new Error('This sub-location (campus, tower, floor combination) already exists for this area');
     }
 
-    // Add the new sub-location using $addToSet to prevent duplicates
+    // Add the new sub-location
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
       {
-        $addToSet: {
+        $push: {
           sub_locations: newSubLocation
         }
       },
       { new: true, runValidators: true }
     );
 
+    if (updatedArea) {
+      const newSubLocations = [...(updatedArea.sub_locations || [])];
+      const changes = {
+        sub_locations: {
+          old: oldSubLocations.length,
+          new: newSubLocations.length
+        }
+      };
+
+      await this.createAuditLog(
+        areaId,
+        'ADD_SUB_LOCATION',
+        { sub_locations: oldSubLocations },
+        { sub_locations: newSubLocations },
+        changes,
+        auditParams
+      );
+    }
+
     return updatedArea;
   }
+
   /**
-     * Get dashboard data with filters
-     */
+   * Get dashboard data with filters
+   */
   static async getDashboardData(params: DashboardFilterParams): Promise<DashboardData> {
     const {
       status = 'all',
@@ -503,34 +741,23 @@ export class AreaService {
       sortOrder = 'desc'
     } = params;
 
-    // Build filter
     const filter = this.buildDashboardFilter({
       status, state, district, address, campus, tower, floor, search
     });
 
-    // Calculate pagination
     const pageNum = Math.max(1, page);
     const limitNum = Math.max(1, Math.min(limit, 100));
     const skip = (pageNum - 1) * limitNum;
 
-    // Build sort
     const sort = this.buildSort(sortBy, sortOrder);
 
-    // Execute queries in parallel
     const [areas, totalItems, statistics, filterOptions] = await Promise.all([
-      // Get filtered areas
       AreaRouteModel.find(filter)
         .sort(sort)
         .skip(skip)
         .limit(limitNum),
-
-      // Get total count
       AreaRouteModel.countDocuments(filter),
-
-      // Get statistics
       this.getDashboardStatistics(),
-
-      // Get filter options
       this.getFilterOptions()
     ]);
 
@@ -564,15 +791,14 @@ export class AreaService {
   }): any {
     const filter: any = {};
 
-    // Status filter
     if (params.status && params.status !== 'all') {
       filter.status = params.status;
     }
-  // Address filter (NEW)
-  if (params.address) {
-    filter.address = { $regex: params.address, $options: 'i' };
-  }
-    // Location filters
+    
+    if (params.address) {
+      filter.address = { $regex: params.address, $options: 'i' };
+    }
+    
     if (params.state) {
       filter.state = { $regex: params.state, $options: 'i' };
     }
@@ -581,7 +807,6 @@ export class AreaService {
       filter.district = { $regex: params.district, $options: 'i' };
     }
 
-    // Sub-location filters
     if (params.campus || params.tower || params.floor) {
       filter['sub_locations'] = {
         $elemMatch: {
@@ -592,7 +817,6 @@ export class AreaService {
       };
     }
 
-    // Search across multiple fields
     if (params.search) {
       filter.$or = [
         { area_name: { $regex: params.search, $options: 'i' } },
@@ -645,7 +869,6 @@ export class AreaService {
       ])
     ]);
 
-    // Convert aggregations to objects
     const areasByState: Record<string, number> = {};
     const areasByDistrict: Record<string, number> = {};
     const areasByCampus: Record<string, number> = {};
@@ -676,62 +899,63 @@ export class AreaService {
     };
   }
 
- // Update getDashboardTableData method
-static async getDashboardTableData(params: DashboardFilterParams): Promise<{
-  data: any[];
-  total: number;
-}> {
-  const filter = this.buildDashboardFilter({
-    status: params.status || 'all',
-    address: params.address,
-    state: params.state,
-    district: params.district,
-    campus: params.campus,
-    tower: params.tower,
-    floor: params.floor,
-    search: params.search
-  });
-  
-  const page = params.page || 1;
-  const limit = params.limit || 10;
-  const skip = (page - 1) * limit;
+  /**
+   * Get dashboard table data
+   */
+  static async getDashboardTableData(params: DashboardFilterParams): Promise<{
+    data: any[];
+    total: number;
+  }> {
+    const filter = this.buildDashboardFilter({
+      status: params.status || 'all',
+      address: params.address,
+      state: params.state,
+      district: params.district,
+      campus: params.campus,
+      tower: params.tower,
+      floor: params.floor,
+      search: params.search
+    });
+    
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const skip = (page - 1) * limit;
 
-  const sort = this.buildSort(params.sortBy || 'area_name', params.sortOrder || 'asc');
+    const sort = this.buildSort(params.sortBy || 'area_name', params.sortOrder || 'asc');
 
-  const [areas, total] = await Promise.all([
-    AreaRouteModel.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit),
-    AreaRouteModel.countDocuments(filter)
-  ]);
+    const [areas, total] = await Promise.all([
+      AreaRouteModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit),
+      AreaRouteModel.countDocuments(filter)
+    ]);
 
-  // Transform data for table display - include address
-  const tableData = areas.map(area => ({
-    id: area._id,
-    area_name: area.area_name,
-    state: area.state,
-    district: area.district,
-    pincode: area.pincode,
-    address: area.address, // NEW: Include address in response
-    status: area.status,
-    sub_locations_count: area.sub_locations?.length || 0,
-    total_machines: area.sub_locations?.reduce(
-      (sum, sub) => sum + (sub.select_machine?.length || 0), 0
-    ) || 0,
-    campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(', '),
-  }));
+    const tableData = areas.map(area => ({
+      id: area._id,
+      area_name: area.area_name,
+      state: area.state,
+      district: area.district,
+      pincode: area.pincode,
+      address: area.address,
+      status: area.status,
+      sub_locations_count: area.sub_locations?.length || 0,
+      total_machines: area.sub_locations?.reduce(
+        (sum, sub) => sum + (sub.select_machine?.length || 0), 0
+      ) || 0,
+      campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(', '),
+    }));
 
-  return {
-    data: tableData,
-    total
-  };
-}
+    return {
+      data: tableData,
+      total
+    };
+  }
 
-
-  
+  /**
+   * Get areas by IDs
+   */
   static async getAreasByIds(areaIds: string[]): Promise<ICreateArea[]> {
-    // Validate all IDs
     const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
     if (invalidIds.length > 0) {
       throw new Error(`Invalid area IDs: ${invalidIds.join(', ')}`);
@@ -775,5 +999,26 @@ static async getDashboardTableData(params: DashboardFilterParams): Promise<{
         updated_at: areaDoc.updatedAt
       };
     });
+  }
+
+  /**
+   * Get recent audit activities for dashboard
+   */
+  static async getRecentActivities(limit: number = 10): Promise<any[]> {
+    const activities = await HistoryAreaModel.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .populate('area_id', 'area_name')
+      .lean();
+
+    return activities.map(activity => ({
+      id: activity._id,
+      action: activity.action,
+      area_id: activity.area_id?._id,
+      area_name: (activity.area_id as any)?.area_name || 'Deleted Area',
+      performed_by: activity.performed_by,
+      timestamp: activity.timestamp,
+      changes: activity.changes
+    }));
   }
 }

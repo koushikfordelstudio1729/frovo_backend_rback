@@ -107,4 +107,66 @@ const AreaRouteSchema: Schema = new Schema({
   }
 }, { timestamps: true });
 
+// History Schema for audit trail
+export interface IHistoryArea extends Document {
+    area_id: Types.ObjectId;
+    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'ADD_SUB_LOCATION';
+    old_data?: Partial<ICreateArea>;
+    new_data?: Partial<ICreateArea>;
+    changes?: Record<string, { old: any; new: any }>;
+    performed_by: {
+        user_id: string;
+        email: string;
+        name?: string;
+    };
+    ip_address?: string;
+    user_agent?: string;
+    timestamp: Date;
+}
+
+const HistoryAreaSchema: Schema = new Schema({
+    area_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'AreaRoute',
+        required: true
+    },
+    action: {
+        type: String,
+        enum: ['CREATE', 'UPDATE', 'DELETE', 'STATUS_CHANGE', 'ADD_SUB_LOCATION'],
+        required: true
+    },
+    old_data: {
+        type: Schema.Types.Mixed,
+        default: null
+    },
+    new_data: {
+        type: Schema.Types.Mixed,
+        default: null
+    },
+    changes: {
+        type: Schema.Types.Mixed,
+        default: null
+    },
+    performed_by: {
+        user_id: { type: String, required: true },
+        email: { type: String, required: true },
+        name: { type: String }
+    },
+    ip_address: { type: String },
+    user_agent: { type: String },
+    timestamp: {
+        type: Date,
+        default: Date.now
+    }
+}, {
+    timestamps: true,
+    collection: 'historyArea'
+});
+
+// Indexes for faster queries
+HistoryAreaSchema.index({ area_id: 1, timestamp: -1 });
+HistoryAreaSchema.index({ 'performed_by.user_id': 1 });
+HistoryAreaSchema.index({ action: 1 });
+
 export const AreaRouteModel = mongoose.model<ICreateArea>('AreaRoute', AreaRouteSchema);
+export const HistoryAreaModel = mongoose.model<IHistoryArea>('HistoryArea', HistoryAreaSchema);
