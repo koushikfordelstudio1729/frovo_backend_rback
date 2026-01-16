@@ -421,7 +421,7 @@ export class AreaController {
   /**
    * Get dashboard table data (optimized for frontend table)
    */
-  static async getDashboardTable(req: Request, res: Response): Promise<void> {
+static async getDashboardTable(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
         status: (req.query.status as 'active' | 'inactive' | 'all') || 'all',

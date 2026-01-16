@@ -3,6 +3,7 @@ import { AreaRouteModel, ICreateArea } from '../models/AreaRoute.model';
 
 export interface DashboardFilterParams {
   status?: 'active' | 'inactive' | 'all';
+  address?: string;
   state?: string;
   district?: string;
   campus?: string;
@@ -491,6 +492,7 @@ export class AreaService {
       status = 'all',
       state,
       district,
+      address,
       campus,
       tower,
       floor,
@@ -503,7 +505,7 @@ export class AreaService {
 
     // Build filter
     const filter = this.buildDashboardFilter({
-      status, state, district, campus, tower, floor, search
+      status, state, district, address, campus, tower, floor, search
     });
 
     // Calculate pagination
@@ -552,6 +554,7 @@ export class AreaService {
    */
   private static buildDashboardFilter(params: {
     status?: string;
+    address?: string;
     state?: string;
     district?: string;
     campus?: string;
@@ -565,7 +568,10 @@ export class AreaService {
     if (params.status && params.status !== 'all') {
       filter.status = params.status;
     }
-
+  // Address filter (NEW)
+  if (params.address) {
+    filter.address = { $regex: params.address, $options: 'i' };
+  }
     // Location filters
     if (params.state) {
       filter.state = { $regex: params.state, $options: 'i' };
@@ -670,48 +676,56 @@ export class AreaService {
     };
   }
 
-  /**
-   * Get aggregated table data for dashboard
-   */
-  static async getDashboardTableData(params: DashboardFilterParams): Promise<{
-    data: any[];
-    total: number;
-  }> {
-    const filter = this.buildDashboardFilter(params);
+ // Update getDashboardTableData method
+static async getDashboardTableData(params: DashboardFilterParams): Promise<{
+  data: any[];
+  total: number;
+}> {
+  const filter = this.buildDashboardFilter({
+    status: params.status || 'all',
+    address: params.address,
+    state: params.state,
+    district: params.district,
+    campus: params.campus,
+    tower: params.tower,
+    floor: params.floor,
+    search: params.search
+  });
+  
+  const page = params.page || 1;
+  const limit = params.limit || 10;
+  const skip = (page - 1) * limit;
 
-    const page = params.page || 1;
-    const limit = params.limit || 10;
-    const skip = (page - 1) * limit;
+  const sort = this.buildSort(params.sortBy || 'area_name', params.sortOrder || 'asc');
 
-    const sort = this.buildSort(params.sortBy || 'area_name', params.sortOrder || 'asc');
+  const [areas, total] = await Promise.all([
+    AreaRouteModel.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit),
+    AreaRouteModel.countDocuments(filter)
+  ]);
 
-    const [areas, total] = await Promise.all([
-      AreaRouteModel.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit),
-      AreaRouteModel.countDocuments(filter)
-    ]);
+  // Transform data for table display - include address
+  const tableData = areas.map(area => ({
+    id: area._id,
+    area_name: area.area_name,
+    state: area.state,
+    district: area.district,
+    pincode: area.pincode,
+    address: area.address, // NEW: Include address in response
+    status: area.status,
+    sub_locations_count: area.sub_locations?.length || 0,
+    total_machines: area.sub_locations?.reduce(
+      (sum, sub) => sum + (sub.select_machine?.length || 0), 0
+    ) || 0,
+    campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(', '),
+  }));
 
-    // Transform data for table display
-    const tableData = areas.map(area => ({
-      id: area._id,
-      area_name: area.area_name,
-      state: area.state,
-      district: area.district,
-      pincode: area.pincode,
-      status: area.status,
-      sub_locations_count: area.sub_locations?.length || 0,
-      total_machines: area.sub_locations?.reduce(
-        (sum, sub) => sum + (sub.select_machine?.length || 0), 0
-      ) || 0,
-      campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(', ')
-    }));
-
-    return {
-      data: tableData,
-      total
-    };
-  }
+  return {
+    data: tableData,
+    total
+  };
+}
 
 }
