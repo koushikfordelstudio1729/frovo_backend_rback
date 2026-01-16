@@ -6,7 +6,7 @@ import { HandoverSummary } from '../models/HandoverSummary.model';
 import { MaintenanceIssue } from '../models/MaintenanceIssue.model';
 import { FieldAgent, DispatchOrder, Warehouse } from '../models/Warehouse.model';
 import { VendingMachine } from '../models/VendingMachine.model';
-import { RouteModel } from '../models/AreaRoute.model';
+import { AreaRouteModel } from '../models/AreaRoute.model';
 import { User } from '../models';
 
 export class FieldOpsService {
@@ -343,7 +343,7 @@ export class FieldOpsService {
       throw new Error('Agent not found');
     }
 
-    const routes = await RouteModel.find({
+    const routes = await AreaRouteModel.find({
       _id: { $in: agent.assignedRoutes }
     }).lean();
 
@@ -370,7 +370,7 @@ export class FieldOpsService {
       throw new Error('Invalid route ID');
     }
 
-    const route: any = await RouteModel.findById(routeId).lean();
+    const route: any = await AreaRouteModel.findById(routeId).lean();
     if (!route) {
       throw new Error('Route not found');
     }
@@ -460,7 +460,7 @@ export class FieldOpsService {
 
     // Check if machine is on agent's assigned routes
     const agent = await FieldAgent.findById(agentId).lean();
-    const routes = await RouteModel.find({
+    const routes = await AreaRouteModel.find({
       _id: { $in: agent?.assignedRoutes || [] },
       selected_machine: machine.machineId
     });

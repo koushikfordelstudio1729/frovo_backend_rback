@@ -1,538 +1,717 @@
-import mongoose from "mongoose";
-import { AreaRouteModel, RouteModel } from "../models/AreaRoute.model";
+import mongoose, { Types } from 'mongoose';
+import { AreaRouteModel, ICreateArea } from '../models/AreaRoute.model';
 
-export class AreaRouteService {
-  
-  // ==================== AREA SERVICES ====================
-  
-  /**
-   * Create a new area
-   */
-  public static async createAreaService(data: {
-    area_name: string;
-    select_machine: string;
-    area_description: string;
-    status: "active" | "inactive";
-  }) {
-    const { area_name, select_machine, area_description, status } = data;
-
-    // Validate required fields
-    if (!area_name || !select_machine || !area_description || !status) {
-      throw new Error("All fields are required");
-    }
-
-    // Validate status enum
-    const validStatus = ["active", "inactive"];
-    if (!validStatus.includes(status)) {
-      throw new Error('Status must be either "active" or "inactive"');
-    }
-
-    // Check if area with same name already exists
-    const existingArea = await AreaRouteModel.findOne({ area_name });
-    if (existingArea) {
-      throw new Error("Area with this name already exists");
-    }
-
-    // Create new area
-    const newArea = new AreaRouteModel({
-      area_name,
-      select_machine,
-      area_description,
-      status,
-    });
-
-    return await newArea.save();
-  }
-
-  /**
-   * Get all areas with optional filtering and pagination
-   */
-  public static async getAllAreasService(query: {
-  status?: "active" | "inactive";
+export interface DashboardFilterParams {
+  status?: 'active' | 'inactive' | 'all';
+  state?: string;
+  district?: string;
+  campus?: string;
+  tower?: string;
+  floor?: string;
+  search?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
-  sortOrder?: "asc" | "desc";
-  search?: string;
-} = {}) {
+  sortOrder?: 'asc' | 'desc';
+}
 
-  const {
-    status,
-    page = 1,
-    limit = 10,
-    sortBy = "createdAt",
-    sortOrder = "desc",
-    search
-  } = query;
-
-  let filter: any = {};
-
-  if (status && (status === "active" || status === "inactive")) {
-    filter.status = status;
-  }
-
-  if (search) {
-    filter.$or = [
-      { area_name: { $regex: search, $options: "i" } },
-      { area_description: { $regex: search, $options: "i" } },
-      { select_machine: { $regex: search, $options: "i" } }
-    ];
-  }
-
-  const pageNum = Number(page);
-  const limitNum = Number(limit);
-  const skip = (pageNum - 1) * limitNum;
-
-  const sort: any = {};
-  sort[String(sortBy)] = sortOrder === "asc" ? 1 : -1;
-
-  const [areas, totalCount] = await Promise.all([
-    AreaRouteModel.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limitNum),
-
-    AreaRouteModel.countDocuments(filter)
-  ]);
-
-  /** -----------------------------------------
-   * Add total machines + per-machine counts
-   * ----------------------------------------*/
-  for (let area of areas) {
-    
-    /** total machines for this area (routes count) */
-    const totalMachineCount = await RouteModel.countDocuments({
-      area_name: area._id
-    });
-
-    (area as any).total_machines = totalMachineCount;
-
-    /** list of machines + their route counts */
-    const machines = await RouteModel.aggregate([
-      {
-        $match: {
-          area_name: area._id
-        }
-      },
-      {
-        $group: {
-          _id: "$selected_machine",
-          total_routes: { $sum: 1 }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          machine: "$_id",
-          total_routes: 1
-        }
-      }
-    ]);
-
-    (area as any).machines = machines;
-  }
-
-  const totalPages = Math.ceil(totalCount / limitNum);
-
-  return {
-    data: areas,
-    pagination: {
-      currentPage: pageNum,
-      totalPages,
-      totalCount,
-      hasNextPage: pageNum < totalPages,
-      hasPreviousPage: pageNum > 1,
-      limit: limitNum
-    }
+export interface DashboardData {
+  areas: ICreateArea[];
+  statistics: {
+    totalAreas: number;
+    activeAreas: number;
+    inactiveAreas: number;
+    areasByState: Record<string, number>;
+    areasByDistrict: Record<string, number>;
+    areasByStatus: Record<string, number>;
+    areasByCampus: Record<string, number>;
+  };
+  filterOptions: {
+    states: string[];
+    districts: string[];
+    campuses: string[];
+    towers: string[];
+    floors: string[];
+  };
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
   };
 }
+
+export interface CreateAreaDto {
+  area_name: string;
+  state: string;
+  district: string;
+  pincode: string;
+  area_description: string;
+  status: 'active' | 'inactive';
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  sub_locations: {
+    campus: string;
+    tower: string;
+    floor: string;
+    select_machine: string[];
+  }[];
+}
+
+export interface UpdateAreaDto {
+  area_name?: string;
+  state?: string;
+  district?: string;
+  pincode?: string;
+  area_description?: string;
+  status?: 'active' | 'inactive';
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  sub_locations?: {
+    campus?: string;
+    tower?: string;
+    floor?: string;
+    select_machine?: string[];
+  }[];
+}
+
+export interface AreaQueryParams {
+  page?: number;
+  limit?: number;
+  status?: 'active' | 'inactive';
+  state?: string;
+  district?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface AreaPaginationResult {
+  data: ICreateArea[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
+}
+
+export interface BulkUpdateStatusDto {
+  areaIds: string[];
+  status: 'active' | 'inactive';
+}
+
+export interface LocationSearchParams {
+  state?: string;
+  district?: string;
+}
+
+export class AreaService {
+  /**
+   * Create a new area
+   */
+  static async createArea(areaData: CreateAreaDto): Promise<ICreateArea> {
+    try {
+      // Check for duplicate area name WITH SAME SUB-LOCATIONS
+      // You need to check all sub-locations for duplicates
+      const existingAreas = await AreaRouteModel.find({
+        area_name: areaData.area_name
+      });
+
+      // Check if any existing area has overlapping sub-locations
+      if (Array.isArray(areaData.sub_locations)) {
+        for (const newSubLoc of areaData.sub_locations) {
+          for (const existingArea of existingAreas) {
+            const existingSubLocs = existingArea.sub_locations || [];
+            const duplicateExists = existingSubLocs.some((existingLoc: any) =>
+              existingLoc.campus === newSubLoc.campus &&
+              existingLoc.tower === newSubLoc.tower &&
+              existingLoc.floor === newSubLoc.floor
+            );
+
+            if (duplicateExists) {
+              throw new Error(
+                `Sub-location with campus "${newSubLoc.campus}", tower "${newSubLoc.tower}", floor "${newSubLoc.floor}" already exists for area "${areaData.area_name}"`
+              );
+            }
+          }
+        }
+      }
+
+      // Validate sub-location(s)
+      this.validateSubLocation(areaData.sub_locations);
+
+      // Validate coordinates if provided
+      if (areaData.latitude !== undefined || areaData.longitude !== undefined) {
+        this.validateCoordinates(areaData.latitude, areaData.longitude);
+      }
+
+      const newArea = new AreaRouteModel(areaData);
+      return await newArea.save();
+    } catch (error) {
+      if (error instanceof mongoose.Error.ValidationError) {
+        const errorMessages = Object.values(error.errors).map(err => err.message);
+        throw new Error(`Validation failed: ${errorMessages.join(', ')}`);
+      }
+      throw error;
+    }
+  }
+  /**
+   * Get area by ID
+   */
+  static async getAreaById(id: string): Promise<ICreateArea | null> {
+    this.validateObjectId(id);
+    return await AreaRouteModel.findById(id);
+  }
+
+  /**
+   * Get all areas with filtering and pagination
+   */
+  static async getAllAreas(queryParams: AreaQueryParams): Promise<AreaPaginationResult> {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      state,
+      district,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = queryParams;
+
+    const filter = this.buildFilter({ status, state, district, search });
+
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.max(1, Math.min(limit, 100)); // Limit to 100 items per page
+    const skip = (pageNum - 1) * limitNum;
+
+    const sort = this.buildSort(sortBy, sortOrder);
+
+    const [data, totalItems] = await Promise.all([
+      AreaRouteModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum),
+      AreaRouteModel.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limitNum);
+
+    return {
+      data,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems,
+        itemsPerPage: limitNum
+      }
+    };
+  }
+
+  /**
+   * Update area by ID
+   */
+  static async updateArea(id: string, updateData: UpdateAreaDto): Promise<ICreateArea | null> {
+    this.validateObjectId(id);
+
+    // Check for duplicate area name if updating
+    if (updateData.area_name) {
+      const existingArea = await AreaRouteModel.findOne({
+        area_name: updateData.area_name,
+        _id: { $ne: id }
+      });
+
+      if (existingArea) {
+        throw new Error('Area with this name already exists');
+      }
+    }
+
+    // Validate sub-location if updating
+    if (updateData.sub_locations) {
+      this.validateSubLocation(updateData.sub_locations as any);
+    }
+
+    // Validate coordinates if updating
+    if (updateData.latitude !== undefined || updateData.longitude !== undefined) {
+      this.validateCoordinates(updateData.latitude, updateData.longitude);
+    }
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    return updatedArea;
+  }
 
   /**
    * Delete area by ID
    */
-  public static async deleteAreaService(id: string) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error("Invalid area ID format");
-    }
-
-    const deletedArea = await AreaRouteModel.findByIdAndDelete(id);
-    
-    if (!deletedArea) {
-      throw new Error("Area not found");
-    }
-
-    return deletedArea;
+  static async deleteArea(id: string): Promise<ICreateArea | null> {
+    this.validateObjectId(id);
+    return await AreaRouteModel.findByIdAndDelete(id);
   }
 
-  // ==================== ROUTE SERVICES ====================
+  /**
+   * Get areas by status
+   */
+  static async getAreasByStatus(status: 'active' | 'inactive'): Promise<ICreateArea[]> {
+    if (!['active', 'inactive'].includes(status)) {
+      throw new Error('Invalid status value');
+    }
+
+    return await AreaRouteModel.find({ status });
+  }
 
   /**
-   * Create a new route
+   * Update area status
    */
-  public static async createRouteService(data: {
-    route_name: string;
-    area_name: string;
-    route_description: string;
-    selected_machine: string;
-    frequency_type: "daily" | "weekly" | "monthly";
-  }) {
-    const {
-      route_name,
-      area_name,
-      route_description,
-      selected_machine,
-      frequency_type,
-    } = data;
+  static async updateAreaStatus(id: string, status: 'active' | 'inactive'): Promise<ICreateArea | null> {
+    this.validateObjectId(id);
 
-    // Validate required fields
-    if (
-      !route_name ||
-      !area_name ||
-      !route_description ||
-      !selected_machine ||
-      !frequency_type
-    ) {
-      throw new Error(
-        "All fields are required: route_name, area_name, route_description, selected_machine, frequency_type"
-      );
+    if (!['active', 'inactive'].includes(status)) {
+      throw new Error('Invalid status value');
     }
 
-    // Validate frequency_type enum
-    const validFreq = ["daily", "weekly", "monthly"];
-    if (!validFreq.includes(frequency_type)) {
-      throw new Error("Frequency must be daily, weekly, or monthly");
-    }
-
-    // Validate area ID format
-    if (!mongoose.Types.ObjectId.isValid(area_name)) {
-      throw new Error("Invalid area ID format");
-    }
-
-    // Check if area exists
-    const areaExists = await AreaRouteModel.findById(area_name);
-    if (!areaExists) {
-      throw new Error("Area does not exist");
-    }
-
-    // Check if route with same name already exists
-    const existingRoute = await RouteModel.findOne({ route_name });
-    if (existingRoute) {
-      throw new Error("Route with this name already exists");
-    }
-
-    // Create new route
-    const newRoute = new RouteModel({
-      route_name,
-      area_name,
-      route_description,
-      selected_machine,
-      frequency_type,
-    });
-
-    const saved = await newRoute.save();
-    
-    // Return populated route
-    return await RouteModel.findById(saved._id).populate(
-      "area_name",
-      "area_name select_machine status"
+    return await AreaRouteModel.findByIdAndUpdate(
+      id,
+      { $set: { status } },
+      { new: true }
     );
   }
 
- public static async getAllRoutesService(query: {
-  frequency_type?: "daily" | "weekly" | "monthly";
-  area_name?: string;
-  page?: number;
-  limit?: number;
-  search?: string;
-} = {}) {
-
-  const {
-    frequency_type,
-    area_name,
-    page = 1,
-    limit = 10,
-    search
-  } = query;
-
-  let match: any = {};
-
-  if (frequency_type && ["daily", "weekly", "monthly"].includes(frequency_type)) {
-    match.frequency_type = frequency_type;
-  }
-
-  if (area_name && mongoose.Types.ObjectId.isValid(area_name)) {
-    match.area_name = new mongoose.Types.ObjectId(area_name);
-  }
-
-  if (search) {
-    match.$or = [
-      { route_name: { $regex: search, $options: "i" } },
-      { route_description: { $regex: search, $options: "i" } },
-      { selected_machine: { $regex: search, $options: "i" } }
-    ];
-  }
-
-  const pageNum = Number(page);
-  const limitNum = Number(limit);
-  const skip = (pageNum - 1) * limitNum;
-
-  const [routes, totalCount] = await Promise.all([
-    RouteModel.find(match)
-      .populate("area_name", "area_name select_machine status")
-      .skip(skip)
-      .limit(limitNum)
-      .sort({ createdAt: -1 }),
-
-    RouteModel.countDocuments(match)
-  ]);
-
-  // Process each route to add machine information
-  for (const route of routes) {
-    const area = route.area_name as any;
-    
-    if (area) {
-      // Get total machines in the area
-      const totalMachinesInArea = Array.isArray(area.select_machine) 
-        ? area.select_machine.length 
-        : 1;
-      
-      // Count routes for this specific machine in the same area
-      const machineRouteCount = await RouteModel.countDocuments({
-        area_name: area._id,
-        selected_machine: route.selected_machine
-      });
-      
-      // Check if the route's machine is in the area's machine list
-      const isMachineInArea = Array.isArray(area.select_machine)
-        ? area.select_machine.includes(route.selected_machine)
-        : area.select_machine === route.selected_machine;
-      
-      // Add virtual properties
-      (route as any).total_machines_in_area = totalMachinesInArea;
-      (route as any).machine_route_count = machineRouteCount;
-      (route as any).is_machine_valid = isMachineInArea;
-      (route as any).available_machines = Array.isArray(area.select_machine)
-        ? area.select_machine
-        : [area.select_machine];
-    }
-  }
-
-  const totalPages = Math.ceil(totalCount / limitNum);
-
-  return {
-    data: routes,
-    pagination: {
-      currentPage: pageNum,
-      totalPages,
-      totalCount,
-      hasNextPage: pageNum < totalPages,
-      hasPreviousPage: pageNum > 1,
-      limit: limitNum
-    }
-  };
-}
   /**
-   * Get routes by area ID
+   * Check if area exists by name
    */
-  public static async getRoutesByAreaIdService(areaId: string) {
-    // Validate area ID format
-    if (!mongoose.Types.ObjectId.isValid(areaId)) {
-      throw new Error("Invalid area ID format");
+  static async checkAreaExists(areaName: string, excludeId?: string): Promise<boolean> {
+    const filter: any = { area_name: areaName };
+    if (excludeId) {
+      filter._id = { $ne: excludeId };
     }
 
-    // Check if area exists
-    const areaExists = await AreaRouteModel.findById(areaId);
-    if (!areaExists) {
-      throw new Error("Area not found");
+    const count = await AreaRouteModel.countDocuments(filter);
+    return count > 0;
+  }
+
+
+  /**
+   * Toggle area status
+   */
+  static async toggleAreaStatus(id: string): Promise<ICreateArea | null> {
+    this.validateObjectId(id);
+
+    const area = await this.getAreaById(id);
+    if (!area) {
+      throw new Error('Area not found');
     }
 
-    // Get routes for this area
-    const routes = await RouteModel.find({ area_name: areaId })
-      .populate("area_name", "area_name select_machine status")
-      .sort({ createdAt: -1 });
+    const newStatus = area.status === 'active' ? 'inactive' : 'active';
+    return await this.updateAreaStatus(id, newStatus);
+  }
+
+  /**
+   * Validate MongoDB ObjectId
+   */
+  private static validateObjectId(id: string): void {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid MongoDB ObjectId');
+    }
+  }
+
+  /**
+   * Validate sub-location structure
+   */
+  private static validateSubLocation(subLocation: any): void {
+    // Check if it's an array
+    if (Array.isArray(subLocation)) {
+      // Validate each sub-location in the array
+      if (subLocation.length === 0) {
+        throw new Error('At least one sub-location must be provided');
+      }
+
+      for (const loc of subLocation) {
+        if (!loc.campus || !loc.tower || !loc.floor) {
+          throw new Error('Campus, tower, and floor are required in each sub-location');
+        }
+
+        if (!Array.isArray(loc.select_machine) || loc.select_machine.length === 0) {
+          throw new Error('At least one machine must be selected in each sub-location');
+        }
+      }
+    }
+    // Handle single object (backward compatibility)
+    else if (typeof subLocation === 'object' && subLocation !== null) {
+      if (!subLocation.campus || !subLocation.tower || !subLocation.floor) {
+        throw new Error('Campus, tower, and floor are required in sub-location');
+      }
+
+      if (!Array.isArray(subLocation.select_machine) || subLocation.select_machine.length === 0) {
+        throw new Error('At least one machine must be selected in sub-location');
+      }
+    }
+    // Invalid type
+    else {
+      throw new Error('Invalid sub-location format');
+    }
+  }
+
+
+  /**
+   * Validate coordinates
+   */
+  private static validateCoordinates(latitude?: number, longitude?: number): void {
+    if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
+      throw new Error('Latitude must be between -90 and 90');
+    }
+
+    if (longitude !== undefined && (longitude < -180 || longitude > 180)) {
+      throw new Error('Longitude must be between -180 and 180');
+    }
+  }
+  /**
+   * Build filter for querying
+   */
+  private static buildFilter(params: {
+    status?: string;
+    state?: string;
+    district?: string;
+    search?: string;
+  }): any {
+    const filter: any = {};
+
+    if (params.status) filter.status = params.status;
+    if (params.state) filter.state = { $regex: params.state, $options: 'i' };
+    if (params.district) filter.district = { $regex: params.district, $options: 'i' };
+
+    if (params.search) {
+      filter.$or = [
+        { area_name: { $regex: params.search, $options: 'i' } },
+        { state: { $regex: params.search, $options: 'i' } },
+        { district: { $regex: params.search, $options: 'i' } },
+        { pincode: { $regex: params.search, $options: 'i' } },
+        { area_description: { $regex: params.search, $options: 'i' } }
+      ];
+    }
+
+    return filter;
+  }
+
+  /**
+   * Build sort object
+   */
+  private static buildSort(sortBy: string, sortOrder: 'asc' | 'desc'): any {
+    const sort: any = {};
+
+    // Ensure sortBy is a valid field
+    const allowedSortFields = [
+      'area_name', 'state', 'district', 'pincode',
+      'status', 'createdAt', 'updatedAt'
+    ];
+
+    const field = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    sort[field] = sortOrder === 'asc' ? 1 : -1;
+
+    return sort;
+  }
+
+
+  /**
+   * Get unique values for filtering
+   */
+  static async getFilterOptions(): Promise<{
+    states: string[];
+    districts: string[];
+    campuses: string[];
+    towers: string[];
+    floors: string[];
+  }> {
+    const [states, districts, campuses, towers, floors] = await Promise.all([
+      AreaRouteModel.distinct('state') as Promise<string[]>,
+      AreaRouteModel.distinct('district') as Promise<string[]>,
+      AreaRouteModel.distinct('sub_location.campus') as Promise<string[]>,
+      AreaRouteModel.distinct('sub_location.tower') as Promise<string[]>,
+      AreaRouteModel.distinct('sub_location.floor') as Promise<string[]>
+    ]);
 
     return {
-      area: {
-        id: areaExists._id,
-        area_name: areaExists.area_name,
-        status: areaExists.status
-      },
-      data: routes,
-      count: routes.length
+      states: states.filter(Boolean).sort(),
+      districts: districts.filter(Boolean).sort(),
+      campuses: campuses.filter(Boolean).sort(),
+      towers: towers.filter(Boolean).sort(),
+      floors: floors.filter(Boolean).sort()
     };
   }
+  static async addSubLocation(
+    areaId: string,
+    newSubLocation: {
+      campus: string;
+      tower: string;
+      floor: string;
+      select_machine: string[];
+    }
+  ): Promise<ICreateArea | null> {
+    this.validateObjectId(areaId);
 
-  /**
-   * Update route by ID
-   */
-  public static async updateRouteService(id: string, data: Partial<{
-    route_name: string;
-    area_name: string;
-    route_description: string;
-    selected_machine: string;
-    frequency_type: "daily" | "weekly" | "monthly";
-  }>) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error("Invalid route ID format");
+    // Validate the new sub-location
+    this.validateSubLocation(newSubLocation);
+
+    // Check if this exact sub-location already exists for this area
+    const existingArea = await AreaRouteModel.findOne({
+      _id: areaId,
+      'sub_locations.campus': newSubLocation.campus,
+      'sub_locations.tower': newSubLocation.tower,
+      'sub_locations.floor': newSubLocation.floor
+    });
+
+    if (existingArea) {
+      throw new Error('This sub-location (campus, tower, floor combination) already exists for this area');
     }
 
-    // Check if route exists
-    const existingRoute = await RouteModel.findById(id);
-    if (!existingRoute) {
-      throw new Error("Route not found");
-    }
-
-    // If updating area_name, validate it
-    if (data.area_name) {
-      if (!mongoose.Types.ObjectId.isValid(data.area_name)) {
-        throw new Error("Invalid area ID format");
-      }
-
-      const areaExists = await AreaRouteModel.findById(data.area_name);
-      if (!areaExists) {
-        throw new Error("Area does not exist");
-      }
-    }
-
-    // If updating route_name, check for duplicates
-    if (data.route_name && data.route_name !== existingRoute.route_name) {
-      const routeWithSameName = await RouteModel.findOne({
-        route_name: data.route_name,
-        _id: { $ne: id }
-      });
-      
-      if (routeWithSameName) {
-        throw new Error("Route with this name already exists");
-      }
-    }
-
-    // Update route
-    const updatedRoute = await RouteModel.findByIdAndUpdate(
-      id,
-      data,
+    // Add the new sub-location using $addToSet to prevent duplicates
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      areaId,
+      {
+        $addToSet: {
+          sub_locations: newSubLocation
+        }
+      },
       { new: true, runValidators: true }
     );
 
-    // Return populated route
-    if (updatedRoute) {
-      return await RouteModel.findById(updatedRoute._id)
-        .populate("area_name", "area_name select_machine status");
-    }
-
-    return null;
+    return updatedArea;
   }
-
   /**
-   * Delete route by ID
-   */
-  public static async deleteRouteService(id: string) {
-    // Validate ID format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new Error("Invalid route ID format");
-    }
+     * Get dashboard data with filters
+     */
+  static async getDashboardData(params: DashboardFilterParams): Promise<DashboardData> {
+    const {
+      status = 'all',
+      state,
+      district,
+      campus,
+      tower,
+      floor,
+      search,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = params;
 
-    const deletedRoute = await RouteModel.findByIdAndDelete(id);
-    
-    if (!deletedRoute) {
-      throw new Error("Route not found");
-    }
+    // Build filter
+    const filter = this.buildDashboardFilter({
+      status, state, district, campus, tower, floor, search
+    });
 
-    return deletedRoute;
-  }
+    // Calculate pagination
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.max(1, Math.min(limit, 100));
+    const skip = (pageNum - 1) * limitNum;
 
-  /**
-   * Get statistics about areas and routes
-   */
-  public static async getStatisticsService() {
-    const [
-      totalAreas,
-      totalRoutes,
-      activeAreas,
-      dailyRoutes,
-      weeklyRoutes,
-      monthlyRoutes
-    ] = await Promise.all([
-      AreaRouteModel.countDocuments(),
-      RouteModel.countDocuments(),
-      AreaRouteModel.countDocuments({ status: "active" }),
-      RouteModel.countDocuments({ frequency_type: "daily" }),
-      RouteModel.countDocuments({ frequency_type: "weekly" }),
-      RouteModel.countDocuments({ frequency_type: "monthly" })
+    // Build sort
+    const sort = this.buildSort(sortBy, sortOrder);
+
+    // Execute queries in parallel
+    const [areas, totalItems, statistics, filterOptions] = await Promise.all([
+      // Get filtered areas
+      AreaRouteModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum),
+
+      // Get total count
+      AreaRouteModel.countDocuments(filter),
+
+      // Get statistics
+      this.getDashboardStatistics(),
+
+      // Get filter options
+      this.getFilterOptions()
     ]);
 
-    // Get areas with their route counts
-    const areasWithRouteCount = await RouteModel.aggregate([
-      {
-        $group: {
-          _id: "$area_name",
-          routeCount: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: "arearoutes",
-          localField: "_id",
-          foreignField: "_id",
-          as: "area"
-        }
-      },
-      {
-        $unwind: "$area"
-      },
-      {
-        $project: {
-          areaId: "$_id",
-          areaName: "$area.area_name",
-          areaStatus: "$area.status",
-          routeCount: 1
-        }
-      },
-      {
-        $sort: { routeCount: -1 }
-      }
-    ]);
+    const totalPages = Math.ceil(totalItems / limitNum);
 
     return {
-      areas: {
-        total: totalAreas,
-        active: activeAreas,
-        inactive: totalAreas - activeAreas
-      },
-      routes: {
-        total: totalRoutes,
-        daily: dailyRoutes,
-        weekly: weeklyRoutes,
-        monthly: monthlyRoutes
-      },
-      areasWithRouteCount,
-      summary: {
-        averageRoutesPerArea: totalAreas > 0 ? (totalRoutes / totalAreas).toFixed(2) : "0.00",
-        activeAreasPercentage: totalAreas > 0 ? ((activeAreas / totalAreas) * 100).toFixed(2) + "%" : "0%"
+      areas,
+      statistics,
+      filterOptions,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems,
+        itemsPerPage: limitNum
       }
     };
   }
 
   /**
-   * Check if area exists by ID
+   * Build dashboard filter
    */
-  public static async checkAreaExists(areaId: string): Promise<boolean> {
-    if (!mongoose.Types.ObjectId.isValid(areaId)) {
-      return false;
+  private static buildDashboardFilter(params: {
+    status?: string;
+    state?: string;
+    district?: string;
+    campus?: string;
+    tower?: string;
+    floor?: string;
+    search?: string;
+  }): any {
+    const filter: any = {};
+
+    // Status filter
+    if (params.status && params.status !== 'all') {
+      filter.status = params.status;
     }
-    const area = await AreaRouteModel.findById(areaId);
-    return !!area;
+
+    // Location filters
+    if (params.state) {
+      filter.state = { $regex: params.state, $options: 'i' };
+    }
+
+    if (params.district) {
+      filter.district = { $regex: params.district, $options: 'i' };
+    }
+
+    // Sub-location filters
+    if (params.campus || params.tower || params.floor) {
+      filter['sub_locations'] = {
+        $elemMatch: {
+          ...(params.campus && { campus: { $regex: params.campus, $options: 'i' } }),
+          ...(params.tower && { tower: { $regex: params.tower, $options: 'i' } }),
+          ...(params.floor && { floor: { $regex: params.floor, $options: 'i' } })
+        }
+      };
+    }
+
+    // Search across multiple fields
+    if (params.search) {
+      filter.$or = [
+        { area_name: { $regex: params.search, $options: 'i' } },
+        { state: { $regex: params.search, $options: 'i' } },
+        { district: { $regex: params.search, $options: 'i' } },
+        { pincode: { $regex: params.search, $options: 'i' } },
+        { area_description: { $regex: params.search, $options: 'i' } },
+        { address: { $regex: params.search, $options: 'i' } },
+        { 'sub_locations.campus': { $regex: params.search, $options: 'i' } },
+        { 'sub_locations.tower': { $regex: params.search, $options: 'i' } },
+        { 'sub_locations.floor': { $regex: params.search, $options: 'i' } }
+      ];
+    }
+
+    return filter;
   }
 
   /**
-   * Check if route exists by ID
+   * Get dashboard statistics
    */
-  public static async checkRouteExists(routeId: string): Promise<boolean> {
-    if (!mongoose.Types.ObjectId.isValid(routeId)) {
-      return false;
-    }
-    const route = await RouteModel.findById(routeId);
-    return !!route;
+  private static async getDashboardStatistics(): Promise<{
+    totalAreas: number;
+    activeAreas: number;
+    inactiveAreas: number;
+    areasByState: Record<string, number>;
+    areasByDistrict: Record<string, number>;
+    areasByStatus: Record<string, number>;
+    areasByCampus: Record<string, number>;
+  }> {
+    const [
+      totalAreas,
+      activeAreas,
+      inactiveAreas,
+      stateAggregation,
+      districtAggregation,
+      campusAggregation
+    ] = await Promise.all([
+      AreaRouteModel.countDocuments(),
+      AreaRouteModel.countDocuments({ status: 'active' }),
+      AreaRouteModel.countDocuments({ status: 'inactive' }),
+      AreaRouteModel.aggregate([
+        { $group: { _id: '$state', count: { $sum: 1 } } }
+      ]),
+      AreaRouteModel.aggregate([
+        { $group: { _id: '$district', count: { $sum: 1 } } }
+      ]),
+      AreaRouteModel.aggregate([
+        { $unwind: '$sub_locations' },
+        { $group: { _id: '$sub_locations.campus', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Convert aggregations to objects
+    const areasByState: Record<string, number> = {};
+    const areasByDistrict: Record<string, number> = {};
+    const areasByCampus: Record<string, number> = {};
+
+    stateAggregation.forEach(item => {
+      areasByState[item._id || 'Unknown'] = item.count;
+    });
+
+    districtAggregation.forEach(item => {
+      areasByDistrict[item._id || 'Unknown'] = item.count;
+    });
+
+    campusAggregation.forEach(item => {
+      areasByCampus[item._id || 'Unknown'] = item.count;
+    });
+
+    return {
+      totalAreas,
+      activeAreas,
+      inactiveAreas,
+      areasByState,
+      areasByDistrict,
+      areasByStatus: {
+        active: activeAreas,
+        inactive: inactiveAreas
+      },
+      areasByCampus
+    };
   }
+
+  /**
+   * Get aggregated table data for dashboard
+   */
+  static async getDashboardTableData(params: DashboardFilterParams): Promise<{
+    data: any[];
+    total: number;
+  }> {
+    const filter = this.buildDashboardFilter(params);
+
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const sort = this.buildSort(params.sortBy || 'area_name', params.sortOrder || 'asc');
+
+    const [areas, total] = await Promise.all([
+      AreaRouteModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit),
+      AreaRouteModel.countDocuments(filter)
+    ]);
+
+    // Transform data for table display
+    const tableData = areas.map(area => ({
+      id: area._id,
+      area_name: area.area_name,
+      state: area.state,
+      district: area.district,
+      pincode: area.pincode,
+      status: area.status,
+      sub_locations_count: area.sub_locations?.length || 0,
+      total_machines: area.sub_locations?.reduce(
+        (sum, sub) => sum + (sub.select_machine?.length || 0), 0
+      ) || 0,
+      campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(', ')
+    }));
+
+    return {
+      data: tableData,
+      total
+    };
+  }
+
 }

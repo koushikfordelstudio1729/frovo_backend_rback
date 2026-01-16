@@ -1,6 +1,6 @@
 // areaRoute.routes.ts
 import express from 'express';
-import { AreaRouteController } from '../controllers/arearoute.controller';
+import { AreaController } from '../controllers/arearoute.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireSuperAdmin } from '../middleware/permission.middleware';
 
@@ -12,84 +12,82 @@ router.use(authenticate);
 
 // ==================== SCREEN 1: AREA MANAGEMENT ====================
 // Only Super Admin can manage areas
+
+// Create a new area
 router.post('/area',
   requireSuperAdmin(),
-  AreaRouteController.createArea
+  AreaController.createAreaRoute
 );
 
+// Get all areas with filtering, pagination, and search
 router.get('/area',
   requireSuperAdmin(),
-  AreaRouteController.getAllAreas
+  AreaController.getAllAreaRoutes
 );
 
+// Get area by ID
 router.get('/area/:id',
   requireSuperAdmin(),
-  AreaRouteController.getAreaById
+  AreaController.getAreaRouteById
 );
 
+// Update area by ID
 router.put('/area/:id',
   requireSuperAdmin(),
-  AreaRouteController.updateArea
+  AreaController.updateAreaRoute
 );
 
+// Delete area by ID
 router.delete('/area/:id',
   requireSuperAdmin(),
-  AreaRouteController.deleteArea
+  AreaController.deleteAreaRoute
 );
 
-// ==================== SCREEN 2: ROUTE PLANNING ====================
-// Only Super Admin can manage routes
-router.post('/route',
+router.post('/area/:id/add-sublocation',
   requireSuperAdmin(),
-  AreaRouteController.createRoute
+  AreaController.addSubLocation
 );
 
-router.get('/route',
+
+// Toggle area status
+router.patch('/area/:id/toggle-status',
   requireSuperAdmin(),
-  AreaRouteController.getAllRoutes
+  AreaController.toggleAreaStatus
 );
 
-router.get('/route/area/:areaId',
+
+// Get unique filter options (states, districts, campuses, etc.)
+router.get('/area/filter/options',
   requireSuperAdmin(),
-  AreaRouteController.getRoutesByAreaId
+  AreaController.getFilterOptions
 );
 
-router.get('/route/:id',
+// Check if area name exists
+router.get('/area/check-exists',
   requireSuperAdmin(),
-  AreaRouteController.getRouteById
+  AreaController.checkAreaExists
 );
 
-router.put('/route/:id',
+// Export areas (CSV/JSON)
+router.get('/area/bulk/export',
   requireSuperAdmin(),
-  AreaRouteController.updateRoute
+  AreaController.exportAreas
 );
 
-router.delete('/route/:id',
+// Dashboard routes
+router.get('/dashboard/data',
   requireSuperAdmin(),
-  AreaRouteController.deleteRoute
+  AreaController.getDashboardData
 );
 
-// ==================== SCREEN 3: ROUTE TRACKING ====================
-// Only Super Admin can access tracking (for now)
-router.post('/tracking/check-in',
+router.get('/dashboard/table',
   requireSuperAdmin(),
-  AreaRouteController.checkIn
+  AreaController.getDashboardTable
 );
 
-router.get('/tracking/progress/:routeId',
+
+router.get('/dashboard/export',
   requireSuperAdmin(),
-  AreaRouteController.getRouteProgress
+  AreaController.exportDashboardData
 );
-
-router.post('/tracking/reassign',
-  requireSuperAdmin(),
-  AreaRouteController.reassignMachines
-);
-
-// ==================== ANALYTICS & STATISTICS ====================
-router.get('/statistics',
-  requireSuperAdmin(),
-  AreaRouteController.getStatistics
-);
-
 export default router;
