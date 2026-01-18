@@ -2,17 +2,15 @@
   "info": {
     "_postman_id": "56a24444-650e-4e27-a8af-e63b137a9302",
     "name": "Frovo Catalogue API",
-    "description": "Complete API collection for Frovo Catalogue & Category Management System\n\n**Features:**\n- Product Catalogue Management (CRUD)\n- Category Management (CRUD)\n- Dashboard with Advanced Filtering\n- CSV Export\n- Image Upload via Cloudinary\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "39772168",
-    "_collection_link": "https://go.postman.co/collection/39772168-56a24444-650e-4e27-a8af-e63b137a9302?source=collection_link"
+    "description": "Complete API collection for Frovo Catalogue Management System\n\n**Modules:**\n- Category Management\n- Sub-Category Management\n- SKU Catalogue Management\n- Dashboard & Reporting\n- Image Upload\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Categories",
+      "name": "Category",
       "item": [
         {
-          "name": "Create Category (with Image Upload)",
+          "name": "Create Category",
           "event": [
             {
               "listen": "test",
@@ -20,30 +18,18 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    const response = pm.response.json();",
-                  "    if (response.data && response.data.id) {",
-                  "        pm.environment.set('category_id', response.data.id);",
+                  "    if (response.data && response.data._id) {",
+                  "        pm.environment.set('category_id', response.data._id);",
                   "        pm.environment.set('category_name', response.data.category_name);",
-                  "        console.log('Category created:', response.data.id);",
+                  "        console.log('Category created:', response.data._id);",
                   "    }",
                   "}"
                 ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
+                "type": "text/javascript"
               }
             }
           ],
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [],
             "body": {
@@ -51,870 +37,58 @@
               "formdata": [
                 {
                   "key": "category_name",
-                  "value": "mild",
-                  "type": "text"
+                  "value": "Beverages",
+                  "type": "text",
+                  "description": "Required: Category name"
                 },
                 {
                   "key": "description",
                   "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "sub_details",
-                  "value": "{\"sub_categories\": \"juice\", \"description_sub_category\": \"Various beverage options for customers\"}",
                   "type": "text",
-                  "description": "Must be valid JSON string",
-                  "disabled": true
+                  "description": "Required: Category description"
                 },
                 {
                   "key": "category_status",
                   "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/category",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "category"
-              ]
-            },
-            "description": "Create a new category with direct image upload\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** multipart/form-data\n\n**Required Fields:**\n- category_name (text)\n- description (text)\n- sub_details (JSON string): {\"sub_categories\": \"...\", \"description_sub_category\": \"...\"}\n\n**Optional Fields:**\n- documents (file): Category image to upload\n- category_status (text, default: 'active')\n\n**Note:** If you don't upload a file, you can still provide category_image as a URL in the form data."
-          },
-          "response": []
-        },
-        {
-          "name": "Get Category by ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "{{category_id}}"
-              ]
-            },
-            "description": "Retrieve a category by its ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Category All",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "{{category_id}}"
-              ]
-            },
-            "description": "Retrieve a category by its ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Status Update",
-          "request": {
-            "method": "PATCH",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/categories/:id/status/inactive",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "categories",
-                ":id",
-                "status",
-                "inactive"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "695e87cfec56c9ce7c6c8a89"
-                }
-              ]
-            },
-            "description": "Retrieve a category by its ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Export",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/export/category/csv",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "export",
-                "category",
-                "csv"
-              ]
-            },
-            "description": "Retrieve a category by its ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Export By ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/export/category/csv/:id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "export",
-                "category",
-                "csv",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "695e87cfec56c9ce7c6c8a89"
-                }
-              ]
-            },
-            "description": "Retrieve a category by its ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Update Category (with Image Upload)",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "description",
-                  "value": "Updated description for beverages category",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "sub_details",
-                  "value": "{\"sub_categories\": \"Coffee, Tea, Juice, Soda, Water, Energy Drinks\", \"description_sub_category\": \"Expanded beverage options\"}",
                   "type": "text",
-                  "description": "Optional: Update sub-categories (JSON string)"
+                  "description": "Optional: active or inactive (default: active)"
                 },
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Upload new category image (replaces old image)",
-                  "value": null
+                  "description": "Optional: Category image (JPG, PNG, PDF)"
                 }
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "{{category_id}}"
-              ]
+              "raw": "{{base_url}}/catalogue/category",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "category"]
             },
-            "description": "Update category with new image upload\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** multipart/form-data\n\n**All fields are optional**\n\n**Image Upload:**\n- Upload new image via documents field\n- Old image will be replaced with new one\n- If no file uploaded, existing image remains unchanged"
+            "description": "Create a new category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
           "response": []
         },
-        {
-          "name": "Delete Category",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "{{category_id}}"
-              ]
-            },
-            "description": "Delete a category by ID\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Note:** Cannot delete if catalogue items are using this category"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Category Dashboard Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/categories/dashboard/stats",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "dashboard",
-                "stats"
-              ]
-            },
-            "description": "Get comprehensive category statistics including:\n- Total categories (active/inactive)\n- Total sub-categories\n- Categories by status\n- Sub-categories by category\n- Status distribution percentages\n\n**No authentication required**"
-          },
-          "response": []
-        }
-      ],
-      "description": "Category management endpoints - Create, Read, Update, Delete categories"
-    },
-    {
-      "name": "Catalogue Products",
-      "item": [
-        {
-          "name": "Create Catalogue Product (with Image Upload)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    const response = pm.response.json();",
-                  "    if (response.data && response.data.id) {",
-                  "        pm.environment.set('catalogue_id', response.data.id);",
-                  "        pm.environment.set('sku_id', response.data.sku_id);",
-                  "        console.log('Product created:', response.data.id);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sku_id",
-                  "value": "BEV-COF-001",
-                  "type": "text"
-                },
-                {
-                  "key": "product_name",
-                  "value": "Premium Arabica Coffee",
-                  "type": "text"
-                },
-                {
-                  "key": "brand_name",
-                  "value": "Starbucks",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "Rich and aromatic arabica coffee beans",
-                  "type": "text"
-                },
-                {
-                  "key": "category",
-                  "value": "Beverages",
-                  "type": "text"
-                },
-                {
-                  "key": "sub_category",
-                  "value": "Coffee",
-                  "type": "text"
-                },
-                {
-                  "key": "manufacturer_name",
-                  "value": "Starbucks Corporation",
-                  "type": "text"
-                },
-                {
-                  "key": "manufacturer_address",
-                  "value": "2401 Utah Avenue South, Seattle, WA 98134, USA",
-                  "type": "text"
-                },
-                {
-                  "key": "shell_life",
-                  "value": "12 months",
-                  "type": "text"
-                },
-                {
-                  "key": "expiry_alert_threshold",
-                  "value": "30",
-                  "type": "text"
-                },
-                {
-                  "key": "tages_label",
-                  "value": "premium, organic, fair-trade",
-                  "type": "text"
-                },
-                {
-                  "key": "unit_size",
-                  "value": "250g",
-                  "type": "text"
-                },
-                {
-                  "key": "base_price",
-                  "value": "15.99",
-                  "type": "text"
-                },
-                {
-                  "key": "final_price",
-                  "value": "15.99",
-                  "type": "text"
-                },
-                {
-                  "key": "barcode",
-                  "value": "1234567890123",
-                  "type": "text"
-                },
-                {
-                  "key": "nutrition_information",
-                  "value": "Calories: 2 per serving, Fat: 0g, Carbs: 0g, Protein: 0.3g",
-                  "type": "text"
-                },
-                {
-                  "key": "ingredients",
-                  "value": "100% Arabica Coffee Beans",
-                  "type": "text"
-                },
-                {
-                  "key": "status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 1",
-                  "value": null
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 2 (optional)",
-                  "value": null,
-                  "disabled": true
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 3 (optional)",
-                  "value": null,
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "sku-catalogue"
-              ]
-            },
-            "description": "Create a new catalogue product with direct image upload\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** multipart/form-data\n\n**All text fields as shown above**\n\n**Image Upload:**\n- Field name: documents (multiple files)\n- Upload 1-10 product images\n- Max 5 files per request (can make multiple requests)\n- Images auto-uploaded to Cloudinary\n\n**Validations:**\n- SKU must be unique\n- Barcode must be unique\n- Category must exist\n- Base price >= 0\n- Final price >= Base price\n- Expiry alert threshold: 1-365 days"
-          },
-          "response": []
-        },
-        {
-          "name": "Status Update",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    const response = pm.response.json();",
-                  "    if (response.data && response.data.id) {",
-                  "        pm.environment.set('catalogue_id', response.data.id);",
-                  "        pm.environment.set('sku_id', response.data.sku_id);",
-                  "        console.log('Product created:', response.data.id);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sku_id",
-                  "value": "BEV-COF-001",
-                  "type": "text"
-                },
-                {
-                  "key": "product_name",
-                  "value": "Premium Arabica Coffee",
-                  "type": "text"
-                },
-                {
-                  "key": "brand_name",
-                  "value": "Starbucks",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "Rich and aromatic arabica coffee beans",
-                  "type": "text"
-                },
-                {
-                  "key": "category",
-                  "value": "Beverages",
-                  "type": "text"
-                },
-                {
-                  "key": "sub_category",
-                  "value": "Coffee",
-                  "type": "text"
-                },
-                {
-                  "key": "manufacturer_name",
-                  "value": "Starbucks Corporation",
-                  "type": "text"
-                },
-                {
-                  "key": "manufacturer_address",
-                  "value": "2401 Utah Avenue South, Seattle, WA 98134, USA",
-                  "type": "text"
-                },
-                {
-                  "key": "shell_life",
-                  "value": "12 months",
-                  "type": "text"
-                },
-                {
-                  "key": "expiry_alert_threshold",
-                  "value": "30",
-                  "type": "text"
-                },
-                {
-                  "key": "tages_label",
-                  "value": "premium, organic, fair-trade",
-                  "type": "text"
-                },
-                {
-                  "key": "unit_size",
-                  "value": "250g",
-                  "type": "text"
-                },
-                {
-                  "key": "base_price",
-                  "value": "15.99",
-                  "type": "text"
-                },
-                {
-                  "key": "final_price",
-                  "value": "15.99",
-                  "type": "text"
-                },
-                {
-                  "key": "barcode",
-                  "value": "1234567890123",
-                  "type": "text"
-                },
-                {
-                  "key": "nutrition_information",
-                  "value": "Calories: 2 per serving, Fat: 0g, Carbs: 0g, Protein: 0.3g",
-                  "type": "text"
-                },
-                {
-                  "key": "ingredients",
-                  "value": "100% Arabica Coffee Beans",
-                  "type": "text"
-                },
-                {
-                  "key": "status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 1",
-                  "value": null
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 2 (optional)",
-                  "value": null,
-                  "disabled": true
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 3 (optional)",
-                  "value": null,
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sku-catalogue/:id/status/active",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sku-catalogue",
-                ":id",
-                "status",
-                "active"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "695e9575ad440421bbecd776"
-                }
-              ]
-            },
-            "description": "Create a new catalogue product with direct image upload\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** multipart/form-data\n\n**All text fields as shown above**\n\n**Image Upload:**\n- Field name: documents (multiple files)\n- Upload 1-10 product images\n- Max 5 files per request (can make multiple requests)\n- Images auto-uploaded to Cloudinary\n\n**Validations:**\n- SKU must be unique\n- Barcode must be unique\n- Category must exist\n- Base price >= 0\n- Final price >= Base price\n- Expiry alert threshold: 1-365 days"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Catalogue Product by ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/{{catalogue_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues",
-                "{{catalogue_id}}"
-              ]
-            },
-            "description": "Retrieve a catalogue product by its ID\n\n**No authentication required**"
-          },
-          "response": []
-        },
-        {
-          "name": "Update Catalogue Product (with Image Upload)",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "product_name",
-                  "value": "Premium Arabica Coffee - Limited Edition",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "Limited edition premium arabica coffee with special roasting",
-                  "type": "text"
-                },
-                {
-                  "key": "base_price",
-                  "value": "17.99",
-                  "type": "text"
-                },
-                {
-                  "key": "final_price",
-                  "value": "15.99",
-                  "type": "text"
-                },
-                {
-                  "key": "status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload new product images (replaces old images)",
-                  "value": null
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 2 (optional)",
-                  "value": null,
-                  "disabled": true
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Product image 3 (optional)",
-                  "value": null,
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/{{catalogue_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues",
-                "{{catalogue_id}}"
-              ]
-            },
-            "description": "Update catalogue product with new image upload\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** multipart/form-data\n\n**All fields are optional**\n\n**Image Upload:**\n- Upload new images via documents field\n- Old images will be replaced with new ones\n- If no files uploaded, existing images remain unchanged\n- Can upload 1-10 images (max 5 per request)\n\n**Note:** Same validations apply as create"
-          },
-          "response": []
-        },
-        {
-          "name": "Update Catalogue Product (JSON only)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"product_name\": \"Premium Arabica Coffee - Limited Edition\",\n  \"base_price\": 17.99,\n  \"final_price\": 15.99,\n  \"description\": \"Limited edition premium arabica coffee with special roasting\",\n  \"status\": \"active\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/{{catalogue_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues",
-                "{{catalogue_id}}"
-              ]
-            },
-            "description": "Update catalogue product without changing images\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Content-Type:** application/json\n\n**All fields are optional** - only include fields you want to update\n\n**Use when:**\n- You don't need to update product images\n- You're providing image URLs instead\n\n**Same validations apply as create**"
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Catalogue Product",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/{{catalogue_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues",
-                "{{catalogue_id}}"
-              ]
-            },
-            "description": "Delete a catalogue product by ID\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        }
-      ],
-      "description": "Product catalogue management - Create, Read, Update, Delete products"
-    },
-    {
-      "name": "Image Upload",
-      "item": [
-        {
-          "name": "Upload Product Images",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const response = pm.response.json();",
-                  "    if (response.data && response.data.images && response.data.images.length > 0) {",
-                  "        // Store first image URL",
-                  "        pm.environment.set('product_image_url', response.data.images[0].image_url);",
-                  "        pm.environment.set('product_image_public_id', response.data.images[0].public_id);",
-                  "        console.log('Uploaded', response.data.count, 'image(s)');",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Select up to 5 product images (JPG, PNG, JPEG)",
-                  "value": null
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Add more images (up to 5 total)",
-                  "value": null,
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/upload-images",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues",
-                "upload-images"
-              ]
-            },
-            "description": "Upload multiple product images to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Form Data:**\n- Field name: `documents` (multiple files)\n- Max files: 5 per request\n- Max size: 10MB per file\n- Allowed types: JPG, JPEG, PNG\n\n**Returns:**\n- Array of uploaded images with URLs and metadata\n- Cloudinary public IDs for deletion\n\n**Usage:**\n1. Upload images using this endpoint\n2. Copy the returned `image_url` values\n3. Use those URLs in the `images` array when creating/updating products"
-          },
-          "response": []
-        },
-        {
-          "name": "Upload Category Image",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const response = pm.response.json();",
-                  "    if (response.data && response.data.primary_image) {",
-                  "        pm.environment.set('category_image_url', response.data.primary_image.image_url);",
-                  "        pm.environment.set('category_image_public_id', response.data.primary_image.public_id);",
-                  "        console.log('Category image uploaded:', response.data.primary_image.image_url);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Select category image (JPG, PNG, JPEG)",
-                  "value": null
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/catalogue/categories/upload-image",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories",
-                "upload-image"
-              ]
-            },
-            "description": "Upload category image to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Form Data:**\n- Field name: `documents`\n- Max files: 5 (but typically use 1 for category)\n- Max size: 10MB per file\n- Allowed types: JPG, JPEG, PNG\n\n**Returns:**\n- Primary image (first uploaded)\n- All uploaded images\n- Use `primary_image.image_url` for category_image field"
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Product Image",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/images/{{product_image_public_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "images",
-                "{{product_image_public_id}}"
-              ]
-            },
-            "description": "Delete an image from Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Path Parameter:**\n- publicId: The Cloudinary public ID from upload response\n\n**Note:**\n- The public ID should be URL-encoded\n- Example: `frovo/catalogue_images/1234-coffee.jpg` becomes `frovo%2Fcatalogue_images%2F1234-coffee.jpg`\n- Use the `product_image_public_id` environment variable\n\n**Warning:**\n- This permanently deletes the image from Cloudinary\n- Make sure to remove the URL from your product/category documents"
-          },
-          "response": []
-        }
-      ],
-      "description": "Upload and manage images for products and categories via Cloudinary"
-    },
-    {
-      "name": "Get All Endpoints",
-      "item": [
         {
           "name": "Get All Categories",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/categories?status=active&page=1&limit=10",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "categories"
-              ],
+              "raw": "{{base_url}}/catalogue/categories?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories"],
               "query": [
                 {
                   "key": "status",
                   "value": "active",
-                  "description": "Filter by status: active or inactive"
+                  "description": "Filter by status: active or inactive",
+                  "disabled": true
                 },
                 {
                   "key": "category_name",
                   "value": "Beverages",
-                  "description": "Search by category name (partial match)",
+                  "description": "Search by category name",
                   "disabled": true
                 },
                 {
@@ -925,11 +99,581 @@
                 {
                   "key": "limit",
                   "value": "10",
-                  "description": "Items per page (default: 10, max: 100)"
+                  "description": "Items per page (default: 10)"
                 }
               ]
             },
-            "description": "Get all categories with pagination and filtering\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Query Parameters:**\n- status: Filter by active/inactive\n- category_name: Search by name (case-insensitive)\n- page: Page number\n- limit: Items per page\n\n**Returns:**\n- Array of categories with sub-categories list\n- Total count and pagination info\n- Statistics (total, active, inactive)"
+            "description": "Get all categories with pagination and filtering\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "{{category_id}}"]
+            },
+            "description": "Get a specific category by ID\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "category_name",
+                  "value": "Beverages Updated",
+                  "type": "text",
+                  "description": "Optional: New category name"
+                },
+                {
+                  "key": "description",
+                  "value": "Updated description for beverages category",
+                  "type": "text",
+                  "description": "Optional: New description"
+                },
+                {
+                  "key": "category_status",
+                  "value": "active",
+                  "type": "text",
+                  "description": "Optional: active or inactive"
+                },
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Optional: New category image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "{{category_id}}"]
+            },
+            "description": "Update a category\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "{{category_id}}"]
+            },
+            "description": "Delete a category\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/{{category_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "{{category_id}}", "status"]
+            },
+            "description": "Update category status with body\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Category Image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Category image (JPG, PNG, PDF)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/upload-image",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "upload-image"]
+            },
+            "description": "Upload category image to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/dashboard/stats",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "dashboard", "stats"]
+            },
+            "description": "Get category statistics\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Categories CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/export/category/csv",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "export", "category", "csv"]
+            },
+            "description": "Export all categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Category with Sub-Categories CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/export/category/csv/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "export", "category", "csv", "{{category_id}}"]
+            },
+            "description": "Export a category with its sub-categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        }
+      ],
+      "description": "Category Management APIs"
+    },
+    {
+      "name": "Sub-Category",
+      "item": [
+        {
+          "name": "Create Sub-Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data._id) {",
+                  "        pm.environment.set('sub_category_id', response.data._id);",
+                  "        pm.environment.set('sub_category_name', response.data.sub_category_name);",
+                  "        console.log('Sub-Category created:', response.data._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "sub_category_name",
+                  "value": "Cold Drinks",
+                  "type": "text",
+                  "description": "Required: Sub-category name"
+                },
+                {
+                  "key": "description",
+                  "value": "All types of cold beverages",
+                  "type": "text",
+                  "description": "Required: Sub-category description"
+                },
+                {
+                  "key": "category_id",
+                  "value": "{{category_id}}",
+                  "type": "text",
+                  "description": "Required: Parent category ID"
+                },
+                {
+                  "key": "sub_category_status",
+                  "value": "active",
+                  "type": "text",
+                  "description": "Optional: active or inactive (default: active)"
+                },
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Optional: Sub-category image (JPG, PNG, PDF)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-category",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-category"]
+            },
+            "description": "Create a new sub-category under a category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Sub-Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status",
+                  "disabled": true
+                },
+                {
+                  "key": "category_id",
+                  "value": "{{category_id}}",
+                  "description": "Filter by category ID",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get all sub-categories with pagination\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sub-Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+            },
+            "description": "Get a specific sub-category by ID\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sub-Categories by Category ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/categories/{{category_id}}/sub-categories",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "categories", "{{category_id}}", "sub-categories"]
+            },
+            "description": "Get all sub-categories for a specific category\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Sub-Category",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "sub_category_name",
+                  "value": "Cold Drinks Updated",
+                  "type": "text",
+                  "description": "Optional: New sub-category name"
+                },
+                {
+                  "key": "description",
+                  "value": "Updated description for cold drinks",
+                  "type": "text",
+                  "description": "Optional: New description"
+                },
+                {
+                  "key": "sub_category_status",
+                  "value": "active",
+                  "type": "text",
+                  "description": "Optional: active or inactive"
+                },
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Optional: New sub-category image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+            },
+            "description": "Update a sub-category\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Sub-Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+            },
+            "description": "Delete a sub-category\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Sub-Category Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sub_category_status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories", "{{sub_category_id}}", "status"]
+            },
+            "description": "Update sub-category status with body\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Sub-Category Image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Sub-category image (JPG, PNG, PDF)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sub-categories/upload-image",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sub-categories", "upload-image"]
+            },
+            "description": "Upload sub-category image to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Sub-Categories CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/export/sub-category/csv",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "export", "sub-category", "csv"]
+            },
+            "description": "Export all sub-categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        }
+      ],
+      "description": "Sub-Category Management APIs"
+    },
+    {
+      "name": "SKU Catalogue",
+      "item": [
+        {
+          "name": "Create SKU Catalogue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data._id) {",
+                  "        pm.environment.set('catalogue_id', response.data._id);",
+                  "        pm.environment.set('sku_id', response.data.sku_id);",
+                  "        console.log('Catalogue created:', response.data._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "sku_id",
+                  "value": "BEV-COF-001",
+                  "type": "text",
+                  "description": "Required: Unique SKU ID"
+                },
+                {
+                  "key": "product_name",
+                  "value": "Premium Arabica Coffee",
+                  "type": "text",
+                  "description": "Required: Product name"
+                },
+                {
+                  "key": "brand_name",
+                  "value": "Starbucks",
+                  "type": "text",
+                  "description": "Required: Brand name"
+                },
+                {
+                  "key": "description",
+                  "value": "Rich and aromatic arabica coffee beans",
+                  "type": "text",
+                  "description": "Required: Product description"
+                },
+                {
+                  "key": "category",
+                  "value": "Beverages",
+                  "type": "text",
+                  "description": "Required: Category name"
+                },
+                {
+                  "key": "sub_category",
+                  "value": "Coffee",
+                  "type": "text",
+                  "description": "Required: Sub-category name"
+                },
+                {
+                  "key": "manufacturer_name",
+                  "value": "Starbucks Corporation",
+                  "type": "text",
+                  "description": "Required: Manufacturer name"
+                },
+                {
+                  "key": "manufacturer_address",
+                  "value": "2401 Utah Avenue South, Seattle, WA 98134, USA",
+                  "type": "text",
+                  "description": "Required: Manufacturer address"
+                },
+                {
+                  "key": "shell_life",
+                  "value": "12 months",
+                  "type": "text",
+                  "description": "Required: Shelf life"
+                },
+                {
+                  "key": "expiry_alert_threshold",
+                  "value": "30",
+                  "type": "text",
+                  "description": "Required: Days before expiry to alert (1-365)"
+                },
+                {
+                  "key": "tages_label",
+                  "value": "premium, organic, fair-trade",
+                  "type": "text",
+                  "description": "Optional: Tags/labels"
+                },
+                {
+                  "key": "unit_size",
+                  "value": "250g",
+                  "type": "text",
+                  "description": "Required: Unit size"
+                },
+                {
+                  "key": "base_price",
+                  "value": "15.99",
+                  "type": "text",
+                  "description": "Required: Base price"
+                },
+                {
+                  "key": "final_price",
+                  "value": "15.99",
+                  "type": "text",
+                  "description": "Required: Final price (>= base_price)"
+                },
+                {
+                  "key": "barcode",
+                  "value": "1234567890123",
+                  "type": "text",
+                  "description": "Required: Unique barcode"
+                },
+                {
+                  "key": "nutrition_information",
+                  "value": "Calories: 2 per serving, Fat: 0g, Carbs: 0g",
+                  "type": "text",
+                  "description": "Optional: Nutrition info"
+                },
+                {
+                  "key": "ingredients",
+                  "value": "100% Arabica Coffee Beans",
+                  "type": "text",
+                  "description": "Optional: Ingredients"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "description": "Optional: active or inactive"
+                },
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Optional: Product image(s)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sku-catalogue",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sku-catalogue"]
+            },
+            "description": "Create a new SKU catalogue item\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
           "response": []
         },
@@ -939,19 +683,15 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/catalogues?status=active&page=1&limit=10&sort_by=product_name&sort_order=asc",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "catalogues"
-              ],
+              "raw": "{{base_url}}/catalogue/catalogues?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "catalogues"],
               "query": [
                 {
                   "key": "status",
                   "value": "active",
-                  "description": "Filter by status"
+                  "description": "Filter by status",
+                  "disabled": true
                 },
                 {
                   "key": "category",
@@ -974,13 +714,13 @@
                 {
                   "key": "min_price",
                   "value": "10",
-                  "description": "Minimum price",
+                  "description": "Minimum price filter",
                   "disabled": true
                 },
                 {
                   "key": "max_price",
                   "value": "50",
-                  "description": "Maximum price",
+                  "description": "Maximum price filter",
                   "disabled": true
                 },
                 {
@@ -995,131 +735,256 @@
                 },
                 {
                   "key": "sort_by",
-                  "value": "product_name",
-                  "description": "Sort field: product_name, base_price, createdAt"
-                },
-                {
-                  "key": "sort_order",
-                  "value": "asc",
-                  "description": "Sort order: asc or desc"
-                }
-              ]
-            },
-            "description": "Get all catalogue products with advanced filtering\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Supports all dashboard filters:**\n- category, brand_name, status\n- min_price, max_price\n- search (full-text)\n- Pagination & sorting"
-          },
-          "response": []
-        }
-      ],
-      "description": "List all categories and products with pagination"
-    },
-    {
-      "name": "Dashboard & Reporting",
-      "item": [
-        {
-          "name": "Get Dashboard (All Products)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/dashboard?page=1&limit=10&sort_by=createdAt&sort_order=desc",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "dashboard"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1",
-                  "description": "Page number (default: 1)"
-                },
-                {
-                  "key": "limit",
-                  "value": "10",
-                  "description": "Items per page (default: 10, max: 100)"
-                },
-                {
-                  "key": "sort_by",
                   "value": "createdAt",
-                  "description": "Sort field: product_name, base_price, createdAt"
+                  "description": "Sort field",
+                  "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "desc",
-                  "description": "Sort order: asc or desc"
+                  "description": "Sort order: asc or desc",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Get paginated dashboard data with all products\n\n**Required Role:** super_admin, admin, ops_manager"
+            "description": "Get all catalogue items with filtering and pagination\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         },
         {
-          "name": "Get Dashboard (With Filters)",
+          "name": "Get Catalogue by ID",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/dashboard?category=Beverages&brand_name=Starbucks&status=active&min_price=10&max_price=50&search=coffee&page=1&limit=10&sort_by=product_name&sort_order=asc",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "dashboard"
-              ],
-              "query": [
+              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+            },
+            "description": "Get a specific catalogue item by ID\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Catalogue",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
                 {
-                  "key": "category",
-                  "value": "Beverages",
-                  "description": "Filter by category name"
+                  "key": "product_name",
+                  "value": "Premium Arabica Coffee - Limited Edition",
+                  "type": "text",
+                  "description": "Optional: New product name"
                 },
                 {
-                  "key": "brand_name",
-                  "value": "Starbucks",
-                  "description": "Filter by brand name"
+                  "key": "description",
+                  "value": "Limited edition premium arabica coffee",
+                  "type": "text",
+                  "description": "Optional: New description"
+                },
+                {
+                  "key": "base_price",
+                  "value": "17.99",
+                  "type": "text",
+                  "description": "Optional: New base price"
+                },
+                {
+                  "key": "final_price",
+                  "value": "17.99",
+                  "type": "text",
+                  "description": "Optional: New final price"
                 },
                 {
                   "key": "status",
                   "value": "active",
-                  "description": "Filter by status: active or inactive"
+                  "type": "text",
+                  "description": "Optional: active or inactive"
+                },
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Optional: New product image(s)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+            },
+            "description": "Update a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Catalogue",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+            },
+            "description": "Delete a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Catalogue Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}", "status"]
+            },
+            "description": "Update catalogue status\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Payload:** { \"status\": \"active\" } or { \"status\": \"inactive\" }"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Product Images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "documents",
+                  "type": "file",
+                  "description": "Product images (max 5)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/catalogue/catalogues/upload-images",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "catalogues", "upload-images"]
+            },
+            "description": "Upload product images to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product Image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/images/{{image_public_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "images", "{{image_public_id}}"]
+            },
+            "description": "Delete a product image from Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Note:** URL-encode the public_id"
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Catalogues CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/export/sku/csv",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "export", "sku", "csv"]
+            },
+            "description": "Export all catalogue items to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        }
+      ],
+      "description": "SKU Catalogue Management APIs"
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/catalogue/dashboard?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "dashboard"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Beverages",
+                  "description": "Filter by category",
+                  "disabled": true
+                },
+                {
+                  "key": "brand_name",
+                  "value": "Starbucks",
+                  "description": "Filter by brand",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status",
+                  "disabled": true
                 },
                 {
                   "key": "min_price",
                   "value": "10",
-                  "description": "Minimum price filter"
+                  "description": "Minimum price",
+                  "disabled": true
                 },
                 {
                   "key": "max_price",
                   "value": "50",
-                  "description": "Maximum price filter"
+                  "description": "Maximum price",
+                  "disabled": true
                 },
                 {
                   "key": "search",
                   "value": "coffee",
-                  "description": "Search in SKU, product name, brand, description"
+                  "description": "Search term",
+                  "disabled": true
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": "Page number"
                 },
                 {
                   "key": "limit",
-                  "value": "10"
+                  "value": "10",
+                  "description": "Items per page"
                 },
                 {
                   "key": "sort_by",
-                  "value": "product_name"
+                  "value": "createdAt",
+                  "description": "Sort field",
+                  "disabled": true
                 },
                 {
                   "key": "sort_order",
-                  "value": "asc"
+                  "value": "desc",
+                  "description": "Sort order",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Get filtered dashboard data\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Available Filters:**\n- category: Filter by category name\n- brand_name: Filter by brand\n- status: active or inactive\n- min_price, max_price: Price range\n- search: Full-text search\n- Pagination & Sorting"
+            "description": "Get dashboard data with filtering\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         },
@@ -1130,647 +995,83 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/dashboard/filter-options",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "dashboard",
-                "filter-options"
-              ]
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "dashboard", "filter-options"]
             },
-            "description": "Get available filter options (unique brands and categories)\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Returns:**\n- Array of unique brand names\n- Array of unique category names"
+            "description": "Get available filter options (brands, categories)\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         },
         {
-          "name": "Export Dashboard to CSV",
+          "name": "Export Dashboard CSV",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/dashboard/export?category=Beverages&status=active",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "dashboard",
-                "export"
-              ],
+              "raw": "{{base_url}}/catalogue/dashboard/export",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "dashboard", "export"],
               "query": [
                 {
                   "key": "category",
                   "value": "Beverages",
-                  "description": "Optional: Filter by category"
+                  "description": "Filter by category",
+                  "disabled": true
                 },
                 {
                   "key": "status",
                   "value": "active",
-                  "description": "Optional: Filter by status"
+                  "description": "Filter by status",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Export dashboard data to CSV file\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Supports same filters as dashboard**\n\n**CSV Columns:**\n- SKU ID\n- Product Name\n- Category\n- Sub Category\n- Brand\n- Unit Size\n- Base Price\n- Final Price\n- Status\n- Created Date"
-          },
-          "response": []
-        }
-      ],
-      "description": "Dashboard views, filtering, and data export"
-    },
-    {
-      "name": "Export Of SKU & Category",
-      "item": [
-        {
-          "name": "Export SKU",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/export/sku/csv",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "export",
-                "sku",
-                "csv"
-              ]
-            }
+            "description": "Export dashboard data to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         },
         {
-          "name": "Export Category",
+          "name": "Export Dashboard CSV (Alternate)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/dashboard?category=Beverages&max_price=20&sort_by=base_price&sort_order=asc",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "catalogue",
-                "dashboard"
-              ],
+              "raw": "{{base_url}}/catalogue/export/dashboard-csv",
+              "host": ["{{base_url}}"],
+              "path": ["catalogue", "export", "dashboard-csv"],
               "query": [
                 {
                   "key": "category",
-                  "value": "Beverages"
+                  "value": "Beverages",
+                  "description": "Filter by category",
+                  "disabled": true
                 },
                 {
-                  "key": "max_price",
-                  "value": "20"
-                },
-                {
-                  "key": "sort_by",
-                  "value": "base_price"
-                },
-                {
-                  "key": "sort_order",
-                  "value": "asc"
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status",
+                  "disabled": true
                 }
               ]
-            }
+            },
+            "description": "Export dashboard data to CSV (alternate route)\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         }
       ],
-      "description": "Example requests for testing different scenarios"
-    },
-    {
-      "name": "Sub Category",
-      "item": [
-        {
-          "name": "Create Sub-Category",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-category",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-category"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Sub-Category",
-          "protocolProfileBehavior": {
-            "disableBodyPruning": true
-          },
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-categories",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-categories"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Sub-Category By ID",
-          "protocolProfileBehavior": {
-            "disableBodyPruning": true
-          },
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg3MzA0NDcsImV4cCI6MTc2ODgxNjg0NywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.HKSpahyL39vD84cy9D4vjCV4GQl2igui05neD_6KGbI",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-categories/:id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-categories",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "696ca8f09ebe92fc34afd2bb"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Sub Category By ID",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg3MzA0NDcsImV4cCI6MTc2ODgxNjg0NywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.HKSpahyL39vD84cy9D4vjCV4GQl2igui05neD_6KGbI",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "jatin",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753",
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-categories/:id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-categories",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "696ca68d9ebe92fc34afcf35"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Sub Category By ID Copy",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg3MzA0NDcsImV4cCI6MTc2ODgxNjg0NywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.HKSpahyL39vD84cy9D4vjCV4GQl2igui05neD_6KGbI",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "jatin",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753",
-                  "disabled": true
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-categories/:id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-categories",
-                ":id"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "696ca68d9ebe92fc34afcf35"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Sub-Category with Category ID",
-          "protocolProfileBehavior": {
-            "disableBodyPruning": true
-          },
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/categories/:categoryId/sub-categories",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "categories",
-                ":categoryId",
-                "sub-categories"
-              ],
-              "variable": [
-                {
-                  "key": "categoryId",
-                  "value": "695e87cfec56c9ce7c6c8a89"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Status Update",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PATCH",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/sub-categories/:id/status/inactive",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "sub-categories",
-                ":id",
-                "status",
-                "inactive"
-              ],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "695e8c33733bfb502152fb97"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Export SubCategory",
-          "protocolProfileBehavior": {
-            "disableBodyPruning": true
-          },
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njc3OTYzMjgsImV4cCI6MTc2Nzg4MjcyOCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.EADqMQ4UY_JyU4s3uYbEoqqdouCvo6VMipPUwPG3S0M",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "sub_category_name",
-                  "value": "cold",
-                  "type": "text"
-                },
-                {
-                  "key": "description",
-                  "value": "All types of beverages including hot and cold drinks",
-                  "type": "text"
-                },
-                {
-                  "key": "category_status",
-                  "value": "active",
-                  "type": "text"
-                },
-                {
-                  "key": "documents",
-                  "type": "file",
-                  "description": "Upload category image (JPG, PNG, JPEG)",
-                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
-                },
-                {
-                  "key": "category_id",
-                  "value": "695e87cfec56c9ce7c6c8a89",
-                  "type": "text",
-                  "uuid": "059f69f5-3d0f-4acc-8c79-cee3719c3753"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/export/sub-category/csv",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "export",
-                "sub-category",
-                "csv"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
+      "description": "Dashboard & Reporting APIs"
     }
   ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
   "event": [
     {
       "listen": "prerequest",
@@ -1779,8 +1080,8 @@
         "exec": [
           "// Auto-set authorization header if token exists",
           "const token = pm.environment.get('access_token');",
-          "if (token && !pm.request.headers.has('Authorization')) {",
-          "    pm.request.headers.add({",
+          "if (token) {",
+          "    pm.request.headers.upsert({",
           "        key: 'Authorization',",
           "        value: `Bearer ${token}`",
           "    });",
@@ -1789,11 +1090,5 @@
       }
     }
   ],
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:3000/api/v1",
-      "type": "string"
-    }
-  ]
+  "variable": []
 }

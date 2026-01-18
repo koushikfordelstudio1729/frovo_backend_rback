@@ -54,18 +54,6 @@ router.patch('/categories/:id/status',
     authorize(MANAGEMENT),
     categoryController.updateCategoryStatus.bind(categoryController)
 );
-// Category Status Routes
-router.patch('/categories/:id/status/active',
-    authenticate,
-    authorize(MANAGEMENT),
-    categoryController.activateCategory.bind(categoryController)
-);
-
-router.patch('/categories/:id/status/inactive',
-    authenticate,
-    authorize(MANAGEMENT),
-    categoryController.deactivateCategory.bind(categoryController)
-);
 
 router.delete('/categories/:id',
     authenticate,
@@ -127,18 +115,6 @@ router.patch('/sub-categories/:id/status',
     authenticate,
     authorize(MANAGEMENT),
     subCategoryController.updateSubCategoryStatus.bind(subCategoryController)
-);
-// Sub-Category Status Routes
-router.patch('/sub-categories/:id/status/active',
-    authenticate,
-    authorize(MANAGEMENT),
-    subCategoryController.activateSubCategory.bind(subCategoryController)
-);
-
-router.patch('/sub-categories/:id/status/inactive',
-    authenticate,
-    authorize(MANAGEMENT),
-    subCategoryController.deactivateSubCategory.bind(subCategoryController)
 );
 
 // Delete a sub-category
@@ -222,16 +198,11 @@ router.put('/sku-catalogue/:id',
     uploadMultiple,
     catalogueController.updateCatalogue.bind(catalogueController)
 );
-router.patch('/sku-catalogue/:id/status/active',
+// Payload-based status update
+router.patch('/sku-catalogue/:id/status',
     authenticate,
     authorize(MANAGEMENT),
-    catalogueController.activateCatalogue.bind(catalogueController)
-);
-
-router.patch('/sku-catalogue/:id/status/inactive',
-    authenticate,
-    authorize(MANAGEMENT),
-    catalogueController.deactivateCatalogue.bind(catalogueController)
+    catalogueController.updateCatalogueStatus.bind(catalogueController)
 );
 
 router.delete('/sku-catalogue/:id',

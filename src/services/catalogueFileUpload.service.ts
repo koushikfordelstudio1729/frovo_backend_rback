@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
+import path from 'path';
 import { ICategoryImageData, IProductImageData, ISubCategoryImageData } from '../models/Catalogue.model';
 
 export class ImageUploadService {
@@ -54,7 +55,7 @@ export class ImageUploadService {
                 {
                     folder: folder,
                     resource_type: 'auto',
-                    public_id: `${Date.now()}-${fileName}`,
+                    public_id: `${Date.now()}-${path.parse(fileName).name}`,
                     use_filename: true,
                     unique_filename: true,
                 },

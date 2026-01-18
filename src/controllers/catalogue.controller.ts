@@ -119,10 +119,36 @@ export class CatalogueController extends BaseController {
             // Create product
             const product = await catalogueService.createCatalogue(productData);
 
+            // Format response to be consistent with other endpoints
+            const catalogueResponse = {
+                id: product._id,
+                sku_id: product.sku_id,
+                product_name: product.product_name,
+                brand_name: product.brand_name,
+                description: product.description,
+                category: product.category,
+                sub_category: product.sub_category,
+                manufacturer_name: product.manufacturer_name,
+                manufacturer_address: product.manufacturer_address,
+                shell_life: product.shell_life,
+                expiry_alert_threshold: product.expiry_alert_threshold,
+                tages_label: product.tages_label,
+                unit_size: product.unit_size,
+                base_price: product.base_price,
+                final_price: product.final_price,
+                barcode: product.barcode,
+                nutrition_information: product.nutrition_information,
+                ingredients: product.ingredients,
+                product_images: product.product_images,
+                status: product.status,
+                createdAt: product.createdAt,
+                updatedAt: product.updatedAt
+            };
+
             res.status(201).json({
                 success: true,
                 message: 'Product created successfully',
-                data: product,
+                data: catalogueResponse,
                 meta: {
                     createdBy: userEmail,
                     userRole,
@@ -138,6 +164,9 @@ export class CatalogueController extends BaseController {
                 'Product with this barcode already exists': 409,
                 'Category not found': 404,
                 'Sub-category not found': 404,
+                'Invalid category ID': 400,
+                'Invalid sub-category ID': 400,
+                'Invalid.*ID.*format': 400,
                 'Prices cannot be negative': 400,
                 'Final price cannot be less than base price': 400,
                 'Expiry alert threshold must be between 1 and 365 days': 400,
@@ -245,10 +274,36 @@ export class CatalogueController extends BaseController {
             // Update product
             const updatedProduct = await catalogueService.updateCatalogue(id, updateData);
 
+            // Format response to be consistent with other endpoints
+            const catalogueResponse = {
+                id: updatedProduct._id,
+                sku_id: updatedProduct.sku_id,
+                product_name: updatedProduct.product_name,
+                brand_name: updatedProduct.brand_name,
+                description: updatedProduct.description,
+                category: updatedProduct.category,
+                sub_category: updatedProduct.sub_category,
+                manufacturer_name: updatedProduct.manufacturer_name,
+                manufacturer_address: updatedProduct.manufacturer_address,
+                shell_life: updatedProduct.shell_life,
+                expiry_alert_threshold: updatedProduct.expiry_alert_threshold,
+                tages_label: updatedProduct.tages_label,
+                unit_size: updatedProduct.unit_size,
+                base_price: updatedProduct.base_price,
+                final_price: updatedProduct.final_price,
+                barcode: updatedProduct.barcode,
+                nutrition_information: updatedProduct.nutrition_information,
+                ingredients: updatedProduct.ingredients,
+                product_images: updatedProduct.product_images,
+                status: updatedProduct.status,
+                createdAt: updatedProduct.createdAt,
+                updatedAt: updatedProduct.updatedAt
+            };
+
             res.status(200).json({
                 success: true,
                 message: 'Product updated successfully',
-                data: updatedProduct,
+                data: catalogueResponse,
                 meta: {
                     updatedBy: user.email,
                     userRole: user.roles[0]?.key || 'unknown',
@@ -491,96 +546,80 @@ export class CatalogueController extends BaseController {
         }
     }
 
-// In CatalogueController class
-async activateCatalogue(req: Request, res: Response): Promise<void> {
-    const catalogueService = createCatalogueService(req);
+    // Payload-based status update (Recommended approach)
+    async updateCatalogueStatus(req: Request, res: Response): Promise<void> {
+        const catalogueService = createCatalogueService(req);
 
-    try {
-        const { id } = req.params;
-        const user = CatalogueController.getLoggedInUser(req);
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+            const user = CatalogueController.getLoggedInUser(req);
 
-        // Set status to active
-        const updateData: UpdateCatalogueDTO = { status: 'active' };
-        const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Product activated successfully',
-            data: {
-                id: updatedCatalogue._id,
-                product_name: updatedCatalogue.product_name,
-                sku_id: updatedCatalogue.sku_id,
-                status: updatedCatalogue.status,
-                updatedAt: updatedCatalogue.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
+            if (!status || !['active', 'inactive'].includes(status)) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Valid status (active/inactive) is required'
+                });
+                return;
             }
-        });
 
-    } catch (error: any) {
-        console.error('Error activating product:', error);
+            const updateData: UpdateCatalogueDTO = { status };
+            const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
 
-        let statusCode = 500;
-        if (error.message.includes('Invalid product ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
-        }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to activate product'
-        });
-    }
-}
-
-async deactivateCatalogue(req: Request, res: Response): Promise<void> {
-    const catalogueService = createCatalogueService(req);
-
-    try {
-        const { id } = req.params;
-        const user = CatalogueController.getLoggedInUser(req);
-
-        // Set status to inactive
-        const updateData: UpdateCatalogueDTO = { status: 'inactive' };
-        const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Product deactivated successfully',
-            data: {
+            // Format response to be consistent with other endpoints
+            const catalogueResponse = {
                 id: updatedCatalogue._id,
-                product_name: updatedCatalogue.product_name,
                 sku_id: updatedCatalogue.sku_id,
+                product_name: updatedCatalogue.product_name,
+                brand_name: updatedCatalogue.brand_name,
+                description: updatedCatalogue.description,
+                category: updatedCatalogue.category,
+                sub_category: updatedCatalogue.sub_category,
+                manufacturer_name: updatedCatalogue.manufacturer_name,
+                manufacturer_address: updatedCatalogue.manufacturer_address,
+                shell_life: updatedCatalogue.shell_life,
+                expiry_alert_threshold: updatedCatalogue.expiry_alert_threshold,
+                tages_label: updatedCatalogue.tages_label,
+                unit_size: updatedCatalogue.unit_size,
+                base_price: updatedCatalogue.base_price,
+                final_price: updatedCatalogue.final_price,
+                barcode: updatedCatalogue.barcode,
+                nutrition_information: updatedCatalogue.nutrition_information,
+                ingredients: updatedCatalogue.ingredients,
+                product_images: updatedCatalogue.product_images,
                 status: updatedCatalogue.status,
+                createdAt: updatedCatalogue.createdAt,
                 updatedAt: updatedCatalogue.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
+            };
+
+            res.status(200).json({
+                success: true,
+                message: 'Product status updated successfully',
+                data: catalogueResponse,
+                meta: {
+                    updatedBy: user.email,
+                    userRole: user.roles[0]?.key || 'unknown',
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Error updating product status:', error);
+
+            let statusCode = 500;
+            if (error.message.includes('Invalid product ID')) {
+                statusCode = 400;
+            } else if (error.message.includes('not found')) {
+                statusCode = 404;
             }
-        });
 
-    } catch (error: any) {
-        console.error('Error deactivating product:', error);
-
-        let statusCode = 500;
-        if (error.message.includes('Invalid product ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
+            res.status(statusCode).json({
+                success: false,
+                message: error.message || 'Failed to update product status'
+            });
         }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to deactivate product'
-        });
     }
-}
+
     async exportDashboardCSV(req: Request, res: Response): Promise<void> {
         try {
             const filters: DashboardFilterDTO = {
@@ -768,10 +807,24 @@ export class CategoryController extends BaseController {
         // Create category
         const category = await categoryService.createCategory(categoryData);
 
+        // Format response to be consistent with other endpoints
+        const categoryResponse = {
+            id: category._id,
+            category_name: category.category_name,
+            description: category.description,
+            category_status: category.category_status,
+            category_image: category.category_image,
+            createdAt: category.createdAt,
+            updatedAt: category.updatedAt,
+            sub_categories: [],
+            sub_categories_count: 0,
+            product_count: 0
+        };
+
         res.status(201).json({
             success: true,
             message: 'Category created successfully',
-            data: category,
+            data: categoryResponse,
             meta: {
                 createdBy: user.email,
                 userRole: user.roles[0]?.key || 'unknown',
@@ -932,10 +985,37 @@ export class CategoryController extends BaseController {
         const updateData: UpdateCategoryDTO = { ...req.body };
         const updatedCategory = await categoryService.updateCategory(id, updateData);
 
+        // Get sub-categories count and product count for consistent response
+        const subCategoryService = createSubCategoryService(req);
+        const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
+        const productCount = await categoryService.getProductCountByCategory(id);
+
+        // Format response to be consistent with other endpoints
+        const categoryResponse = {
+            id: updatedCategory._id,
+            category_name: updatedCategory.category_name,
+            description: updatedCategory.description,
+            category_status: updatedCategory.category_status,
+            category_image: updatedCategory.category_image,
+            createdAt: updatedCategory.createdAt,
+            updatedAt: updatedCategory.updatedAt,
+            sub_categories: subCategories.map(subCat => ({
+                id: subCat._id,
+                sub_category_name: subCat.sub_category_name,
+                description: subCat.description,
+                sub_category_status: subCat.sub_category_status,
+                sub_category_image: subCat.sub_category_image,
+                createdAt: subCat.createdAt,
+                updatedAt: subCat.updatedAt
+            })),
+            sub_categories_count: subCategories.length,
+            product_count: productCount
+        };
+
         res.status(200).json({
             success: true,
             message: 'Category updated successfully',
-            data: updatedCategory,
+            data: categoryResponse,
             meta: {
                 updatedBy: user.email,
                 userRole: user.roles[0]?.key || 'unknown',
@@ -980,10 +1060,37 @@ export class CategoryController extends BaseController {
             const updateData: UpdateCategoryDTO = { category_status: status };
             const updatedCategory = await categoryService.updateCategory(id, updateData);
 
+            // Get sub-categories and product count for consistent response
+            const subCategoryService = createSubCategoryService(req);
+            const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
+            const productCount = await categoryService.getProductCountByCategory(id);
+
+            // Format response to be consistent with other endpoints
+            const categoryResponse = {
+                id: updatedCategory._id,
+                category_name: updatedCategory.category_name,
+                description: updatedCategory.description,
+                category_status: updatedCategory.category_status,
+                category_image: updatedCategory.category_image,
+                createdAt: updatedCategory.createdAt,
+                updatedAt: updatedCategory.updatedAt,
+                sub_categories: subCategories.map(subCat => ({
+                    id: subCat._id,
+                    sub_category_name: subCat.sub_category_name,
+                    description: subCat.description,
+                    sub_category_status: subCat.sub_category_status,
+                    sub_category_image: subCat.sub_category_image,
+                    createdAt: subCat.createdAt,
+                    updatedAt: subCat.updatedAt
+                })),
+                sub_categories_count: subCategories.length,
+                product_count: productCount
+            };
+
             res.status(200).json({
                 success: true,
                 message: 'Category status updated successfully',
-                data: updatedCategory,
+                data: categoryResponse,
                 meta: {
                     updatedBy: user.email,
                     userRole: user.roles[0]?.key || 'unknown',
@@ -1007,93 +1114,7 @@ export class CategoryController extends BaseController {
             });
         }
     }
-async activateCategory(req: Request, res: Response): Promise<void> {
-    const categoryService = createCategoryService(req);
 
-    try {
-        const { id } = req.params;
-        const user = CategoryController.getLoggedInUser(req);
-
-        // Set status to active
-        const updateData: UpdateCategoryDTO = { category_status: 'active' };
-        const updatedCategory = await categoryService.updateCategory(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Category activated successfully',
-            data: {
-                id: updatedCategory._id,
-                category_name: updatedCategory.category_name,
-                category_status: updatedCategory.category_status,
-                updatedAt: updatedCategory.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Error activating category:', error);
-
-        let statusCode = 500;
-        if (error.message.includes('Invalid category ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
-        }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to activate category'
-        });
-    }
-}
-
-async deactivateCategory(req: Request, res: Response): Promise<void> {
-    const categoryService = createCategoryService(req);
-
-    try {
-        const { id } = req.params;
-        const user = CategoryController.getLoggedInUser(req);
-
-        // Set status to inactive
-        const updateData: UpdateCategoryDTO = { category_status: 'inactive' };
-        const updatedCategory = await categoryService.updateCategory(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Category deactivated successfully',
-            data: {
-                id: updatedCategory._id,
-                category_name: updatedCategory.category_name,
-                category_status: updatedCategory.category_status,
-                updatedAt: updatedCategory.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Error deactivating category:', error);
-
-        let statusCode = 500;
-        if (error.message.includes('Invalid category ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
-        }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to deactivate category'
-        });
-    }
-}
     async deleteCategory(req: Request, res: Response): Promise<void> {
         const categoryService = createCategoryService(req);
 
@@ -1503,10 +1524,28 @@ export class SubCategoryController extends BaseController {
         // Create sub-category
         const subCategory = await subCategoryService.createSubCategory(subCategoryData);
 
+        // Get parent category name for consistent response
+        const categoryService = createCategoryService(req);
+        const parentCategory = await categoryService.getCategoryById(req.body.category_id);
+
+        // Format response to be consistent with other endpoints
+        const subCategoryResponse = {
+            id: subCategory._id,
+            sub_category_name: subCategory.sub_category_name,
+            description: subCategory.description,
+            category_id: subCategory.category_id,
+            category_name: parentCategory?.category_name || '',
+            sub_category_status: subCategory.sub_category_status,
+            sub_category_image: subCategory.sub_category_image,
+            createdAt: subCategory.createdAt,
+            updatedAt: subCategory.updatedAt,
+            product_count: 0
+        };
+
         res.status(201).json({
             success: true,
             message: 'Sub-category created successfully',
-            data: subCategory,
+            data: subCategoryResponse,
             meta: {
                 createdBy: user.email,
                 userRole: user.roles[0]?.key || 'unknown',
@@ -1663,10 +1702,28 @@ export class SubCategoryController extends BaseController {
         const updateData: UpdateSubCategoryDTO = { ...req.body };
         const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
 
+        // Get parent category name for consistent response
+        const categoryService = createCategoryService(req);
+        const parentCategory = await categoryService.getCategoryById(updatedSubCategory.category_id.toString());
+
+        // Format response to be consistent with other endpoints
+        const subCategoryResponse = {
+            id: updatedSubCategory._id,
+            sub_category_name: updatedSubCategory.sub_category_name,
+            description: updatedSubCategory.description,
+            category_id: updatedSubCategory.category_id,
+            category_name: parentCategory?.category_name || '',
+            sub_category_status: updatedSubCategory.sub_category_status,
+            sub_category_image: updatedSubCategory.sub_category_image,
+            createdAt: updatedSubCategory.createdAt,
+            updatedAt: updatedSubCategory.updatedAt,
+            product_count: 0
+        };
+
         res.status(200).json({
             success: true,
             message: 'Sub-category updated successfully',
-            data: updatedSubCategory,
+            data: subCategoryResponse,
             meta: {
                 updatedBy: user.email,
                 userRole: user.roles[0]?.key || 'unknown',
@@ -1711,15 +1768,28 @@ export class SubCategoryController extends BaseController {
             const updateData: UpdateSubCategoryDTO = { sub_category_status: status };
             const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
 
+            // Get parent category name for consistent response
+            const categoryService = createCategoryService(req);
+            const parentCategory = await categoryService.getCategoryById(updatedSubCategory.category_id.toString());
+
+            // Format response to be consistent with other endpoints
+            const subCategoryResponse = {
+                id: updatedSubCategory._id,
+                sub_category_name: updatedSubCategory.sub_category_name,
+                description: updatedSubCategory.description,
+                category_id: updatedSubCategory.category_id,
+                category_name: parentCategory?.category_name || '',
+                sub_category_status: updatedSubCategory.sub_category_status,
+                sub_category_image: updatedSubCategory.sub_category_image,
+                createdAt: updatedSubCategory.createdAt,
+                updatedAt: updatedSubCategory.updatedAt,
+                product_count: 0
+            };
+
             res.status(200).json({
                 success: true,
                 message: 'Sub-category status updated successfully',
-                data: {
-                    id: updatedSubCategory._id,
-                    sub_category_name: updatedSubCategory.sub_category_name,
-                    sub_category_status: updatedSubCategory.sub_category_status,
-                    updatedAt: updatedSubCategory.updatedAt
-                },
+                data: subCategoryResponse,
                 meta: {
                     updatedBy: user.email,
                     userRole: user.roles[0]?.key || 'unknown',
@@ -1743,93 +1813,6 @@ export class SubCategoryController extends BaseController {
             });
         }
     }
-    async activateSubCategory(req: Request, res: Response): Promise<void> {
-    const subCategoryService = createSubCategoryService(req);
-
-    try {
-        const { id } = req.params;
-        const user = SubCategoryController.getLoggedInUser(req);
-
-        // Set status to active
-        const updateData: UpdateSubCategoryDTO = { sub_category_status: 'active' };
-        const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Sub-category activated successfully',
-            data: {
-                id: updatedSubCategory._id,
-                sub_category_name: updatedSubCategory.sub_category_name,
-                sub_category_status: updatedSubCategory.sub_category_status,
-                updatedAt: updatedSubCategory.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Error activating sub-category:', error);
-
-        let statusCode = 500;
-        if (error.message.includes('Invalid sub-category ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
-        }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to activate sub-category'
-        });
-    }
-}
-
-async deactivateSubCategory(req: Request, res: Response): Promise<void> {
-    const subCategoryService = createSubCategoryService(req);
-
-    try {
-        const { id } = req.params;
-        const user = SubCategoryController.getLoggedInUser(req);
-
-        // Set status to inactive
-        const updateData: UpdateSubCategoryDTO = { sub_category_status: 'inactive' };
-        const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Sub-category deactivated successfully',
-            data: {
-                id: updatedSubCategory._id,
-                sub_category_name: updatedSubCategory.sub_category_name,
-                sub_category_status: updatedSubCategory.sub_category_status,
-                updatedAt: updatedSubCategory.updatedAt
-            },
-            meta: {
-                updatedBy: user.email,
-                userRole: user.roles[0]?.key || 'unknown',
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Error deactivating sub-category:', error);
-
-        let statusCode = 500;
-        if (error.message.includes('Invalid sub-category ID')) {
-            statusCode = 400;
-        } else if (error.message.includes('not found')) {
-            statusCode = 404;
-        }
-
-        res.status(statusCode).json({
-            success: false,
-            message: error.message || 'Failed to deactivate sub-category'
-        });
-    }
-}
 
     async deleteSubCategory(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
