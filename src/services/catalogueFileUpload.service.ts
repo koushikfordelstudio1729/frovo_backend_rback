@@ -94,52 +94,57 @@ export class ImageUploadService {
     }
 
     /**
-     * Create document metadata object
+     * Create document metadata object (generic method for all image types)
      * @param file - Multer file object
-
      * @param cloudinaryUrl - URL from Cloudinary
      * @param cloudinaryPublicId - Public ID from Cloudinary
+     * @returns Image metadata object
+     */
+    private createImageMetadata(
+        file: Express.Multer.File,
+        cloudinaryUrl: string,
+        cloudinaryPublicId: string,
+    ): ICategoryImageData | ISubCategoryImageData | IProductImageData {
+        return {
+            image_name: file.originalname,
+            file_url: cloudinaryUrl,
+            cloudinary_public_id: cloudinaryPublicId,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_at: new Date(),
+        };
+    }
+
+    /**
+     * Create category document metadata
      */
     createCategoryDocumentMetadata(
         file: Express.Multer.File,
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): ICategoryImageData {
-        return {
-            image_name: file.originalname,
-            file_url: cloudinaryUrl,
-            cloudinary_public_id: cloudinaryPublicId,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-        };
+        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as ICategoryImageData;
     }
-     createSubCategoryDocumentMetadata(
+
+    /**
+     * Create sub-category document metadata
+     */
+    createSubCategoryDocumentMetadata(
         file: Express.Multer.File,
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): ISubCategoryImageData {
-        return {
-            image_name: file.originalname,
-            file_url: cloudinaryUrl,
-            cloudinary_public_id: cloudinaryPublicId,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-        };
+        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as ISubCategoryImageData;
     }
+
+    /**
+     * Create product document metadata
+     */
     createProductDocumentMetadata(
         file: Express.Multer.File,
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): IProductImageData {
-        return {
-            image_name: file.originalname,
-            file_url: cloudinaryUrl,
-            cloudinary_public_id: cloudinaryPublicId,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-        };
+        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as IProductImageData;
     }
 }

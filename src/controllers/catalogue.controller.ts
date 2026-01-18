@@ -369,27 +369,7 @@ export class CatalogueController extends BaseController {
 
     async getDashboard(req: Request, res: Response): Promise<void> {
         try {
-            const filters: DashboardFilterDTO = {
-                category: req.query.category as string,
-                brand_name: req.query.brand_name as string,
-                status: req.query.status as 'active' | 'inactive',
-                search: req.query.search as string,
-                page: req.query.page ? parseInt(req.query.page as string) : 1,
-                limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
-                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
-            };
-
-            if (req.query.min_price) {
-                filters.min_price = parseFloat(req.query.min_price as string);
-            }
-            if (req.query.max_price) {
-                filters.max_price = parseFloat(req.query.max_price as string);
-            }
-
-            if (filters.page! < 1) filters.page = 1;
-            if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
-
+            const filters: DashboardFilterDTO = this.buildCatalogueFilters(req);
             const dashboardData = await catalogueService.getDashboardData(filters);
 
             res.status(200).json({
@@ -433,28 +413,9 @@ export class CatalogueController extends BaseController {
     }
 
     async getAllCatalogues(req: Request, res: Response): Promise<void> {
+        // Reuse getDashboard logic with different response message
         try {
-            const filters: DashboardFilterDTO = {
-                category: req.query.category as string,
-                brand_name: req.query.brand_name as string,
-                status: req.query.status as 'active' | 'inactive',
-                search: req.query.search as string,
-                page: req.query.page ? parseInt(req.query.page as string) : 1,
-                limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-                sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
-                sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
-            };
-
-            if (req.query.min_price) {
-                filters.min_price = parseFloat(req.query.min_price as string);
-            }
-            if (req.query.max_price) {
-                filters.max_price = parseFloat(req.query.max_price as string);
-            }
-
-            if (filters.page! < 1) filters.page = 1;
-            if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
-
+            const filters: DashboardFilterDTO = this.buildCatalogueFilters(req);
             const cataloguesData = await catalogueService.getDashboardData(filters);
 
             res.status(200).json({
@@ -470,6 +431,32 @@ export class CatalogueController extends BaseController {
                 message: 'Failed to fetch catalogues'
             });
         }
+    }
+
+    // Helper method to build catalogue filters from request
+    private buildCatalogueFilters(req: Request): DashboardFilterDTO {
+        const filters: DashboardFilterDTO = {
+            category: req.query.category as string,
+            brand_name: req.query.brand_name as string,
+            status: req.query.status as 'active' | 'inactive',
+            search: req.query.search as string,
+            page: req.query.page ? parseInt(req.query.page as string) : 1,
+            limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+            sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
+            sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
+        };
+
+        if (req.query.min_price) {
+            filters.min_price = parseFloat(req.query.min_price as string);
+        }
+        if (req.query.max_price) {
+            filters.max_price = parseFloat(req.query.max_price as string);
+        }
+
+        if (filters.page! < 1) filters.page = 1;
+        if (filters.limit! < 1 || filters.limit! > 100) filters.limit = 10;
+
+        return filters;
     }
 
     async uploadProductImage(req: Request, res: Response): Promise<void> {
@@ -628,7 +615,7 @@ export class CatalogueController extends BaseController {
                 status: req.query.status as 'active' | 'inactive',
                 search: req.query.search as string,
                 page: 1,
-                limit: 10000, // Get all records for export
+                limit: parseInt(process.env.EXPORT_MAX_RECORDS || '10000'), // Get all records for export
                 sort_by: req.query.sort_by as 'product_name' | 'base_price' | 'createdAt' || 'createdAt',
                 sort_order: req.query.sort_order as 'asc' | 'desc' || 'desc'
             };
@@ -661,7 +648,7 @@ export class CatalogueController extends BaseController {
             // Use getDashboardData with a large limit to get all catalogues
             const filters: DashboardFilterDTO = {
                 page: 1,
-                limit: 100000 // Large limit to get all records
+                limit: parseInt(process.env.EXPORT_MAX_RECORDS || '100000') // Get all records for export
             };
             const dashboardData = await catalogueService.getDashboardData(filters);
             const csv = this.convertAllCataloguesToCSV(dashboardData.products);
@@ -839,7 +826,11 @@ export class CategoryController extends BaseController {
         let statusCode = 500;
         if (error.message.includes('already exists')) {
             statusCode = 409;
-        } else if (error.name === 'ValidationError') {
+        } else if (error.name === 'ValidationError' ||
+                   error.message.includes('is required') ||
+                   error.message.includes('must be') ||
+                   error.message.includes('Maximum') ||
+                   error.message.includes('Invalid')) {
             statusCode = 400;
         }
 
@@ -849,6 +840,7 @@ export class CategoryController extends BaseController {
         });
     }
 }
+
     async getCategoryById(req: Request, res: Response): Promise<void> {
     const categoryService = createCategoryService(req);
     const subCategoryService = createSubCategoryService(req);
@@ -1417,7 +1409,7 @@ private convertCategoryWithSubCategoriesToCSV(data: any): string {
             // Use getAllCategoriesWithFilters with a large limit to get all categories
             const filters: CategoryFilterDTO = {
                 page: 1,
-                limit: 100000 // Large limit to get all records
+                limit: parseInt(process.env.EXPORT_MAX_RECORDS || '100000') // Get all records for export
             };
             const result = await categoryService.getAllCategoriesWithFilters(filters);
             const csv = this.convertAllCategoriesToCSV(result.categories);
@@ -1517,7 +1509,7 @@ export class SubCategoryController extends BaseController {
             sub_category_name: req.body.sub_category_name,
             description: req.body.description,
             category_id: req.body.category_id,
-            sub_category_images: subCategoryImagesData, // Changed to array
+            sub_category_image: subCategoryImagesData, // Array of images
             sub_category_status: req.body.sub_category_status || 'active'
         };
 
@@ -1562,7 +1554,11 @@ export class SubCategoryController extends BaseController {
             statusCode = 409;
         } else if (error.message.includes('not found')) {
             statusCode = 404;
-        } else if (error.name === 'ValidationError') {
+        } else if (error.name === 'ValidationError' ||
+                   error.message.includes('is required') ||
+                   error.message.includes('must be') ||
+                   error.message.includes('Maximum') ||
+                   error.message.includes('Invalid')) {
             statusCode = 400;
         }
 
@@ -1572,6 +1568,7 @@ export class SubCategoryController extends BaseController {
         });
     }
 }
+
     async getSubCategoryById(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
 
@@ -1685,13 +1682,13 @@ export class SubCategoryController extends BaseController {
             
             // If replacing all images, set the new images
             if (req.body.replace_images === 'true') {
-                req.body.sub_category_images = newSubCategoryImages;
+                req.body.sub_category_image = newSubCategoryImages;
             } else {
                 // If adding to existing images, we need to get current images first
                 const currentSubCategory = await subCategoryService.getSubCategoryById(id);
                 if (currentSubCategory) {
                     const currentImages = (currentSubCategory as any).sub_category_image || [];
-                    req.body.sub_category_images = [...currentImages, ...newSubCategoryImages];
+                    req.body.sub_category_image = [...currentImages, ...newSubCategoryImages];
                 }
             }
             
@@ -1905,7 +1902,7 @@ export class SubCategoryController extends BaseController {
                 category_id: req.query.category_id as string,
                 sub_category_name: req.query.sub_category_name as string,
                 page: 1,
-                limit: 100000
+                limit: parseInt(process.env.EXPORT_MAX_RECORDS || '100000') // Get all records for export
             };
 
             const result = await subCategoryService.getAllSubCategoriesWithFilters(filters);

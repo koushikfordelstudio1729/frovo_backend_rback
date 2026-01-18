@@ -20,7 +20,7 @@ export interface CreateSubCategoryDTO {
   sub_category_name: string;
   description: string;
   category_id: string;
-  sub_category_images?: any[]; // Changed to array
+  sub_category_image?: any[]; // Array of images (matches model field name)
   sub_category_status?: 'active' | 'inactive';
 }
 
@@ -363,12 +363,13 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
                 .limit(limit)
                 .lean();
 
-            // Get sub-category counts for each category
-            const categoriesWithCounts = await Promise.all(
+            // Get sub-categories and counts for each category
+            const categoriesWithSubCategories = await Promise.all(
                 categories.map(async (category) => {
-                    const subCategoriesCount = await SubCategoryModel.countDocuments({
+                    // Get sub-categories for this category
+                    const subCategories = await SubCategoryModel.find({
                         category_id: category._id
-                    });
+                    }).lean();
 
                     const productCount = await CatalogueModel.countDocuments({
                         category: category._id
@@ -380,16 +381,25 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
                         description: category.description,
                         category_status: category.category_status,
                         category_image: category.category_image,
-                        sub_categories_count: subCategoriesCount,
-                        product_count: productCount,
                         createdAt: category.createdAt,
-                        updatedAt: category.updatedAt
+                        updatedAt: category.updatedAt,
+                        sub_categories: subCategories.map(subCat => ({
+                            id: subCat._id.toString(),
+                            sub_category_name: subCat.sub_category_name,
+                            description: subCat.description,
+                            sub_category_status: subCat.sub_category_status,
+                            sub_category_image: subCat.sub_category_image,
+                            createdAt: subCat.createdAt,
+                            updatedAt: subCat.updatedAt
+                        })),
+                        sub_categories_count: subCategories.length,
+                        product_count: productCount
                     };
                 })
             );
 
             return {
-                categories: categoriesWithCounts,
+                categories: categoriesWithSubCategories,
                 total,
                 page,
                 limit,
@@ -403,8 +413,7 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
     }
 
     // Update Category
-    // Update Category
-async updateCategory(
+    async updateCategory(
     categoryId: string,
     updateData: UpdateCategoryDTO
 ): Promise<ICategory> {
@@ -714,13 +723,13 @@ async createSubCategory(subCategoryData: CreateSubCategoryDTO): Promise<ISubCate
         }
 
         // Validate that at least one image is provided
-        if (!subCategoryData.sub_category_images || subCategoryData.sub_category_images.length === 0) {
+        if (!subCategoryData.sub_category_image || subCategoryData.sub_category_image.length === 0) {
             throw new Error('At least one sub-category image is required');
         }
 
         // Validate maximum number of images
         const maxImages = parseInt(process.env.MAX_SUBCATEGORY_IMAGES || '10');
-        if (subCategoryData.sub_category_images.length > maxImages) {
+        if (subCategoryData.sub_category_image.length > maxImages) {
             throw new Error(`Maximum ${maxImages} sub-category images allowed`);
         }
 
@@ -730,7 +739,7 @@ async createSubCategory(subCategoryData: CreateSubCategoryDTO): Promise<ISubCate
             description: subCategoryData.description,
             category_id: subCategoryData.category_id,
             sub_category_status: subCategoryData.sub_category_status || 'active',
-            sub_category_image: subCategoryData.sub_category_images // Map to the correct field name
+            sub_category_image: subCategoryData.sub_category_image
         });
 
         const savedSubCategory = await subCategory.save();
@@ -954,17 +963,17 @@ async updateSubCategory(
         }
 
         // Validate images if being updated
-        if (updateData.sub_category_images) {
-            if (!Array.isArray(updateData.sub_category_images)) {
+        if (updateData.sub_category_image) {
+            if (!Array.isArray(updateData.sub_category_image)) {
                 throw new Error('Sub-category images must be an array');
             }
 
             const maxImages = parseInt(process.env.MAX_SUBCATEGORY_IMAGES || '10');
-            if (updateData.sub_category_images.length > maxImages) {
+            if (updateData.sub_category_image.length > maxImages) {
                 throw new Error(`Maximum ${maxImages} sub-category images allowed`);
             }
 
-            if (updateData.sub_category_images.length === 0) {
+            if (updateData.sub_category_image.length === 0) {
                 throw new Error('At least one sub-category image is required');
             }
         }
@@ -972,12 +981,8 @@ async updateSubCategory(
         // Store before state for audit
         const beforeState = existingSubCategory.toObject();
 
-        // Map sub_category_images to sub_category_image field in the model
+        // Prepare update object
         const updateObject: any = { ...updateData };
-        if (updateData.sub_category_images) {
-            updateObject.sub_category_image = updateData.sub_category_images;
-            delete updateObject.sub_category_images;
-        }
 
         // Update sub-category
         const updatedSubCategory = await SubCategoryModel.findByIdAndUpdate(

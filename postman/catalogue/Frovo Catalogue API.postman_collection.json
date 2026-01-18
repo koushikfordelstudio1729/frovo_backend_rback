@@ -61,9 +61,9 @@
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/category",
+              "raw": "{{base_url}}/catalogue/categories",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "category"]
+              "path": ["catalogue", "categories"]
             },
             "description": "Create a new category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -189,7 +189,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"category_status\": \"inactive\"\n}"
+              "raw": "{\n    \"status\": \"inactive\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}/status",
@@ -330,9 +330,9 @@
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/sub-category",
+              "raw": "{{base_url}}/catalogue/sub-categories",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-category"]
+              "path": ["catalogue", "sub-categories"]
             },
             "description": "Create a new sub-category under a category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -472,7 +472,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"sub_category_status\": \"inactive\"\n}"
+              "raw": "{\n    \"status\": \"inactive\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}/status",
@@ -669,9 +669,9 @@
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue",
+              "raw": "{{base_url}}/catalogue/sku-catalogues",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogue"]
+              "path": ["catalogue", "sku-catalogues"]
             },
             "description": "Create a new SKU catalogue item\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -683,9 +683,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/catalogues?page=1&limit=10",
+              "raw": "{{base_url}}/catalogue/sku-catalogues?page=1&limit=10",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "catalogues"],
+              "path": ["catalogue", "sku-catalogues"],
               "query": [
                 {
                   "key": "status",
@@ -757,9 +757,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
             },
             "description": "Get a specific catalogue item by ID\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -811,9 +811,9 @@
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
             },
             "description": "Update a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -825,9 +825,9 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}",
+              "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}"]
+              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
             },
             "description": "Delete a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -848,9 +848,9 @@
               "raw": "{\n    \"status\": \"active\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/sku-catalogue/{{catalogue_id}}/status",
+              "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}/status",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogue", "{{catalogue_id}}", "status"]
+              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}", "status"]
             },
             "description": "Update catalogue status\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Payload:** { \"status\": \"active\" } or { \"status\": \"inactive\" }"
           },
@@ -872,9 +872,9 @@
               ]
             },
             "url": {
-              "raw": "{{base_url}}/catalogue/catalogues/upload-images",
+              "raw": "{{base_url}}/catalogue/sku-catalogues/upload-images",
               "host": ["{{base_url}}"],
-              "path": ["catalogue", "catalogues", "upload-images"]
+              "path": ["catalogue", "sku-catalogues", "upload-images"]
             },
             "description": "Upload product images to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -1027,34 +1027,6 @@
               ]
             },
             "description": "Export dashboard data to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
-          },
-          "response": []
-        },
-        {
-          "name": "Export Dashboard CSV (Alternate)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/catalogue/export/dashboard-csv",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "export", "dashboard-csv"],
-              "query": [
-                {
-                  "key": "category",
-                  "value": "Beverages",
-                  "description": "Filter by category",
-                  "disabled": true
-                },
-                {
-                  "key": "status",
-                  "value": "active",
-                  "description": "Filter by status",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Export dashboard data to CSV (alternate route)\n\n**Required Role:** super_admin, admin, ops_manager"
           },
           "response": []
         }

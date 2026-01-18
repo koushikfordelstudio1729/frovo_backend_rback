@@ -7,10 +7,10 @@ import { uploadMultiple, uploadSingle } from '../middleware/upload.middleware';
 
 const router = express.Router();
 const SUPER_ADMIN_ONLY = ['super_admin'];
-const MANAGEMENT = ['super_admin', 'admin', 'ops_manager', ''];
+const MANAGEMENT = ['super_admin', 'admin', 'ops_manager'];
 
 // ==================== CATEGORY ROUTES ====================
-router.post('/category',
+router.post('/categories',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
@@ -74,7 +74,7 @@ router.get('/export/category/csv/:id',
 );
 // ==================== SUB-CATEGORY ROUTES ====================
 // Create a new sub-category under a category
-router.post('/sub-category',
+router.post('/sub-categories',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
@@ -140,20 +140,20 @@ router.get('/export/sub-category/csv',
 );
 
 // ==================== CATALOGUE ROUTES ====================
-router.post('/sku-catalogue',
+router.post('/sku-catalogues',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
     catalogueController.createCatalogue.bind(catalogueController)
 );
 
-router.get('/catalogues',
+router.get('/sku-catalogues',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.getAllCatalogues.bind(catalogueController)
 );
 
-router.post('/catalogues/upload-images',
+router.post('/sku-catalogues/upload-images',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
@@ -186,26 +186,27 @@ router.get('/dashboard/export',
 );
 
 // ==================== CATALOGUE DETAIL ROUTES ====================
-router.get('/sku-catalogue/:id',
+router.get('/sku-catalogues/:id',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.getCatalogueById.bind(catalogueController)
 );
 
-router.put('/sku-catalogue/:id',
+router.put('/sku-catalogues/:id',
     authenticate,
     authorize(MANAGEMENT),
     uploadMultiple,
     catalogueController.updateCatalogue.bind(catalogueController)
 );
+
 // Payload-based status update
-router.patch('/sku-catalogue/:id/status',
+router.patch('/sku-catalogues/:id/status',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.updateCatalogueStatus.bind(catalogueController)
 );
 
-router.delete('/sku-catalogue/:id',
+router.delete('/sku-catalogues/:id',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.deleteCatalogue.bind(catalogueController)
@@ -216,12 +217,6 @@ router.get('/export/sku/csv',
     authenticate,
     authorize(MANAGEMENT),
     catalogueController.exportAllCataloguesCSV.bind(catalogueController)
-);
-
-router.get('/export/dashboard-csv',
-    authenticate,
-    authorize(MANAGEMENT),
-    catalogueController.exportDashboardCSV.bind(catalogueController)
 );
 
 export default router;
