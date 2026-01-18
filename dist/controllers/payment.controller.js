@@ -44,7 +44,7 @@ exports.initiatePayment = (0, asyncHandler_util_1.asyncHandler)(async (req, res)
 });
 exports.getPayment = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { paymentId } = req.params;
+        const paymentId = req.params.paymentId;
         const userId = req.user?.id;
         if (!paymentId) {
             return (0, response_util_1.sendError)(res, 'Payment ID is required', 400);
@@ -127,7 +127,7 @@ exports.confirmPayment = (0, asyncHandler_util_1.asyncHandler)(async (req, res) 
 });
 exports.processRefund = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { paymentId } = req.params;
+        const paymentId = req.params.paymentId;
         const { refundAmount, reason } = req.body;
         if (!paymentId) {
             return (0, response_util_1.sendError)(res, 'Payment ID is required', 400);
@@ -175,7 +175,7 @@ exports.getUserPaymentStats = (0, asyncHandler_util_1.asyncHandler)(async (req, 
 });
 exports.getMachinePaymentStats = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         if (!machineId) {
             return (0, response_util_1.sendError)(res, 'Machine ID is required', 400);
         }
@@ -193,7 +193,7 @@ exports.getMachinePaymentStats = (0, asyncHandler_util_1.asyncHandler)(async (re
 });
 exports.mockPaymentSuccess = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { paymentId } = req.params;
+        const paymentId = req.params.paymentId;
         if (!paymentId) {
             return (0, response_util_1.sendError)(res, 'Payment ID is required', 400);
         }
@@ -217,7 +217,7 @@ exports.mockPaymentSuccess = (0, asyncHandler_util_1.asyncHandler)(async (req, r
 });
 exports.mockPaymentFailure = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { paymentId } = req.params;
+        const paymentId = req.params.paymentId;
         if (!paymentId) {
             return (0, response_util_1.sendError)(res, 'Payment ID is required', 400);
         }

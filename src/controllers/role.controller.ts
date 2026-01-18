@@ -40,7 +40,7 @@ export const getRoles = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getRoleById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);
@@ -60,7 +60,7 @@ export const getRoleById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateRole = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);
@@ -84,7 +84,7 @@ export const updateRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const publishRole = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);
@@ -108,7 +108,7 @@ export const publishRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const deleteRole = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);
@@ -132,7 +132,7 @@ export const deleteRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const assignRole = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { userIds } = req.body;
   
   if (!id) {
@@ -157,7 +157,7 @@ export const assignRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const cloneRole = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { name, description } = req.body;
   
   if (!req.user) {
@@ -186,7 +186,7 @@ export const cloneRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getRolePermissions = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);
@@ -206,7 +206,7 @@ export const getRolePermissions = asyncHandler(async (req: Request, res: Respons
 });
 
 export const updateRolePermissions = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { permissions } = req.body;
   
   if (!id) {
@@ -231,7 +231,7 @@ export const updateRolePermissions = asyncHandler(async (req: Request, res: Resp
 });
 
 export const getRoleUsers = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   
   if (!id) {
     return sendError(res, 'Role ID is required', 400);

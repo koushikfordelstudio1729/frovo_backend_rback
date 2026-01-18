@@ -6,7 +6,7 @@ const asyncHandler_util_1 = require("../utils/asyncHandler.util");
 const response_util_1 = require("../utils/response.util");
 exports.getProductById = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const product = await product_service_1.productService.getProductById(id);
         return (0, response_util_1.sendSuccess)(res, product, 'Product retrieved successfully');
     }
@@ -45,7 +45,7 @@ exports.getAllProducts = (0, asyncHandler_util_1.asyncHandler)(async (req, res) 
 });
 exports.getProductsByCategory = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { category } = req.params;
+        const category = req.params.category;
         const products = await product_service_1.productService.getProductsByCategory(category);
         return (0, response_util_1.sendSuccess)(res, {
             category,

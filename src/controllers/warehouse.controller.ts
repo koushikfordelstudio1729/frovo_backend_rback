@@ -191,7 +191,7 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
   }
 
   try {
-    const { purchaseOrderId } = req.params;
+    const purchaseOrderId = req.params.purchaseOrderId as string;
 
     if (!purchaseOrderId) {
       return sendBadRequest(res, 'Purchase order ID is required');
@@ -217,7 +217,7 @@ export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
   }
 
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     
     if (!id) {
       return sendBadRequest(res, 'GRN ID is required');
@@ -258,7 +258,7 @@ export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) 
   }
 
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { qc_status, remarks } = req.body;
 
     if (!id) {
@@ -300,7 +300,7 @@ export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Respo
     return sendError(res, 'Insufficient permissions to view purchase orders', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
 
   try {
@@ -320,7 +320,7 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
     return sendError(res, 'Insufficient permissions to update purchase order status', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { po_status, remarks } = req.body;
 
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
@@ -343,7 +343,7 @@ export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Respon
     return sendError(res, 'Insufficient permissions to delete purchase orders', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Purchase order ID is required');
 
   try {
@@ -381,7 +381,7 @@ export const getDispatches = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const getDispatchById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Dispatch ID is required');
 
   try {
@@ -394,7 +394,7 @@ export const getDispatchById = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const updateDispatchStatus = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { status } = req.body;
 
   if (!id) return sendBadRequest(res, 'Dispatch ID is required');
@@ -431,7 +431,7 @@ export const getQCTemplates = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const updateQCTemplate = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Template ID is required');
   
   try {
@@ -444,7 +444,7 @@ export const updateQCTemplate = asyncHandler(async (req: Request, res: Response)
 });
 
 export const deleteQCTemplate = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Template ID is required');
   
   try {
@@ -481,7 +481,7 @@ export const getReturnQueue = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const approveReturn = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Return ID is required');
   
   try {
@@ -493,7 +493,7 @@ export const approveReturn = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const rejectReturn = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Return ID is required');
   
   try {
@@ -532,7 +532,7 @@ export const createFieldAgent = asyncHandler(async (req: Request, res: Response)
 export const updateFieldAgent = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, 'Unauthorized', 401);
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'User ID is required');
 
   try {
@@ -545,7 +545,7 @@ export const updateFieldAgent = asyncHandler(async (req: Request, res: Response)
 
 // Screen 4: Inventory Management
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
-  const { warehouseId } = req.params;
+  const warehouseId = req.params.warehouseId as string;
   const { page = 1, limit = 50, ...filters } = req.query;
 
   if (!warehouseId) {
@@ -566,7 +566,7 @@ export const getInventoryDashboard = asyncHandler(async (req: Request, res: Resp
 });
 
 export const getInventoryItem = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   if (!id) {
     return sendBadRequest(res, 'Inventory ID is required');
@@ -584,7 +584,7 @@ export const getInventoryItem = asyncHandler(async (req: Request, res: Response)
 });
 
 export const updateInventoryItem = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const updateData = req.body;
 
   if (!id) {
@@ -600,7 +600,7 @@ export const updateInventoryItem = asyncHandler(async (req: Request, res: Respon
 });
 
 export const archiveInventory = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   if (!id) {
     return sendBadRequest(res, 'Inventory ID is required');
@@ -615,7 +615,7 @@ export const archiveInventory = asyncHandler(async (req: Request, res: Response)
 });
 
 export const unarchiveInventory = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   if (!id) {
     return sendBadRequest(res, 'Inventory ID is required');
@@ -630,7 +630,7 @@ export const unarchiveInventory = asyncHandler(async (req: Request, res: Respons
 });
 
 export const getArchivedInventory = asyncHandler(async (req: Request, res: Response) => {
-  const { warehouseId } = req.params;
+  const warehouseId = req.params.warehouseId as string;
   const { page = 1, limit = 50 } = req.query;
 
   if (!warehouseId) {
@@ -650,7 +650,7 @@ export const getArchivedInventory = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getInventoryStats = asyncHandler(async (req: Request, res: Response) => {
-  const { warehouseId } = req.params;
+  const warehouseId = req.params.warehouseId as string;
 
   if (!warehouseId) {
     return sendBadRequest(res, 'Warehouse ID is required');
@@ -720,7 +720,7 @@ export const getExpenses = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateExpenseStatus = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { status } = req.body;
 
   if (!id) return sendBadRequest(res, 'Expense ID is required');
@@ -735,7 +735,7 @@ export const updateExpenseStatus = asyncHandler(async (req: Request, res: Respon
 });
 
 export const updateExpensePaymentStatus = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { paymentStatus } = req.body;
 
   if (!id) return sendBadRequest(res, 'Expense ID is required');
@@ -750,7 +750,7 @@ export const updateExpensePaymentStatus = asyncHandler(async (req: Request, res:
 });
 
 export const updateExpense = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Expense ID is required');
 
   try {
@@ -762,7 +762,7 @@ export const updateExpense = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const deleteExpense = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Expense ID is required');
 
   try {
@@ -774,7 +774,7 @@ export const deleteExpense = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const uploadExpenseBill = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   if (!id) return sendBadRequest(res, 'Expense ID is required');
 
@@ -791,7 +791,7 @@ export const uploadExpenseBill = asyncHandler(async (req: Request, res: Response
 });
 
 export const getExpenseById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Expense ID is required');
 
   try {
@@ -1020,7 +1020,7 @@ export const getWarehouseById = asyncHandler(async (req: Request, res: Response)
     return sendError(res, 'Insufficient permissions to view warehouse', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Warehouse ID is required');
 
   try {
@@ -1039,7 +1039,7 @@ export const updateWarehouse = asyncHandler(async (req: Request, res: Response) 
     return sendError(res, 'Insufficient permissions to update warehouse', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Warehouse ID is required');
 
   try {
@@ -1059,7 +1059,7 @@ export const deleteWarehouse = asyncHandler(async (req: Request, res: Response) 
     return sendError(res, 'Only Super Admin can delete warehouses', 403);
   }
 
-  const { id } = req.params;
+  const id = req.params.id as string;
   if (!id) return sendBadRequest(res, 'Warehouse ID is required');
 
   try {

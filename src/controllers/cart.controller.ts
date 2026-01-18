@@ -65,7 +65,9 @@ export const updateCartItem = asyncHandler(async (req: Request, res: Response) =
       return sendError(res, 'User not authenticated', 401);
     }
 
-    const { productId, machineId, slotNumber } = req.params;
+    const productId = req.params.productId as string;
+    const machineId = req.params.machineId as string;
+    const slotNumber = req.params.slotNumber as string;
     const { quantity } = req.body;
 
     if (!productId || !machineId || !slotNumber) {
@@ -95,7 +97,9 @@ export const removeFromCart = asyncHandler(async (req: Request, res: Response) =
       return sendError(res, 'User not authenticated', 401);
     }
 
-    const { productId, machineId, slotNumber } = req.params;
+    const productId = req.params.productId as string;
+    const machineId = req.params.machineId as string;
+    const slotNumber = req.params.slotNumber as string;
 
     if (!productId || !machineId || !slotNumber) {
       return sendError(res, 'Product ID, machine ID, and slot number are required', 400);

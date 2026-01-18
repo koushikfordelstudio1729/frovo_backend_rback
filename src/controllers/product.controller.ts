@@ -5,8 +5,8 @@ import { sendSuccess, sendError } from '../utils/response.util';
 
 export const getProductById = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const product = await productService.getProductById(id!);
+    const id = req.params.id as string;
+    const product = await productService.getProductById(id);
     
     return sendSuccess(res, product, 'Product retrieved successfully');
   } catch (error) {
@@ -46,8 +46,8 @@ export const getAllProducts = asyncHandler(async (req: Request, res: Response) =
 
 export const getProductsByCategory = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { category } = req.params;
-    const products = await productService.getProductsByCategory(category!);
+    const category = req.params.category as string;
+    const products = await productService.getProductsByCategory(category);
     
     return sendSuccess(res, {
       category,

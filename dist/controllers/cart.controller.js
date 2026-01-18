@@ -59,7 +59,9 @@ exports.updateCartItem = (0, asyncHandler_util_1.asyncHandler)(async (req, res) 
         if (!userId) {
             return (0, response_util_1.sendError)(res, 'User not authenticated', 401);
         }
-        const { productId, machineId, slotNumber } = req.params;
+        const productId = req.params.productId;
+        const machineId = req.params.machineId;
+        const slotNumber = req.params.slotNumber;
         const { quantity } = req.body;
         if (!productId || !machineId || !slotNumber) {
             return (0, response_util_1.sendError)(res, 'Product ID, machine ID, and slot number are required', 400);
@@ -85,7 +87,9 @@ exports.removeFromCart = (0, asyncHandler_util_1.asyncHandler)(async (req, res) 
         if (!userId) {
             return (0, response_util_1.sendError)(res, 'User not authenticated', 401);
         }
-        const { productId, machineId, slotNumber } = req.params;
+        const productId = req.params.productId;
+        const machineId = req.params.machineId;
+        const slotNumber = req.params.slotNumber;
         if (!productId || !machineId || !slotNumber) {
             return (0, response_util_1.sendError)(res, 'Product ID, machine ID, and slot number are required', 400);
         }

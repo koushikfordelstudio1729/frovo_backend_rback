@@ -39,7 +39,7 @@ export const checkPermission = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const getPermissionsByModule = asyncHandler(async (req: Request, res: Response) => {
-  const { module } = req.params;
+  const module = req.params.module as string;
   
   if (!module) {
     return sendError(res, 'Module parameter is required', 400);

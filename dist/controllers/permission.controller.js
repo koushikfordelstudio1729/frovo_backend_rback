@@ -31,7 +31,7 @@ exports.checkPermission = (0, asyncHandler_util_1.asyncHandler)(async (req, res)
     }
 });
 exports.getPermissionsByModule = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { module } = req.params;
+    const module = req.params.module;
     if (!module) {
         return (0, response_util_1.sendError)(res, 'Module parameter is required', 400);
     }

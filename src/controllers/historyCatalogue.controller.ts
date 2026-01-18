@@ -22,7 +22,8 @@ export class HistoryController {
      */
     async getEntityAuditLogs(req: Request, res: Response): Promise<void> {
         try {
-            const { entityType, entityId } = req.params;
+            const entityType = req.params.entityType as string;
+            const entityId = req.params.entityId as string;
             const { operation, limit, skip } = req.query;
 
             console.log(`Fetching audit logs for ${entityType}/${entityId}`);
@@ -73,7 +74,7 @@ export class HistoryController {
      */
     async getUserAuditLogs(req: Request, res: Response): Promise<void> {
         try {
-            const { userId } = req.params;
+            const userId = req.params.userId as string;
             const { entityType, operation, limit, skip, startDate, endDate } = req.query;
 
             console.log(`Fetching audit logs for user ${userId}`);

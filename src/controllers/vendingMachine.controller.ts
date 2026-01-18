@@ -32,7 +32,7 @@ export const getAllVendingMachines = asyncHandler(async (req: Request, res: Resp
 
 export const getVendingMachineById = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const machine = await vendingMachineService.getVendingMachineById(id!);
     
     return sendSuccess(res, machine, 'Vending machine retrieved successfully');
@@ -47,7 +47,7 @@ export const getVendingMachineById = asyncHandler(async (req: Request, res: Resp
 
 export const getVendingMachineByMachineId = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
     const machine = await vendingMachineService.getVendingMachineByMachineId(machineId!);
     
     return sendSuccess(res, machine, 'Vending machine retrieved successfully');
@@ -62,7 +62,7 @@ export const getVendingMachineByMachineId = asyncHandler(async (req: Request, re
 
 export const getVendingMachineProducts = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
     const result = await vendingMachineService.getVendingMachineProducts(machineId!);
     
     return sendSuccess(res, result, 'Machine products retrieved successfully');
@@ -113,7 +113,7 @@ export const getLocationFilters = asyncHandler(async (_req: Request, res: Respon
 
 export const getMachineStats = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
     const stats = await vendingMachineService.getMachineStats(machineId!);
     
     return sendSuccess(res, stats, 'Machine stats retrieved successfully');
@@ -128,7 +128,8 @@ export const getMachineStats = asyncHandler(async (req: Request, res: Response) 
 
 export const checkProductAvailability = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId, slotNumber } = req.params;
+    const machineId = req.params.machineId as string;
+    const slotNumber = req.params.slotNumber as string;
     const availability = await vendingMachineService.checkProductAvailability(machineId!, slotNumber!);
     
     return sendSuccess(res, availability, 'Product availability checked successfully');

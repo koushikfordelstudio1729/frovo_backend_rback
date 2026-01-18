@@ -54,7 +54,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
 export const getUserById = asyncHandler(async (req: Request, res: Response) => {
   
   try {
-    const user = await userService.getUserById(req.params['id']!);
+    const user = await userService.getUserById(req.params['id'] as string);
     
     sendSuccess(res, user);
   } catch (error) {
@@ -69,7 +69,7 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
 export const updateUser = asyncHandler(async (req: Request, res: Response) => {
   
   try {
-    const user = await userService.updateUser(req.params['id']!, req.body);
+    const user = await userService.updateUser(req.params['id'] as string, req.body);
     
     sendSuccess(res, user, MESSAGES.UPDATED);
   } catch (error) {
@@ -89,7 +89,7 @@ export const updateUserStatus = asyncHandler(async (req: Request, res: Response)
   const { status } = req.body;
   
   try {
-    const user = await userService.updateUserStatus(req.params['id']!, status);
+    const user = await userService.updateUserStatus(req.params['id'] as string, status);
     
     sendSuccess(res, user, 'User status updated successfully');
   } catch (error) {
@@ -104,7 +104,7 @@ export const updateUserStatus = asyncHandler(async (req: Request, res: Response)
 export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   
   try {
-    await userService.deleteUser(req.params['id']!);
+    await userService.deleteUser(req.params['id'] as string);
     
     sendSuccess(res, null, MESSAGES.DELETED);
   } catch (error) {
@@ -119,7 +119,7 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
 export const getUserPermissions = asyncHandler(async (req: Request, res: Response) => {
   
   try {
-    const permissions = await userService.getUserPermissions(req.params['id']!);
+    const permissions = await userService.getUserPermissions(req.params['id'] as string);
     
     sendSuccess(res, { permissions });
   } catch (error) {
@@ -135,7 +135,7 @@ export const assignRoles = asyncHandler(async (req: Request, res: Response) => {
   const { roleIds } = req.body;
   
   try {
-    const user = await userService.assignRoles(req.params['id']!, roleIds);
+    const user = await userService.assignRoles(req.params['id'] as string, roleIds);
     
     sendSuccess(res, user, 'Roles assigned successfully');
   } catch (error) {
@@ -154,7 +154,7 @@ export const assignRoles = asyncHandler(async (req: Request, res: Response) => {
 export const removeRole = asyncHandler(async (req: Request, res: Response) => {
   
   try {
-    const user = await userService.removeRole(req.params['id']!, req.params['roleId']!);
+    const user = await userService.removeRole(req.params['id'] as string, req.params['roleId'] as string);
     
     sendSuccess(res, user, 'Role removed successfully');
   } catch (error) {
@@ -170,7 +170,7 @@ export const updateUserPassword = asyncHandler(async (req: Request, res: Respons
   const { newPassword } = req.body;
   
   try {
-    await userService.updatePassword(req.params['id']!, newPassword);
+    await userService.updatePassword(req.params['id'] as string, newPassword);
     
     sendSuccess(res, null, 'Password updated successfully');
   } catch (error) {

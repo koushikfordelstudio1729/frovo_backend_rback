@@ -150,7 +150,7 @@ exports.createGRN = (0, express_async_handler_1.default)(async (req, res) => {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to create GRN', 403);
     }
     try {
-        const { purchaseOrderId } = req.params;
+        const purchaseOrderId = req.params.purchaseOrderId;
         if (!purchaseOrderId) {
             return (0, responseHandlers_1.sendBadRequest)(res, 'Purchase order ID is required');
         }
@@ -168,7 +168,7 @@ exports.getGRNById = (0, express_async_handler_1.default)(async (req, res) => {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to view GRN', 403);
     }
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         if (!id) {
             return (0, responseHandlers_1.sendBadRequest)(res, 'GRN ID is required');
         }
@@ -201,7 +201,7 @@ exports.updateGRNStatus = (0, express_async_handler_1.default)(async (req, res) 
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to update GRN status', 403);
     }
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const { qc_status, remarks } = req.body;
         if (!id) {
             return (0, responseHandlers_1.sendBadRequest)(res, 'GRN ID is required');
@@ -233,7 +233,7 @@ exports.getPurchaseOrderById = (0, express_async_handler_1.default)(async (req, 
     if (!req.user || !(0, auth_middleware_1.checkPermission)(req.user, 'purchase_orders:view')) {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to view purchase orders', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Purchase order ID is required');
     try {
@@ -252,7 +252,7 @@ exports.updatePurchaseOrderStatus = (0, express_async_handler_1.default)(async (
     if (!(0, auth_middleware_1.checkPermission)(req.user, 'purchase_orders:status_update')) {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to update purchase order status', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     const { po_status, remarks } = req.body;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Purchase order ID is required');
@@ -274,7 +274,7 @@ exports.deletePurchaseOrder = (0, express_async_handler_1.default)(async (req, r
     if (!(0, auth_middleware_1.checkPermission)(req.user, 'purchase_orders:delete')) {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to delete purchase orders', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Purchase order ID is required');
     try {
@@ -307,7 +307,7 @@ exports.getDispatches = (0, express_async_handler_1.default)(async (req, res) =>
     }
 });
 exports.getDispatchById = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Dispatch ID is required');
     try {
@@ -321,7 +321,7 @@ exports.getDispatchById = (0, express_async_handler_1.default)(async (req, res) 
     }
 });
 exports.updateDispatchStatus = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { status } = req.body;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Dispatch ID is required');
@@ -357,7 +357,7 @@ exports.getQCTemplates = (0, express_async_handler_1.default)(async (req, res) =
     }
 });
 exports.updateQCTemplate = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Template ID is required');
     try {
@@ -371,7 +371,7 @@ exports.updateQCTemplate = (0, express_async_handler_1.default)(async (req, res)
     }
 });
 exports.deleteQCTemplate = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Template ID is required');
     try {
@@ -404,7 +404,7 @@ exports.getReturnQueue = (0, express_async_handler_1.default)(async (req, res) =
     }
 });
 exports.approveReturn = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Return ID is required');
     try {
@@ -416,7 +416,7 @@ exports.approveReturn = (0, express_async_handler_1.default)(async (req, res) =>
     }
 });
 exports.rejectReturn = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Return ID is required');
     try {
@@ -453,7 +453,7 @@ exports.createFieldAgent = (0, express_async_handler_1.default)(async (req, res)
 exports.updateFieldAgent = (0, express_async_handler_1.default)(async (req, res) => {
     if (!req.user)
         return (0, responseHandlers_1.sendError)(res, 'Unauthorized', 401);
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'User ID is required');
     try {
@@ -465,7 +465,7 @@ exports.updateFieldAgent = (0, express_async_handler_1.default)(async (req, res)
     }
 });
 exports.getInventoryDashboard = (0, express_async_handler_1.default)(async (req, res) => {
-    const { warehouseId } = req.params;
+    const warehouseId = req.params.warehouseId;
     const { page = 1, limit = 50, ...filters } = req.query;
     if (!warehouseId) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
@@ -479,7 +479,7 @@ exports.getInventoryDashboard = (0, express_async_handler_1.default)(async (req,
     }
 });
 exports.getInventoryItem = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Inventory ID is required');
     }
@@ -495,7 +495,7 @@ exports.getInventoryItem = (0, express_async_handler_1.default)(async (req, res)
     }
 });
 exports.updateInventoryItem = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const updateData = req.body;
     if (!id) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Inventory ID is required');
@@ -509,7 +509,7 @@ exports.updateInventoryItem = (0, express_async_handler_1.default)(async (req, r
     }
 });
 exports.archiveInventory = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Inventory ID is required');
     }
@@ -522,7 +522,7 @@ exports.archiveInventory = (0, express_async_handler_1.default)(async (req, res)
     }
 });
 exports.unarchiveInventory = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Inventory ID is required');
     }
@@ -535,7 +535,7 @@ exports.unarchiveInventory = (0, express_async_handler_1.default)(async (req, re
     }
 });
 exports.getArchivedInventory = (0, express_async_handler_1.default)(async (req, res) => {
-    const { warehouseId } = req.params;
+    const warehouseId = req.params.warehouseId;
     const { page = 1, limit = 50 } = req.query;
     if (!warehouseId) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
@@ -549,7 +549,7 @@ exports.getArchivedInventory = (0, express_async_handler_1.default)(async (req, 
     }
 });
 exports.getInventoryStats = (0, express_async_handler_1.default)(async (req, res) => {
-    const { warehouseId } = req.params;
+    const warehouseId = req.params.warehouseId;
     if (!warehouseId) {
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
     }
@@ -609,7 +609,7 @@ exports.getExpenses = (0, express_async_handler_1.default)(async (req, res) => {
     }
 });
 exports.updateExpenseStatus = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { status } = req.body;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
@@ -624,7 +624,7 @@ exports.updateExpenseStatus = (0, express_async_handler_1.default)(async (req, r
     }
 });
 exports.updateExpensePaymentStatus = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { paymentStatus } = req.body;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
@@ -639,7 +639,7 @@ exports.updateExpensePaymentStatus = (0, express_async_handler_1.default)(async 
     }
 });
 exports.updateExpense = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
     try {
@@ -651,7 +651,7 @@ exports.updateExpense = (0, express_async_handler_1.default)(async (req, res) =>
     }
 });
 exports.deleteExpense = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
     try {
@@ -663,7 +663,7 @@ exports.deleteExpense = (0, express_async_handler_1.default)(async (req, res) =>
     }
 });
 exports.uploadExpenseBill = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
     if (!req.file) {
@@ -678,7 +678,7 @@ exports.uploadExpenseBill = (0, express_async_handler_1.default)(async (req, res
     }
 });
 exports.getExpenseById = (0, express_async_handler_1.default)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Expense ID is required');
     try {
@@ -884,7 +884,7 @@ exports.getWarehouseById = (0, express_async_handler_1.default)(async (req, res)
     if (!(0, auth_middleware_1.checkPermission)(req.user, 'warehouse:view')) {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to view warehouse', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
     try {
@@ -901,7 +901,7 @@ exports.updateWarehouse = (0, express_async_handler_1.default)(async (req, res) 
     if (!(0, auth_middleware_1.checkPermission)(req.user, 'warehouse:manage')) {
         return (0, responseHandlers_1.sendError)(res, 'Insufficient permissions to update warehouse', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
     try {
@@ -919,7 +919,7 @@ exports.deleteWarehouse = (0, express_async_handler_1.default)(async (req, res) 
     if (!isSuperAdmin) {
         return (0, responseHandlers_1.sendError)(res, 'Only Super Admin can delete warehouses', 403);
     }
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id)
         return (0, responseHandlers_1.sendBadRequest)(res, 'Warehouse ID is required');
     try {

@@ -37,7 +37,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 
 export const getOrder = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const userId = req.user?.id;
 
     if (!orderId) {
@@ -88,7 +88,7 @@ export const getUserOrders = asyncHandler(async (req: Request, res: Response) =>
 
 export const getOrderSummary = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const userId = req.user?.id;
 
     if (!orderId) {
@@ -109,7 +109,7 @@ export const getOrderSummary = asyncHandler(async (req: Request, res: Response) 
 
 export const cancelOrder = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const { reason } = req.body;
     const userId = req.user?.id;
 
@@ -159,7 +159,7 @@ export const getUserOrderStats = asyncHandler(async (req: Request, res: Response
 // Admin/Machine Management Controllers
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const { status, reason } = req.body;
 
     if (!orderId) {
@@ -188,7 +188,7 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
 
 export const markItemDispensed = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = req.params.orderId as string;
     const { productId, slotNumber } = req.body;
 
     if (!orderId || !productId || !slotNumber) {
@@ -209,7 +209,7 @@ export const markItemDispensed = asyncHandler(async (req: Request, res: Response
 
 export const getOrdersByMachine = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
     const { status, page = 1, limit = 20 } = req.query;
 
     if (!machineId) {
@@ -239,7 +239,7 @@ export const getOrdersByMachine = asyncHandler(async (req: Request, res: Respons
 
 export const getMachineOrderStats = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
 
     if (!machineId) {
       return sendError(res, 'Machine ID is required', 400);

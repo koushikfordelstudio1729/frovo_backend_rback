@@ -91,7 +91,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const pickup = await fieldOpsService.getWarehousePickupById(id);
       return sendSuccess(res, pickup, 'Warehouse pickup retrieved successfully');
     } catch (error) {
@@ -103,7 +103,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       // Ensure FieldAgent record exists
       await this.getFieldAgentId(req.user._id.toString());
 
@@ -148,7 +148,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { routeId } = req.params;
+      const routeId = req.params.routeId as string;
       const agentId = await this.getFieldAgentId(req.user._id.toString());
       const machines = await fieldOpsService.getRouteMachines(routeId, agentId);
       return sendSuccess(res, machines, 'Route machines retrieved successfully');
@@ -175,7 +175,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const machine = await fieldOpsService.getMachineDetails(machineId);
       return sendSuccess(res, machine, 'Machine details retrieved successfully');
     } catch (error) {
@@ -187,7 +187,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const health = await fieldOpsService.getMachineHealth(machineId);
       return sendSuccess(res, health, 'Machine health retrieved successfully');
     } catch (error) {
@@ -200,7 +200,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const refillData = await fieldOpsService.getMachineRefillData(machineId);
       return sendSuccess(res, refillData, 'Machine refill data retrieved successfully');
     } catch (error) {
@@ -212,7 +212,8 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId, slotId } = req.params;
+      const machineId = req.params.machineId as string;
+    const slotId = req.params.slotId as string;
       const slotDetails = await fieldOpsService.getSlotDetails(machineId, slotId);
       return sendSuccess(res, slotDetails, 'Slot details retrieved successfully');
     } catch (error) {
@@ -224,7 +225,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const agentId = await this.getFieldAgentId(req.user._id.toString());
       const result = await fieldOpsService.submitRefill(machineId, agentId, req.body);
       return sendCreated(res, result, result.message);
@@ -237,7 +238,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { refillId } = req.params;
+      const refillId = req.params.refillId as string;
       const summary = await fieldOpsService.getRefillSummary(refillId);
       return sendSuccess(res, summary, 'Refill summary retrieved successfully');
     } catch (error) {
@@ -250,7 +251,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const agentId = await this.getFieldAgentId(req.user._id.toString());
       const result = await fieldOpsService.skipMachine(machineId, agentId, req.body);
       return sendSuccess(res, result, result.message);
@@ -264,7 +265,7 @@ export class FieldOpsController {
     if (!req.user) return sendError(res, 'Unauthorized', 401);
 
     try {
-      const { machineId } = req.params;
+      const machineId = req.params.machineId as string;
       const agentId = await this.getFieldAgentId(req.user._id.toString());
       const result = await fieldOpsService.raiseIssue(machineId, agentId, req.body);
       return sendCreated(res, result, result.message);

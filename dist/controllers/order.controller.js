@@ -34,7 +34,7 @@ exports.createOrder = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => 
 });
 exports.getOrder = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { orderId } = req.params;
+        const orderId = req.params.orderId;
         const userId = req.user?.id;
         if (!orderId) {
             return (0, response_util_1.sendError)(res, 'Order ID is required', 400);
@@ -75,7 +75,7 @@ exports.getUserOrders = (0, asyncHandler_util_1.asyncHandler)(async (req, res) =
 });
 exports.getOrderSummary = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { orderId } = req.params;
+        const orderId = req.params.orderId;
         const userId = req.user?.id;
         if (!orderId) {
             return (0, response_util_1.sendError)(res, 'Order ID is required', 400);
@@ -94,7 +94,7 @@ exports.getOrderSummary = (0, asyncHandler_util_1.asyncHandler)(async (req, res)
 });
 exports.cancelOrder = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { orderId } = req.params;
+        const orderId = req.params.orderId;
         const { reason } = req.body;
         const userId = req.user?.id;
         if (!userId) {
@@ -138,7 +138,7 @@ exports.getUserOrderStats = (0, asyncHandler_util_1.asyncHandler)(async (req, re
 });
 exports.updateOrderStatus = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { orderId } = req.params;
+        const orderId = req.params.orderId;
         const { status, reason } = req.body;
         if (!orderId) {
             return (0, response_util_1.sendError)(res, 'Order ID is required', 400);
@@ -163,7 +163,7 @@ exports.updateOrderStatus = (0, asyncHandler_util_1.asyncHandler)(async (req, re
 });
 exports.markItemDispensed = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { orderId } = req.params;
+        const orderId = req.params.orderId;
         const { productId, slotNumber } = req.body;
         if (!orderId || !productId || !slotNumber) {
             return (0, response_util_1.sendError)(res, 'Order ID, product ID, and slot number are required', 400);
@@ -182,7 +182,7 @@ exports.markItemDispensed = (0, asyncHandler_util_1.asyncHandler)(async (req, re
 });
 exports.getOrdersByMachine = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         const { status, page = 1, limit = 20 } = req.query;
         if (!machineId) {
             return (0, response_util_1.sendError)(res, 'Machine ID is required', 400);
@@ -204,7 +204,7 @@ exports.getOrdersByMachine = (0, asyncHandler_util_1.asyncHandler)(async (req, r
 });
 exports.getMachineOrderStats = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         if (!machineId) {
             return (0, response_util_1.sendError)(res, 'Machine ID is required', 400);
         }

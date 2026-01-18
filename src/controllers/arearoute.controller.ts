@@ -152,7 +152,7 @@ export class AreaRouteController {
    */
   public static async getAreaById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Validate ID format
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -194,7 +194,7 @@ export class AreaRouteController {
    */
   public static async updateArea(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { area_name, select_machine, area_description, status, latitude, longitude, address } = req.body;
 
       // Validate ID format
@@ -277,7 +277,7 @@ export class AreaRouteController {
    */
   public static async deleteArea(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Validate ID format
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -512,7 +512,7 @@ public static async getAllRoutes(req: Request, res: Response): Promise<void> {
    */
   public static async getRouteById(req: Request, res: Response): Promise<void> {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({
@@ -563,7 +563,7 @@ public static async getAllRoutes(req: Request, res: Response): Promise<void> {
    */
   public static async updateRoute(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const {
         route_name,
         area_name,
@@ -650,7 +650,7 @@ public static async getAllRoutes(req: Request, res: Response): Promise<void> {
    */
   public static async deleteRoute(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Validate ID format
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -692,7 +692,7 @@ public static async getAllRoutes(req: Request, res: Response): Promise<void> {
    */
   public static async getRoutesByAreaId(req: Request, res: Response): Promise<void> {
     try {
-      const { areaId } = req.params;
+      const areaId = req.params.areaId as string;
 
       // Validate area ID format
       if (!mongoose.Types.ObjectId.isValid(areaId)) {
@@ -909,7 +909,7 @@ public static async getAllRoutes(req: Request, res: Response): Promise<void> {
    */
   public static async getRouteProgress(req: Request, res: Response): Promise<void> {
     try {
-      const { routeId } = req.params;
+      const routeId = req.params.routeId as string;
       const { date, agent_id } = req.query;
 
       // Validate route ID

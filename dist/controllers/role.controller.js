@@ -32,7 +32,7 @@ exports.getRoles = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     }
 });
 exports.getRoleById = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }
@@ -50,7 +50,7 @@ exports.getRoleById = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => 
     }
 });
 exports.updateRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }
@@ -73,7 +73,7 @@ exports.updateRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     }
 });
 exports.publishRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }
@@ -96,7 +96,7 @@ exports.publishRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => 
     }
 });
 exports.deleteRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }
@@ -119,7 +119,7 @@ exports.deleteRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     }
 });
 exports.assignRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { userIds } = req.body;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
@@ -143,7 +143,7 @@ exports.assignRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     }
 });
 exports.cloneRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { name, description } = req.body;
     if (!req.user) {
         return (0, response_util_1.sendError)(res, constants_1.MESSAGES.UNAUTHORIZED, 401);
@@ -170,7 +170,7 @@ exports.cloneRole = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     }
 });
 exports.getRolePermissions = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }
@@ -188,7 +188,7 @@ exports.getRolePermissions = (0, asyncHandler_util_1.asyncHandler)(async (req, r
     }
 });
 exports.updateRolePermissions = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     const { permissions } = req.body;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
@@ -212,7 +212,7 @@ exports.updateRolePermissions = (0, asyncHandler_util_1.asyncHandler)(async (req
     }
 });
 exports.getRoleUsers = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
-    const { id } = req.params;
+    const id = req.params.id;
     if (!id) {
         return (0, response_util_1.sendError)(res, 'Role ID is required', 400);
     }

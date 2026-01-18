@@ -31,7 +31,7 @@ exports.getAllVendingMachines = (0, asyncHandler_util_1.asyncHandler)(async (req
 });
 exports.getVendingMachineById = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const machine = await vendingMachine_service_1.vendingMachineService.getVendingMachineById(id);
         return (0, response_util_1.sendSuccess)(res, machine, 'Vending machine retrieved successfully');
     }
@@ -46,7 +46,7 @@ exports.getVendingMachineById = (0, asyncHandler_util_1.asyncHandler)(async (req
 });
 exports.getVendingMachineByMachineId = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         const machine = await vendingMachine_service_1.vendingMachineService.getVendingMachineByMachineId(machineId);
         return (0, response_util_1.sendSuccess)(res, machine, 'Vending machine retrieved successfully');
     }
@@ -61,7 +61,7 @@ exports.getVendingMachineByMachineId = (0, asyncHandler_util_1.asyncHandler)(asy
 });
 exports.getVendingMachineProducts = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         const result = await vendingMachine_service_1.vendingMachineService.getVendingMachineProducts(machineId);
         return (0, response_util_1.sendSuccess)(res, result, 'Machine products retrieved successfully');
     }
@@ -109,7 +109,7 @@ exports.getLocationFilters = (0, asyncHandler_util_1.asyncHandler)(async (_req, 
 });
 exports.getMachineStats = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId } = req.params;
+        const machineId = req.params.machineId;
         const stats = await vendingMachine_service_1.vendingMachineService.getMachineStats(machineId);
         return (0, response_util_1.sendSuccess)(res, stats, 'Machine stats retrieved successfully');
     }
@@ -124,7 +124,8 @@ exports.getMachineStats = (0, asyncHandler_util_1.asyncHandler)(async (req, res)
 });
 exports.checkProductAvailability = (0, asyncHandler_util_1.asyncHandler)(async (req, res) => {
     try {
-        const { machineId, slotNumber } = req.params;
+        const machineId = req.params.machineId;
+        const slotNumber = req.params.slotNumber;
         const availability = await vendingMachine_service_1.vendingMachineService.checkProductAvailability(machineId, slotNumber);
         return (0, response_util_1.sendSuccess)(res, availability, 'Product availability checked successfully');
     }

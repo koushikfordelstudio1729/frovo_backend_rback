@@ -71,7 +71,7 @@ export class AuditTrailController {
    */
   async getVendorAuditTrails(req: Request, res: Response) {
     try {
-      const { vendorId } = req.params;
+      const vendorId = req.params.vendorId as string;
       const { roles } = this.getLoggedInUser(req);
       
       // ✅ SUPER ADMIN ONLY
@@ -106,7 +106,7 @@ export class AuditTrailController {
    */
   async getCompanyAuditTrails(req: Request, res: Response) {
     try {
-      const { companyId } = req.params;
+      const companyId = req.params.companyId as string;
       const { roles } = this.getLoggedInUser(req);
       
       // ✅ SUPER ADMIN ONLY
@@ -141,7 +141,7 @@ export class AuditTrailController {
    */
   async getUserActivity(req: Request, res: Response) {
     try {
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       const { _id: currentUserId, roles } = this.getLoggedInUser(req);
       
       // Users can only see their own activity unless they are Super Admin

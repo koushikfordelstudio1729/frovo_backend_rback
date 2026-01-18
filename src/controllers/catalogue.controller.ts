@@ -169,7 +169,7 @@ export class CatalogueController extends BaseController {
         const catalogueService = createCatalogueService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const product = await catalogueService.getCatalogueById(id);
 
             if (!product) {
@@ -201,7 +201,7 @@ export class CatalogueController extends BaseController {
         const catalogueService = createCatalogueService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const user = CatalogueController.getLoggedInUser(req);
 
             // Handle file upload if present
@@ -279,7 +279,7 @@ export class CatalogueController extends BaseController {
         const catalogueService = createCatalogueService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const user = CatalogueController.getLoggedInUser(req);
 
             const result = await catalogueService.deleteCatalogue(id);
@@ -465,7 +465,7 @@ export class CatalogueController extends BaseController {
 
     async deleteProductImage(req: Request, res: Response): Promise<void> {
         try {
-            const { publicId } = req.params;
+            const publicId = req.params.publicId as string;
 
             if (!publicId) {
                 res.status(400).json({
@@ -496,7 +496,7 @@ async activateCatalogue(req: Request, res: Response): Promise<void> {
     const catalogueService = createCatalogueService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = CatalogueController.getLoggedInUser(req);
 
         // Set status to active
@@ -541,7 +541,7 @@ async deactivateCatalogue(req: Request, res: Response): Promise<void> {
     const catalogueService = createCatalogueService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = CatalogueController.getLoggedInUser(req);
 
         // Set status to inactive
@@ -801,7 +801,7 @@ export class CategoryController extends BaseController {
     const subCategoryService = createSubCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const category = await categoryService.getCategoryById(id);
 
         if (!category) {
@@ -892,7 +892,7 @@ export class CategoryController extends BaseController {
     const categoryService = createCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = CategoryController.getLoggedInUser(req);
 
         // Handle file upload if present (for updating images)
@@ -965,7 +965,7 @@ export class CategoryController extends BaseController {
         const categoryService = createCategoryService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const { status } = req.body;
             const user = CategoryController.getLoggedInUser(req);
 
@@ -1011,7 +1011,7 @@ async activateCategory(req: Request, res: Response): Promise<void> {
     const categoryService = createCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = CategoryController.getLoggedInUser(req);
 
         // Set status to active
@@ -1055,7 +1055,7 @@ async deactivateCategory(req: Request, res: Response): Promise<void> {
     const categoryService = createCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = CategoryController.getLoggedInUser(req);
 
         // Set status to inactive
@@ -1098,7 +1098,7 @@ async deactivateCategory(req: Request, res: Response): Promise<void> {
         const categoryService = createCategoryService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const user = CategoryController.getLoggedInUser(req);
 
             const result = await categoryService.deleteCategory(id);
@@ -1202,7 +1202,7 @@ async exportCategoryWithSubCategoriesCSV(req: Request, res: Response): Promise<v
     const subCategoryService = createSubCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         
         // Get the specific category
         const category = await categoryService.getCategoryById(id);
@@ -1537,7 +1537,7 @@ export class SubCategoryController extends BaseController {
         const subCategoryService = createSubCategoryService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const subCategory = await subCategoryService.getSubCategoryById(id);
 
             if (!subCategory) {
@@ -1569,7 +1569,7 @@ export class SubCategoryController extends BaseController {
         const subCategoryService = createSubCategoryService(req);
 
         try {
-            const { categoryId } = req.params;
+            const categoryId = req.params.categoryId as string;
             const subCategories = await subCategoryService.getSubCategoriesByCategory(categoryId);
 
             res.status(200).json({
@@ -1623,7 +1623,7 @@ export class SubCategoryController extends BaseController {
     const subCategoryService = createSubCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = SubCategoryController.getLoggedInUser(req);
 
         // Handle file upload if present (for updating images)
@@ -1696,7 +1696,7 @@ export class SubCategoryController extends BaseController {
         const subCategoryService = createSubCategoryService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const { status } = req.body;
             const user = SubCategoryController.getLoggedInUser(req);
 
@@ -1747,7 +1747,7 @@ export class SubCategoryController extends BaseController {
     const subCategoryService = createSubCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = SubCategoryController.getLoggedInUser(req);
 
         // Set status to active
@@ -1791,7 +1791,7 @@ async deactivateSubCategory(req: Request, res: Response): Promise<void> {
     const subCategoryService = createSubCategoryService(req);
 
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         const user = SubCategoryController.getLoggedInUser(req);
 
         // Set status to inactive
@@ -1835,7 +1835,7 @@ async deactivateSubCategory(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
 
         try {
-            const { id } = req.params;
+            const id = req.params.id as string;
             const user = SubCategoryController.getLoggedInUser(req);
 
             const result = await subCategoryService.deleteSubCategory(id);

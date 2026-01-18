@@ -51,7 +51,7 @@ export const initiatePayment = asyncHandler(async (req: Request, res: Response) 
 
 export const getPayment = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { paymentId } = req.params;
+    const paymentId = req.params.paymentId as string;
     const userId = req.user?.id;
 
     if (!paymentId) {
@@ -147,7 +147,7 @@ export const confirmPayment = asyncHandler(async (req: Request, res: Response) =
 
 export const processRefund = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { paymentId } = req.params;
+    const paymentId = req.params.paymentId as string;
     const { refundAmount, reason } = req.body;
 
     if (!paymentId) {
@@ -201,7 +201,7 @@ export const getUserPaymentStats = asyncHandler(async (req: Request, res: Respon
 
 export const getMachinePaymentStats = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { machineId } = req.params;
+    const machineId = req.params.machineId as string;
 
     if (!machineId) {
       return sendError(res, 'Machine ID is required', 400);
@@ -222,7 +222,7 @@ export const getMachinePaymentStats = asyncHandler(async (req: Request, res: Res
 // Mock payment completion for testing (simulates successful payment)
 export const mockPaymentSuccess = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { paymentId } = req.params;
+    const paymentId = req.params.paymentId as string;
 
     if (!paymentId) {
       return sendError(res, 'Payment ID is required', 400);
@@ -250,7 +250,7 @@ export const mockPaymentSuccess = asyncHandler(async (req: Request, res: Respons
 // Mock payment failure for testing
 export const mockPaymentFailure = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const { paymentId } = req.params;
+    const paymentId = req.params.paymentId as string;
 
     if (!paymentId) {
       return sendError(res, 'Payment ID is required', 400);

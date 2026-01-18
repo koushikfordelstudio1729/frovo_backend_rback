@@ -107,7 +107,7 @@ class VendorController {
     }
     static async getCompanyById(req, res) {
         try {
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const company = await vendor_service_1.VendorService.getCompanyByIdService(cin);
             res.status(200).json({
                 success: true,
@@ -137,7 +137,7 @@ class VendorController {
         try {
             const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const updateData = req.body;
             if (updateData.date_of_incorporation) {
                 const parsedDate = new Date(updateData.date_of_incorporation);
@@ -200,7 +200,7 @@ class VendorController {
         try {
             const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key || 'unknown';
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const deletedCompany = await vendor_service_1.VendorService.deleteCompanyService(cin, userId, userEmail, userRole, req);
             res.status(200).json({
                 success: true,
@@ -263,7 +263,7 @@ class VendorController {
     }
     static async checkCompanyExists(req, res) {
         try {
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const exists = await vendor_service_1.VendorService.checkCompanyExists(cin);
             res.status(200).json({
                 success: true,
@@ -508,7 +508,7 @@ class VendorController {
     }
     static async getVendorsByCompany(req, res) {
         try {
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const { page = 1, limit = 10, search, verification_status, risk_rating, vendor_category } = req.query;
             if (!cin) {
                 res.status(400).json({
@@ -551,7 +551,7 @@ class VendorController {
     }
     static async getCompanyWithVendorStats(req, res) {
         try {
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const result = await vendor_service_1.VendorService.getCompanyWithVendorStatsService(cin);
             res.status(200).json({
                 success: true,
@@ -579,7 +579,7 @@ class VendorController {
     }
     async getVendorById(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const vendor = await vendorService.getVendorById(id);
             if (!vendor) {
                 return res.status(404).json({
@@ -601,7 +601,7 @@ class VendorController {
     }
     async getVendorByVendorId(req, res) {
         try {
-            const { vendorId } = req.params;
+            const vendorId = req.params.vendorId;
             const vendor = await vendorService.getVendorByVendorId(vendorId);
             if (!vendor) {
                 return res.status(404).json({
@@ -641,7 +641,7 @@ class VendorController {
     }
     async getVendorForEdit(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: userId, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const vendor = await vendorService.getVendorForEdit(id, userId, userRole);
@@ -694,7 +694,7 @@ class VendorController {
     }
     async updateVendor(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const updatedVendor = await vendorService.updateVendor(id, req.body, userRole, userId, userEmail, req);
@@ -731,7 +731,7 @@ class VendorController {
     }
     async updateVendorForAdmin(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: userId, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const updatedVendor = await vendorService.updateVendorForAdmin(id, req.body, userId, userRole);
@@ -768,7 +768,7 @@ class VendorController {
     }
     async updateVendorVerification(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { verification_status, notes } = req.body;
             const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
@@ -800,7 +800,7 @@ class VendorController {
     }
     async quickVerifyOrRejectVendor(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const action = req.path.split('/').pop();
             const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
@@ -855,7 +855,7 @@ class VendorController {
     }
     async toggleVendorVerification(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: verifiedBy, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const updatedVendor = await vendorService.toggleVendorVerification(id, verifiedBy, userRole);
@@ -917,7 +917,7 @@ class VendorController {
     }
     async deleteVendor(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const result = await vendorService.deleteVendor(id, userId, userEmail, userRole, req);
@@ -941,7 +941,7 @@ class VendorController {
     }
     async deleteVendorForAdmin(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { _id: userId, roles } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const result = await vendorService.deleteVendorForAdmin(id, userId, userRole);
@@ -1005,7 +1005,7 @@ class VendorController {
     }
     async getVendorAuditTrail(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { page = 1, limit = 50 } = req.query;
             const vendor = await vendorService.getVendorById(id);
             if (!vendor) {
@@ -1031,7 +1031,7 @@ class VendorController {
     }
     async getCompanyAuditTrail(req, res) {
         try {
-            const { cin } = req.params;
+            const cin = req.params.cin;
             const { page = 1, limit = 50 } = req.query;
             const company = await vendor_service_1.VendorService.getCompanyByIdService(cin);
             if (!company) {
@@ -1057,7 +1057,7 @@ class VendorController {
     }
     async uploadVendorDocument(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { document_type, expiry_date } = req.body;
             const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
@@ -1090,7 +1090,8 @@ class VendorController {
     }
     async deleteVendorDocument(req, res) {
         try {
-            const { id, documentId } = req.params;
+            const id = req.params.id;
+            const documentId = req.params.documentId;
             const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
             const userRole = roles[0]?.key;
             const vendor = await vendorService.deleteVendorDocument(id, documentId, userId, userEmail, userRole, req);
@@ -1109,7 +1110,7 @@ class VendorController {
     }
     async getVendorDocuments(req, res) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const documents = await vendorService.getVendorDocuments(id);
             res.status(200).json({
                 success: true,
@@ -1125,7 +1126,8 @@ class VendorController {
     }
     async getVendorDocument(req, res) {
         try {
-            const { id, documentId } = req.params;
+            const id = req.params.id;
+            const documentId = req.params.documentId;
             const document = await vendorService.getVendorDocument(id, documentId);
             if (!document) {
                 return res.status(404).json({
