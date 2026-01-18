@@ -1,45 +1,46 @@
-import { v2 as cloudinary } from 'cloudinary';
-import path from 'path';
+/**
+ * Catalogue File Upload Service
+ *
+ * Handles file uploads for catalogue module (categories, sub-categories, products).
+ * Uses the storage abstraction layer for provider-agnostic file operations.
+ *
+ * To switch storage providers, set STORAGE_PROVIDER environment variable:
+ * - cloudinary (default)
+ * - s3 (AWS S3 or S3-compatible like MinIO)
+ */
+
+import { StorageFactory, IStorageProvider, IUploadResult } from '../common/storage';
 import { ICategoryImageData, IProductImageData, ISubCategoryImageData } from '../models/Catalogue.model';
 
+export interface IImageMetadata {
+    image_name: string;
+    file_url: string;
+    cloudinary_public_id: string; // Keep for backward compatibility, actually stores provider's public_id
+    file_size: number;
+    mime_type: string;
+    uploaded_at: Date;
+    storage_provider?: string;
+}
+
 export class ImageUploadService {
-    private cloudinaryConfigured = false;
+    private storage: IStorageProvider;
 
-    /**
-     * Configure Cloudinary (lazy initialization)
-     */
-    private ensureCloudinaryConfigured() {
-        if (!this.cloudinaryConfigured) {
-            const config = {
-                cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-                api_key: process.env.CLOUDINARY_API_KEY,
-                api_secret: process.env.CLOUDINARY_API_SECRET,
-            };
-
-            // Validate configuration
-            if (!config.cloud_name || !config.api_key || !config.api_secret) {
-                console.error('❌ Cloudinary Configuration Missing:', {
-                    cloud_name: config.cloud_name || '❌ MISSING',
-                    api_key: config.api_key ? '✅ SET' : '❌ MISSING',
-                    api_secret: config.api_secret ? '✅ SET' : '❌ MISSING'
-                });
-                throw new Error('Cloudinary configuration is incomplete. Please check your .env file.');
-            }
-
-            cloudinary.config(config);
-            this.cloudinaryConfigured = true;
-
-            console.log('✅ Cloudinary configured successfully:', {
-                cloud_name: config.cloud_name,
-                api_key: config.api_key.substring(0, 4) + '...'
-            });
-        }
+    constructor() {
+        this.storage = StorageFactory.getProvider();
     }
+
     /**
-     * Upload a file to Cloudinary
+     * Get current storage provider name
+     */
+    getProviderName(): string {
+        return this.storage.providerName;
+    }
+
+    /**
+     * Upload a file to the configured storage provider
      * @param fileBuffer - File buffer from multer
      * @param fileName - Original file name
-     * @param folder - Cloudinary folder path
+     * @param folder - Storage folder path
      * @returns Promise with upload result
      */
     async uploadToCloudinary(
@@ -47,71 +48,45 @@ export class ImageUploadService {
         fileName: string,
         folder: string = 'frovo/category_documents'
     ): Promise<{ url: string; publicId: string }> {
-        // Ensure Cloudinary is configured before upload
-        this.ensureCloudinaryConfigured();
-
-        return new Promise((resolve, reject) => {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                {
-                    folder: folder,
-                    resource_type: 'auto',
-                    public_id: `${Date.now()}-${path.parse(fileName).name}`,
-                    use_filename: true,
-                    unique_filename: true,
-                },
-                (error, result) => {
-                    if (error) {
-                        reject(error);
-                    } else if (result) {
-                        resolve({
-                            url: result.secure_url,
-                            publicId: result.public_id,
-                        });
-                    } else {
-                        reject(new Error('Upload failed - no result'));
-                    }
-                }
-            );
-
-            uploadStream.end(fileBuffer);
-        });
-    }
-
-    /**
-     * Delete a file from Cloudinary
-     * @param publicId - Cloudinary public ID
-     * @returns Promise with deletion result
-     */
-    async deleteFromCloudinary(publicId: string): Promise<void> {
-        // Ensure Cloudinary is configured before deletion
-        this.ensureCloudinaryConfigured();
-
         try {
-            await cloudinary.uploader.destroy(publicId);
-        } catch (error) {
-            throw new Error(`Failed to delete file from Cloudinary: ${error}`);
+            const result = await this.storage.upload(fileBuffer, fileName, { folder });
+            return {
+                url: result.url,
+                publicId: result.publicId
+            };
+        } catch (error: any) {
+            console.error(`Upload failed (${this.storage.providerName}):`, error);
+            throw new Error(`Failed to upload file: ${error.message}`);
         }
     }
 
     /**
-     * Create document metadata object (generic method for all image types)
-     * @param file - Multer file object
-     * @param cloudinaryUrl - URL from Cloudinary
-     * @param cloudinaryPublicId - Public ID from Cloudinary
-     * @returns Image metadata object
+     * Delete a file from the configured storage provider
+     * @param publicId - The public ID or key of the file
+     */
+    async deleteFromCloudinary(publicId: string): Promise<void> {
+        try {
+            await this.storage.delete(publicId);
+        } catch (error: any) {
+            throw new Error(`Failed to delete file: ${error.message}`);
+        }
+    }
+
+    /**
+     * Create image metadata object (generic method)
      */
     private createImageMetadata(
         file: Express.Multer.File,
-        cloudinaryUrl: string,
-        cloudinaryPublicId: string,
-    ): ICategoryImageData | ISubCategoryImageData | IProductImageData {
+        uploadResult: { url: string; publicId: string }
+    ): IImageMetadata {
         return {
             image_name: file.originalname,
-            file_url: cloudinaryUrl,
-            cloudinary_public_id: cloudinaryPublicId,
+            file_url: uploadResult.url,
+            cloudinary_public_id: uploadResult.publicId, // Works for any provider
             file_size: file.size,
             mime_type: file.mimetype,
             uploaded_at: new Date(),
+            storage_provider: this.storage.providerName
         };
     }
 
@@ -123,7 +98,14 @@ export class ImageUploadService {
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): ICategoryImageData {
-        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as ICategoryImageData;
+        return {
+            image_name: file.originalname,
+            file_url: cloudinaryUrl,
+            cloudinary_public_id: cloudinaryPublicId,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_at: new Date(),
+        };
     }
 
     /**
@@ -134,7 +116,14 @@ export class ImageUploadService {
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): ISubCategoryImageData {
-        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as ISubCategoryImageData;
+        return {
+            image_name: file.originalname,
+            file_url: cloudinaryUrl,
+            cloudinary_public_id: cloudinaryPublicId,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_at: new Date(),
+        };
     }
 
     /**
@@ -145,6 +134,81 @@ export class ImageUploadService {
         cloudinaryUrl: string,
         cloudinaryPublicId: string,
     ): IProductImageData {
-        return this.createImageMetadata(file, cloudinaryUrl, cloudinaryPublicId) as IProductImageData;
+        return {
+            image_name: file.originalname,
+            file_url: cloudinaryUrl,
+            cloudinary_public_id: cloudinaryPublicId,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_at: new Date(),
+        };
+    }
+
+    // ==================== NEW UNIFIED METHODS ====================
+
+    /**
+     * Upload and create metadata in one step (recommended)
+     */
+    async uploadCategoryImage(
+        file: Express.Multer.File,
+        folder?: string
+    ): Promise<ICategoryImageData> {
+        const uploadFolder = folder || process.env.CATEGORY_IMAGE_FOLDER || 'frovo/category_images';
+        const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
+        return this.createCategoryDocumentMetadata(file, result.url, result.publicId);
+    }
+
+    /**
+     * Upload and create sub-category metadata in one step
+     */
+    async uploadSubCategoryImage(
+        file: Express.Multer.File,
+        folder?: string
+    ): Promise<ISubCategoryImageData> {
+        const uploadFolder = folder || process.env.SUBCATEGORY_IMAGE_FOLDER || 'frovo/subcategory_images';
+        const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
+        return this.createSubCategoryDocumentMetadata(file, result.url, result.publicId);
+    }
+
+    /**
+     * Upload and create product metadata in one step
+     */
+    async uploadProductImage(
+        file: Express.Multer.File,
+        folder?: string
+    ): Promise<IProductImageData> {
+        const uploadFolder = folder || process.env.CATALOGUE_IMAGE_FOLDER || 'frovo/catalogue_images';
+        const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
+        return this.createProductDocumentMetadata(file, result.url, result.publicId);
+    }
+
+    /**
+     * Upload multiple files in parallel
+     */
+    async uploadMultipleFiles(
+        files: Express.Multer.File[],
+        folder: string,
+        type: 'category' | 'subcategory' | 'product'
+    ): Promise<(ICategoryImageData | ISubCategoryImageData | IProductImageData)[]> {
+        const uploadPromises = files.map(file => {
+            switch (type) {
+                case 'category':
+                    return this.uploadCategoryImage(file, folder);
+                case 'subcategory':
+                    return this.uploadSubCategoryImage(file, folder);
+                case 'product':
+                    return this.uploadProductImage(file, folder);
+            }
+        });
+
+        return Promise.all(uploadPromises);
+    }
+
+    /**
+     * Delete multiple files in parallel
+     */
+    async deleteMultipleFiles(publicIds: string[]): Promise<void> {
+        const deletePromises = publicIds.map(id => this.deleteFromCloudinary(id));
+        await Promise.all(deletePromises);
     }
 }
