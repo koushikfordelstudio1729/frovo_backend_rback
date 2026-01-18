@@ -209,10 +209,36 @@ export class CatalogueController extends BaseController {
                 return;
             }
 
+            // Format response to be consistent with other endpoints
+            const catalogueResponse = {
+                id: product._id,
+                sku_id: product.sku_id,
+                product_name: product.product_name,
+                brand_name: product.brand_name,
+                description: product.description,
+                category: product.category,
+                sub_category: product.sub_category,
+                manufacturer_name: product.manufacturer_name,
+                manufacturer_address: product.manufacturer_address,
+                shell_life: product.shell_life,
+                expiry_alert_threshold: product.expiry_alert_threshold,
+                tages_label: product.tages_label,
+                unit_size: product.unit_size,
+                base_price: product.base_price,
+                final_price: product.final_price,
+                barcode: product.barcode,
+                nutrition_information: product.nutrition_information,
+                ingredients: product.ingredients,
+                product_images: product.product_images,
+                status: product.status,
+                createdAt: product.createdAt,
+                updatedAt: product.updatedAt
+            };
+
             res.status(200).json({
                 success: true,
                 message: 'Product retrieved successfully',
-                data: product
+                data: catalogueResponse
             });
 
         } catch (error: any) {
@@ -1574,7 +1600,7 @@ export class SubCategoryController extends BaseController {
 
         try {
             const { id } = req.params;
-            const subCategory = await subCategoryService.getSubCategoryById(id);
+            const subCategory = await subCategoryService.getSubCategoryById(id) as any;
 
             if (!subCategory) {
                 res.status(404).json({
@@ -1584,10 +1610,32 @@ export class SubCategoryController extends BaseController {
                 return;
             }
 
+            // category_id is populated with category_name from service
+            const categoryData = subCategory.category_id;
+            const categoryId = categoryData?._id?.toString() || categoryData?.toString() || '';
+            const categoryName = categoryData?.category_name || '';
+
+            // Get product count for this sub-category
+            const productCount = await subCategoryService.getProductCountBySubCategory(id);
+
+            // Format response to be consistent
+            const subCategoryResponse = {
+                id: subCategory._id,
+                sub_category_name: subCategory.sub_category_name,
+                description: subCategory.description,
+                category_id: categoryId,
+                category_name: categoryName,
+                sub_category_status: subCategory.sub_category_status,
+                sub_category_image: subCategory.sub_category_image,
+                createdAt: subCategory.createdAt,
+                updatedAt: subCategory.updatedAt,
+                product_count: productCount
+            };
+
             res.status(200).json({
                 success: true,
                 message: 'Sub-category retrieved successfully',
-                data: subCategory
+                data: subCategoryResponse
             });
 
         } catch (error: any) {
@@ -1603,15 +1651,51 @@ export class SubCategoryController extends BaseController {
 
     async getSubCategoriesByCategory(req: Request, res: Response): Promise<void> {
         const subCategoryService = createSubCategoryService(req);
+        const categoryService = createCategoryService(req);
 
         try {
             const { categoryId } = req.params;
+
+            // Get parent category for name
+            const parentCategory = await categoryService.getCategoryById(categoryId);
+            if (!parentCategory) {
+                res.status(404).json({
+                    success: false,
+                    message: 'Category not found'
+                });
+                return;
+            }
+
             const subCategories = await subCategoryService.getSubCategoriesByCategory(categoryId);
+
+            // Format response with category_name and product_count for each sub-category
+            const formattedSubCategories = await Promise.all(
+                subCategories.map(async (subCat: any) => {
+                    const productCount = await subCategoryService.getProductCountBySubCategory(subCat._id.toString());
+                    return {
+                        id: subCat._id,
+                        sub_category_name: subCat.sub_category_name,
+                        description: subCat.description,
+                        category_id: subCat.category_id,
+                        category_name: parentCategory.category_name,
+                        sub_category_status: subCat.sub_category_status,
+                        sub_category_image: subCat.sub_category_image,
+                        createdAt: subCat.createdAt,
+                        updatedAt: subCat.updatedAt,
+                        product_count: productCount
+                    };
+                })
+            );
 
             res.status(200).json({
                 success: true,
                 message: 'Sub-categories retrieved successfully',
-                data: subCategories
+                data: {
+                    category_id: categoryId,
+                    category_name: parentCategory.category_name,
+                    sub_categories: formattedSubCategories,
+                    total: formattedSubCategories.length
+                }
             });
 
         } catch (error: any) {
@@ -1697,24 +1781,28 @@ export class SubCategoryController extends BaseController {
 
         // Update sub-category
         const updateData: UpdateSubCategoryDTO = { ...req.body };
-        const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
+        const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData) as any;
 
-        // Get parent category name for consistent response
-        const categoryService = createCategoryService(req);
-        const parentCategory = await categoryService.getCategoryById(updatedSubCategory.category_id.toString());
+        // category_id is populated with category_name from service
+        const categoryData = updatedSubCategory.category_id;
+        const categoryId = categoryData?._id?.toString() || categoryData?.toString() || '';
+        const categoryName = categoryData?.category_name || '';
+
+        // Get product count
+        const productCount = await subCategoryService.getProductCountBySubCategory(id);
 
         // Format response to be consistent with other endpoints
         const subCategoryResponse = {
             id: updatedSubCategory._id,
             sub_category_name: updatedSubCategory.sub_category_name,
             description: updatedSubCategory.description,
-            category_id: updatedSubCategory.category_id,
-            category_name: parentCategory?.category_name || '',
+            category_id: categoryId,
+            category_name: categoryName,
             sub_category_status: updatedSubCategory.sub_category_status,
             sub_category_image: updatedSubCategory.sub_category_image,
             createdAt: updatedSubCategory.createdAt,
             updatedAt: updatedSubCategory.updatedAt,
-            product_count: 0
+            product_count: productCount
         };
 
         res.status(200).json({
@@ -1763,24 +1851,28 @@ export class SubCategoryController extends BaseController {
             }
 
             const updateData: UpdateSubCategoryDTO = { sub_category_status: status };
-            const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData);
+            const updatedSubCategory = await subCategoryService.updateSubCategory(id, updateData) as any;
 
-            // Get parent category name for consistent response
-            const categoryService = createCategoryService(req);
-            const parentCategory = await categoryService.getCategoryById(updatedSubCategory.category_id.toString());
+            // category_id is populated with category_name from service
+            const categoryData = updatedSubCategory.category_id;
+            const categoryId = categoryData?._id?.toString() || categoryData?.toString() || '';
+            const categoryName = categoryData?.category_name || '';
+
+            // Get product count
+            const productCount = await subCategoryService.getProductCountBySubCategory(id);
 
             // Format response to be consistent with other endpoints
             const subCategoryResponse = {
                 id: updatedSubCategory._id,
                 sub_category_name: updatedSubCategory.sub_category_name,
                 description: updatedSubCategory.description,
-                category_id: updatedSubCategory.category_id,
-                category_name: parentCategory?.category_name || '',
+                category_id: categoryId,
+                category_name: categoryName,
                 sub_category_status: updatedSubCategory.sub_category_status,
                 sub_category_image: updatedSubCategory.sub_category_image,
                 createdAt: updatedSubCategory.createdAt,
                 updatedAt: updatedSubCategory.updatedAt,
-                product_count: 0
+                product_count: productCount
             };
 
             res.status(200).json({
