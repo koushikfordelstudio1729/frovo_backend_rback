@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 import { CatalogueModel, ICatalogue, CategoryModel, ICategory, SubCategoryModel, ISubCategory } from '../models/Catalogue.model';
 import { historyCatalogueService } from './historyCatalogue.service';
 import { Request } from 'express';
+import { ImageUploadService } from './catalogueFileUpload.service';
+
+// Image upload service instance for deleting images from storage
+const imageUploadService = new ImageUploadService();
 
 // ==================== DTOs ====================
 
@@ -552,9 +556,47 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
                 );
             }
 
-            // Delete all sub-categories of this category
+            // Collect image public IDs to delete from storage
+            const imagePublicIds: string[] = [];
+
+            // Debug: Log category data
+            console.log('Category to delete:', {
+                id: category._id,
+                name: category.category_name,
+                hasImages: !!category.category_image,
+                imageCount: category.category_image?.length || 0,
+                images: category.category_image
+            });
+
+            // Collect category images
+            if (category.category_image && category.category_image.length > 0) {
+                category.category_image.forEach((img: any) => {
+                    console.log('Found image:', img);
+                    if (img.cloudinary_public_id) {
+                        imagePublicIds.push(img.cloudinary_public_id);
+                    }
+                });
+            }
+
+            // Collect sub-category images before deleting
             let deletedSubCategories = 0;
             if (subCategoriesCount > 0) {
+                const subCategories = await SubCategoryModel.find({
+                    category_id: categoryId
+                }).session(session);
+
+                // Collect all sub-category images
+                subCategories.forEach((subCat: any) => {
+                    if (subCat.sub_category_image && subCat.sub_category_image.length > 0) {
+                        subCat.sub_category_image.forEach((img: any) => {
+                            if (img.cloudinary_public_id) {
+                                imagePublicIds.push(img.cloudinary_public_id);
+                            }
+                        });
+                    }
+                });
+
+                // Delete all sub-categories
                 const deleteResult = await SubCategoryModel.deleteMany({
                     category_id: categoryId
                 }).session(session);
@@ -576,6 +618,13 @@ async getCategoryWithSubCategories(categoryId: string): Promise<any> {
             }
 
             await session.commitTransaction();
+
+            // Delete images from storage after successful transaction
+            if (imagePublicIds.length > 0) {
+                console.log(`Deleting ${imagePublicIds.length} images from storage:`, imagePublicIds);
+                await imageUploadService.deleteMultipleFiles(imagePublicIds)
+                    .catch(err => console.error('Failed to delete images from storage:', err));
+            }
 
             return {
                 success: true,
@@ -1126,6 +1175,16 @@ async updateSubCategory(
             // Store before state for audit
             const beforeState = subCategory.toObject();
 
+            // Collect image public IDs to delete from storage
+            const imagePublicIds: string[] = [];
+            if (subCategory.sub_category_image && subCategory.sub_category_image.length > 0) {
+                subCategory.sub_category_image.forEach((img: any) => {
+                    if (img.cloudinary_public_id) {
+                        imagePublicIds.push(img.cloudinary_public_id);
+                    }
+                });
+            }
+
             // Delete the sub-category
             await SubCategoryModel.findByIdAndDelete(subCategoryId);
 
@@ -1138,6 +1197,13 @@ async updateSubCategory(
                     subCategory.sub_category_name,
                     beforeState
                 ).catch(err => console.error('Failed to log delete:', err));
+            }
+
+            // Delete images from storage after successful deletion
+            if (imagePublicIds.length > 0) {
+                console.log(`Deleting ${imagePublicIds.length} sub-category images from storage:`, imagePublicIds);
+                await imageUploadService.deleteMultipleFiles(imagePublicIds)
+                    .catch(err => console.error('Failed to delete images from storage:', err));
             }
 
             return {
@@ -1487,6 +1553,16 @@ export class CatalogueService {
             // Store before state for audit
             const beforeState = product.toObject();
 
+            // Collect image public IDs to delete from storage
+            const imagePublicIds: string[] = [];
+            if (product.product_images && product.product_images.length > 0) {
+                product.product_images.forEach((img: any) => {
+                    if (img.cloudinary_public_id) {
+                        imagePublicIds.push(img.cloudinary_public_id);
+                    }
+                });
+            }
+
             // Delete the product
             await CatalogueModel.findByIdAndDelete(productId);
 
@@ -1499,6 +1575,13 @@ export class CatalogueService {
                     product.product_name,
                     beforeState
                 ).catch(err => console.error('Failed to log delete:', err));
+            }
+
+            // Delete images from storage after successful deletion
+            if (imagePublicIds.length > 0) {
+                console.log(`Deleting ${imagePublicIds.length} product images from storage:`, imagePublicIds);
+                await imageUploadService.deleteMultipleFiles(imagePublicIds)
+                    .catch(err => console.error('Failed to delete images from storage:', err));
             }
 
             return {

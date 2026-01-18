@@ -194,13 +194,17 @@ export class S3Provider implements IStorageProvider {
             throw new Error('S3 client not initialized');
         }
 
+        const config = this.getConfig();
+        console.log(`Deleting from S3: ${publicId} (bucket: ${config.bucket})`);
+
         const command = new DeleteObjectCommand({
-            Bucket: this.getConfig().bucket,
+            Bucket: config.bucket,
             Key: publicId
         });
 
         try {
             await this.client.send(command);
+            console.log(`S3 delete successful: ${publicId}`);
             return {
                 success: true,
                 publicId,

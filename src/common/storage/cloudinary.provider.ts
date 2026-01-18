@@ -130,7 +130,25 @@ export class CloudinaryProvider implements IStorageProvider {
         await this.initialize();
 
         try {
-            const result = await cloudinary.uploader.destroy(publicId);
+            console.log(`Deleting from Cloudinary: ${publicId}`);
+
+            // Try deleting as image first (most common)
+            let result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+
+            // If not found as image, try as raw (for PDFs, docs, etc.)
+            if (result.result === 'not found') {
+                console.log(`Not found as image, trying as raw: ${publicId}`);
+                result = await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+            }
+
+            // If still not found, try as video
+            if (result.result === 'not found') {
+                console.log(`Not found as raw, trying as video: ${publicId}`);
+                result = await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+            }
+
+            console.log(`Cloudinary delete result for ${publicId}:`, result);
+
             return {
                 success: result.result === 'ok',
                 publicId,
