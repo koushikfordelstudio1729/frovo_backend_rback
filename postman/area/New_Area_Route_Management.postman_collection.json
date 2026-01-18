@@ -1,0 +1,740 @@
+{
+  "info": {
+    "_postman_id": "d358c9c8-791b-4dad-a53f-13434181f481",
+    "name": "Area & Route Management API",
+    "description": "Complete API collection for Area & Route Management system with tracking capabilities",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "39772168",
+    "_collection_link": "https://go.postman.co/collection/39772168-d358c9c8-791b-4dad-a53f-13434181f481?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Create Area",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_name\": \"Tech Park Campus\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore Urban\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Main tech park with multiple towers\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street, Bangalore\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"Ground Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-003\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Areas",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_name\": \"Tech Park Campus\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore Urban\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Main tech park with multiple towers\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street, Bangalore\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"Ground Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-003\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Area By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_name\": \"Tech Park Campus\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore Urban\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Main tech park with multiple towers\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street, Bangalore\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"Ground Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-003\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a169197249a7a1a8293ac"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Area",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a169197249a7a1a8293ac"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Add Sub Location",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \r\n  \"sub_location\": {\r\n    \"campus\": \"jatin Campus\",\r\n    \"tower\": \"Tower J\",\r\n    \"floor\": \"2nd Floor\",\r\n    \"select_machine\": [\"Machine-006\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id/add-sublocation",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id",
+            "add-sublocation"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a230ee3dce8a83c7dc6ea"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Area",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a169197249a7a1a8293ac"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Status Update",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id/toggle-status",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id",
+            "toggle-status"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a1b2897249a7a1a8293dc"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard Data",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard/data",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "data"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard Table",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard/data",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "data"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard Table Filter",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard/data?status=active&address=Bangalore&page=1&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "data"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "active"
+            },
+            {
+              "key": "address",
+              "value": "Bangalore"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard Export",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "export"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export Area By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "export"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Trail",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/audit/recent-activities",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            "audit",
+            "recent-activities"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export Audit Trail",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/audit/recent-activities/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            "audit",
+            "recent-activities",
+            "export"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Trail By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id/audit-logs",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id",
+            "audit-logs"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a819c4811242c7844fefe"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export Audit Trail By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Njg1NTk3MTcsImV4cCI6MTc2ODY0NjExNywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.e-8cNpC6D2DL_b4jSKjo2slUmOYcU6uyAdH474vpSK0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"area_description\": \"Updated description for Tech Park\",\r\n  \"status\": \"active\",\r\n  \"sub_location\": {\r\n    \"campus\": \"Main Campus\",\r\n    \"tower\": \"Tower A\",\r\n    \"floor\": \"First Floor\",\r\n    \"select_machine\": [\"Machine-001\", \"Machine-002\", \"Machine-004\"]\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/area/:id/audit-logs/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "area",
+            ":id",
+            "audit-logs",
+            "export"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "696a819c4811242c7844fefe"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "area_id",
+      "value": "507f1f77bcf86cd799439011",
+      "type": "string"
+    },
+    {
+      "key": "route_id",
+      "value": "507f1f77bcf86cd799439012",
+      "type": "string"
+    }
+  ]
+}
