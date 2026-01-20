@@ -39,18 +39,11 @@ const logger_util_1 = require("../utils/logger.util");
 const mongoose_1 = require("mongoose");
 const seedRoles = async (createdBy, departmentMap) => {
     try {
-        logger_util_1.logger.info("🌱 Seeding roles...");
         const existingCount = await models_1.Role.countDocuments();
         if (existingCount > 0) {
-            logger_util_1.logger.info(`✅ Roles already seeded (${existingCount} roles found)`);
             const existingRoles = await models_1.Role.find();
-            logger_util_1.logger.info("🔍 Existing roles in database:");
-            existingRoles.forEach(role => {
-                logger_util_1.logger.info(`   - ${role.name} (systemRole: ${role.systemRole})`);
-            });
             const warehouseStaffExists = existingRoles.some(role => role.systemRole === models_1.SystemRole.WAREHOUSE_STAFF);
             if (!warehouseStaffExists) {
-                logger_util_1.logger.info("⚠️ Warehouse Staff role missing, creating it now...");
                 const warehouseStaffRole = {
                     name: "Warehouse Staff",
                     key: "warehouse_staff",
@@ -73,11 +66,7 @@ const seedRoles = async (createdBy, departmentMap) => {
                     createdBy,
                 };
                 const createdWarehouseStaff = await models_1.Role.create(warehouseStaffRole);
-                logger_util_1.logger.info(`✅ Warehouse Staff role created successfully: ${createdWarehouseStaff._id}`);
                 existingRoles.push(createdWarehouseStaff);
-            }
-            else {
-                logger_util_1.logger.info("✅ Warehouse Staff role already exists");
             }
             const roleMap = {};
             existingRoles.forEach(role => {
@@ -85,7 +74,6 @@ const seedRoles = async (createdBy, departmentMap) => {
                     roleMap[role.systemRole] = role._id;
                 }
             });
-            logger_util_1.logger.info("🔍 Role map created:", Object.keys(roleMap));
             return roleMap;
         }
         const roles = [
@@ -284,19 +272,16 @@ const seedRoles = async (createdBy, departmentMap) => {
             createdBy,
         }));
         const createdRoles = await models_1.Role.insertMany(rolesWithCreatedBy);
-        logger_util_1.logger.info(`✅ Successfully seeded ${createdRoles.length} roles`);
         const roleMap = {};
         createdRoles.forEach(role => {
             if (role.systemRole) {
                 roleMap[role.systemRole] = role._id;
             }
         });
-        const roleNames = createdRoles.map(r => `${r.name} (${r.systemRole})`);
-        logger_util_1.logger.info(`📋 Created roles: ${roleNames.join(", ")}`);
         return roleMap;
     }
     catch (error) {
-        logger_util_1.logger.error("❌ Error seeding roles:", error);
+        logger_util_1.logger.error("Error seeding roles:", error);
         throw error;
     }
 };

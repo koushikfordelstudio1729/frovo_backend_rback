@@ -100,115 +100,53 @@ app.use(errorHandler);
 
 const PORT = process.env["PORT"] || 3000;
 
-// Set up error handlers FIRST, before any async operations
+// Global error handlers
 process.on("uncaughtException", error => {
-  try {
-    logger.error("💥 Uncaught Exception caught");
-    logger.error("💥 Error Type:", typeof error);
-    logger.error("💥 Error is null?", error === null);
-    logger.error("💥 Error is undefined?", error === undefined);
-
-    if (error instanceof Error) {
-      logger.error("💥 Error Name:", error.name || "NO_NAME");
-      logger.error("💥 Error Message:", error.message || "NO_MESSAGE");
-      logger.error("💥 Error Stack:", error.stack || "NO_STACK");
-    } else if (error) {
-      logger.error("💥 Non-Error Exception:", String(error));
-    } else {
-      logger.error("💥 Error is null or undefined");
-    }
-  } catch (logError) {
-    logger.error("Failed to log uncaught exception:", logError);
-    logger.error("Original error:", error);
-  }
+  logger.error("Uncaught Exception:", error);
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  try {
-    logger.error("💥 Unhandled Rejection at:", promise);
-    logger.error("💥 Rejection reason:", reason);
-    logger.error("💥 Reason type:", typeof reason);
-    if (reason instanceof Error) {
-      logger.error("💥 Rejection stack:", reason.stack);
-    }
-  } catch (logError) {
-    logger.error("Failed to log unhandled rejection:", logError);
-  }
+process.on("unhandledRejection", (reason, _promise) => {
+  logger.error("Unhandled Rejection:", reason);
   process.exit(1);
 });
 
 const startServer = async () => {
   try {
     // Connect to MongoDB
-    logger.info("🔌 Connecting to MongoDB...");
     await connectDB();
 
     // Run seeders if enabled
     if (process.env["SEED_DATABASE"] === "true") {
-      logger.info("🌱 Seeding database...");
       await seedDatabase();
-      logger.info("✅ Seeding completed, starting server...");
     }
 
     // Start the server
-    logger.info("🚀 About to start listening on port", PORT);
     const server = app.listen(PORT, () => {
-      logger.info("🚀 Frovo RBAC Backend Server Started");
-      logger.info(`📡 Server running on port ${PORT}`);
-      logger.info(`🌍 Environment: ${process.env["NODE_ENV"] || "development"}`);
-      logger.info(`📊 Database: ${process.env["MONGODB_URI"] ? "Connected" : "Not configured"}`);
       logger.info(
-        `🔐 JWT Access Secret: ${process.env["JWT_ACCESS_SECRET"] ? "Configured" : "Not configured"}`
+        `Server started | Port: ${PORT} | Environment: ${process.env["NODE_ENV"] || "development"}`
       );
-      logger.info(
-        `🔑 JWT Refresh Secret: ${process.env["JWT_REFRESH_SECRET"] ? "Configured" : "Not configured"}`
-      );
-      logger.info("");
-      logger.info("📋 Available Routes:");
-      logger.info("   🔐 Auth: /api/auth");
-      logger.info("   👥 Users: /api/users");
-      logger.info("   🎭 Roles: /api/roles");
-      logger.info("   🏢 Departments: /api/departments");
-      logger.info("   🔑 Permissions: /api/permissions");
-      logger.info("   📝 Access Requests: /api/access-requests");
-      logger.info("   📋 Audit Logs: /api/audit-logs");
-      logger.info("   🔒 Security: /api/security");
-      logger.info("   🏭 Warehouse: /api/warehouse");
-      logger.info("   🛒 Vendors: /api/vendors");
-      logger.info("   📦Audit Trails :/api/audit-trails");
-      logger.info("   🗺️ Area Routes: /api/area-route");
-      logger.info("   🏪 Vending Machines: /api/vending");
-      logger.info("   📦 Catalogue: /api/catalogue");
-      logger.info("   🛍️ History Catalogue: /api/history-catalogue");
-      logger.info("");
-      logger.info("✅ Ready to accept requests!");
     });
 
     // Graceful shutdown
     const gracefulShutdown = (signal: string) => {
-      logger.info(`\n⚠️ Received ${signal}. Starting graceful shutdown...`);
+      logger.info(`Received ${signal}, shutting down gracefully`);
 
       server.close(async () => {
-        logger.info("🔌 HTTP server closed");
-
         try {
-          // Close database connection
           const mongoose = await import("mongoose");
           await mongoose.default.connection.close();
-          logger.info("🗄️ Database connection closed");
-
-          logger.info("✅ Graceful shutdown completed");
+          logger.info("Shutdown complete");
           process.exit(0);
         } catch (error) {
-          logger.error("❌ Error during shutdown:", error);
+          logger.error("Error during shutdown:", error);
           process.exit(1);
         }
       });
 
       // Force shutdown after 30 seconds
       setTimeout(() => {
-        logger.error("💥 Could not close connections in time, forcefully shutting down");
+        logger.error("Forced shutdown - connections did not close in time");
         process.exit(1);
       }, 30000);
     };
@@ -217,7 +155,7 @@ const startServer = async () => {
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   } catch (error) {
-    logger.error("❌ Failed to start server:", error);
+    logger.error("Failed to start server:", error);
     process.exit(1);
   }
 };

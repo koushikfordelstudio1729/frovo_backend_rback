@@ -15,25 +15,19 @@ const connectDB = async () => {
             bufferCommands: false,
         };
         const conn = await mongoose_1.default.connect(process.env["MONGODB_URI"], options);
-        logger_util_1.logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
-        logger_util_1.logger.info(`📊 Database: ${conn.connection.name}`);
+        logger_util_1.logger.info(`MongoDB connected | Host: ${conn.connection.host} | DB: ${conn.connection.name}`);
         mongoose_1.default.connection.on("error", err => {
-            logger_util_1.logger.error("❌ MongoDB connection error:", err);
+            logger_util_1.logger.error("MongoDB connection error:", err);
         });
         mongoose_1.default.connection.on("disconnected", () => {
-            logger_util_1.logger.info("⚠️  MongoDB disconnected");
+            logger_util_1.logger.warn("MongoDB disconnected");
         });
         mongoose_1.default.connection.on("reconnected", () => {
-            logger_util_1.logger.info("🔄 MongoDB reconnected");
-        });
-        process.on("SIGINT", async () => {
-            await mongoose_1.default.connection.close();
-            logger_util_1.logger.info("MongoDB connection closed through app termination");
-            process.exit(0);
+            logger_util_1.logger.info("MongoDB reconnected");
         });
     }
     catch (error) {
-        logger_util_1.logger.error("❌ MongoDB connection failed:", error);
+        logger_util_1.logger.error("MongoDB connection failed:", error);
         process.exit(1);
     }
 };

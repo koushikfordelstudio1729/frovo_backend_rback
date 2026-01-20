@@ -15,19 +15,10 @@ export const seedRoles = async (
   departmentMap: { [key: string]: Types.ObjectId }
 ): Promise<{ [key: string]: Types.ObjectId }> => {
   try {
-    logger.info("🌱 Seeding roles...");
-
     // Check if roles already exist
     const existingCount = await Role.countDocuments();
     if (existingCount > 0) {
-      logger.info(`✅ Roles already seeded (${existingCount} roles found)`);
-
-      // DEBUG: Check what roles actually exist
       const existingRoles = await Role.find();
-      logger.info("🔍 Existing roles in database:");
-      existingRoles.forEach(role => {
-        logger.info(`   - ${role.name} (systemRole: ${role.systemRole})`);
-      });
 
       // Check if warehouse_staff role exists
       const warehouseStaffExists = existingRoles.some(
@@ -35,8 +26,6 @@ export const seedRoles = async (
       );
 
       if (!warehouseStaffExists) {
-        logger.info("⚠️ Warehouse Staff role missing, creating it now...");
-
         // Create only the Warehouse Staff role
         const warehouseStaffRole = {
           name: "Warehouse Staff",
@@ -62,12 +51,7 @@ export const seedRoles = async (
         };
 
         const createdWarehouseStaff = await Role.create(warehouseStaffRole);
-        logger.info(`✅ Warehouse Staff role created successfully: ${createdWarehouseStaff._id}`);
-
-        // Add the new role to existing roles array for the role map
         existingRoles.push(createdWarehouseStaff);
-      } else {
-        logger.info("✅ Warehouse Staff role already exists");
       }
 
       // Return existing role IDs (including newly created warehouse_staff)
@@ -78,7 +62,6 @@ export const seedRoles = async (
         }
       });
 
-      logger.info("🔍 Role map created:", Object.keys(roleMap));
       return roleMap;
     }
 
@@ -284,8 +267,6 @@ export const seedRoles = async (
 
     const createdRoles = await Role.insertMany(rolesWithCreatedBy);
 
-    logger.info(`✅ Successfully seeded ${createdRoles.length} roles`);
-
     // Create role mapping
     const roleMap: { [key: string]: Types.ObjectId } = {};
     createdRoles.forEach(role => {
@@ -294,13 +275,9 @@ export const seedRoles = async (
       }
     });
 
-    // Log created roles
-    const roleNames = createdRoles.map(r => `${r.name} (${r.systemRole})`);
-    logger.info(`📋 Created roles: ${roleNames.join(", ")}`);
-
     return roleMap;
   } catch (error) {
-    logger.error("❌ Error seeding roles:", error);
+    logger.error("Error seeding roles:", error);
     throw error;
   }
 };

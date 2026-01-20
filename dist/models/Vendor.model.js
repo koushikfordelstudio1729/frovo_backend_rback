@@ -381,8 +381,6 @@ vendorCreateSchema.pre("save", function (next) {
     }
     next();
 });
-vendorCreateSchema.index({ vendor_email: 1 }, { unique: true });
-vendorCreateSchema.index({ vendor_id: 1 }, { unique: true });
 vendorCreateSchema.index({ verification_status: 1 });
 vendorCreateSchema.index({ risk_rating: 1 });
 vendorCreateSchema.index({ vendor_category: 1 });

@@ -1,4 +1,4 @@
-// seeders/superAdmin.seeder.ts - FIXED VERSION
+// seeders/superAdmin.seeder.ts
 import { User, UserStatus, SystemRole } from "../models";
 import { logger } from "../utils/logger.util";
 import { emailService } from "../services/email.service";
@@ -9,19 +9,9 @@ export const seedSuperAdmin = async (
   roleMap: { [key: string]: Types.ObjectId }
 ): Promise<{ superAdminId: Types.ObjectId; vendorAdminId: Types.ObjectId }> => {
   try {
-    logger.info("🌱 Seeding Super Admin and Vendor Admin...");
-
-    // DEBUG: Check what's in the maps
-    logger.info("🔍 Department Map Keys:", Object.keys(departmentMap));
-    logger.info("🔍 Role Map Keys:", Object.keys(roleMap));
-    logger.info("🔍 Looking for Vendor Admin role:", SystemRole.VENDOR_ADMIN in roleMap);
-    logger.info("🔍 Looking for Operations department:", "Operations" in departmentMap);
-
     // Check if any user already exists
     const existingUserCount = await User.countDocuments();
     if (existingUserCount > 0) {
-      logger.info(`✅ Users already exist (${existingUserCount} users found)`);
-
       // Find existing super admin
       const existingSuperAdmin = await User.findOne({
         roles: { $in: [roleMap[SystemRole.SUPER_ADMIN]] },
@@ -31,7 +21,6 @@ export const seedSuperAdmin = async (
       });
 
       if (existingSuperAdmin && existingVendorAdmin) {
-        logger.info("✅ Both Super Admin and Vendor Admin already exist");
         return {
           superAdminId: existingSuperAdmin._id,
           vendorAdminId: existingVendorAdmin._id,
@@ -42,14 +31,12 @@ export const seedSuperAdmin = async (
       const result: any = {};
 
       if (!existingSuperAdmin) {
-        logger.info("⚠️ Creating missing Super Admin...");
         result.superAdminId = await createSuperAdmin(departmentMap, roleMap);
       } else {
         result.superAdminId = existingSuperAdmin._id;
       }
 
       if (!existingVendorAdmin) {
-        logger.info("⚠️ Creating missing Vendor Admin...");
         result.vendorAdminId = await createVendorAdmin(result.superAdminId, departmentMap, roleMap);
       } else {
         result.vendorAdminId = existingVendorAdmin._id;
@@ -64,14 +51,12 @@ export const seedSuperAdmin = async (
     // Create Vendor Admin using Super Admin as creator
     const vendorAdminId = await createVendorAdmin(superAdminId, departmentMap, roleMap);
 
-    logger.info("✅ Successfully created both Super Admin and Vendor Admin users");
-
     return {
       superAdminId,
       vendorAdminId,
     };
   } catch (error) {
-    logger.error("❌ Error seeding admin users:", error);
+    logger.error("Error seeding admin users:", error);
     throw error;
   }
 };
@@ -95,7 +80,6 @@ const createSuperAdmin = async (
   // Check if Super Admin already exists
   const existingSuperAdmin = await User.findOne({ email });
   if (existingSuperAdmin) {
-    logger.info("✅ Super Admin user already exists");
     return existingSuperAdmin._id;
   }
 
@@ -107,24 +91,19 @@ const createSuperAdmin = async (
     departments: [systemAdminDeptId],
     roles: [superAdminRoleId],
     status: UserStatus.ACTIVE,
-    createdBy: new Types.ObjectId(), // Temporary, will update
+    createdBy: new Types.ObjectId(),
   });
 
   // Update createdBy to point to the super admin itself
   await User.findByIdAndUpdate(superAdmin._id, { createdBy: superAdmin._id });
-
-  logger.info("✅ Successfully created Super Admin user");
-  logger.info(`📧 Email: ${email}`);
-  logger.info(`🔑 Password: ${password}`);
 
   // Send welcome email if configured
   const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
   if (emailConfigured) {
     try {
       await emailService.sendWelcomeEmail(email, name, password);
-      logger.info("📧 Welcome email sent successfully to Super Admin");
-    } catch (emailError) {
-      logger.warn("⚠️ Failed to send welcome email to Super Admin:", emailError);
+    } catch {
+      // Email sending failed, continue silently
     }
   }
 
@@ -143,8 +122,6 @@ const ensureVendorAdminRole = async (
   let vendorAdminRole = await Role.findOne({ systemRole: SystemRole.VENDOR_ADMIN });
 
   if (!vendorAdminRole) {
-    logger.info("⚠️ Vendor Admin role not found, creating it now...");
-
     const operationsDeptId = departmentMap["Operations"];
     if (!operationsDeptId) {
       throw new Error("Operations department not found for Vendor Admin role");
@@ -173,8 +150,6 @@ const ensureVendorAdminRole = async (
       description: "Vendor management with full control over vendor lifecycle",
       createdBy: createdBy,
     });
-
-    logger.info("✅ Vendor Admin role created successfully");
   }
 
   return vendorAdminRole._id;
@@ -201,7 +176,6 @@ const createVendorAdmin = async (
   // Check if Vendor Admin user already exists with this email
   const existingVendorAdmin = await User.findOne({ email });
   if (existingVendorAdmin) {
-    logger.info("✅ Vendor Admin user already exists");
     return existingVendorAdmin._id;
   }
 
@@ -216,18 +190,13 @@ const createVendorAdmin = async (
     createdBy: createdBy,
   });
 
-  logger.info("✅ Successfully created Vendor Admin user");
-  logger.info(`📧 Email: ${email}`);
-  logger.info(`🔑 Password: ${password}`);
-
   // Send welcome email if configured
   const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
   if (emailConfigured) {
     try {
       await emailService.sendWelcomeEmail(email, name, password);
-      logger.info("📧 Welcome email sent successfully to Vendor Admin");
-    } catch (emailError) {
-      logger.warn("⚠️ Failed to send welcome email to Vendor Admin:", emailError);
+    } catch {
+      // Email sending failed, continue silently
     }
   }
 
@@ -241,13 +210,10 @@ if (require.main === module) {
       import("./roles.seeder").then(({ seedRoles }) => {
         connectDB().then(() => {
           const dummyCreatedBy = new Types.ObjectId();
-
           seedDepartments(dummyCreatedBy).then(departmentMap => {
             seedRoles(dummyCreatedBy, departmentMap).then(roleMap => {
               seedSuperAdmin(departmentMap, roleMap)
-                .then(() => {
-                  process.exit(0);
-                })
+                .then(() => process.exit(0))
                 .catch(error => {
                   logger.error("Failed to seed admin users:", error);
                   process.exit(1);

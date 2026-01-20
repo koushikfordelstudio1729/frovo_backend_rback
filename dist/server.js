@@ -107,98 +107,38 @@ app.use(errorHandler_middleware_1.notFound);
 app.use(errorHandler_middleware_1.errorHandler);
 const PORT = process.env["PORT"] || 3000;
 process.on("uncaughtException", error => {
-    try {
-        logger_util_1.logger.error("💥 Uncaught Exception caught");
-        logger_util_1.logger.error("💥 Error Type:", typeof error);
-        logger_util_1.logger.error("💥 Error is null?", error === null);
-        logger_util_1.logger.error("💥 Error is undefined?", error === undefined);
-        if (error instanceof Error) {
-            logger_util_1.logger.error("💥 Error Name:", error.name || "NO_NAME");
-            logger_util_1.logger.error("💥 Error Message:", error.message || "NO_MESSAGE");
-            logger_util_1.logger.error("💥 Error Stack:", error.stack || "NO_STACK");
-        }
-        else if (error) {
-            logger_util_1.logger.error("💥 Non-Error Exception:", String(error));
-        }
-        else {
-            logger_util_1.logger.error("💥 Error is null or undefined");
-        }
-    }
-    catch (logError) {
-        logger_util_1.logger.error("Failed to log uncaught exception:", logError);
-        logger_util_1.logger.error("Original error:", error);
-    }
+    logger_util_1.logger.error("Uncaught Exception:", error);
     process.exit(1);
 });
-process.on("unhandledRejection", (reason, promise) => {
-    try {
-        logger_util_1.logger.error("💥 Unhandled Rejection at:", promise);
-        logger_util_1.logger.error("💥 Rejection reason:", reason);
-        logger_util_1.logger.error("💥 Reason type:", typeof reason);
-        if (reason instanceof Error) {
-            logger_util_1.logger.error("💥 Rejection stack:", reason.stack);
-        }
-    }
-    catch (logError) {
-        logger_util_1.logger.error("Failed to log unhandled rejection:", logError);
-    }
+process.on("unhandledRejection", (reason, _promise) => {
+    logger_util_1.logger.error("Unhandled Rejection:", reason);
     process.exit(1);
 });
 const startServer = async () => {
     try {
-        logger_util_1.logger.info("🔌 Connecting to MongoDB...");
         await (0, database_1.connectDB)();
         if (process.env["SEED_DATABASE"] === "true") {
-            logger_util_1.logger.info("🌱 Seeding database...");
             await (0, seeders_1.seedDatabase)();
-            logger_util_1.logger.info("✅ Seeding completed, starting server...");
         }
-        logger_util_1.logger.info("🚀 About to start listening on port", PORT);
         const server = app.listen(PORT, () => {
-            logger_util_1.logger.info("🚀 Frovo RBAC Backend Server Started");
-            logger_util_1.logger.info(`📡 Server running on port ${PORT}`);
-            logger_util_1.logger.info(`🌍 Environment: ${process.env["NODE_ENV"] || "development"}`);
-            logger_util_1.logger.info(`📊 Database: ${process.env["MONGODB_URI"] ? "Connected" : "Not configured"}`);
-            logger_util_1.logger.info(`🔐 JWT Access Secret: ${process.env["JWT_ACCESS_SECRET"] ? "Configured" : "Not configured"}`);
-            logger_util_1.logger.info(`🔑 JWT Refresh Secret: ${process.env["JWT_REFRESH_SECRET"] ? "Configured" : "Not configured"}`);
-            logger_util_1.logger.info("");
-            logger_util_1.logger.info("📋 Available Routes:");
-            logger_util_1.logger.info("   🔐 Auth: /api/auth");
-            logger_util_1.logger.info("   👥 Users: /api/users");
-            logger_util_1.logger.info("   🎭 Roles: /api/roles");
-            logger_util_1.logger.info("   🏢 Departments: /api/departments");
-            logger_util_1.logger.info("   🔑 Permissions: /api/permissions");
-            logger_util_1.logger.info("   📝 Access Requests: /api/access-requests");
-            logger_util_1.logger.info("   📋 Audit Logs: /api/audit-logs");
-            logger_util_1.logger.info("   🔒 Security: /api/security");
-            logger_util_1.logger.info("   🏭 Warehouse: /api/warehouse");
-            logger_util_1.logger.info("   🛒 Vendors: /api/vendors");
-            logger_util_1.logger.info("   📦Audit Trails :/api/audit-trails");
-            logger_util_1.logger.info("   🗺️ Area Routes: /api/area-route");
-            logger_util_1.logger.info("   🏪 Vending Machines: /api/vending");
-            logger_util_1.logger.info("   📦 Catalogue: /api/catalogue");
-            logger_util_1.logger.info("   🛍️ History Catalogue: /api/history-catalogue");
-            logger_util_1.logger.info("");
-            logger_util_1.logger.info("✅ Ready to accept requests!");
+            logger_util_1.logger.info(`Server started | Port: ${PORT} | Environment: ${process.env["NODE_ENV"] || "development"}`);
         });
         const gracefulShutdown = (signal) => {
-            logger_util_1.logger.info(`\n⚠️ Received ${signal}. Starting graceful shutdown...`);
+            logger_util_1.logger.info(`Received ${signal}, shutting down gracefully`);
             server.close(async () => {
-                logger_util_1.logger.info("🔌 HTTP server closed");
                 try {
                     const mongoose = await Promise.resolve().then(() => __importStar(require("mongoose")));
                     await mongoose.default.connection.close();
-                    logger_util_1.logger.info("🗄️ Database connection closed");
-                    logger_util_1.logger.info("✅ Graceful shutdown completed");
+                    logger_util_1.logger.info("Shutdown complete");
                     process.exit(0);
                 }
                 catch (error) {
-                    logger_util_1.logger.error("❌ Error during shutdown:", error);
+                    logger_util_1.logger.error("Error during shutdown:", error);
                     process.exit(1);
                 }
             });
             setTimeout(() => {
-                logger_util_1.logger.error("💥 Could not close connections in time, forcefully shutting down");
+                logger_util_1.logger.error("Forced shutdown - connections did not close in time");
                 process.exit(1);
             }, 30000);
         };
@@ -206,7 +146,7 @@ const startServer = async () => {
         process.on("SIGINT", () => gracefulShutdown("SIGINT"));
     }
     catch (error) {
-        logger_util_1.logger.error("❌ Failed to start server:", error);
+        logger_util_1.logger.error("Failed to start server:", error);
         process.exit(1);
     }
 };

@@ -4,11 +4,8 @@ import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
 import { uploadSingle } from "../middleware/upload.middleware";
 
-import { logger } from "../utils/logger.util";
 const router = Router();
 const vendorController = new VendorController();
-
-logger.info("🔀 === VENDOR ROUTES REGISTRATION ===");
 
 // ========== APPLY AUTHENTICATION TO ALL OTHER ROUTES ==========
 router.use(authenticate);
@@ -27,7 +24,6 @@ const READ_ACCESS = [
 ];
 
 // ========== COMPANY ROUTES ==========
-logger.info("📋 Registering company routes...");
 router.post("/companies", authorize(VENDOR_MANAGEMENT), VendorController.createCompany);
 router.get("/companies", authorize(READ_ACCESS), VendorController.getAllCompanies);
 router.get("/companies/search", authorize(READ_ACCESS), VendorController.searchCompanies);
@@ -42,18 +38,12 @@ router.get(
 );
 
 // ========== DASHBOARD ROUTES ==========
-logger.info("📊 Registering dashboard routes...");
-
-// COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
-// Shows all companies and all vendors (created by all admins)
 router.get(
   "/common-dashboard",
   authorize(VENDOR_MANAGEMENT),
   vendorController.getCommonDashboard.bind(vendorController)
 );
 
-// SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only Super Admin
-// Shows only vendors with full approval/verification management
 router.get(
   "/super-admin/vendor-management",
   authorize(SUPER_ADMIN_ONLY),
@@ -61,7 +51,6 @@ router.get(
 );
 
 // ========== SUPER ADMIN SPECIFIC ROUTES ==========
-logger.info("👑 Registering super admin routes...");
 router.get(
   "/super-admin/vendors",
   authorize(SUPER_ADMIN_ONLY),
@@ -79,7 +68,6 @@ router.get(
 );
 
 // ========== VENDOR VERIFICATION ROUTES ==========
-logger.info("✅ Registering verification routes...");
 router.patch(
   "/:id/verify",
   authorize(VENDOR_MANAGEMENT),
@@ -102,7 +90,6 @@ router.put(
 );
 
 // ========== VENDOR CREATION ROUTES ==========
-logger.info("➕ Registering vendor creation routes...");
 router.post(
   "/create",
   authorize(VENDOR_MANAGEMENT),
@@ -115,7 +102,6 @@ router.post(
 );
 
 // ========== GENERAL VENDOR MANAGEMENT ROUTES ==========
-logger.info("📝 Registering general vendor routes...");
 router.get(
   "/profile/me",
   authorize(VENDOR_MANAGEMENT),
@@ -140,7 +126,6 @@ router.delete(
 );
 
 // ========== DOCUMENT MANAGEMENT ROUTES ==========
-logger.info("📄 Registering document routes...");
 router.post(
   "/:id/documents",
   authorize(VENDOR_MANAGEMENT),
@@ -164,7 +149,6 @@ router.delete(
 );
 
 // ========== AUDIT TRAIL ROUTES ==========
-logger.info("📜 Registering audit trail routes...");
 router.get(
   "/:id/audit-trail",
   authorize(READ_ACCESS),
@@ -175,7 +159,5 @@ router.get(
   authorize(READ_ACCESS),
   vendorController.getCompanyAuditTrail.bind(vendorController)
 );
-
-logger.info("✅ === ALL VENDOR ROUTES REGISTERED ===");
 
 export default router;

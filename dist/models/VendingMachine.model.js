@@ -196,7 +196,6 @@ const vendingMachineSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
 });
-vendingMachineSchema.index({ machineId: 1 });
 vendingMachineSchema.index({ status: 1 });
 vendingMachineSchema.index({ "location.city": 1 });
 vendingMachineSchema.index({ "location.state": 1 });
