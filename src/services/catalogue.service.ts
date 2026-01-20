@@ -821,7 +821,6 @@ export class SubCategoryService {
 
       const subCategories = await SubCategoryModel.find({
         category_id: categoryId,
-        sub_category_status: "active",
       }).sort({ sub_category_name: 1 });
 
       return subCategories;
