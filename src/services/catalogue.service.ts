@@ -455,6 +455,15 @@ export class CategoryService {
         throw new Error("Failed to update category");
       }
 
+      // If category is set to inactive, also set all its sub-categories to inactive
+      if (updateData.category_status === "inactive") {
+        await SubCategoryModel.updateMany(
+          { category_id: categoryId },
+          { $set: { sub_category_status: "inactive" } }
+        );
+        logger.info(`All sub-categories of category ${categoryId} set to inactive`);
+      }
+
       if (this.req) {
         await historyCatalogueService
           .logUpdate(
