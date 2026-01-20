@@ -27,6 +27,7 @@ let getSignedUrl: any;
 
 // Try to load AWS SDK (optional dependency)
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const s3Module = require("@aws-sdk/client-s3");
   S3Client = s3Module.S3Client;
   PutObjectCommand = s3Module.PutObjectCommand;
@@ -34,9 +35,10 @@ try {
   HeadObjectCommand = s3Module.HeadObjectCommand;
   GetObjectCommand = s3Module.GetObjectCommand;
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const presignerModule = require("@aws-sdk/s3-request-presigner");
   getSignedUrl = presignerModule.getSignedUrl;
-} catch (error) {
+} catch {
   // AWS SDK not installed - will throw error when trying to use S3 provider
 }
 

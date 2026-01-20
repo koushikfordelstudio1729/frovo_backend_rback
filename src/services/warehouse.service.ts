@@ -479,7 +479,7 @@ class WarehouseService {
           $gte: new Date(now.setHours(0, 0, 0, 0)),
           $lte: new Date(now.setHours(23, 59, 59, 999)),
         };
-      case "this_week":
+      case "this_week": {
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
@@ -487,11 +487,13 @@ class WarehouseService {
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         endOfWeek.setHours(23, 59, 59, 999);
         return { $gte: startOfWeek, $lte: endOfWeek };
-      case "this_month":
+      }
+      case "this_month": {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         endOfMonth.setHours(23, 59, 59, 999);
         return { $gte: startOfMonth, $lte: endOfMonth };
+      }
       default:
         return {};
     }
@@ -1564,11 +1566,12 @@ class WarehouseService {
     if (filters.expiryStatus) {
       const today = new Date();
       switch (filters.expiryStatus) {
-        case "expiring_soon":
+        case "expiring_soon": {
           const next30Days = new Date(today);
           next30Days.setDate(today.getDate() + 30);
           query.expiryDate = { $gte: today, $lte: next30Days };
           break;
+        }
         case "expired":
           query.expiryDate = { $lt: today };
           break;

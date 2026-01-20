@@ -24,7 +24,7 @@ export interface CreateCategoryDTO {
   category_status?: "active" | "inactive";
 }
 
-export interface UpdateCategoryDTO extends Partial<CreateCategoryDTO> {}
+export type UpdateCategoryDTO = Partial<CreateCategoryDTO>;
 
 // SUB-CATEGORY DTOs
 export interface CreateSubCategoryDTO {
@@ -35,7 +35,7 @@ export interface CreateSubCategoryDTO {
   sub_category_status?: "active" | "inactive";
 }
 
-export interface UpdateSubCategoryDTO extends Partial<CreateSubCategoryDTO> {}
+export type UpdateSubCategoryDTO = Partial<CreateSubCategoryDTO>;
 
 // CATALOGUE DTOs
 export interface CreateCatalogueDTO {
@@ -60,7 +60,7 @@ export interface CreateCatalogueDTO {
   status?: "active" | "inactive";
 }
 
-export interface UpdateCatalogueDTO extends Partial<CreateCatalogueDTO> {}
+export type UpdateCatalogueDTO = Partial<CreateCatalogueDTO>;
 
 // FILTER DTOs
 export interface CategoryFilterDTO {

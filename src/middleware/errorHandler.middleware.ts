@@ -90,7 +90,9 @@ export const notFound = (req: Request, res: Response, _next: NextFunction): any 
 };
 
 // Async error wrapper (alternative to asyncHandler utility)
-export const catchAsync = (fn: Function) => {
+export const catchAsync = (
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<void> | void
+) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };

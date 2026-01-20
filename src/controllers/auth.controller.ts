@@ -1,4 +1,3 @@
-/// <reference path="../types/express.d.ts" />
 import { Request, Response } from "express";
 import { authService } from "../services/auth.service";
 import { asyncHandler } from "../utils/asyncHandler.util";
