@@ -17,10 +17,11 @@ export default tseslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/triple-slash-reference': ['error', { path: 'always', types: 'always', lib: 'always' }],
       'no-console': 'warn',
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '**/*.js'],
+    ignores: ['dist/**', 'node_modules/**', '**/*.js', '**/*.d.ts'],
   }
 );
