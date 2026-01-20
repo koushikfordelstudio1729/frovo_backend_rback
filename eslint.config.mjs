@@ -18,7 +18,7 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/triple-slash-reference': ['error', { path: 'always', types: 'always', lib: 'always' }],
-      'no-console': 'warn',
+      'no-console': 'error',
     },
   },
   {
