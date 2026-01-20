@@ -1,22 +1,22 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema, model, Document, Types } from "mongoose";
 
 export enum OrderStatus {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  PROCESSING = 'processing',
-  DISPENSING = 'dispensing',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-  FAILED = 'failed',
-  REFUNDED = 'refunded'
+  PENDING = "pending",
+  CONFIRMED = "confirmed",
+  PROCESSING = "processing",
+  DISPENSING = "dispensing",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+  FAILED = "failed",
+  REFUNDED = "refunded",
 }
 
 export enum PaymentStatus {
-  PENDING = 'pending',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  REFUNDED = 'refunded'
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  REFUNDED = "refunded",
 }
 
 export interface IOrderItem {
@@ -77,199 +77,211 @@ export interface IOrder extends Document {
   refundReason?: string;
 }
 
-const orderItemSchema = new Schema<IOrderItem>({
-  product: {
-    type: Schema.Types.ObjectId,
-    ref: 'Product',
-    required: [true, 'Product is required']
+const orderItemSchema = new Schema<IOrderItem>(
+  {
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      required: [true, "Product is required"],
+    },
+    productName: {
+      type: String,
+      required: [true, "Product name is required"],
+    },
+    productDescription: {
+      type: String,
+      required: [true, "Product description is required"],
+    },
+    machineId: {
+      type: String,
+      required: [true, "Machine ID is required"],
+    },
+    machineName: {
+      type: String,
+      required: [true, "Machine name is required"],
+    },
+    slotNumber: {
+      type: String,
+      required: [true, "Slot number is required"],
+    },
+    quantity: {
+      type: Number,
+      required: [true, "Quantity is required"],
+      min: [1, "Quantity must be at least 1"],
+    },
+    unitPrice: {
+      type: Number,
+      required: [true, "Unit price is required"],
+      min: [0, "Unit price must be positive"],
+    },
+    totalPrice: {
+      type: Number,
+      required: [true, "Total price is required"],
+      min: [0, "Total price must be positive"],
+    },
+    dispensed: {
+      type: Boolean,
+      default: false,
+    },
+    dispensedAt: {
+      type: Date,
+    },
   },
-  productName: {
-    type: String,
-    required: [true, 'Product name is required']
-  },
-  productDescription: {
-    type: String,
-    required: [true, 'Product description is required']
-  },
-  machineId: {
-    type: String,
-    required: [true, 'Machine ID is required']
-  },
-  machineName: {
-    type: String,
-    required: [true, 'Machine name is required']
-  },
-  slotNumber: {
-    type: String,
-    required: [true, 'Slot number is required']
-  },
-  quantity: {
-    type: Number,
-    required: [true, 'Quantity is required'],
-    min: [1, 'Quantity must be at least 1']
-  },
-  unitPrice: {
-    type: Number,
-    required: [true, 'Unit price is required'],
-    min: [0, 'Unit price must be positive']
-  },
-  totalPrice: {
-    type: Number,
-    required: [true, 'Total price is required'],
-    min: [0, 'Total price must be positive']
-  },
-  dispensed: {
-    type: Boolean,
-    default: false
-  },
-  dispensedAt: {
-    type: Date
-  }
-}, { _id: false });
+  { _id: false }
+);
 
-const deliveryInfoSchema = new Schema<IDeliveryInfo>({
-  machineId: {
-    type: String,
-    required: [true, 'Machine ID is required']
+const deliveryInfoSchema = new Schema<IDeliveryInfo>(
+  {
+    machineId: {
+      type: String,
+      required: [true, "Machine ID is required"],
+    },
+    machineName: {
+      type: String,
+      required: [true, "Machine name is required"],
+    },
+    location: {
+      address: { type: String, required: true },
+      city: { type: String, required: true },
+      state: { type: String, required: true },
+      landmark: { type: String, required: true },
+    },
+    estimatedDispenseTime: {
+      type: Date,
+      required: [true, "Estimated dispense time is required"],
+    },
+    actualDispenseTime: {
+      type: Date,
+    },
   },
-  machineName: {
-    type: String,
-    required: [true, 'Machine name is required']
-  },
-  location: {
-    address: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    landmark: { type: String, required: true }
-  },
-  estimatedDispenseTime: {
-    type: Date,
-    required: [true, 'Estimated dispense time is required']
-  },
-  actualDispenseTime: {
-    type: Date
-  }
-}, { _id: false });
+  { _id: false }
+);
 
-const paymentInfoSchema = new Schema<IPaymentInfo>({
-  paymentId: {
-    type: String,
-    required: [true, 'Payment ID is required'],
-    unique: true
+const paymentInfoSchema = new Schema<IPaymentInfo>(
+  {
+    paymentId: {
+      type: String,
+      required: [true, "Payment ID is required"],
+      unique: true,
+    },
+    paymentMethod: {
+      type: String,
+      required: [true, "Payment method is required"],
+      enum: ["card", "upi", "netbanking", "wallet", "cash"],
+    },
+    transactionId: {
+      type: String,
+    },
+    paymentGateway: {
+      type: String,
+      required: [true, "Payment gateway is required"],
+      enum: ["razorpay", "stripe", "paytm", "phonepe", "googlepay", "cash"],
+    },
+    paymentStatus: {
+      type: String,
+      enum: Object.values(PaymentStatus),
+      default: PaymentStatus.PENDING,
+    },
+    paidAmount: {
+      type: Number,
+      required: [true, "Paid amount is required"],
+      min: [0, "Paid amount must be positive"],
+    },
+    paymentDate: {
+      type: Date,
+    },
+    refundId: {
+      type: String,
+    },
+    refundAmount: {
+      type: Number,
+      min: [0, "Refund amount must be positive"],
+    },
+    refundDate: {
+      type: Date,
+    },
   },
-  paymentMethod: {
-    type: String,
-    required: [true, 'Payment method is required'],
-    enum: ['card', 'upi', 'netbanking', 'wallet', 'cash']
-  },
-  transactionId: {
-    type: String
-  },
-  paymentGateway: {
-    type: String,
-    required: [true, 'Payment gateway is required'],
-    enum: ['razorpay', 'stripe', 'paytm', 'phonepe', 'googlepay', 'cash']
-  },
-  paymentStatus: {
-    type: String,
-    enum: Object.values(PaymentStatus),
-    default: PaymentStatus.PENDING
-  },
-  paidAmount: {
-    type: Number,
-    required: [true, 'Paid amount is required'],
-    min: [0, 'Paid amount must be positive']
-  },
-  paymentDate: {
-    type: Date
-  },
-  refundId: {
-    type: String
-  },
-  refundAmount: {
-    type: Number,
-    min: [0, 'Refund amount must be positive']
-  },
-  refundDate: {
-    type: Date
-  }
-}, { _id: false });
+  { _id: false }
+);
 
-const orderSchema = new Schema<IOrder>({
-  orderId: {
-    type: String,
-    unique: true,
-    index: true
+const orderSchema = new Schema<IOrder>(
+  {
+    orderId: {
+      type: String,
+      unique: true,
+      index: true,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "User ID is required"],
+      index: true,
+    },
+    items: [orderItemSchema],
+    totalItems: {
+      type: Number,
+      required: [true, "Total items is required"],
+      min: [1, "Order must have at least 1 item"],
+    },
+    subtotal: {
+      type: Number,
+      required: [true, "Subtotal is required"],
+      min: [0, "Subtotal must be positive"],
+    },
+    tax: {
+      type: Number,
+      default: 0,
+      min: [0, "Tax must be positive"],
+    },
+    totalAmount: {
+      type: Number,
+      required: [true, "Total amount is required"],
+      min: [0, "Total amount must be positive"],
+    },
+    orderStatus: {
+      type: String,
+      enum: Object.values(OrderStatus),
+      default: OrderStatus.PENDING,
+      index: true,
+    },
+    paymentInfo: paymentInfoSchema,
+    deliveryInfo: deliveryInfoSchema,
+    orderDate: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+    completedDate: {
+      type: Date,
+    },
+    notes: {
+      type: String,
+      maxlength: [500, "Notes cannot exceed 500 characters"],
+    },
+    cancelReason: {
+      type: String,
+      maxlength: [200, "Cancel reason cannot exceed 200 characters"],
+    },
+    refundReason: {
+      type: String,
+      maxlength: [200, "Refund reason cannot exceed 200 characters"],
+    },
   },
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'User ID is required'],
-    index: true
-  },
-  items: [orderItemSchema],
-  totalItems: {
-    type: Number,
-    required: [true, 'Total items is required'],
-    min: [1, 'Order must have at least 1 item']
-  },
-  subtotal: {
-    type: Number,
-    required: [true, 'Subtotal is required'],
-    min: [0, 'Subtotal must be positive']
-  },
-  tax: {
-    type: Number,
-    default: 0,
-    min: [0, 'Tax must be positive']
-  },
-  totalAmount: {
-    type: Number,
-    required: [true, 'Total amount is required'],
-    min: [0, 'Total amount must be positive']
-  },
-  orderStatus: {
-    type: String,
-    enum: Object.values(OrderStatus),
-    default: OrderStatus.PENDING,
-    index: true
-  },
-  paymentInfo: paymentInfoSchema,
-  deliveryInfo: deliveryInfoSchema,
-  orderDate: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  completedDate: {
-    type: Date
-  },
-  notes: {
-    type: String,
-    maxlength: [500, 'Notes cannot exceed 500 characters']
-  },
-  cancelReason: {
-    type: String,
-    maxlength: [200, 'Cancel reason cannot exceed 200 characters']
-  },
-  refundReason: {
-    type: String,
-    maxlength: [200, 'Refund reason cannot exceed 200 characters']
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+);
 
 // Indexes for efficient queries
 orderSchema.index({ userId: 1, orderDate: -1 });
 orderSchema.index({ orderStatus: 1, orderDate: -1 });
-orderSchema.index({ 'paymentInfo.paymentStatus': 1 });
-orderSchema.index({ 'deliveryInfo.machineId': 1 });
+orderSchema.index({ "paymentInfo.paymentStatus": 1 });
+orderSchema.index({ "deliveryInfo.machineId": 1 });
 
 // Generate order ID
-orderSchema.pre('save', function(next) {
+orderSchema.pre("save", function (next) {
   if (this.isNew && !this.orderId) {
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substr(2, 5);
@@ -279,59 +291,60 @@ orderSchema.pre('save', function(next) {
 });
 
 // Virtual to check if order is completed
-orderSchema.virtual('isCompleted').get(function() {
+orderSchema.virtual("isCompleted").get(function () {
   return this.orderStatus === OrderStatus.COMPLETED;
 });
 
 // Virtual to check if order can be cancelled
-orderSchema.virtual('canBeCancelled').get(function() {
+orderSchema.virtual("canBeCancelled").get(function () {
   return [OrderStatus.PENDING, OrderStatus.CONFIRMED].includes(this.orderStatus);
 });
 
 // Virtual to check if payment is successful
-orderSchema.virtual('isPaymentSuccessful').get(function() {
+orderSchema.virtual("isPaymentSuccessful").get(function () {
   return this.paymentInfo.paymentStatus === PaymentStatus.COMPLETED;
 });
 
 // Method to update order status
-orderSchema.methods['updateStatus'] = function(status: OrderStatus, reason?: string) {
+orderSchema.methods["updateStatus"] = function (status: OrderStatus, reason?: string) {
   (this as any).orderStatus = status;
-  
+
   if (status === OrderStatus.COMPLETED) {
     (this as any).completedDate = new Date();
   } else if (status === OrderStatus.CANCELLED && reason) {
     (this as any).cancelReason = reason;
   }
-  
+
   return (this as any).save();
 };
 
 // Method to update payment status
-orderSchema.methods['updatePaymentStatus'] = function(status: PaymentStatus, transactionId?: string) {
+orderSchema.methods["updatePaymentStatus"] = function (
+  status: PaymentStatus,
+  transactionId?: string
+) {
   (this as any).paymentInfo.paymentStatus = status;
-  
+
   if (status === PaymentStatus.COMPLETED) {
     (this as any).paymentInfo.paymentDate = new Date();
     if (transactionId) {
       (this as any).paymentInfo.transactionId = transactionId;
     }
   }
-  
+
   return (this as any).save();
 };
 
 // Method to mark item as dispensed
-orderSchema.methods['markItemDispensed'] = function(productId: string, slotNumber: string) {
+orderSchema.methods["markItemDispensed"] = function (productId: string, slotNumber: string) {
   const item = (this as any).items.find(
-    (item: IOrderItem) => 
-      item.product.toString() === productId && 
-      item.slotNumber === slotNumber
+    (item: IOrderItem) => item.product.toString() === productId && item.slotNumber === slotNumber
   );
-  
+
   if (item) {
     item.dispensed = true;
     item.dispensedAt = new Date();
-    
+
     // Check if all items are dispensed
     const allDispensed = (this as any).items.every((item: IOrderItem) => item.dispensed);
     if (allDispensed) {
@@ -339,11 +352,11 @@ orderSchema.methods['markItemDispensed'] = function(productId: string, slotNumbe
       (this as any).completedDate = new Date();
       (this as any).deliveryInfo.actualDispenseTime = new Date();
     }
-    
+
     return (this as any).save();
   }
-  
-  throw new Error('Item not found in order');
+
+  throw new Error("Item not found in order");
 };
 
-export const Order = model<IOrder>('Order', orderSchema);
+export const Order = model<IOrder>("Order", orderSchema);

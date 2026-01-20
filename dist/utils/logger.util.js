@@ -10,7 +10,7 @@ var LogLevel;
 })(LogLevel || (exports.LogLevel = LogLevel = {}));
 class Logger {
     constructor() {
-        this.isDevelopment = process.env['NODE_ENV'] === 'development';
+        this.isDevelopment = process.env["NODE_ENV"] === "development";
     }
     formatMessage(level, message, meta) {
         const timestamp = new Date().toISOString();

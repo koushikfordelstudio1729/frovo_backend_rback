@@ -8,30 +8,30 @@ class UserService {
     async createUser(userData, createdBy) {
         const existingUser = await models_1.User.findOne({ email: userData.email });
         if (existingUser) {
-            throw new Error('User with this email already exists');
+            throw new Error("User with this email already exists");
         }
         if (userData.departments && userData.departments.length > 0) {
             const departmentCount = await models_1.Department.countDocuments({
-                _id: { $in: userData.departments }
+                _id: { $in: userData.departments },
             });
             if (departmentCount !== userData.departments.length) {
-                throw new Error('One or more departments not found');
+                throw new Error("One or more departments not found");
             }
         }
         if (userData.roles && userData.roles.length > 0) {
             const roleCount = await models_1.Role.countDocuments({
-                _id: { $in: userData.roles }
+                _id: { $in: userData.roles },
             });
             if (roleCount !== userData.roles.length) {
-                throw new Error('One or more roles not found');
+                throw new Error("One or more roles not found");
             }
         }
         const user = await models_1.User.create({
             ...userData,
             createdBy,
-            status: models_1.UserStatus.ACTIVE
+            status: models_1.UserStatus.ACTIVE,
         });
-        const emailConfigured = process.env['EMAIL_USER'] && process.env['EMAIL_PASS'];
+        const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
         if (emailConfigured) {
             try {
                 await email_service_1.emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
@@ -42,60 +42,63 @@ class UserService {
             }
         }
         else {
-            logger_util_1.logger.info('📧 Email not configured, skipping welcome email');
+            logger_util_1.logger.info("📧 Email not configured, skipping welcome email");
         }
         return await this.getUserById(user._id.toString());
     }
     async getUserById(id) {
         const user = await models_1.User.findById(id)
-            .populate('roles')
-            .populate('departments')
-            .populate('createdBy', 'name email');
+            .populate("roles")
+            .populate("departments")
+            .populate("createdBy", "name email");
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         return user;
     }
     async updateUser(id, updateData) {
         const user = await models_1.User.findById(id);
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         if (updateData.departments && updateData.departments.length > 0) {
             const departmentCount = await models_1.Department.countDocuments({
-                _id: { $in: updateData.departments }
+                _id: { $in: updateData.departments },
             });
             if (departmentCount !== updateData.departments.length) {
-                throw new Error('One or more departments not found');
+                throw new Error("One or more departments not found");
             }
         }
         if (updateData.roles && updateData.roles.length > 0) {
             const roleCount = await models_1.Role.countDocuments({
-                _id: { $in: updateData.roles }
+                _id: { $in: updateData.roles },
             });
             if (roleCount !== updateData.roles.length) {
-                throw new Error('One or more roles not found');
+                throw new Error("One or more roles not found");
             }
         }
-        const updatedUser = await models_1.User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-            .populate('roles')
-            .populate('departments')
-            .populate('createdBy', 'name email');
+        const updatedUser = await models_1.User.findByIdAndUpdate(id, updateData, {
+            new: true,
+            runValidators: true,
+        })
+            .populate("roles")
+            .populate("departments")
+            .populate("createdBy", "name email");
         return updatedUser;
     }
     async updateUserStatus(id, status) {
         const user = await models_1.User.findByIdAndUpdate(id, { status }, { new: true, runValidators: true })
-            .populate('roles')
-            .populate('departments');
+            .populate("roles")
+            .populate("departments");
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         return user;
     }
     async deleteUser(id) {
         const user = await models_1.User.findById(id);
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         await models_1.User.findByIdAndUpdate(id, { status: models_1.UserStatus.INACTIVE });
     }
@@ -104,8 +107,8 @@ class UserService {
         const filter = {};
         if (search) {
             filter.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
+                { name: { $regex: search, $options: "i" } },
+                { email: { $regex: search, $options: "i" } },
             ];
         }
         if (status) {
@@ -118,17 +121,17 @@ class UserService {
             filter.departments = { $in: [department] };
         }
         const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+        sort[sortBy] = sortOrder === "asc" ? 1 : -1;
         const skip = (page - 1) * limit;
         const [users, total] = await Promise.all([
             models_1.User.find(filter)
-                .populate('roles', 'name key systemRole')
-                .populate('departments', 'name systemName')
-                .populate('createdBy', 'name email')
+                .populate("roles", "name key systemRole")
+                .populate("departments", "name systemName")
+                .populate("createdBy", "name email")
                 .sort(sort)
                 .skip(skip)
                 .limit(limit),
-            models_1.User.countDocuments(filter)
+            models_1.User.countDocuments(filter),
         ]);
         const pages = Math.ceil(total / limit);
         return {
@@ -136,44 +139,44 @@ class UserService {
             total,
             page,
             limit,
-            pages
+            pages,
         };
     }
     async assignRoles(userId, roleIds) {
         const roleCount = await models_1.Role.countDocuments({
-            _id: { $in: roleIds }
+            _id: { $in: roleIds },
         });
         if (roleCount !== roleIds.length) {
-            throw new Error('One or more roles not found');
+            throw new Error("One or more roles not found");
         }
         const user = await models_1.User.findByIdAndUpdate(userId, { $addToSet: { roles: { $each: roleIds } } }, { new: true })
-            .populate('roles')
-            .populate('departments');
+            .populate("roles")
+            .populate("departments");
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         return user;
     }
     async removeRole(userId, roleId) {
         const user = await models_1.User.findByIdAndUpdate(userId, { $pull: { roles: roleId } }, { new: true })
-            .populate('roles')
-            .populate('departments');
+            .populate("roles")
+            .populate("departments");
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         return user;
     }
     async getUserPermissions(userId) {
-        const user = await models_1.User.findById(userId).populate('roles');
+        const user = await models_1.User.findById(userId).populate("roles");
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         return await user.getPermissions();
     }
     async updatePassword(userId, newPassword) {
         const user = await models_1.User.findById(userId);
         if (!user) {
-            throw new Error('User not found');
+            throw new Error("User not found");
         }
         user.password = newPassword;
         await user.save();
@@ -181,12 +184,12 @@ class UserService {
     async searchUsers(searchTerm, limit = 10) {
         return await models_1.User.find({
             $or: [
-                { name: { $regex: searchTerm, $options: 'i' } },
-                { email: { $regex: searchTerm, $options: 'i' } }
+                { name: { $regex: searchTerm, $options: "i" } },
+                { email: { $regex: searchTerm, $options: "i" } },
             ],
-            status: models_1.UserStatus.ACTIVE
+            status: models_1.UserStatus.ACTIVE,
         })
-            .select('name email')
+            .select("name email")
             .limit(limit);
     }
 }

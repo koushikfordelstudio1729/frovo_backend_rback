@@ -1,4 +1,4 @@
-import { IPermission } from '../models';
+import { IPermission } from "../models";
 export interface GroupedPermissions {
     [group: string]: IPermission[];
 }

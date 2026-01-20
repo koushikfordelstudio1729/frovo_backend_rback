@@ -1,9 +1,8 @@
 // services/auditTrail.service.ts
-import { AuditTrail } from '../models/AuditTrail.model';
-import { Types } from 'mongoose';
+import { AuditTrail } from "../models/AuditTrail.model";
+import { Types } from "mongoose";
 
 export class AuditTrailService {
-  
   /**
    * Create audit record for vendor or company operations
    */
@@ -13,7 +12,7 @@ export class AuditTrailService {
     user_role: string;
     action: string;
     action_description: string;
-    target_type?: 'vendor' | 'company';
+    target_type?: "vendor" | "company";
     // Vendor fields
     target_vendor?: any;
     target_vendor_name?: string;
@@ -51,12 +50,12 @@ export class AuditTrailService {
         changed_fields: auditData.changed_fields || [],
         ip_address: auditData.ip_address,
         user_agent: auditData.user_agent,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       return await auditRecord.save();
     } catch (error) {
-      console.error('Error creating audit record:', error);
+      console.error("Error creating audit record:", error);
       throw error;
     }
   }
@@ -77,7 +76,7 @@ export class AuditTrailService {
         date_to,
         search,
         page = 1,
-        limit = 20
+        limit = 20,
       } = filters;
 
       // Build query
@@ -100,12 +99,12 @@ export class AuditTrailService {
       // Search across multiple fields
       if (search) {
         query.$or = [
-          { user_email: { $regex: search, $options: 'i' } },
-          { action_description: { $regex: search, $options: 'i' } },
-          { target_vendor_name: { $regex: search, $options: 'i' } },
-          { target_vendor_id: { $regex: search, $options: 'i' } },
-          { target_company_name: { $regex: search, $options: 'i' } },
-          { target_company_cin: { $regex: search, $options: 'i' } }
+          { user_email: { $regex: search, $options: "i" } },
+          { action_description: { $regex: search, $options: "i" } },
+          { target_vendor_name: { $regex: search, $options: "i" } },
+          { target_vendor_id: { $regex: search, $options: "i" } },
+          { target_company_name: { $regex: search, $options: "i" } },
+          { target_company_cin: { $regex: search, $options: "i" } },
         ];
       }
 
@@ -113,14 +112,14 @@ export class AuditTrailService {
 
       const [audits, total] = await Promise.all([
         AuditTrail.find(query)
-          .populate('user', 'name email')
-          .populate('target_vendor', 'vendor_name vendor_id')
-          .populate('target_company', 'registered_company_name cin')
+          .populate("user", "name email")
+          .populate("target_vendor", "vendor_name vendor_id")
+          .populate("target_company", "registered_company_name cin")
           .sort({ timestamp: -1 })
           .skip(skip)
           .limit(limit)
           .lean(),
-        AuditTrail.countDocuments(query)
+        AuditTrail.countDocuments(query),
       ]);
 
       return {
@@ -128,7 +127,7 @@ export class AuditTrailService {
         total,
         page,
         pages: Math.ceil(total / limit),
-        limit
+        limit,
       };
     } catch (error: any) {
       throw new Error(`Error fetching audit trails: ${error.message}`);
@@ -143,20 +142,20 @@ export class AuditTrailService {
       const skip = (page - 1) * limit;
 
       const [audits, total] = await Promise.all([
-        AuditTrail.find({ 
+        AuditTrail.find({
           target_vendor: new Types.ObjectId(vendorId),
-          target_type: 'vendor'
+          target_type: "vendor",
         })
-          .populate('user', 'name email')
-          .populate('target_vendor', 'vendor_name vendor_id')
+          .populate("user", "name email")
+          .populate("target_vendor", "vendor_name vendor_id")
           .sort({ timestamp: -1 })
           .skip(skip)
           .limit(limit)
           .lean(),
-        AuditTrail.countDocuments({ 
+        AuditTrail.countDocuments({
           target_vendor: new Types.ObjectId(vendorId),
-          target_type: 'vendor'
-        })
+          target_type: "vendor",
+        }),
       ]);
 
       return {
@@ -164,7 +163,7 @@ export class AuditTrailService {
         total,
         page,
         pages: Math.ceil(total / limit),
-        limit
+        limit,
       };
     } catch (error: any) {
       throw new Error(`Error fetching vendor audit trails: ${error.message}`);
@@ -179,20 +178,20 @@ export class AuditTrailService {
       const skip = (page - 1) * limit;
 
       const [audits, total] = await Promise.all([
-        AuditTrail.find({ 
+        AuditTrail.find({
           target_company: new Types.ObjectId(companyId),
-          target_type: 'company'
+          target_type: "company",
         })
-          .populate('user', 'name email')
-          .populate('target_company', 'registered_company_name cin')
+          .populate("user", "name email")
+          .populate("target_company", "registered_company_name cin")
           .sort({ timestamp: -1 })
           .skip(skip)
           .limit(limit)
           .lean(),
-        AuditTrail.countDocuments({ 
+        AuditTrail.countDocuments({
           target_company: new Types.ObjectId(companyId),
-          target_type: 'company'
-        })
+          target_type: "company",
+        }),
       ]);
 
       return {
@@ -200,7 +199,7 @@ export class AuditTrailService {
         total,
         page,
         pages: Math.ceil(total / limit),
-        limit
+        limit,
       };
     } catch (error: any) {
       throw new Error(`Error fetching company audit trails: ${error.message}`);
@@ -216,13 +215,13 @@ export class AuditTrailService {
 
       const [audits, total] = await Promise.all([
         AuditTrail.find({ user: new Types.ObjectId(userId) })
-          .populate('target_vendor', 'vendor_name vendor_id')
-          .populate('target_company', 'registered_company_name cin')
+          .populate("target_vendor", "vendor_name vendor_id")
+          .populate("target_company", "registered_company_name cin")
           .sort({ timestamp: -1 })
           .skip(skip)
           .limit(limit)
           .lean(),
-        AuditTrail.countDocuments({ user: new Types.ObjectId(userId) })
+        AuditTrail.countDocuments({ user: new Types.ObjectId(userId) }),
       ]);
 
       return {
@@ -230,7 +229,7 @@ export class AuditTrailService {
         total,
         page,
         pages: Math.ceil(total / limit),
-        limit
+        limit,
       };
     } catch (error: any) {
       throw new Error(`Error fetching user activity: ${error.message}`);
@@ -249,98 +248,98 @@ export class AuditTrailService {
         targetTypeBreakdown,
         topVendors,
         topCompanies,
-        recentActivity
+        recentActivity,
       ] = await Promise.all([
         AuditTrail.countDocuments(),
-        
+
         // Actions breakdown
         AuditTrail.aggregate([
           {
             $group: {
-              _id: '$action',
-              count: { $sum: 1 }
-            }
+              _id: "$action",
+              count: { $sum: 1 },
+            },
           },
-          { $sort: { count: -1 } }
+          { $sort: { count: -1 } },
         ]),
-        
+
         // Users breakdown
         AuditTrail.aggregate([
           {
             $group: {
-              _id: '$user_role',
-              count: { $sum: 1 }
-            }
+              _id: "$user_role",
+              count: { $sum: 1 },
+            },
           },
-          { $sort: { count: -1 } }
+          { $sort: { count: -1 } },
         ]),
-        
+
         // Target type breakdown
         AuditTrail.aggregate([
           {
             $match: {
-              target_type: { $exists: true, $ne: null }
-            }
+              target_type: { $exists: true, $ne: null },
+            },
           },
           {
             $group: {
-              _id: '$target_type',
-              count: { $sum: 1 }
-            }
-          }
+              _id: "$target_type",
+              count: { $sum: 1 },
+            },
+          },
         ]),
-        
+
         // Top vendors
         AuditTrail.aggregate([
           {
             $match: {
               target_vendor: { $exists: true, $ne: null },
-              target_type: 'vendor'
-            }
+              target_type: "vendor",
+            },
           },
           {
             $group: {
               _id: {
-                vendor_id: '$target_vendor',
-                vendor_name: '$target_vendor_name'
+                vendor_id: "$target_vendor",
+                vendor_name: "$target_vendor_name",
               },
-              count: { $sum: 1 }
-            }
+              count: { $sum: 1 },
+            },
           },
           { $sort: { count: -1 } },
-          { $limit: 10 }
+          { $limit: 10 },
         ]),
-        
+
         // Top companies
         AuditTrail.aggregate([
           {
             $match: {
               target_company: { $exists: true, $ne: null },
-              target_type: 'company'
-            }
+              target_type: "company",
+            },
           },
           {
             $group: {
               _id: {
-                company_id: '$target_company',
-                company_name: '$target_company_name'
+                company_id: "$target_company",
+                company_name: "$target_company_name",
               },
-              count: { $sum: 1 }
-            }
+              count: { $sum: 1 },
+            },
           },
           { $sort: { count: -1 } },
-          { $limit: 10 }
+          { $limit: 10 },
         ]),
-        
+
         // Recent activity (last 10 actions)
         AuditTrail.find()
-          .populate('user', 'name email')
-          .populate('target_vendor', 'vendor_name vendor_id')
-          .populate('target_company', 'registered_company_name cin')
-          .select('action action_description user user_email timestamp target_type')
+          .populate("user", "name email")
+          .populate("target_vendor", "vendor_name vendor_id")
+          .populate("target_company", "registered_company_name cin")
+          .select("action action_description user user_email timestamp target_type")
           .sort({ timestamp: -1 })
           .limit(10)
-          .lean()
+          .lean(),
       ]);
 
       return {
@@ -350,7 +349,7 @@ export class AuditTrailService {
         target_type_breakdown: targetTypeBreakdown,
         top_vendors: topVendors,
         top_companies: topCompanies,
-        recent_activity: recentActivity
+        recent_activity: recentActivity,
       };
     } catch (error: any) {
       throw new Error(`Error fetching audit statistics: ${error.message}`);
@@ -367,18 +366,18 @@ export class AuditTrailService {
 
       const [todayCount, weekCount, monthCount] = await Promise.all([
         AuditTrail.countDocuments({ timestamp: { $gte: today } }),
-        AuditTrail.countDocuments({ 
-          timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
+        AuditTrail.countDocuments({
+          timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
         }),
-        AuditTrail.countDocuments({ 
-          timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } 
-        })
+        AuditTrail.countDocuments({
+          timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        }),
       ]);
 
       return {
         today: todayCount,
         this_week: weekCount,
-        this_month: monthCount
+        this_month: monthCount,
       };
     } catch (error: any) {
       throw new Error(`Error fetching audit summary: ${error.message}`);

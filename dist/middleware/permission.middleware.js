@@ -6,11 +6,11 @@ const response_util_1 = require("../utils/response.util");
 const asyncHandler_util_1 = require("../utils/asyncHandler.util");
 const constants_1 = require("../config/constants");
 const hasPermission = (userPermissions, required) => {
-    if (userPermissions.includes('*:*'))
+    if (userPermissions.includes("*:*"))
         return true;
     if (userPermissions.includes(required))
         return true;
-    const [module] = required.split(':');
+    const [module] = required.split(":");
     if (userPermissions.includes(`${module}:*`))
         return true;
     return false;
@@ -21,8 +21,8 @@ const getUserEffectivePermissions = async (user) => {
     }
     const permissions = new Set();
     for (const role of user.roles) {
-        if (role.permissions.includes('*:*')) {
-            return ['*:*'];
+        if (role.permissions.includes("*:*")) {
+            return ["*:*"];
         }
         role.permissions.forEach((p) => permissions.add(p));
     }
@@ -37,7 +37,8 @@ const checkScopedAccess = async (user, entityId) => {
             return true;
         if (!entityId)
             return true;
-        if (role.scope.entities && role.scope.entities.some((id) => id.toString() === entityId)) {
+        if (role.scope.entities &&
+            role.scope.entities.some((id) => id.toString() === entityId)) {
             return true;
         }
     }
@@ -53,10 +54,10 @@ const requirePermission = (permission, checkScope = false) => {
             return (0, response_util_1.sendForbidden)(res, constants_1.MESSAGES.PERMISSION_DENIED);
         }
         if (checkScope) {
-            const entityId = req.params['id'] || req.params['entityId'] || req.body['entityId'];
+            const entityId = req.params["id"] || req.params["entityId"] || req.body["entityId"];
             const hasScope = await checkScopedAccess(req.user, entityId);
             if (!hasScope) {
-                return (0, response_util_1.sendForbidden)(res, 'Access denied for this scope');
+                return (0, response_util_1.sendForbidden)(res, "Access denied for this scope");
             }
         }
         return next();

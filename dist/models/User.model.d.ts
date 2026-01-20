@@ -1,5 +1,5 @@
-import mongoose, { Document, Types } from 'mongoose';
-import { UserStatus } from './enums';
+import mongoose, { Document, Types } from "mongoose";
+import { UserStatus } from "./enums";
 export interface IRefreshToken {
     token: string;
     createdAt: Date;

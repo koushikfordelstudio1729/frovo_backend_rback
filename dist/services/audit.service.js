@@ -6,11 +6,11 @@ class AuditService {
     async createAuditLog(data) {
         return await models_1.AuditLog.create({
             timestamp: new Date(),
-            ...data
+            ...data,
         });
     }
     async getAuditLogs(query) {
-        const { page, limit, startDate, endDate, actor, module, action, targetType, targetId, sortBy, sortOrder } = query;
+        const { page, limit, startDate, endDate, actor, module, action, targetType, targetId, sortBy, sortOrder, } = query;
         const filter = {};
         if (startDate || endDate) {
             filter.timestamp = {};
@@ -25,27 +25,23 @@ class AuditService {
             filter.actor = actor;
         }
         if (module) {
-            filter.module = { $regex: module, $options: 'i' };
+            filter.module = { $regex: module, $options: "i" };
         }
         if (action) {
-            filter.action = { $regex: action, $options: 'i' };
+            filter.action = { $regex: action, $options: "i" };
         }
         if (targetType) {
-            filter['target.type'] = { $regex: targetType, $options: 'i' };
+            filter["target.type"] = { $regex: targetType, $options: "i" };
         }
         if (targetId) {
-            filter['target.id'] = targetId;
+            filter["target.id"] = targetId;
         }
         const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+        sort[sortBy] = sortOrder === "asc" ? 1 : -1;
         const skip = (page - 1) * limit;
         const [logs, total] = await Promise.all([
-            models_1.AuditLog.find(filter)
-                .populate('actor', 'name email')
-                .sort(sort)
-                .skip(skip)
-                .limit(limit),
-            models_1.AuditLog.countDocuments(filter)
+            models_1.AuditLog.find(filter).populate("actor", "name email").sort(sort).skip(skip).limit(limit),
+            models_1.AuditLog.countDocuments(filter),
         ]);
         const pages = Math.ceil(total / limit);
         return {
@@ -53,29 +49,26 @@ class AuditService {
             total,
             page,
             limit,
-            pages
+            pages,
         };
     }
     async getAuditLogById(id) {
-        return await models_1.AuditLog.findById(id)
-            .populate('actor', 'name email');
+        return await models_1.AuditLog.findById(id).populate("actor", "name email");
     }
     async getAuditLogsByActor(actorId, limit = 50) {
-        return await models_1.AuditLog.find({ actor: actorId })
-            .sort({ timestamp: -1 })
-            .limit(limit);
+        return await models_1.AuditLog.find({ actor: actorId }).sort({ timestamp: -1 }).limit(limit);
     }
     async getAuditLogsByTarget(targetType, targetId) {
         return await models_1.AuditLog.find({
-            'target.type': targetType,
-            'target.id': targetId
+            "target.type": targetType,
+            "target.id": targetId,
         })
-            .populate('actor', 'name email')
+            .populate("actor", "name email")
             .sort({ timestamp: -1 });
     }
     async getAuditLogsByModule(module, limit = 100) {
         return await models_1.AuditLog.find({ module })
-            .populate('actor', 'name email')
+            .populate("actor", "name email")
             .sort({ timestamp: -1 })
             .limit(limit);
     }
@@ -94,24 +87,21 @@ class AuditService {
             models_1.AuditLog.countDocuments(filter),
             models_1.AuditLog.aggregate([
                 { $match: filter },
-                { $group: { _id: '$module', count: { $sum: 1 } } },
-                { $sort: { count: -1 } }
-            ]),
-            models_1.AuditLog.aggregate([
-                { $match: filter },
-                { $group: { _id: '$action', count: { $sum: 1 } } },
-                { $sort: { count: -1 } }
-            ]),
-            models_1.AuditLog.aggregate([
-                { $match: filter },
-                { $group: { _id: '$actor', count: { $sum: 1 } } },
+                { $group: { _id: "$module", count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
-                { $limit: 10 }
             ]),
-            models_1.AuditLog.find(filter)
-                .populate('actor', 'name email')
-                .sort({ timestamp: -1 })
-                .limit(10)
+            models_1.AuditLog.aggregate([
+                { $match: filter },
+                { $group: { _id: "$action", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+            ]),
+            models_1.AuditLog.aggregate([
+                { $match: filter },
+                { $group: { _id: "$actor", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+                { $limit: 10 },
+            ]),
+            models_1.AuditLog.find(filter).populate("actor", "name email").sort({ timestamp: -1 }).limit(10),
         ]);
         return {
             totalLogs,
@@ -127,7 +117,7 @@ class AuditService {
                 acc[item._id] = item.count;
                 return acc;
             }, {}),
-            recentActivity
+            recentActivity,
         };
     }
     async exportAuditLogs(query) {
@@ -145,25 +135,22 @@ class AuditService {
         if (actor)
             filter.actor = actor;
         if (module)
-            filter.module = { $regex: module, $options: 'i' };
+            filter.module = { $regex: module, $options: "i" };
         if (action)
-            filter.action = { $regex: action, $options: 'i' };
+            filter.action = { $regex: action, $options: "i" };
         if (targetType)
-            filter['target.type'] = { $regex: targetType, $options: 'i' };
+            filter["target.type"] = { $regex: targetType, $options: "i" };
         if (targetId)
-            filter['target.id'] = targetId;
+            filter["target.id"] = targetId;
         const sort = {};
-        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-        return await models_1.AuditLog.find(filter)
-            .populate('actor', 'name email')
-            .sort(sort)
-            .limit(10000);
+        sort[sortBy] = sortOrder === "asc" ? 1 : -1;
+        return await models_1.AuditLog.find(filter).populate("actor", "name email").sort(sort).limit(10000);
     }
     async deleteOldAuditLogs(daysToKeep = 365) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
         const result = await models_1.AuditLog.deleteMany({
-            timestamp: { $lt: cutoffDate }
+            timestamp: { $lt: cutoffDate },
         });
         return { deletedCount: result.deletedCount || 0 };
     }
@@ -171,22 +158,22 @@ class AuditService {
         return await models_1.AuditLog.find({
             timestamp: {
                 $gte: startDate,
-                $lte: endDate
-            }
+                $lte: endDate,
+            },
         })
-            .populate('actor', 'name email')
+            .populate("actor", "name email")
             .sort({ timestamp: -1 });
     }
     async searchAuditLogs(searchTerm, limit = 50) {
         return await models_1.AuditLog.find({
             $or: [
-                { action: { $regex: searchTerm, $options: 'i' } },
-                { module: { $regex: searchTerm, $options: 'i' } },
-                { 'target.type': { $regex: searchTerm, $options: 'i' } },
-                { 'target.name': { $regex: searchTerm, $options: 'i' } }
-            ]
+                { action: { $regex: searchTerm, $options: "i" } },
+                { module: { $regex: searchTerm, $options: "i" } },
+                { "target.type": { $regex: searchTerm, $options: "i" } },
+                { "target.name": { $regex: searchTerm, $options: "i" } },
+            ],
         })
-            .populate('actor', 'name email')
+            .populate("actor", "name email")
             .sort({ timestamp: -1 })
             .limit(limit);
     }

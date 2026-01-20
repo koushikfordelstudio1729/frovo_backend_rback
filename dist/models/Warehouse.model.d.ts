@@ -1,4 +1,4 @@
-import mongoose, { Document, Types } from 'mongoose';
+import mongoose, { Document, Types } from "mongoose";
 export interface IWarehouse extends Document {
     _id: Types.ObjectId;
     name: string;
@@ -20,7 +20,7 @@ export interface IGRNnumber extends Document {
     recieved_date: Date;
     remarks?: string;
     scanned_challan?: string;
-    qc_status: 'bad' | 'moderate' | 'excellent';
+    qc_status: "bad" | "moderate" | "excellent";
     purchase_order: Types.ObjectId;
     vendor: Types.ObjectId;
     vendor_details: {
@@ -64,7 +64,7 @@ export interface IRaisePurchaseOrder extends Document {
     po_number: string;
     vendor: Types.ObjectId;
     warehouse: Types.ObjectId;
-    po_status: 'draft' | 'approved' | 'pending';
+    po_status: "draft" | "approved" | "pending";
     po_raised_date: Date;
     remarks?: string;
     po_line_items: Array<{
@@ -115,7 +115,7 @@ export interface IDispatchOrder extends Document {
     assignedAgent: Types.ObjectId;
     warehouse: Types.ObjectId;
     notes?: string;
-    status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
+    status: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
     createdBy: Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -140,8 +140,8 @@ export interface IReturnOrder extends Document {
     warehouse: Types.ObjectId;
     reason: string;
     quantity: number;
-    status: 'pending' | 'approved' | 'returned' | 'rejected';
-    returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
+    status: "pending" | "approved" | "returned" | "rejected";
+    returnType: "damaged" | "expired" | "wrong_item" | "overstock" | "other";
     images?: string[];
     createdBy: Types.ObjectId;
     createdAt: Date;
@@ -178,7 +178,7 @@ export interface IInventory extends Document {
         rack: string;
         bin: string;
     };
-    status: 'active' | 'low_stock' | 'overstock' | 'expired' | 'quarantine' | 'archived';
+    status: "active" | "low_stock" | "overstock" | "expired" | "quarantine" | "archived";
     isArchived: boolean;
     archivedAt?: Date;
     createdBy: Types.ObjectId;
@@ -187,16 +187,16 @@ export interface IInventory extends Document {
 }
 export interface IExpense extends Document {
     _id: Types.ObjectId;
-    category: 'staffing' | 'supplies' | 'equipment' | 'transport';
+    category: "staffing" | "supplies" | "equipment" | "transport";
     amount: number;
     vendor: Types.ObjectId;
     date: Date;
     description?: string;
     billUrl?: string;
-    status: 'approved' | 'pending';
+    status: "approved" | "pending";
     assignedAgent: Types.ObjectId;
     warehouseId: Types.ObjectId;
-    paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
+    paymentStatus: "paid" | "unpaid" | "partially_paid";
     createdBy: Types.ObjectId;
     approvedBy?: Types.ObjectId;
     approvedAt?: Date;

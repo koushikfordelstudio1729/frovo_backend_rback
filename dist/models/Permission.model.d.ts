@@ -1,5 +1,5 @@
-import mongoose, { Document, Types } from 'mongoose';
-import { PermissionModule, PermissionAction } from './enums';
+import mongoose, { Document, Types } from "mongoose";
+import { PermissionModule, PermissionAction } from "./enums";
 export interface IPermission extends Document {
     _id: Types.ObjectId;
     key: string;

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 export declare const createAccessRequest: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getAccessRequests: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getAccessRequestById: (req: Request, res: Response, next: import("express").NextFunction) => void;

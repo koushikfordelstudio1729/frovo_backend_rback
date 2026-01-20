@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { DepartmentName } from '../models/enums';
+import { z } from "zod";
+import { DepartmentName } from "../models/enums";
 export declare const createDepartmentSchema: z.ZodObject<{
     body: z.ZodObject<{
         name: z.ZodString;

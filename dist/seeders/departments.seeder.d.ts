@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types } from "mongoose";
 export declare const seedDepartments: (createdBy: Types.ObjectId) => Promise<{
     [key: string]: Types.ObjectId;
 }>;

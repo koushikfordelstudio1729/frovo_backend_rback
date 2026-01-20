@@ -44,6 +44,6 @@ const constants_1 = require("../config/constants");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authenticate);
 router.use((0, permission_middleware_1.requireSuperAdmin)());
-router.get('/config', securityController.getSecurityConfig);
-router.put('/config', (0, validation_middleware_1.validate)({ body: security_validator_1.updateSecurityConfigSchema.shape.body }), (0, auditLog_middleware_1.auditUpdate)(constants_1.MODULES.SECURITY), securityController.updateSecurityConfig);
+router.get("/config", securityController.getSecurityConfig);
+router.put("/config", (0, validation_middleware_1.validate)({ body: security_validator_1.updateSecurityConfigSchema.shape.body }), (0, auditLog_middleware_1.auditUpdate)(constants_1.MODULES.SECURITY), securityController.updateSecurityConfig);
 exports.default = router;

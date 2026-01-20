@@ -40,89 +40,93 @@ const scopeSchema = new mongoose_1.Schema({
     level: {
         type: String,
         enum: Object.values(enums_1.ScopeLevel),
-        required: [true, 'Scope level is required']
+        required: [true, "Scope level is required"],
     },
-    entities: [{
+    entities: [
+        {
             type: mongoose_1.Schema.Types.ObjectId,
-            refPath: 'scope.level'
-        }]
+            refPath: "scope.level",
+        },
+    ],
 }, { _id: false });
 const roleSchema = new mongoose_1.Schema({
     name: {
         type: String,
-        required: [true, 'Role name is required'],
+        required: [true, "Role name is required"],
         trim: true,
-        minlength: [2, 'Role name must be at least 2 characters'],
-        maxlength: [100, 'Role name cannot exceed 100 characters']
+        minlength: [2, "Role name must be at least 2 characters"],
+        maxlength: [100, "Role name cannot exceed 100 characters"],
     },
     key: {
         type: String,
         unique: true,
         trim: true,
-        lowercase: true
+        lowercase: true,
     },
     systemRole: {
         type: String,
         enum: Object.values(enums_1.SystemRole),
-        sparse: true
+        sparse: true,
     },
     description: {
         type: String,
         trim: true,
-        maxlength: [500, 'Description cannot exceed 500 characters']
+        maxlength: [500, "Description cannot exceed 500 characters"],
     },
     type: {
         type: String,
         enum: Object.values(enums_1.RoleType),
-        default: enums_1.RoleType.CUSTOM
+        default: enums_1.RoleType.CUSTOM,
     },
     department: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Department'
+        ref: "Department",
     },
-    permissions: [{
+    permissions: [
+        {
             type: String,
-            required: true
-        }],
+            required: true,
+        },
+    ],
     scope: {
         type: scopeSchema,
-        required: [true, 'Scope is required']
+        required: [true, "Scope is required"],
     },
     uiAccess: {
         type: String,
         enum: Object.values(enums_1.UIAccess),
-        required: [true, 'UI Access is required']
+        required: [true, "UI Access is required"],
     },
     status: {
         type: String,
         enum: Object.values(enums_1.RoleStatus),
-        default: enums_1.RoleStatus.DRAFT
+        default: enums_1.RoleStatus.DRAFT,
     },
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: [true, 'CreatedBy is required']
-    }
+        ref: "User",
+        required: [true, "CreatedBy is required"],
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
 });
 roleSchema.index({ type: 1 });
 roleSchema.index({ status: 1 });
 roleSchema.index({ department: 1 });
 roleSchema.index({ createdAt: -1 });
-roleSchema.pre('save', function (next) {
-    if (this.isModified('name') && !this.key) {
+roleSchema.pre("save", function (next) {
+    if (this.isModified("name") && !this.key) {
         this.key = this.name
             .toLowerCase()
             .trim()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, '_');
+            .replace(/[^a-z0-9\s]/g, "")
+            .replace(/\s+/g, "_");
     }
     next();
 });
-roleSchema.pre('save', function (next) {
+roleSchema.pre("save", function (next) {
     if (this.type === enums_1.RoleType.SYSTEM && this.key && !this.systemRole) {
         const systemRoleKey = this.key.toUpperCase();
         if (enums_1.SystemRole[systemRoleKey]) {
@@ -131,14 +135,14 @@ roleSchema.pre('save', function (next) {
     }
     next();
 });
-roleSchema.virtual('id').get(function () {
+roleSchema.virtual("id").get(function () {
     return this._id.toHexString();
 });
-roleSchema.set('toJSON', {
+roleSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
         const { _id, __v, ...cleanRet } = ret;
         return cleanRet;
-    }
+    },
 });
-exports.Role = mongoose_1.default.model('Role', roleSchema);
+exports.Role = mongoose_1.default.model("Role", roleSchema);

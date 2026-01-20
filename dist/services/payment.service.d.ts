@@ -1,6 +1,6 @@
-import { PaymentMethod } from '../models/Payment.model';
-import { PaymentGateway } from '../models/Payment.model';
-import { Types } from 'mongoose';
+import { PaymentMethod } from "../models/Payment.model";
+import { PaymentGateway } from "../models/Payment.model";
+import { Types } from "mongoose";
 export interface InitiatePaymentData {
     orderId: string;
     userId: string;
@@ -14,7 +14,7 @@ export interface PaymentWebhookData {
     gatewayTransactionId: string;
     gatewayPaymentId?: string;
     signature?: string;
-    status: 'success' | 'failed' | 'pending';
+    status: "success" | "failed" | "pending";
     errorCode?: string;
     errorMessage?: string;
     rawResponse?: any;

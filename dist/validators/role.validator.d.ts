@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { RoleType, RoleStatus, ScopeLevel, UIAccess } from '../models/enums';
+import { z } from "zod";
+import { RoleType, RoleStatus, ScopeLevel, UIAccess } from "../models/enums";
 export declare const createRoleSchema: z.ZodObject<{
     body: z.ZodEffects<z.ZodObject<{
         name: z.ZodString;

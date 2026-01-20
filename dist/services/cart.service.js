@@ -8,10 +8,9 @@ const mongoose_1 = require("mongoose");
 class CartService {
     async getCart(userId) {
         if (!mongoose_1.Types.ObjectId.isValid(userId)) {
-            throw new Error('Invalid user ID');
+            throw new Error("Invalid user ID");
         }
-        let cart = await Cart_model_1.Cart.findOne({ userId, isActive: true })
-            .populate('items.product');
+        let cart = await Cart_model_1.Cart.findOne({ userId, isActive: true }).populate("items.product");
         if (!cart) {
             cart = new Cart_model_1.Cart({ userId, items: [] });
             await cart.save();
@@ -20,23 +19,22 @@ class CartService {
     }
     async addToCart(userId, cartData) {
         if (!mongoose_1.Types.ObjectId.isValid(userId)) {
-            throw new Error('Invalid user ID');
+            throw new Error("Invalid user ID");
         }
         if (!mongoose_1.Types.ObjectId.isValid(cartData.productId)) {
-            throw new Error('Invalid product ID');
+            throw new Error("Invalid product ID");
         }
         const product = await Product_model_1.Product.findById(cartData.productId);
         if (!product) {
-            throw new Error('Product not found');
+            throw new Error("Product not found");
         }
         const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId: cartData.machineId });
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
-        const slot = machine.productSlots.find(slot => slot.slotNumber === cartData.slotNumber &&
-            slot.product.toString() === cartData.productId);
+        const slot = machine.productSlots.find(slot => slot.slotNumber === cartData.slotNumber && slot.product.toString() === cartData.productId);
         if (!slot) {
-            throw new Error('Product not available in this slot');
+            throw new Error("Product not available in this slot");
         }
         if (slot.quantity < cartData.quantity) {
             throw new Error(`Insufficient stock. Only ${slot.quantity} items available`);
@@ -52,49 +50,47 @@ class CartService {
             machineId: cartData.machineId,
             slotNumber: cartData.slotNumber,
             quantity: cartData.quantity,
-            unitPrice: slot?.price || 0
+            unitPrice: slot?.price || 0,
         });
-        return await Cart_model_1.Cart.findById(cart?._id).populate('items.product');
+        return await Cart_model_1.Cart.findById(cart?._id).populate("items.product");
     }
     async updateCartItem(userId, productId, machineId, slotNumber, quantity) {
         const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true });
         if (!cart) {
-            throw new Error('Cart not found');
+            throw new Error("Cart not found");
         }
         if (quantity === 0) {
             return this.removeFromCart(userId, productId, machineId, slotNumber);
         }
         const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId });
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
-        const slot = machine.productSlots.find(slot => slot.slotNumber === slotNumber &&
-            slot.product.toString() === productId);
+        const slot = machine.productSlots.find(slot => slot.slotNumber === slotNumber && slot.product.toString() === productId);
         if (!slot || slot.quantity < quantity) {
             throw new Error(`Insufficient stock. Only ${slot?.quantity || 0} items available`);
         }
-        await cart['updateItemQuantity'](productId, machineId, slotNumber, quantity);
-        return await Cart_model_1.Cart.findById(cart._id).populate('items.product');
+        await cart["updateItemQuantity"](productId, machineId, slotNumber, quantity);
+        return await Cart_model_1.Cart.findById(cart._id).populate("items.product");
     }
     async removeFromCart(userId, productId, machineId, slotNumber) {
         const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true });
         if (!cart) {
-            throw new Error('Cart not found');
+            throw new Error("Cart not found");
         }
-        await cart['removeItem'](productId, machineId, slotNumber);
-        return await Cart_model_1.Cart.findById(cart._id).populate('items.product');
+        await cart["removeItem"](productId, machineId, slotNumber);
+        return await Cart_model_1.Cart.findById(cart._id).populate("items.product");
     }
     async clearCart(userId) {
         const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true });
         if (!cart) {
-            throw new Error('Cart not found');
+            throw new Error("Cart not found");
         }
-        await cart['clearCart']();
-        return await Cart_model_1.Cart.findById(cart._id).populate('items.product');
+        await cart["clearCart"]();
+        return await Cart_model_1.Cart.findById(cart._id).populate("items.product");
     }
     async validateCartItems(userId) {
-        const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true })
-            .populate('items.product');
+        const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true }).populate("items.product");
         if (!cart || cart.isEmpty || cart.items.length === 0) {
             return { isValid: true, invalidItems: [], validItems: [] };
         }
@@ -105,7 +101,7 @@ class CartService {
             if (!machine) {
                 invalidItems.push({
                     ...item.toObject(),
-                    reason: 'Vending machine not available'
+                    reason: "Vending machine not available",
                 });
                 continue;
             }
@@ -114,7 +110,7 @@ class CartService {
             if (!slot) {
                 invalidItems.push({
                     ...item.toObject(),
-                    reason: 'Product no longer available in this slot'
+                    reason: "Product no longer available in this slot",
                 });
                 continue;
             }
@@ -122,16 +118,16 @@ class CartService {
                 invalidItems.push({
                     ...item.toObject(),
                     reason: `Insufficient stock. Only ${slot.quantity} items available`,
-                    availableQuantity: slot.quantity
+                    availableQuantity: slot.quantity,
                 });
                 continue;
             }
             if (slot.price !== item.unitPrice) {
                 invalidItems.push({
                     ...item.toObject(),
-                    reason: 'Price has changed',
+                    reason: "Price has changed",
                     oldPrice: item.unitPrice,
-                    newPrice: slot.price
+                    newPrice: slot.price,
                 });
                 continue;
             }
@@ -141,7 +137,7 @@ class CartService {
             isValid: invalidItems.length === 0,
             invalidItems,
             validItems,
-            cart
+            cart,
         };
     }
     async getCartSummary(userId) {
@@ -153,7 +149,7 @@ class CartService {
                 totalAmount: 0,
                 tax: 0,
                 finalAmount: 0,
-                items: []
+                items: [],
             };
         }
         const itemsByMachine = cart.items.reduce((acc, item) => {
@@ -175,7 +171,7 @@ class CartService {
             finalAmount: finalAmount,
             itemsByMachine,
             items: cart.items,
-            lastUpdated: cart.lastUpdated
+            lastUpdated: cart.lastUpdated,
         };
     }
 }

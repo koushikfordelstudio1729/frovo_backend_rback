@@ -1,8 +1,8 @@
-import * as jwt from 'jsonwebtoken';
-import { Types } from 'mongoose';
+import * as jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 export interface JWTPayload extends jwt.JwtPayload {
     id: string;
-    type: 'access' | 'refresh';
+    type: "access" | "refresh";
 }
 export declare const generateAccessToken: (userId: Types.ObjectId | string) => string;
 export declare const generateRefreshToken: (userId: Types.ObjectId | string) => string;

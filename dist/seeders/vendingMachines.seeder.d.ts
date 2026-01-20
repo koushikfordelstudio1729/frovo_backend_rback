@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types } from "mongoose";
 export declare const seedVendingMachines: (createdBy: Types.ObjectId | null, productMap: {
     [key: string]: Types.ObjectId;
 }) => Promise<{

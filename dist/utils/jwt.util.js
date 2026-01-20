@@ -38,53 +38,53 @@ const jwt = __importStar(require("jsonwebtoken"));
 const generateAccessToken = (userId) => {
     const payload = {
         id: userId.toString(),
-        type: 'access'
+        type: "access",
     };
-    const secret = process.env['JWT_ACCESS_SECRET'];
+    const secret = process.env["JWT_ACCESS_SECRET"];
     if (!secret) {
-        throw new Error('JWT_ACCESS_SECRET is not defined');
+        throw new Error("JWT_ACCESS_SECRET is not defined");
     }
     return jwt.sign(payload, secret, {
-        expiresIn: process.env['JWT_ACCESS_EXPIRES_IN'] || '1d',
-        issuer: 'frovo-rbac',
-        audience: 'frovo-users'
+        expiresIn: process.env["JWT_ACCESS_EXPIRES_IN"] || "1d",
+        issuer: "frovo-rbac",
+        audience: "frovo-users",
     });
 };
 exports.generateAccessToken = generateAccessToken;
 const generateRefreshToken = (userId) => {
     const payload = {
         id: userId.toString(),
-        type: 'refresh'
+        type: "refresh",
     };
-    const secret = process.env['JWT_REFRESH_SECRET'];
+    const secret = process.env["JWT_REFRESH_SECRET"];
     if (!secret) {
-        throw new Error('JWT_REFRESH_SECRET is not defined');
+        throw new Error("JWT_REFRESH_SECRET is not defined");
     }
     return jwt.sign(payload, secret, {
-        expiresIn: process.env['JWT_REFRESH_EXPIRES_IN'] || '7d',
-        issuer: 'frovo-rbac',
-        audience: 'frovo-users'
+        expiresIn: process.env["JWT_REFRESH_EXPIRES_IN"] || "7d",
+        issuer: "frovo-rbac",
+        audience: "frovo-users",
     });
 };
 exports.generateRefreshToken = generateRefreshToken;
 const verifyAccessToken = (token) => {
     try {
-        const secret = process.env['JWT_ACCESS_SECRET'];
+        const secret = process.env["JWT_ACCESS_SECRET"];
         if (!secret) {
-            throw new Error('JWT_ACCESS_SECRET is not defined');
+            throw new Error("JWT_ACCESS_SECRET is not defined");
         }
         const decoded = jwt.verify(token, secret);
-        if (decoded.type !== 'access') {
-            throw new Error('Invalid token type');
+        if (decoded.type !== "access") {
+            throw new Error("Invalid token type");
         }
         return decoded;
     }
     catch (error) {
         if (error instanceof jwt.TokenExpiredError) {
-            throw new Error('Token has expired');
+            throw new Error("Token has expired");
         }
         else if (error instanceof jwt.JsonWebTokenError) {
-            throw new Error('Invalid token');
+            throw new Error("Invalid token");
         }
         else {
             throw error;
@@ -94,22 +94,22 @@ const verifyAccessToken = (token) => {
 exports.verifyAccessToken = verifyAccessToken;
 const verifyRefreshToken = (token) => {
     try {
-        const secret = process.env['JWT_REFRESH_SECRET'];
+        const secret = process.env["JWT_REFRESH_SECRET"];
         if (!secret) {
-            throw new Error('JWT_REFRESH_SECRET is not defined');
+            throw new Error("JWT_REFRESH_SECRET is not defined");
         }
         const decoded = jwt.verify(token, secret);
-        if (decoded.type !== 'refresh') {
-            throw new Error('Invalid token type');
+        if (decoded.type !== "refresh") {
+            throw new Error("Invalid token type");
         }
         return decoded;
     }
     catch (error) {
         if (error instanceof jwt.TokenExpiredError) {
-            throw new Error('Refresh token has expired');
+            throw new Error("Refresh token has expired");
         }
         else if (error instanceof jwt.JsonWebTokenError) {
-            throw new Error('Invalid refresh token');
+            throw new Error("Invalid refresh token");
         }
         else {
             throw error;
@@ -120,7 +120,7 @@ exports.verifyRefreshToken = verifyRefreshToken;
 const generateTokenPair = (userId) => {
     return {
         accessToken: (0, exports.generateAccessToken)(userId),
-        refreshToken: (0, exports.generateRefreshToken)(userId)
+        refreshToken: (0, exports.generateRefreshToken)(userId),
     };
 };
 exports.generateTokenPair = generateTokenPair;

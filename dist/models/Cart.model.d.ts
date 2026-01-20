@@ -1,4 +1,4 @@
-import { Document, Types } from 'mongoose';
+import { Document, Types } from "mongoose";
 export interface ICartItem {
     product: Types.ObjectId;
     productName: string;

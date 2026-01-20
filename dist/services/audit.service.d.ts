@@ -1,4 +1,4 @@
-import { IAuditLog } from '../models';
+import { IAuditLog } from "../models";
 export interface AuditQuery {
     page: number;
     limit: number;
@@ -10,7 +10,7 @@ export interface AuditQuery {
     targetType?: string;
     targetId?: string;
     sortBy: string;
-    sortOrder: 'asc' | 'desc';
+    sortOrder: "asc" | "desc";
 }
 export interface PaginatedAuditLogs {
     logs: IAuditLog[];
@@ -56,7 +56,7 @@ declare class AuditService {
         };
         recentActivity: IAuditLog[];
     }>;
-    exportAuditLogs(query: Omit<AuditQuery, 'page' | 'limit'>): Promise<IAuditLog[]>;
+    exportAuditLogs(query: Omit<AuditQuery, "page" | "limit">): Promise<IAuditLog[]>;
     deleteOldAuditLogs(daysToKeep?: number): Promise<{
         deletedCount: number;
     }>;

@@ -1,5 +1,5 @@
-import mongoose, { Document, Types } from 'mongoose';
-import { DepartmentName } from './enums';
+import mongoose, { Document, Types } from "mongoose";
+import { DepartmentName } from "./enums";
 export interface IDepartment extends Document {
     _id: Types.ObjectId;
     name: string;

@@ -39,54 +39,54 @@ const logger_util_1 = require("../utils/logger.util");
 const mongoose_1 = require("mongoose");
 const departments = [
     {
-        name: 'System Admin',
+        name: "System Admin",
         systemName: models_1.DepartmentName.SYSTEM_ADMIN,
-        description: 'System administration and overall platform management'
+        description: "System administration and overall platform management",
     },
     {
-        name: 'Operations',
+        name: "Operations",
         systemName: models_1.DepartmentName.OPERATIONS,
-        description: 'Daily operations management and oversight'
+        description: "Daily operations management and oversight",
     },
     {
-        name: 'Field Operations',
+        name: "Field Operations",
         systemName: models_1.DepartmentName.FIELD_OPERATIONS,
-        description: 'Field operations team and on-site activities'
+        description: "Field operations team and on-site activities",
     },
     {
-        name: 'Maintenance',
+        name: "Maintenance",
         systemName: models_1.DepartmentName.MAINTENANCE,
-        description: 'Maintenance team and equipment servicing'
+        description: "Maintenance team and equipment servicing",
     },
     {
-        name: 'Finance',
+        name: "Finance",
         systemName: models_1.DepartmentName.FINANCE,
-        description: 'Finance department and financial operations'
+        description: "Finance department and financial operations",
     },
     {
-        name: 'Support',
+        name: "Support",
         systemName: models_1.DepartmentName.SUPPORT,
-        description: 'Customer support and assistance'
+        description: "Customer support and assistance",
     },
     {
-        name: 'Warehouse',
+        name: "Warehouse",
         systemName: models_1.DepartmentName.WAREHOUSE,
-        description: 'Warehouse management and inventory control'
+        description: "Warehouse management and inventory control",
     },
     {
-        name: 'Compliance',
+        name: "Compliance",
         systemName: models_1.DepartmentName.COMPLIANCE,
-        description: 'Compliance and audit management'
+        description: "Compliance and audit management",
     },
     {
-        name: 'Customer',
+        name: "Customer",
         systemName: models_1.DepartmentName.CUSTOMER,
-        description: 'Customer accounts and customer-facing services'
-    }
+        description: "Customer accounts and customer-facing services",
+    },
 ];
 const seedDepartments = async (createdBy) => {
     try {
-        logger_util_1.logger.info('🌱 Seeding departments...');
+        logger_util_1.logger.info("🌱 Seeding departments...");
         const existingCount = await models_1.Department.countDocuments();
         if (existingCount > 0) {
             logger_util_1.logger.info(`✅ Departments already seeded (${existingCount} departments found)`);
@@ -101,7 +101,7 @@ const seedDepartments = async (createdBy) => {
         }
         const departmentsWithCreatedBy = departments.map(dept => ({
             ...dept,
-            createdBy
+            createdBy,
         }));
         const createdDepartments = await models_1.Department.insertMany(departmentsWithCreatedBy);
         logger_util_1.logger.info(`✅ Successfully seeded ${createdDepartments.length} departments`);
@@ -112,23 +112,25 @@ const seedDepartments = async (createdBy) => {
             }
         });
         const departmentNames = createdDepartments.map(d => d.name);
-        logger_util_1.logger.info(`📋 Created departments: ${departmentNames.join(', ')}`);
+        logger_util_1.logger.info(`📋 Created departments: ${departmentNames.join(", ")}`);
         return departmentMap;
     }
     catch (error) {
-        logger_util_1.logger.error('❌ Error seeding departments:', error);
+        logger_util_1.logger.error("❌ Error seeding departments:", error);
         throw error;
     }
 };
 exports.seedDepartments = seedDepartments;
 if (require.main === module) {
-    Promise.resolve().then(() => __importStar(require('../config/database'))).then(({ connectDB }) => {
+    Promise.resolve().then(() => __importStar(require("../config/database"))).then(({ connectDB }) => {
         connectDB().then(() => {
             const dummyCreatedBy = new mongoose_1.Types.ObjectId();
-            (0, exports.seedDepartments)(dummyCreatedBy).then(() => {
+            (0, exports.seedDepartments)(dummyCreatedBy)
+                .then(() => {
                 process.exit(0);
-            }).catch((error) => {
-                logger_util_1.logger.error('Failed to seed departments:', error);
+            })
+                .catch(error => {
+                logger_util_1.logger.error("Failed to seed departments:", error);
                 process.exit(1);
             });
         });

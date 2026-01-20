@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, Types } from 'mongoose';
+import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface ISlotRefill {
   slotId: string; // e.g., "Rack 1 Slot A1"
@@ -58,7 +58,7 @@ export interface IMachineRefill extends Document {
   totalSlots: number;
 
   // Status
-  status: 'draft' | 'completed' | 'verified' | 'rejected';
+  status: "draft" | "completed" | "verified" | "rejected";
   verifiedBy?: Types.ObjectId;
   verifiedAt?: Date;
 
@@ -69,98 +69,104 @@ export interface IMachineRefill extends Document {
   updatedAt: Date;
 }
 
-const slotRefillSchema = new Schema<ISlotRefill>({
-  slotId: { type: String, required: true },
-  rackNumber: { type: Number, required: true },
-  slotPosition: { type: String, required: true },
-  productCode: { type: String, required: true },
-  productName: { type: String, required: true },
-  productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+const slotRefillSchema = new Schema<ISlotRefill>(
+  {
+    slotId: { type: String, required: true },
+    rackNumber: { type: Number, required: true },
+    slotPosition: { type: String, required: true },
+    productCode: { type: String, required: true },
+    productName: { type: String, required: true },
+    productId: { type: Schema.Types.ObjectId, ref: "Product" },
 
-  transUnitsDispensed: { type: Number, required: true, min: 0 },
-  existingQty: { type: Number, required: true, min: 0 },
-  refilledQty: { type: Number, required: true, min: 0 },
-  currentStock: { type: Number, required: true, min: 0 },
+    transUnitsDispensed: { type: Number, required: true, min: 0 },
+    existingQty: { type: Number, required: true, min: 0 },
+    refilledQty: { type: Number, required: true, min: 0 },
+    currentStock: { type: Number, required: true, min: 0 },
 
-  variance: { type: Number, default: 0 },
-  varianceReason: { type: String },
+    variance: { type: Number, default: 0 },
+    varianceReason: { type: String },
 
-  removedQty: { type: Number, default: 0, min: 0 },
-  removedReason: {
-    type: String,
-    enum: ['Damaged', 'Expired', 'Missing', 'Other', '']
+    removedQty: { type: Number, default: 0, min: 0 },
+    removedReason: {
+      type: String,
+      enum: ["Damaged", "Expired", "Missing", "Other", ""],
+    },
+
+    expiryDate: { type: Date },
+    batchNumber: { type: String },
+    unitPrice: { type: Number },
   },
+  { _id: false }
+);
 
-  expiryDate: { type: Date },
-  batchNumber: { type: String },
-  unitPrice: { type: Number }
-}, { _id: false });
+const machineRefillSchema = new Schema<IMachineRefill>(
+  {
+    refillId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
 
-const machineRefillSchema = new Schema<IMachineRefill>({
-  refillId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true
-  },
+    machineId: {
+      type: Schema.Types.ObjectId,
+      ref: "VendingMachine",
+      required: true,
+      index: true,
+    },
+    agentId: {
+      type: Schema.Types.ObjectId,
+      ref: "FieldAgent",
+      required: true,
+      index: true,
+    },
+    routeId: {
+      type: Schema.Types.ObjectId,
+      ref: "Route",
+    },
+    taskId: {
+      type: Schema.Types.ObjectId,
+      ref: "FieldOpsTask",
+    },
+    warehouseId: {
+      type: Schema.Types.ObjectId,
+      ref: "Warehouse",
+    },
 
-  machineId: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendingMachine',
-    required: true,
-    index: true
-  },
-  agentId: {
-    type: Schema.Types.ObjectId,
-    ref: 'FieldAgent',
-    required: true,
-    index: true
-  },
-  routeId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Route'
-  },
-  taskId: {
-    type: Schema.Types.ObjectId,
-    ref: 'FieldOpsTask'
-  },
-  warehouseId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Warehouse'
-  },
+    refillDateTime: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    beforePhoto: { type: String },
+    afterPhoto: { type: String },
+    additionalPhotos: [{ type: String }],
 
-  refillDateTime: {
-    type: Date,
-    required: true,
-    default: Date.now
+    slotRefills: [slotRefillSchema],
+
+    totalUnitsDispensed: { type: Number, default: 0 },
+    totalUnitsRefilled: { type: Number, default: 0 },
+    totalUnitsRemoved: { type: Number, default: 0 },
+    totalVariance: { type: Number, default: 0 },
+    totalSlots: { type: Number, default: 0 },
+
+    status: {
+      type: String,
+      enum: ["draft", "completed", "verified", "rejected"],
+      default: "completed",
+    },
+    verifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    verifiedAt: { type: Date },
+
+    notes: { type: String, maxlength: 1000 },
   },
-  beforePhoto: { type: String },
-  afterPhoto: { type: String },
-  additionalPhotos: [{ type: String }],
-
-  slotRefills: [slotRefillSchema],
-
-  totalUnitsDispensed: { type: Number, default: 0 },
-  totalUnitsRefilled: { type: Number, default: 0 },
-  totalUnitsRemoved: { type: Number, default: 0 },
-  totalVariance: { type: Number, default: 0 },
-  totalSlots: { type: Number, default: 0 },
-
-  status: {
-    type: String,
-    enum: ['draft', 'completed', 'verified', 'rejected'],
-    default: 'completed'
-  },
-  verifiedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  verifiedAt: { type: Date },
-
-  notes: { type: String, maxlength: 1000 }
-}, {
-  timestamps: true
-});
+  {
+    timestamps: true,
+  }
+);
 
 // Indexes
 machineRefillSchema.index({ machineId: 1, refillDateTime: -1 });
@@ -168,14 +174,16 @@ machineRefillSchema.index({ agentId: 1, createdAt: -1 });
 machineRefillSchema.index({ status: 1 });
 
 // Auto-generate refillId
-machineRefillSchema.pre('save', async function(next) {
+machineRefillSchema.pre("save", async function (next) {
   if (!this.refillId) {
     const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+    const random = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0");
     this.refillId = `REF-${dateStr}-${random}`;
   }
   next();
 });
 
-export const MachineRefill = mongoose.model<IMachineRefill>('MachineRefill', machineRefillSchema);
+export const MachineRefill = mongoose.model<IMachineRefill>("MachineRefill", machineRefillSchema);

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 export declare const createInventorySchema: z.ZodObject<{
     body: z.ZodObject<{
         sku: z.ZodString;

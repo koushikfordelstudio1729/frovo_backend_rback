@@ -39,60 +39,63 @@ const enums_1 = require("./enums");
 const accessRequestSchema = new mongoose_1.Schema({
     requester: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: [true, 'Requester is required']
+        ref: "User",
+        required: [true, "Requester is required"],
     },
     requestedRole: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Role'
+        ref: "Role",
     },
-    requestedPermissions: [{
+    requestedPermissions: [
+        {
             type: String,
-            trim: true
-        }],
+            trim: true,
+        },
+    ],
     reason: {
         type: String,
-        required: [true, 'Reason is required'],
+        required: [true, "Reason is required"],
         trim: true,
-        minlength: [10, 'Reason must be at least 10 characters'],
-        maxlength: [1000, 'Reason cannot exceed 1000 characters']
+        minlength: [10, "Reason must be at least 10 characters"],
+        maxlength: [1000, "Reason cannot exceed 1000 characters"],
     },
     duration: {
         type: Number,
-        min: [1, 'Duration must be at least 1 day'],
-        max: [365, 'Duration cannot exceed 365 days']
+        min: [1, "Duration must be at least 1 day"],
+        max: [365, "Duration cannot exceed 365 days"],
     },
     approver: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: "User",
     },
     status: {
         type: String,
         enum: Object.values(enums_1.AccessRequestStatus),
-        default: enums_1.AccessRequestStatus.PENDING
+        default: enums_1.AccessRequestStatus.PENDING,
     },
     approvedAt: {
-        type: Date
+        type: Date,
     },
     rejectedAt: {
-        type: Date
+        type: Date,
     },
     expiresAt: {
-        type: Date
-    }
+        type: Date,
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
 });
 accessRequestSchema.index({ requester: 1 });
 accessRequestSchema.index({ status: 1 });
 accessRequestSchema.index({ expiresAt: 1 });
 accessRequestSchema.index({ createdAt: -1 });
 accessRequestSchema.index({ requester: 1, status: 1 });
-accessRequestSchema.pre('save', function (next) {
-    if (!this.requestedRole && (!this.requestedPermissions || this.requestedPermissions.length === 0)) {
-        return next(new Error('Either requestedRole or requestedPermissions must be provided'));
+accessRequestSchema.pre("save", function (next) {
+    if (!this.requestedRole &&
+        (!this.requestedPermissions || this.requestedPermissions.length === 0)) {
+        return next(new Error("Either requestedRole or requestedPermissions must be provided"));
     }
     if (this.status === enums_1.AccessRequestStatus.APPROVED && this.duration && !this.expiresAt) {
         const expiryDate = new Date();
@@ -101,19 +104,19 @@ accessRequestSchema.pre('save', function (next) {
     }
     next();
 });
-accessRequestSchema.virtual('id').get(function () {
+accessRequestSchema.virtual("id").get(function () {
     return this._id.toHexString();
 });
-accessRequestSchema.virtual('isExpired').get(function () {
+accessRequestSchema.virtual("isExpired").get(function () {
     if (!this.expiresAt)
         return false;
     return new Date() > this.expiresAt;
 });
-accessRequestSchema.set('toJSON', {
+accessRequestSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
         const { _id, __v, ...cleanRet } = ret;
         return cleanRet;
-    }
+    },
 });
-exports.AccessRequest = mongoose_1.default.model('AccessRequest', accessRequestSchema);
+exports.AccessRequest = mongoose_1.default.model("AccessRequest", accessRequestSchema);

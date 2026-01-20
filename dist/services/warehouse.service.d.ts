@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
-import { Types } from 'mongoose';
-import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IGRNnumber } from '../models/Warehouse.model';
+import mongoose from "mongoose";
+import { Types } from "mongoose";
+import { IDispatchOrder, IExpense, IRaisePurchaseOrder, IInventory, IQCTemplate, IReturnOrder, IGRNnumber } from "../models/Warehouse.model";
 export interface InventoryStats {
     totalItems: number;
     activeItems: number;
@@ -18,12 +18,12 @@ export interface InventoryDashboardFilters {
     sku?: string;
     batchId?: string;
     productName?: string;
-    expiryStatus?: 'expiring_soon' | 'expired' | 'not_expired' | 'no_expiry';
-    ageRange?: '0-30' | '31-60' | '61-90' | '90+';
-    quantityRange?: 'low' | 'medium' | 'high' | 'out_of_stock';
+    expiryStatus?: "expiring_soon" | "expired" | "not_expired" | "no_expiry";
+    ageRange?: "0-30" | "31-60" | "61-90" | "90+";
+    quantityRange?: "low" | "medium" | "high" | "out_of_stock";
     archived?: boolean;
     sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
+    sortOrder?: "asc" | "desc";
 }
 export interface InventoryDashboardResponse {
     inventory: IInventory[];
@@ -40,7 +40,7 @@ export interface DashboardData {
         todayDispatches: number;
     };
     alerts: {
-        type: 'qc_failed' | 'low_stock';
+        type: "qc_failed" | "low_stock";
         message: string;
         count: number;
     }[];
@@ -64,7 +64,7 @@ export interface RaisePurchaseOrderData {
     vendor: Types.ObjectId;
     warehouse: string;
     po_raised_date: Date;
-    po_status: 'pending' | 'approved' | 'draft';
+    po_status: "pending" | "approved" | "draft";
     vendor_id: string;
     vendor_address: string;
     vendor_contact: string;
@@ -130,7 +130,7 @@ export interface ReturnOrderData {
     warehouse: Types.ObjectId;
     reason: string;
     quantity: number;
-    returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
+    returnType: "damaged" | "expired" | "wrong_item" | "overstock" | "other";
     images?: string[];
 }
 export interface InventoryUpsertData {
@@ -148,7 +148,7 @@ export interface InventoryUpsertData {
     createdBy: Types.ObjectId;
 }
 export interface ReportFilters {
-    reportType: 'inventory_summary' | 'purchase_orders' | 'inventory_turnover' | 'qc_summary' | 'efficiency' | 'stock_ageing';
+    reportType: "inventory_summary" | "purchase_orders" | "inventory_turnover" | "qc_summary" | "efficiency" | "stock_ageing";
     dateRange?: {
         startDate: Date;
         endDate: Date;
@@ -196,7 +196,7 @@ export interface GRNData {
     recieved_date: Date;
     remarks?: string;
     scanned_challan?: string;
-    qc_status: 'bad' | 'moderate' | 'excellent';
+    qc_status: "bad" | "moderate" | "excellent";
     quantities?: Array<{
         sku: string;
         received_quantity: number;
@@ -220,14 +220,14 @@ declare class WarehouseService {
     deletePurchaseOrder(id: string): Promise<void>;
     getGRNById(grnId: string): Promise<IGRNnumber | null>;
     getGRNs(filters?: {
-        qc_status?: 'bad' | 'moderate' | 'excellent';
+        qc_status?: "bad" | "moderate" | "excellent";
         transporter_name?: string;
         startDate?: string;
         endDate?: string;
         vendor?: string;
         purchase_order?: string;
     }): Promise<IGRNnumber[]>;
-    updateGRNStatus(grnId: string, qc_status: 'bad' | 'moderate' | 'excellent', remarks?: string, lineItems?: Array<{
+    updateGRNStatus(grnId: string, qc_status: "bad" | "moderate" | "excellent", remarks?: string, lineItems?: Array<{
         line_no: number;
         received_quantity: number;
         accepted_quantity: number;
@@ -241,7 +241,7 @@ declare class WarehouseService {
     }>): Promise<IGRNnumber>;
     getPurchaseOrders(warehouseId?: string, filters?: any): Promise<IRaisePurchaseOrder[]>;
     getPurchaseOrderById(id: string): Promise<IRaisePurchaseOrder | null>;
-    updatePurchaseOrderStatus(id: string, po_status: 'draft' | 'approved' | 'pending', remarks?: string): Promise<IRaisePurchaseOrder | null>;
+    updatePurchaseOrderStatus(id: string, po_status: "draft" | "approved" | "pending", remarks?: string): Promise<IRaisePurchaseOrder | null>;
     upsertInventory(data: InventoryUpsertData): Promise<void>;
     createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder>;
     getDispatches(warehouseId?: string, filters?: any): Promise<IDispatchOrder[]>;
@@ -308,7 +308,7 @@ declare class WarehouseService {
         totalPages: number;
     }>;
     createExpense(data: {
-        category: 'staffing' | 'supplies' | 'equipment' | 'transport';
+        category: "staffing" | "supplies" | "equipment" | "transport";
         amount: number;
         vendor?: Types.ObjectId;
         date: Date;
@@ -320,9 +320,9 @@ declare class WarehouseService {
     updateExpenseStatus(expenseId: string, status: string, approvedBy?: Types.ObjectId): Promise<IExpense>;
     updateExpensePaymentStatus(expenseId: string, paymentStatus: string): Promise<IExpense>;
     updateExpense(expenseId: string, updateData: {
-        category?: 'staffing' | 'supplies' | 'equipment' | 'transport';
+        category?: "staffing" | "supplies" | "equipment" | "transport";
         amount?: number;
-        status?: 'approved' | 'pending';
+        status?: "approved" | "pending";
         date?: Date;
     }): Promise<IExpense>;
     deleteExpense(expenseId: string): Promise<void>;
@@ -390,7 +390,7 @@ declare class WarehouseService {
         isActive?: boolean;
         partner?: string;
         sortBy?: string;
-        sortOrder?: 'asc' | 'desc';
+        sortOrder?: "asc" | "desc";
     }, userId: Types.ObjectId, userRoles: any[]): Promise<{
         warehouses: (mongoose.Document<unknown, {}, import("../models/Warehouse.model").IWarehouse, {}, {}> & import("../models/Warehouse.model").IWarehouse & Required<{
             _id: Types.ObjectId;

@@ -11,7 +11,12 @@
     "seed": "SEED_DATABASE=true ts-node src/server.ts",
     "seed:permissions": "ts-node src/seeders/permissions.seeder.ts",
     "seed:all": "ts-node src/seeders/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
+    "format:fix": "prettier --write \"src/**/*.{ts,js,json}\"",
+    "lint:check": "eslint \"src/**/*.{ts,js}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,js}\" --fix",
+    "prepare": "husky"
   },
   "keywords": [
     "rbac",
@@ -48,9 +53,25 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.1",
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-plugin-prettier": "^5.2.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0",
     "nodemon": "^3.0.2",
+    "prettier": "^3.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,js}": [
+      "prettier --write"
+    ],
+    "src/**/*.json": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"

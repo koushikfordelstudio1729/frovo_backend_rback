@@ -10,12 +10,11 @@ const mongoose_1 = require("mongoose");
 class OrderService {
     async createOrder(userId, orderData) {
         if (!mongoose_1.Types.ObjectId.isValid(userId)) {
-            throw new Error('Invalid user ID');
+            throw new Error("Invalid user ID");
         }
-        const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true })
-            .populate('items.product');
+        const cart = await Cart_model_1.Cart.findOne({ userId, isActive: true }).populate("items.product");
         if (!cart || cart.isEmpty) {
-            throw new Error('Cart is empty');
+            throw new Error("Cart is empty");
         }
         const validationResults = [];
         const orderItems = [];
@@ -45,14 +44,14 @@ class OrderService {
                 quantity: cartItem.quantity,
                 unitPrice: cartItem.unitPrice,
                 totalPrice: cartItem.totalPrice,
-                dispensed: false
+                dispensed: false,
             });
         }
         if (validationResults.length > 0) {
-            throw new Error(`Order validation failed: ${validationResults.join(', ')}`);
+            throw new Error(`Order validation failed: ${validationResults.join(", ")}`);
         }
         if (orderItems.length === 0) {
-            throw new Error('No valid items in cart');
+            throw new Error("No valid items in cart");
         }
         const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
         const taxRate = 0.18;
@@ -60,7 +59,7 @@ class OrderService {
         const totalAmount = subtotal + tax;
         const firstMachine = await VendingMachine_model_1.VendingMachine.findOne({ machineId: orderItems[0]?.machineId });
         if (!firstMachine) {
-            throw new Error('Machine not found for delivery info');
+            throw new Error("Machine not found for delivery info");
         }
         const order = new Order_model_1.Order({
             userId,
@@ -73,10 +72,10 @@ class OrderService {
             paymentInfo: {
                 paymentId: `PAY-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`.toUpperCase(),
                 paymentMethod: orderData.paymentMethod,
-                transactionId: '',
+                transactionId: "",
                 paymentGateway: orderData.paymentGateway,
                 paymentStatus: Order_model_2.PaymentStatus.PENDING,
-                paidAmount: totalAmount
+                paidAmount: totalAmount,
             },
             deliveryInfo: {
                 machineId: firstMachine.machineId,
@@ -85,11 +84,11 @@ class OrderService {
                     address: firstMachine.location.address,
                     city: firstMachine.location.city,
                     state: firstMachine.location.state,
-                    landmark: firstMachine.location.landmark
+                    landmark: firstMachine.location.landmark,
                 },
-                estimatedDispenseTime: new Date(Date.now() + 5 * 60 * 1000)
+                estimatedDispenseTime: new Date(Date.now() + 5 * 60 * 1000),
             },
-            notes: orderData.notes
+            notes: orderData.notes,
         });
         await order.save();
         for (const item of orderItems) {
@@ -112,23 +111,23 @@ class OrderService {
             query.userId = userId;
         }
         const order = await Order_model_1.Order.findOne(query)
-            .populate('userId', 'firstName lastName email')
-            .populate('items.product');
+            .populate("userId", "firstName lastName email")
+            .populate("items.product");
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error("Order not found");
         }
         return order;
     }
     async getUserOrders(userId, status, limit = 10, skip = 0) {
         if (!mongoose_1.Types.ObjectId.isValid(userId)) {
-            throw new Error('Invalid user ID');
+            throw new Error("Invalid user ID");
         }
         const query = { userId };
         if (status) {
             query.orderStatus = status;
         }
         const orders = await Order_model_1.Order.find(query)
-            .populate('items.product')
+            .populate("items.product")
             .sort({ orderDate: -1 })
             .limit(limit)
             .skip(skip);
@@ -137,13 +136,13 @@ class OrderService {
             orders,
             total,
             page: Math.floor(skip / limit) + 1,
-            totalPages: Math.ceil(total / limit)
+            totalPages: Math.ceil(total / limit),
         };
     }
     async updateOrderStatus(orderId, status, reason) {
         const order = await Order_model_1.Order.findOne({ orderId });
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error("Order not found");
         }
         await order.updateStatus(status, reason);
         if (status === Order_model_3.OrderStatus.CANCELLED) {
@@ -154,7 +153,7 @@ class OrderService {
     async updatePaymentStatus(orderId, paymentStatus, transactionId) {
         const order = await Order_model_1.Order.findOne({ orderId });
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error("Order not found");
         }
         await order.updatePaymentStatus(paymentStatus, transactionId);
         if (paymentStatus === Order_model_2.PaymentStatus.COMPLETED) {
@@ -163,7 +162,7 @@ class OrderService {
             }
         }
         if (paymentStatus === Order_model_2.PaymentStatus.FAILED) {
-            await order.updateStatus(Order_model_3.OrderStatus.CANCELLED, 'Payment failed');
+            await order.updateStatus(Order_model_3.OrderStatus.CANCELLED, "Payment failed");
             await this.restoreInventory(order);
         }
         return order;
@@ -171,7 +170,7 @@ class OrderService {
     async markItemDispensed(orderId, productId, slotNumber) {
         const order = await Order_model_1.Order.findOne({ orderId });
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error("Order not found");
         }
         await order.markItemDispensed(productId, slotNumber);
         return order;
@@ -192,7 +191,7 @@ class OrderService {
             machine: {
                 machineId: order.deliveryInfo.machineId,
                 machineName: order.deliveryInfo.machineName,
-                location: order.deliveryInfo.location
+                location: order.deliveryInfo.location,
             },
             items: order.items.map(item => ({
                 productName: item.productName,
@@ -200,20 +199,20 @@ class OrderService {
                 unitPrice: item.unitPrice,
                 totalPrice: item.totalPrice,
                 dispensed: item.dispensed,
-                dispensedAt: item.dispensedAt
+                dispensedAt: item.dispensedAt,
             })),
             canBeCancelled: order.canBeCancelled,
-            isCompleted: order.isCompleted
+            isCompleted: order.isCompleted,
         };
         return summary;
     }
     async cancelOrder(orderId, userId, reason) {
         const order = await Order_model_1.Order.findOne({ orderId, userId });
         if (!order) {
-            throw new Error('Order not found');
+            throw new Error("Order not found");
         }
         if (!order.canBeCancelled) {
-            throw new Error('Order cannot be cancelled at this stage');
+            throw new Error("Order cannot be cancelled at this stage");
         }
         await order.updateStatus(Order_model_3.OrderStatus.CANCELLED, reason);
         await this.restoreInventory(order);
@@ -235,13 +234,13 @@ class OrderService {
         }
     }
     async getOrdersByMachine(machineId, status, limit = 20, skip = 0) {
-        const query = { 'deliveryInfo.machineId': machineId };
+        const query = { "deliveryInfo.machineId": machineId };
         if (status) {
             query.orderStatus = status;
         }
         const orders = await Order_model_1.Order.find(query)
-            .populate('userId', 'firstName lastName email')
-            .populate('items.product')
+            .populate("userId", "firstName lastName email")
+            .populate("items.product")
             .sort({ orderDate: -1 })
             .limit(limit)
             .skip(skip);
@@ -250,7 +249,7 @@ class OrderService {
             orders,
             total,
             page: Math.floor(skip / limit) + 1,
-            totalPages: Math.ceil(total / limit)
+            totalPages: Math.ceil(total / limit),
         };
     }
     async getOrderStats(userId, machineId) {
@@ -259,7 +258,7 @@ class OrderService {
             matchQuery.userId = new mongoose_1.Types.ObjectId(userId);
         }
         if (machineId) {
-            matchQuery['deliveryInfo.machineId'] = machineId;
+            matchQuery["deliveryInfo.machineId"] = machineId;
         }
         const stats = await Order_model_1.Order.aggregate([
             { $match: matchQuery },
@@ -267,28 +266,28 @@ class OrderService {
                 $group: {
                     _id: null,
                     totalOrders: { $sum: 1 },
-                    totalRevenue: { $sum: '$totalAmount' },
+                    totalRevenue: { $sum: "$totalAmount" },
                     pendingOrders: {
-                        $sum: { $cond: [{ $eq: ['$orderStatus', Order_model_3.OrderStatus.PENDING] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: ["$orderStatus", Order_model_3.OrderStatus.PENDING] }, 1, 0] },
                     },
                     completedOrders: {
-                        $sum: { $cond: [{ $eq: ['$orderStatus', Order_model_3.OrderStatus.COMPLETED] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: ["$orderStatus", Order_model_3.OrderStatus.COMPLETED] }, 1, 0] },
                     },
                     cancelledOrders: {
-                        $sum: { $cond: [{ $eq: ['$orderStatus', Order_model_3.OrderStatus.CANCELLED] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: ["$orderStatus", Order_model_3.OrderStatus.CANCELLED] }, 1, 0] },
                     },
-                    avgOrderValue: { $avg: '$totalAmount' }
-                }
-            }
+                    avgOrderValue: { $avg: "$totalAmount" },
+                },
+            },
         ]);
-        return stats[0] || {
+        return (stats[0] || {
             totalOrders: 0,
             totalRevenue: 0,
             pendingOrders: 0,
             completedOrders: 0,
             cancelledOrders: 0,
-            avgOrderValue: 0
-        };
+            avgOrderValue: 0,
+        });
     }
 }
 exports.orderService = new OrderService();

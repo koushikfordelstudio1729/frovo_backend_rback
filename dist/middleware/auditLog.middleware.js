@@ -13,14 +13,14 @@ const auditLog = (options) => {
             requestData = {
                 body: req.body,
                 query: req.query,
-                params: req.params
+                params: req.params,
             };
         }
         res.json = function (data) {
             responseData = data;
             return originalJson(data);
         };
-        res.on('finish', async () => {
+        res.on("finish", async () => {
             try {
                 if (res.statusCode >= 200 && res.statusCode < 300 && req.user) {
                     const auditData = {
@@ -29,38 +29,38 @@ const auditLog = (options) => {
                         action: options.action,
                         module: options.module,
                         ipAddress: req.clientIp,
-                        userAgent: req.userAgent
+                        userAgent: req.userAgent,
                     };
                     if (options.getTarget) {
                         auditData.target = options.getTarget(req, res);
                     }
-                    else if (req.params['id']) {
+                    else if (req.params["id"]) {
                         auditData.target = {
                             type: options.module,
-                            id: req.params['id']
+                            id: req.params["id"],
                         };
                     }
-                    if (options.action.includes('update') || options.action.includes('edit')) {
+                    if (options.action.includes("update") || options.action.includes("edit")) {
                         if (options.captureRequest && options.captureResponse) {
                             auditData.changes = {
                                 before: responseData?.data?.before || null,
-                                after: responseData?.data || requestData?.body || null
+                                after: responseData?.data || requestData?.body || null,
                             };
                         }
                     }
                     auditData.metadata = {
                         method: req.method,
                         url: req.originalUrl,
-                        statusCode: res.statusCode
+                        statusCode: res.statusCode,
                     };
                     await models_1.AuditLog.create(auditData);
-                    if (process.env['NODE_ENV'] === 'development') {
+                    if (process.env["NODE_ENV"] === "development") {
                         logger_util_1.logger.audit(options.action, req.user?.email || req.user?._id.toString(), auditData.target?.type || options.module, auditData);
                     }
                 }
             }
             catch (error) {
-                logger_util_1.logger.error('Audit logging failed:', error);
+                logger_util_1.logger.error("Audit logging failed:", error);
             }
         });
         return next();
@@ -69,10 +69,10 @@ const auditLog = (options) => {
 exports.auditLog = auditLog;
 const auditCreate = (module, getTarget) => {
     const options = {
-        action: 'create',
+        action: "create",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -82,10 +82,10 @@ const auditCreate = (module, getTarget) => {
 exports.auditCreate = auditCreate;
 const auditUpdate = (module, getTarget) => {
     const options = {
-        action: 'update',
+        action: "update",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -95,9 +95,9 @@ const auditUpdate = (module, getTarget) => {
 exports.auditUpdate = auditUpdate;
 const auditDelete = (module, getTarget) => {
     const options = {
-        action: 'delete',
+        action: "delete",
         module,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -107,25 +107,25 @@ const auditDelete = (module, getTarget) => {
 exports.auditDelete = auditDelete;
 const auditLogin = () => {
     return (0, exports.auditLog)({
-        action: 'login',
-        module: 'Auth',
-        captureResponse: true
+        action: "login",
+        module: "Auth",
+        captureResponse: true,
     });
 };
 exports.auditLogin = auditLogin;
 const auditLogout = () => {
     return (0, exports.auditLog)({
-        action: 'logout',
-        module: 'Auth'
+        action: "logout",
+        module: "Auth",
     });
 };
 exports.auditLogout = auditLogout;
 const auditAssign = (module, getTarget) => {
     const options = {
-        action: 'assign',
+        action: "assign",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -135,10 +135,10 @@ const auditAssign = (module, getTarget) => {
 exports.auditAssign = auditAssign;
 const auditRemove = (module, getTarget) => {
     const options = {
-        action: 'remove',
+        action: "remove",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -148,10 +148,10 @@ const auditRemove = (module, getTarget) => {
 exports.auditRemove = auditRemove;
 const auditApprove = (module, getTarget) => {
     const options = {
-        action: 'approve',
+        action: "approve",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;
@@ -161,10 +161,10 @@ const auditApprove = (module, getTarget) => {
 exports.auditApprove = auditApprove;
 const auditReject = (module, getTarget) => {
     const options = {
-        action: 'reject',
+        action: "reject",
         module,
         captureRequest: true,
-        captureResponse: true
+        captureResponse: true,
     };
     if (getTarget) {
         options.getTarget = getTarget;

@@ -40,53 +40,53 @@ const permissionSchema = new mongoose_1.Schema({
     key: {
         type: String,
         unique: true,
-        required: [true, 'Permission key is required'],
-        lowercase: true
+        required: [true, "Permission key is required"],
+        lowercase: true,
     },
     module: {
         type: String,
         enum: Object.values(enums_1.PermissionModule),
-        required: [true, 'Module is required']
+        required: [true, "Module is required"],
     },
     action: {
         type: String,
         enum: Object.values(enums_1.PermissionAction),
-        required: [true, 'Action is required']
+        required: [true, "Action is required"],
     },
     description: {
         type: String,
-        required: [true, 'Description is required'],
+        required: [true, "Description is required"],
         trim: true,
-        maxlength: [200, 'Description cannot exceed 200 characters']
+        maxlength: [200, "Description cannot exceed 200 characters"],
     },
     group: {
         type: String,
-        required: [true, 'Group is required'],
+        required: [true, "Group is required"],
         trim: true,
-        maxlength: [50, 'Group cannot exceed 50 characters']
-    }
+        maxlength: [50, "Group cannot exceed 50 characters"],
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
 });
 permissionSchema.index({ module: 1 });
 permissionSchema.index({ group: 1 });
 permissionSchema.index({ module: 1, action: 1 });
-permissionSchema.pre('save', function (next) {
-    if (this.isModified('module') || this.isModified('action') || !this.key) {
+permissionSchema.pre("save", function (next) {
+    if (this.isModified("module") || this.isModified("action") || !this.key) {
         this.key = `${this.module}:${this.action}`;
     }
     next();
 });
-permissionSchema.virtual('id').get(function () {
+permissionSchema.virtual("id").get(function () {
     return this._id.toHexString();
 });
-permissionSchema.set('toJSON', {
+permissionSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
         const { _id, __v, ...cleanRet } = ret;
         return cleanRet;
-    }
+    },
 });
-exports.Permission = mongoose_1.default.model('Permission', permissionSchema);
+exports.Permission = mongoose_1.default.model("Permission", permissionSchema);

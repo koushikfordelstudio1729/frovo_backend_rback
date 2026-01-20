@@ -23,30 +23,30 @@ const catalogue_routes_1 = __importDefault(require("./catalogue.routes"));
 const historyCatalogue_routes_1 = __importDefault(require("./historyCatalogue.routes"));
 const fieldops_routes_1 = __importDefault(require("./fieldops.routes"));
 const router = (0, express_1.Router)();
-router.get('/health', (_req, res) => {
+router.get("/health", (_req, res) => {
     res.json({
         success: true,
-        message: 'RBAC API is running',
+        message: "RBAC API is running",
         timestamp: new Date().toISOString(),
-        version: '1.0.0'
+        version: "1.0.0",
     });
 });
-router.use('/auth', auth_routes_1.default);
-router.use('/users', user_routes_1.default);
-router.use('/roles', role_routes_1.default);
-router.use('/departments', department_routes_1.default);
-router.use('/permissions', permission_routes_1.default);
-router.use('/access-requests', accessRequest_routes_1.default);
-router.use('/audit-logs', auditLog_routes_1.default);
-router.use('/security', security_routes_1.default);
-router.use('/warehouse', warehouse_routes_1.default);
-router.use('/vendors', vendor_routes_1.default);
-router.use('/audit-trails', auditTrail_routes_1.default);
-router.use('/vending', vendingMachine_routes_1.default);
-router.use('/cart', cart_routes_1.default);
-router.use('/area-route', arearoute_route_1.default);
-router.use('/catalogue', catalogue_routes_1.default);
-router.use('/history-catalogue', historyCatalogue_routes_1.default);
-router.use('/field-ops', fieldops_routes_1.default);
-router.use('/', product_routes_1.default);
+router.use("/auth", auth_routes_1.default);
+router.use("/users", user_routes_1.default);
+router.use("/roles", role_routes_1.default);
+router.use("/departments", department_routes_1.default);
+router.use("/permissions", permission_routes_1.default);
+router.use("/access-requests", accessRequest_routes_1.default);
+router.use("/audit-logs", auditLog_routes_1.default);
+router.use("/security", security_routes_1.default);
+router.use("/warehouse", warehouse_routes_1.default);
+router.use("/vendors", vendor_routes_1.default);
+router.use("/audit-trails", auditTrail_routes_1.default);
+router.use("/vending", vendingMachine_routes_1.default);
+router.use("/cart", cart_routes_1.default);
+router.use("/area-route", arearoute_route_1.default);
+router.use("/catalogue", catalogue_routes_1.default);
+router.use("/history-catalogue", historyCatalogue_routes_1.default);
+router.use("/field-ops", fieldops_routes_1.default);
+router.use("/", product_routes_1.default);
 exports.default = router;

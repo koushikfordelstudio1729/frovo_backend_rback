@@ -39,55 +39,59 @@ const enums_1 = require("./enums");
 const departmentSchema = new mongoose_1.Schema({
     name: {
         type: String,
-        required: [true, 'Department name is required'],
+        required: [true, "Department name is required"],
         unique: true,
         trim: true,
-        minlength: [2, 'Department name must be at least 2 characters'],
-        maxlength: [100, 'Department name cannot exceed 100 characters']
+        minlength: [2, "Department name must be at least 2 characters"],
+        maxlength: [100, "Department name cannot exceed 100 characters"],
     },
     systemName: {
         type: String,
         enum: Object.values(enums_1.DepartmentName),
-        sparse: true
+        sparse: true,
     },
     description: {
         type: String,
         trim: true,
-        maxlength: [500, 'Description cannot exceed 500 characters']
+        maxlength: [500, "Description cannot exceed 500 characters"],
     },
-    roles: [{
+    roles: [
+        {
             type: mongoose_1.Schema.Types.ObjectId,
-            ref: 'Role'
-        }],
-    members: [{
+            ref: "Role",
+        },
+    ],
+    members: [
+        {
             type: mongoose_1.Schema.Types.ObjectId,
-            ref: 'User'
-        }],
+            ref: "User",
+        },
+    ],
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: [true, 'CreatedBy is required']
-    }
+        ref: "User",
+        required: [true, "CreatedBy is required"],
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
 });
 departmentSchema.index({ createdAt: -1 });
-departmentSchema.virtual('id').get(function () {
+departmentSchema.virtual("id").get(function () {
     return this._id.toHexString();
 });
-departmentSchema.virtual('memberCount').get(function () {
+departmentSchema.virtual("memberCount").get(function () {
     return this.members?.length || 0;
 });
-departmentSchema.virtual('roleCount').get(function () {
+departmentSchema.virtual("roleCount").get(function () {
     return this.roles?.length || 0;
 });
-departmentSchema.set('toJSON', {
+departmentSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
         const { _id, __v, ...cleanRet } = ret;
         return cleanRet;
-    }
+    },
 });
-exports.Department = mongoose_1.default.model('Department', departmentSchema);
+exports.Department = mongoose_1.default.model("Department", departmentSchema);

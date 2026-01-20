@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 export declare const registerSchema: z.ZodObject<{
     body: z.ZodObject<{
         name: z.ZodString;

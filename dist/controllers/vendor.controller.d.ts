@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 export declare class VendorController {
     private static getLoggedInUser;
     static createCompany(req: Request, res: Response): Promise<void>;

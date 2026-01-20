@@ -1,5 +1,5 @@
-import mongoose, { Document, Types } from 'mongoose';
-import { AccessRequestStatus } from './enums';
+import mongoose, { Document, Types } from "mongoose";
+import { AccessRequestStatus } from "./enums";
 export interface IAccessRequest extends Document {
     _id: Types.ObjectId;
     requester: Types.ObjectId;

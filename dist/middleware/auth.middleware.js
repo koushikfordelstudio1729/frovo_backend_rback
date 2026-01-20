@@ -9,37 +9,36 @@ const constants_1 = require("../config/constants");
 exports.authenticate = (0, asyncHandler_util_1.asyncHandler)(async (req, res, next) => {
     const authHeader = req.headers.authorization;
     let token;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7);
     }
     else {
-        token = req.cookies?.['accessToken'];
+        token = req.cookies?.["accessToken"];
     }
     if (!token) {
         return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.UNAUTHORIZED);
     }
     try {
         const decoded = (0, jwt_util_1.verifyAccessToken)(token);
-        const user = await models_1.User.findById(decoded.id)
-            .populate('roles')
-            .populate('departments');
+        const user = await models_1.User.findById(decoded.id).populate("roles").populate("departments");
         if (!user) {
             return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.USER_NOT_FOUND);
         }
         if (user.status !== models_1.UserStatus.ACTIVE) {
-            return (0, response_util_1.sendForbidden)(res, 'Account is inactive or suspended');
+            return (0, response_util_1.sendForbidden)(res, "Account is inactive or suspended");
         }
         req.user = user;
-        req.clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'];
-        req.userAgent = req.headers['user-agent'];
+        req.clientIp =
+            req.ip || req.socket.remoteAddress || req.headers["x-forwarded-for"];
+        req.userAgent = req.headers["user-agent"];
         return next();
     }
     catch (error) {
         if (error instanceof Error) {
-            if (error.message === 'Token has expired') {
+            if (error.message === "Token has expired") {
                 return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.TOKEN_EXPIRED);
             }
-            else if (error.message === 'Invalid token') {
+            else if (error.message === "Invalid token") {
                 return (0, response_util_1.sendUnauthorized)(res, constants_1.MESSAGES.TOKEN_INVALID);
             }
         }
@@ -49,24 +48,23 @@ exports.authenticate = (0, asyncHandler_util_1.asyncHandler)(async (req, res, ne
 exports.optionalAuth = (0, asyncHandler_util_1.asyncHandler)(async (req, _res, next) => {
     const authHeader = req.headers.authorization;
     let token;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7);
     }
     else {
-        token = req.cookies?.['accessToken'];
+        token = req.cookies?.["accessToken"];
     }
     if (!token) {
         return next();
     }
     try {
         const decoded = (0, jwt_util_1.verifyAccessToken)(token);
-        const user = await models_1.User.findById(decoded.id)
-            .populate('roles')
-            .populate('departments');
+        const user = await models_1.User.findById(decoded.id).populate("roles").populate("departments");
         if (user && user.status === models_1.UserStatus.ACTIVE) {
             req.user = user;
-            req.clientIp = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'];
-            req.userAgent = req.headers['user-agent'];
+            req.clientIp =
+                req.ip || req.socket.remoteAddress || req.headers["x-forwarded-for"];
+            req.userAgent = req.headers["user-agent"];
         }
     }
     catch (error) {
@@ -79,13 +77,13 @@ const checkPermission = (user, requiredPermission) => {
     }
     const userRoles = user.roles || [];
     return userRoles.some((role) => {
-        if (role.permissions?.includes('*:*')) {
+        if (role.permissions?.includes("*:*")) {
             return true;
         }
         if (role.permissions?.includes(requiredPermission)) {
             return true;
         }
-        const [module] = requiredPermission.split(':');
+        const [module] = requiredPermission.split(":");
         if (role.permissions?.includes(`${module}:*`)) {
             return true;
         }

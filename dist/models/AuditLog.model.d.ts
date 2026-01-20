@@ -1,4 +1,4 @@
-import mongoose, { Document, Types } from 'mongoose';
+import mongoose, { Document, Types } from "mongoose";
 export interface IAuditTarget {
     type: string;
     id: Types.ObjectId;

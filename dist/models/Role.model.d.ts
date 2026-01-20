@@ -1,5 +1,5 @@
-import mongoose, { Document, Types } from 'mongoose';
-import { RoleType, RoleStatus, ScopeLevel, SystemRole, UIAccess } from './enums';
+import mongoose, { Document, Types } from "mongoose";
+import { RoleType, RoleStatus, ScopeLevel, SystemRole, UIAccess } from "./enums";
 export interface IScope {
     level: ScopeLevel;
     entities?: Types.ObjectId[];

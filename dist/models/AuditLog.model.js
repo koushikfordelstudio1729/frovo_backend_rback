@@ -38,90 +38,93 @@ const mongoose_1 = __importStar(require("mongoose"));
 const auditTargetSchema = new mongoose_1.Schema({
     type: {
         type: String,
-        required: [true, 'Target type is required'],
-        trim: true
+        required: [true, "Target type is required"],
+        trim: true,
     },
     id: {
         type: mongoose_1.Schema.Types.ObjectId,
-        required: [true, 'Target ID is required']
+        required: [true, "Target ID is required"],
     },
     name: {
         type: String,
-        trim: true
-    }
+        trim: true,
+    },
 }, { _id: false });
 const auditChangesSchema = new mongoose_1.Schema({
     before: {
-        type: mongoose_1.Schema.Types.Mixed
+        type: mongoose_1.Schema.Types.Mixed,
     },
     after: {
-        type: mongoose_1.Schema.Types.Mixed
-    }
+        type: mongoose_1.Schema.Types.Mixed,
+    },
 }, { _id: false });
 const auditLogSchema = new mongoose_1.Schema({
     timestamp: {
         type: Date,
         default: Date.now,
-        required: true
+        required: true,
     },
     actor: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: [true, 'Actor is required']
+        ref: "User",
+        required: [true, "Actor is required"],
     },
     action: {
         type: String,
-        required: [true, 'Action is required'],
+        required: [true, "Action is required"],
         trim: true,
-        maxlength: [100, 'Action cannot exceed 100 characters']
+        maxlength: [100, "Action cannot exceed 100 characters"],
     },
     module: {
         type: String,
-        required: [true, 'Module is required'],
+        required: [true, "Module is required"],
         trim: true,
-        maxlength: [50, 'Module cannot exceed 50 characters']
+        maxlength: [50, "Module cannot exceed 50 characters"],
     },
     target: {
         type: auditTargetSchema,
-        required: [true, 'Target is required']
+        required: [true, "Target is required"],
     },
     changes: {
-        type: auditChangesSchema
+        type: auditChangesSchema,
     },
     ipAddress: {
         type: String,
         trim: true,
-        match: [/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/, 'Invalid IP address format']
+        match: [
+            /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/,
+            "Invalid IP address format",
+        ],
     },
     userAgent: {
         type: String,
         trim: true,
-        maxlength: [500, 'User agent cannot exceed 500 characters']
+        maxlength: [500, "User agent cannot exceed 500 characters"],
     },
     metadata: {
         type: Map,
-        of: mongoose_1.Schema.Types.Mixed
-    }
+        of: mongoose_1.Schema.Types.Mixed,
+    },
 }, {
     timestamps: false,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
 });
 auditLogSchema.index({ timestamp: -1 });
 auditLogSchema.index({ actor: 1, timestamp: -1 });
 auditLogSchema.index({ module: 1, timestamp: -1 });
-auditLogSchema.index({ 'target.type': 1, 'target.id': 1 });
+auditLogSchema.index({ "target.type": 1, "target.id": 1 });
 auditLogSchema.index({ action: 1, timestamp: -1 });
 auditLogSchema.index({ module: 1, action: 1, timestamp: -1 });
 auditLogSchema.index({ actor: 1, module: 1, timestamp: -1 });
-auditLogSchema.virtual('id').get(function () {
+auditLogSchema.virtual("id").get(function () {
     return this._id.toHexString();
 });
-auditLogSchema.set('toJSON', {
+auditLogSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
         const { _id, __v, ...cleanRet } = ret;
         return cleanRet;
-    }
+    },
 });
-exports.AuditLog = mongoose_1.default.model('AuditLog', auditLogSchema);
+exports.AuditLog = mongoose_1.default.model("AuditLog", auditLogSchema);

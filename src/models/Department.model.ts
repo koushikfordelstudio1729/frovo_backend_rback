@@ -1,5 +1,5 @@
-import mongoose, { Document, Schema, Types } from 'mongoose';
-import { DepartmentName } from './enums';
+import mongoose, { Document, Schema, Types } from "mongoose";
+import { DepartmentName } from "./enums";
 
 export interface IDepartment extends Document {
   _id: Types.ObjectId;
@@ -17,40 +17,44 @@ const departmentSchema = new Schema<IDepartment>(
   {
     name: {
       type: String,
-      required: [true, 'Department name is required'],
+      required: [true, "Department name is required"],
       unique: true,
       trim: true,
-      minlength: [2, 'Department name must be at least 2 characters'],
-      maxlength: [100, 'Department name cannot exceed 100 characters']
+      minlength: [2, "Department name must be at least 2 characters"],
+      maxlength: [100, "Department name cannot exceed 100 characters"],
     },
     systemName: {
       type: String,
       enum: Object.values(DepartmentName),
-      sparse: true
+      sparse: true,
     },
     description: {
       type: String,
       trim: true,
-      maxlength: [500, 'Description cannot exceed 500 characters']
+      maxlength: [500, "Description cannot exceed 500 characters"],
     },
-    roles: [{
-      type: Schema.Types.ObjectId,
-      ref: 'Role'
-    }],
-    members: [{
-      type: Schema.Types.ObjectId,
-      ref: 'User'
-    }],
+    roles: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Role",
+      },
+    ],
+    members: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'CreatedBy is required']
-    }
+      ref: "User",
+      required: [true, "CreatedBy is required"],
+    },
   },
   {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
   }
 );
 
@@ -58,27 +62,27 @@ const departmentSchema = new Schema<IDepartment>(
 departmentSchema.index({ createdAt: -1 });
 
 // Virtual for id
-departmentSchema.virtual('id').get(function() {
+departmentSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
 // Virtual for member count
-departmentSchema.virtual('memberCount').get(function() {
+departmentSchema.virtual("memberCount").get(function () {
   return this.members?.length || 0;
 });
 
 // Virtual for role count
-departmentSchema.virtual('roleCount').get(function() {
+departmentSchema.virtual("roleCount").get(function () {
   return this.roles?.length || 0;
 });
 
 // Ensure virtual fields are serialized
-departmentSchema.set('toJSON', {
+departmentSchema.set("toJSON", {
   virtuals: true,
-  transform: function(_doc, ret) {
+  transform: function (_doc, ret) {
     const { _id, __v, ...cleanRet } = ret;
     return cleanRet;
-  }
+  },
 });
 
-export const Department = mongoose.model<IDepartment>('Department', departmentSchema);
+export const Department = mongoose.model<IDepartment>("Department", departmentSchema);

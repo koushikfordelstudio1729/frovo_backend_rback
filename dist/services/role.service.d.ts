@@ -1,5 +1,5 @@
-import { IRole, RoleType, RoleStatus } from '../models';
-import { Types } from 'mongoose';
+import { IRole, RoleType, RoleStatus } from "../models";
+import { Types } from "mongoose";
 export interface CreateRoleData {
     name: string;
     description?: string;
@@ -31,7 +31,7 @@ export interface RoleQuery {
     status?: RoleStatus;
     department?: string;
     sortBy: string;
-    sortOrder: 'asc' | 'desc';
+    sortOrder: "asc" | "desc";
 }
 export interface PaginatedRoles {
     roles: IRole[];

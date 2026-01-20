@@ -1,24 +1,28 @@
-import multer from 'multer';
-import path from 'path';
+import multer from "multer";
+import path from "path";
 
 // Configure multer for memory storage (we'll upload directly to Cloudinary)
 const storage = multer.memoryStorage();
 
 // File filter to accept only specific file types
-const fileFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (
+  _req: Express.Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
   // Allowed file extensions
   const allowedExtensions = /pdf|jpg|jpeg|png|doc|docx|xls|xlsx/;
 
   // Allowed MIME types
   const allowedMimeTypes = [
-    'application/pdf',
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ];
 
   // Check file extension
@@ -30,7 +34,7 @@ const fileFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only PDF, JPG, PNG, DOC, DOCX, XLS, XLSX files are allowed.'));
+    cb(new Error("Invalid file type. Only PDF, JPG, PNG, DOC, DOCX, XLS, XLSX files are allowed."));
   }
 };
 
@@ -44,16 +48,14 @@ export const upload = multer({
 });
 
 // Middleware for single file upload
-export const uploadSingle = upload.single('document');
+export const uploadSingle = upload.single("document");
 
 // Middleware for multiple file uploads (max 5 files)
-export const uploadMultiple = upload.array('documents', 5);
+export const uploadMultiple = upload.array("documents", 5);
 
 // Middleware for PO line item images (any field name, max 50 files total)
 // Field names should be like: images_0, images_1, images_2, etc.
 export const uploadPOImages = upload.any();
 
 // Middleware for GRN upload - accepts 'document' file and other form fields
-export const uploadGRN = upload.fields([
-  { name: 'document', maxCount: 1 }
-]);
+export const uploadGRN = upload.fields([{ name: "document", maxCount: 1 }]);

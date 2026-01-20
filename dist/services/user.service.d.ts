@@ -1,5 +1,5 @@
-import { IUser, UserStatus } from '../models';
-import { Types } from 'mongoose';
+import { IUser, UserStatus } from "../models";
+import { Types } from "mongoose";
 export interface CreateUserData {
     name: string;
     email: string;
@@ -22,7 +22,7 @@ export interface UserQuery {
     department?: string;
     status?: UserStatus;
     sortBy: string;
-    sortOrder: 'asc' | 'desc';
+    sortOrder: "asc" | "desc";
 }
 export interface PaginatedUsers {
     users: IUser[];

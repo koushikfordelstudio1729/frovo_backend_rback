@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { UserStatus } from '../models/enums';
+import { z } from "zod";
+import { UserStatus } from "../models/enums";
 export declare const createUserSchema: z.ZodObject<{
     body: z.ZodObject<{
         name: z.ZodString;

@@ -1,5 +1,5 @@
 // models/Warehouse.model.ts
-import mongoose, { Document, Schema, Types } from 'mongoose';
+import mongoose, { Document, Schema, Types } from "mongoose";
 export interface IWarehouse extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -25,8 +25,8 @@ export interface IGRNnumber extends Document {
   recieved_date: Date;
   remarks?: string;
   scanned_challan?: string;
-  qc_status: 'bad' | 'moderate' | 'excellent';
-  
+  qc_status: "bad" | "moderate" | "excellent";
+
   // Add these fields to link with purchase order and vendor
   purchase_order: Types.ObjectId; // Reference to the PO
   vendor: Types.ObjectId; // Reference to vendor
@@ -42,10 +42,10 @@ export interface IGRNnumber extends Document {
     vendor_contact: string;
     vendor_id: string;
   };
-  
+
   // Add line items from PO
   grn_line_items: Array<{
-   line_no: number;
+    line_no: number;
     sku: string;
     productName: string;
     quantity: number;
@@ -65,80 +65,86 @@ export interface IGRNnumber extends Document {
   updatedAt: Date;
 }
 
-const grnNumberSchema = new Schema<IGRNnumber>({
-  delivery_challan: { type: String, required: true },
-  transporter_name: { type: String, required: true },
-  vehicle_number: { type: String, required: true },
-  recieved_date: { type: Date, required: true, default: Date.now },
-  remarks: { type: String },
-  scanned_challan: { type: String },
-  qc_status: {
-    type: String,
-    enum: ['bad', 'moderate', 'excellent'],
-    required: true
+const grnNumberSchema = new Schema<IGRNnumber>(
+  {
+    delivery_challan: { type: String, required: true },
+    transporter_name: { type: String, required: true },
+    vehicle_number: { type: String, required: true },
+    recieved_date: { type: Date, required: true, default: Date.now },
+    remarks: { type: String },
+    scanned_challan: { type: String },
+    qc_status: {
+      type: String,
+      enum: ["bad", "moderate", "excellent"],
+      required: true,
+    },
+
+    // Add references to PO and vendor
+    purchase_order: {
+      type: Schema.Types.ObjectId,
+      ref: "RaisePurchaseOrder",
+      required: true,
+    },
+    vendor: {
+      type: Schema.Types.ObjectId,
+      ref: "VendorCreate",
+      required: true,
+    },
+
+    // Add vendor details
+    vendor_details: {
+      vendor_name: { type: String, required: true },
+      vendor_billing_name: { type: String, required: true },
+      vendor_email: { type: String, required: true },
+      vendor_phone: { type: String, required: true },
+      vendor_category: { type: String, required: true },
+      gst_number: { type: String, required: true },
+      verification_status: { type: String, required: true },
+      vendor_address: { type: String, required: true },
+      vendor_contact: { type: String, required: true },
+      vendor_id: { type: String, required: true },
+    },
+
+    // Add GRN line items
+    grn_line_items: [
+      {
+        line_no: { type: Number, required: true },
+        sku: { type: String, required: true },
+        productName: { type: String, required: true },
+        quantity: { type: Number, required: true },
+        category: { type: String, required: true },
+        pack_size: { type: String, required: true },
+        uom: { type: String, required: true },
+        unit_price: { type: Number, required: true },
+        expected_delivery_date: { type: Date, required: true },
+        location: { type: String, required: true },
+        received_quantity: { type: Number, default: 0 },
+        accepted_quantity: { type: Number, default: 0 },
+        rejected_quantity: { type: Number, default: 0 },
+      },
+    ],
+
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-  
-  // Add references to PO and vendor
-  purchase_order: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'RaisePurchaseOrder', 
-    required: true 
-  },
-  vendor: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'VendorCreate', 
-    required: true 
-  },
-  
-  // Add vendor details
-  vendor_details: {
-    vendor_name: { type: String, required: true },
-    vendor_billing_name: { type: String, required: true },
-    vendor_email: { type: String, required: true },
-    vendor_phone: { type: String, required: true },
-    vendor_category: { type: String, required: true },
-    gst_number: { type: String, required: true },
-    verification_status: { type: String, required: true },
-    vendor_address: { type: String, required: true },
-    vendor_contact: { type: String, required: true },
-    vendor_id: { type: String, required: true }
-  },
-  
-  // Add GRN line items
-  grn_line_items: [{
-     line_no: { type: Number, required: true },
-    sku: { type: String, required: true },
-    productName: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    category: { type: String, required: true },
-    pack_size: { type: String, required: true },
-    uom: { type: String, required: true },
-    unit_price: { type: Number, required: true },
-    expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true },
-    received_quantity: { type: Number, default: 0 },
-    accepted_quantity: { type: Number, default: 0 },
-    rejected_quantity: { type: Number, default: 0 }
-  }],
-  
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  {
+    timestamps: true,
   }
-}, {
-  timestamps: true
-});
-export const GRNnumber = mongoose.model<IGRNnumber>('GRNnumber', grnNumberSchema);
+);
+export const GRNnumber = mongoose.model<IGRNnumber>("GRNnumber", grnNumberSchema);
 export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
   po_number: string; // Changed from poNumber to po_number for consistency
   vendor: Types.ObjectId;
   warehouse: Types.ObjectId; // Added warehouse field
-  po_status: 'draft' | 'approved' | 'pending';
+  po_status: "draft" | "approved" | "pending";
   po_raised_date: Date;
   remarks?: string;
-   po_line_items: Array<{ // Should be array here too
+  po_line_items: Array<{
+    // Should be array here too
     line_no: number;
     sku: string;
     productName: string;
@@ -158,7 +164,7 @@ export interface IRaisePurchaseOrder extends Document {
       uploaded_at: Date;
     }>;
   }>;
-    vendor_details: {
+  vendor_details: {
     vendor_name: string;
     vendor_billing_name: string;
     vendor_email: string;
@@ -176,122 +182,130 @@ export interface IRaisePurchaseOrder extends Document {
   generatePONumber(): Promise<string>;
 }
 
-const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>({
-  po_number: { 
-    type: String, 
-    required: false, // Will be generated automatically 
-    unique: true,
-    uppercase: true,
-    trim: true
-  },
-  po_line_items: [{
-    line_no: { type: Number, required: true },
-    sku: { type: String, required: true },
-    productName: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    category: { type: String, required: true },
-    pack_size: { type: String, required: true },
-    uom: { type: String, required: true },
-    unit_price: { type: Number, required: true },
-    expected_delivery_date: { type: Date, required: true },
-    location: { type: String, required: true },
-    images: [{
-      file_name: { type: String, required: true },
-      file_url: { type: String, required: true },
-      cloudinary_public_id: { type: String, required: true },
-      file_size: { type: Number, required: true },
-      mime_type: { type: String, required: true },
-      uploaded_at: { type: Date, default: Date.now }
-    }]
-  }],
+const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
+  {
+    po_number: {
+      type: String,
+      required: false, // Will be generated automatically
+      unique: true,
+      uppercase: true,
+      trim: true,
+    },
+    po_line_items: [
+      {
+        line_no: { type: Number, required: true },
+        sku: { type: String, required: true },
+        productName: { type: String, required: true },
+        quantity: { type: Number, required: true },
+        category: { type: String, required: true },
+        pack_size: { type: String, required: true },
+        uom: { type: String, required: true },
+        unit_price: { type: Number, required: true },
+        expected_delivery_date: { type: Date, required: true },
+        location: { type: String, required: true },
+        images: [
+          {
+            file_name: { type: String, required: true },
+            file_url: { type: String, required: true },
+            cloudinary_public_id: { type: String, required: true },
+            file_size: { type: Number, required: true },
+            mime_type: { type: String, required: true },
+            uploaded_at: { type: Date, default: Date.now },
+          },
+        ],
+      },
+    ],
 
-  vendor: {
-    type: Schema.Types.ObjectId,
-    ref: 'VendorCreate',
-    required: true
-  },
-  warehouse: {
-    type: Schema.Types.ObjectId,
-    ref: 'Warehouse',
-    required: true // Required to ensure inventory is created properly
-  },
+    vendor: {
+      type: Schema.Types.ObjectId,
+      ref: "VendorCreate",
+      required: true,
+    },
+    warehouse: {
+      type: Schema.Types.ObjectId,
+      ref: "Warehouse",
+      required: true, // Required to ensure inventory is created properly
+    },
     // Add vendor details subdocument
-  vendor_details: {
-    vendor_name: { type: String, required: true },
-    vendor_billing_name: { type: String, required: true },
-    vendor_email: { type: String, required: true },
-    vendor_phone: { type: String, required: true },
-    vendor_category: { type: String, required: true },
-    gst_number: { type: String, required: true },
-    verification_status: { type: String, required: true },
-    vendor_address: { type: String, required: true },
-    vendor_contact: { type: String, required: true },
-    vendor_id: { type: String, required: true }
+    vendor_details: {
+      vendor_name: { type: String, required: true },
+      vendor_billing_name: { type: String, required: true },
+      vendor_email: { type: String, required: true },
+      vendor_phone: { type: String, required: true },
+      vendor_category: { type: String, required: true },
+      gst_number: { type: String, required: true },
+      verification_status: { type: String, required: true },
+      vendor_address: { type: String, required: true },
+      vendor_contact: { type: String, required: true },
+      vendor_id: { type: String, required: true },
+    },
+    po_status: {
+      type: String,
+      enum: ["draft", "approved", "pending"],
+      default: "draft", // Allow both draft and pending as default,
+    },
+    po_raised_date: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    remarks: {
+      type: String,
+    },
+    createdBy: {
+      // Add this field to the schema
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-  po_status: {
-    type: String,
-    enum: ['draft', 'approved', 'pending'],
-    default: 'draft' // Allow both draft and pending as default,
-  },
-  po_raised_date: { 
-    type: Date, 
-    required: true,
-    default: Date.now 
-  },
-  remarks: { 
-    type: String 
-  },
-createdBy: { // Add this field to the schema
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true
-}
-}, {
-  timestamps: true 
-});
+  {
+    timestamps: true,
+  }
+);
 
 // Pre-save middleware to generate PO number ONLY if it doesn't exist
-raisePurchaseOrderSchema.pre('save', async function(next) {
+raisePurchaseOrderSchema.pre("save", async function (next) {
   // Only generate PO number if it's a new document and po_number is not provided
   if (this.isNew && !this.po_number) {
     this.po_number = await this.generatePONumber();
   }
-  
+
   // If someone tries to manually set po_number, ignore it and generate a new one
   if (this.isNew && this.po_number) {
     this.po_number = await this.generatePONumber();
   }
-  
+
   next();
 });
 
 // Method to generate unique 7-digit PO number
-raisePurchaseOrderSchema.methods.generatePONumber = async function(): Promise<string> {
-  const PO = mongoose.model<IRaisePurchaseOrder>('RaisePurchaseOrder');
-  
+raisePurchaseOrderSchema.methods.generatePONumber = async function (): Promise<string> {
+  const PO = mongoose.model<IRaisePurchaseOrder>("RaisePurchaseOrder");
+
   let isUnique = false;
-  let poNumber = '';
+  let poNumber = "";
   let attempts = 0;
   const maxAttempts = 10; // Prevent infinite loop
-  
+
   while (!isUnique && attempts < maxAttempts) {
     attempts++;
-    
+
     // Generate 7-digit number with leading zeros
     const randomNum = Math.floor(1000000 + Math.random() * 9000000);
     poNumber = `PO${randomNum}`; // This will be PO + 7 digits
-    
+
     // Check if PO number already exists
     const existingPO = await PO.findOne({ po_number: poNumber });
     if (!existingPO) {
       isUnique = true;
     }
   }
-  
+
   if (!isUnique) {
-    throw new Error('Failed to generate unique PO number after multiple attempts');
+    throw new Error("Failed to generate unique PO number after multiple attempts");
   }
-  
+
   return poNumber;
 };
 
@@ -319,7 +333,7 @@ export interface IDispatchOrder extends Document {
 
   notes?: string;
 
-  status: 'pending' | 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
+  status: "pending" | "assigned" | "in_transit" | "delivered" | "cancelled";
 
   createdBy: Types.ObjectId;
 
@@ -327,12 +341,11 @@ export interface IDispatchOrder extends Document {
   updatedAt: Date;
 }
 
-
 export interface IQCTemplate extends Document {
   _id: Types.ObjectId;
 
-  title: string;   // Template title
-  sku: string;     // Product SKU
+  title: string; // Template title
+  sku: string; // Product SKU
 
   parameters: {
     name: string;
@@ -346,7 +359,6 @@ export interface IQCTemplate extends Document {
   updatedAt: Date;
 }
 
-
 export interface IReturnOrder extends Document {
   _id: Types.ObjectId;
   batchId: string;
@@ -354,8 +366,8 @@ export interface IReturnOrder extends Document {
   warehouse: Types.ObjectId;
   reason: string;
   quantity: number;
-  status: 'pending' | 'approved' | 'returned' | 'rejected';
-  returnType: 'damaged' | 'expired' | 'wrong_item' | 'overstock' | 'other';
+  status: "pending" | "approved" | "returned" | "rejected";
+  returnType: "damaged" | "expired" | "wrong_item" | "overstock" | "other";
   images?: string[];
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -394,7 +406,7 @@ export interface IInventory extends Document {
     rack: string;
     bin: string;
   };
-  status: 'active' | 'low_stock' | 'overstock' | 'expired' | 'quarantine' | 'archived';
+  status: "active" | "low_stock" | "overstock" | "expired" | "quarantine" | "archived";
   isArchived: boolean;
   archivedAt?: Date;
   createdBy: Types.ObjectId;
@@ -403,18 +415,18 @@ export interface IInventory extends Document {
 }
 export interface IExpense extends Document {
   _id: Types.ObjectId;
-  category: 'staffing' | 'supplies' | 'equipment' | 'transport';
+  category: "staffing" | "supplies" | "equipment" | "transport";
   amount: number;
   vendor: Types.ObjectId;
   date: Date;
   description?: string;
   billUrl?: string;
 
-  status: 'approved' | 'pending';
+  status: "approved" | "pending";
   assignedAgent: Types.ObjectId; // ⬅ Added to support UI
   warehouseId: Types.ObjectId;
 
-  paymentStatus: 'paid' | 'unpaid' | 'partially_paid';
+  paymentStatus: "paid" | "unpaid" | "partially_paid";
 
   createdBy: Types.ObjectId;
   approvedBy?: Types.ObjectId;
@@ -424,192 +436,212 @@ export interface IExpense extends Document {
   updatedAt: Date;
 }
 
-
 // Schema definitions
-const warehouseSchema = new Schema<IWarehouse>({
-  name: { type: String, required: true },
-  code: { type: String, required: true, unique: true },
-  partner: { type: String, required: true },
-  location: { type: String, required: true },
-  capacity: { type: Number, required: true },
-  manager: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  isActive: { type: Boolean, default: true },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
-
-
-const dispatchOrderSchema = new Schema({
-  dispatchId: { type: String, required: true, unique: true },
-
-  // merged field
-  destination: { type: String, required: true },
-
-  products: [{
-    sku: { type: String, required: true },
-    quantity: { type: Number, required: true, min: 1 }
-  }],
-
-  assignedAgent: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-
-  notes: { type: String, maxlength: 500 },
-
-  status: {
-    type: String,
-    enum: ['pending', 'assigned', 'in_transit', 'delivered', 'cancelled'],
-    default: 'pending'
+const warehouseSchema = new Schema<IWarehouse>(
+  {
+    name: { type: String, required: true },
+    code: { type: String, required: true, unique: true },
+    partner: { type: String, required: true },
+    location: { type: String, required: true },
+    capacity: { type: Number, required: true },
+    manager: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    isActive: { type: Boolean, default: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
+  { timestamps: true }
+);
 
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+const dispatchOrderSchema = new Schema(
+  {
+    dispatchId: { type: String, required: true, unique: true },
 
-}, { timestamps: true });
+    // merged field
+    destination: { type: String, required: true },
 
-const qcTemplateSchema = new Schema<IQCTemplate>({
-  title: {
-    type: String,
-    required: true,
-    trim: true
-  },
-
-  sku: {
-    type: String,
-    required: true,
-    trim: true
-  },
-
-  parameters: [
-    {
-      name: {
-        type: String,
-        required: true,
-        trim: true
+    products: [
+      {
+        sku: { type: String, required: true },
+        quantity: { type: Number, required: true, min: 1 },
       },
-      value: {
-        type: String,
-        required: true,
-        trim: true
-      }
-    }
-  ],
+    ],
 
-  isActive: {
-    type: Boolean,
-    default: true
+    assignedAgent: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    warehouse: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+
+    notes: { type: String, maxlength: 500 },
+
+    status: {
+      type: String,
+      enum: ["pending", "assigned", "in_transit", "delivered", "cancelled"],
+      default: "pending",
+    },
+
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
+  { timestamps: true }
+);
 
-  createdBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  }
+const qcTemplateSchema = new Schema<IQCTemplate>(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-}, { timestamps: true });
+    sku: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
+    parameters: [
+      {
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        value: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+      },
+    ],
 
-const returnOrderSchema = new Schema<IReturnOrder>({
-  batchId: { type: String, required: true },
-  vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-  reason: { type: String, required: true },
-  quantity: { type: Number, required: true, min: 1 },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'returned', 'rejected'],
-    default: 'pending'
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-  returnType: {
-    type: String,
-    enum: ['damaged', 'expired', 'wrong_item', 'overstock', 'other'],
-    required: true
-  },
-  images: [{ type: String }],
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-const fieldAgentSchema = new Schema<IFieldAgent>({
-  userId: { type: Schema.Types.ObjectId, ref: 'User' },
-  name: { type: String, required: true },
-  email: { type: String, lowercase: true, trim: true },
-  phone: { type: String, trim: true },
-  assignedRoutes: [{ type: String }], // Changed to String array
-  assignedWarehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse' },
-  assignedArea: { type: Schema.Types.ObjectId, ref: 'Area' },
-  isActive: { type: Boolean, default: true },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
+const returnOrderSchema = new Schema<IReturnOrder>(
+  {
+    batchId: { type: String, required: true },
+    vendor: { type: Schema.Types.ObjectId, ref: "VendorCreate", required: true },
+    warehouse: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+    reason: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "returned", "rejected"],
+      default: "pending",
+    },
+    returnType: {
+      type: String,
+      enum: ["damaged", "expired", "wrong_item", "overstock", "other"],
+      required: true,
+    },
+    images: [{ type: String }],
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  },
+  { timestamps: true }
+);
+
+const fieldAgentSchema = new Schema<IFieldAgent>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
+    name: { type: String, required: true },
+    email: { type: String, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
+    assignedRoutes: [{ type: String }], // Changed to String array
+    assignedWarehouse: { type: Schema.Types.ObjectId, ref: "Warehouse" },
+    assignedArea: { type: Schema.Types.ObjectId, ref: "Area" },
+    isActive: { type: Boolean, default: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  },
+  { timestamps: true }
+);
 
 // Update the inventory schema
-const inventorySchema = new Schema<IInventory>({
-  sku: { type: String, required: true },
-  productName: { type: String, required: true },
-  batchId: { type: String, required: true },
-  warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-  quantity: { type: Number, required: true, min: 0 },
-  minStockLevel: { type: Number, default: 0 },
-  maxStockLevel: { type: Number, default: 1000 },
-  age: { type: Number, default: 0 },
-  expiryDate: { type: Date },
-  location: {
-    zone: { type: String, required: true },
-    aisle: { type: String, required: true },
-    rack: { type: String, required: true },
-    bin: { type: String, required: true }
+const inventorySchema = new Schema<IInventory>(
+  {
+    sku: { type: String, required: true },
+    productName: { type: String, required: true },
+    batchId: { type: String, required: true },
+    warehouse: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+    quantity: { type: Number, required: true, min: 0 },
+    minStockLevel: { type: Number, default: 0 },
+    maxStockLevel: { type: Number, default: 1000 },
+    age: { type: Number, default: 0 },
+    expiryDate: { type: Date },
+    location: {
+      zone: { type: String, required: true },
+      aisle: { type: String, required: true },
+      rack: { type: String, required: true },
+      bin: { type: String, required: true },
+    },
+    status: {
+      type: String,
+      enum: ["active", "low_stock", "overstock", "expired", "quarantine", "archived"],
+      default: "active",
+    },
+    isArchived: { type: Boolean, default: false },
+    archivedAt: { type: Date },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
-  status: {
-    type: String,
-    enum: ['active', 'low_stock', 'overstock', 'expired', 'quarantine', 'archived'],
-    default: 'active'
-  },
-  isArchived: { type: Boolean, default: false },
-  archivedAt: { type: Date },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
+  { timestamps: true }
+);
 // Update the expense schema
-const expenseSchema = new Schema<IExpense>({
-  category: {
-    type: String,
-    enum: ['staffing', 'supplies', 'equipment', 'transport'],
-    required: true
+const expenseSchema = new Schema<IExpense>(
+  {
+    category: {
+      type: String,
+      enum: ["staffing", "supplies", "equipment", "transport"],
+      required: true,
+    },
+
+    amount: { type: Number, required: true, min: 0 },
+    vendor: { type: Schema.Types.ObjectId, ref: "VendorCreate", required: true },
+
+    date: { type: Date, required: true },
+    description: { type: String, maxlength: 200 },
+
+    billUrl: { type: String },
+
+    status: {
+      type: String,
+      enum: ["approved", "pending"],
+      default: "pending",
+    },
+
+    assignedAgent: { type: Schema.Types.ObjectId, ref: "FieldAgent", required: true },
+
+    warehouseId: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
+
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "unpaid", "partially_paid"],
+      default: "unpaid",
+    },
+
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    approvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    approvedAt: { type: Date },
   },
-
-  amount: { type: Number, required: true, min: 0 },
-  vendor: { type: Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
-
-  date: { type: Date, required: true },
-  description: { type: String, maxlength: 200 },
-
-  billUrl: { type: String },
-
-  status: {
-    type: String,
-    enum: ['approved', 'pending'],
-    default: 'pending'
-  },
-
-  assignedAgent: { type: Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
-
-  warehouseId: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true },
-
-  paymentStatus: {
-    type: String,
-    enum: ['paid', 'unpaid', 'partially_paid'],
-    default: 'unpaid'
-  },
-
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-
-  approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-  approvedAt: { type: Date }
-
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 // Export models
-export const Warehouse = mongoose.model<IWarehouse>('Warehouse', warehouseSchema);
-export const RaisePurchaseOrder = mongoose.model<IRaisePurchaseOrder>('RaisePurchaseOrder', raisePurchaseOrderSchema);
-export const DispatchOrder = mongoose.model<IDispatchOrder>('DispatchOrder', dispatchOrderSchema);
-export const QCTemplate = mongoose.model<IQCTemplate>('QCTemplate', qcTemplateSchema);
-export const ReturnOrder = mongoose.model<IReturnOrder>('ReturnOrder', returnOrderSchema);
-export const Inventory = mongoose.model<IInventory>('Inventory', inventorySchema);
-export const Expense = mongoose.model<IExpense>('Expense', expenseSchema);
-export const FieldAgent = mongoose.model<IFieldAgent>('FieldAgent', fieldAgentSchema);
+export const Warehouse = mongoose.model<IWarehouse>("Warehouse", warehouseSchema);
+export const RaisePurchaseOrder = mongoose.model<IRaisePurchaseOrder>(
+  "RaisePurchaseOrder",
+  raisePurchaseOrderSchema
+);
+export const DispatchOrder = mongoose.model<IDispatchOrder>("DispatchOrder", dispatchOrderSchema);
+export const QCTemplate = mongoose.model<IQCTemplate>("QCTemplate", qcTemplateSchema);
+export const ReturnOrder = mongoose.model<IReturnOrder>("ReturnOrder", returnOrderSchema);
+export const Inventory = mongoose.model<IInventory>("Inventory", inventorySchema);
+export const Expense = mongoose.model<IExpense>("Expense", expenseSchema);
+export const FieldAgent = mongoose.model<IFieldAgent>("FieldAgent", fieldAgentSchema);

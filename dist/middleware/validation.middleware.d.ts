@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { Request, Response, NextFunction } from "express";
+import { z } from "zod";
 interface ValidationTargets {
     body?: z.ZodSchema;
     query?: z.ZodSchema;

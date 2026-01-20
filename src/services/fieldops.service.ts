@@ -1,43 +1,42 @@
-import { Types } from 'mongoose';
-import { FieldOpsTask } from '../models/FieldOpsTask.model';
-import { MachineRefill } from '../models/MachineRefill.model';
-import { MachineSkip } from '../models/MachineSkip.model';
-import { HandoverSummary } from '../models/HandoverSummary.model';
-import { MaintenanceIssue } from '../models/MaintenanceIssue.model';
-import { FieldAgent, DispatchOrder, Warehouse } from '../models/Warehouse.model';
-import { VendingMachine } from '../models/VendingMachine.model';
-import { AreaRouteModel } from '../models/AreaRoute.model';
-import { User } from '../models';
+import { Types } from "mongoose";
+import { FieldOpsTask } from "../models/FieldOpsTask.model";
+import { MachineRefill } from "../models/MachineRefill.model";
+import { MachineSkip } from "../models/MachineSkip.model";
+import { HandoverSummary } from "../models/HandoverSummary.model";
+import { MaintenanceIssue } from "../models/MaintenanceIssue.model";
+import { FieldAgent, DispatchOrder, Warehouse } from "../models/Warehouse.model";
+import { VendingMachine } from "../models/VendingMachine.model";
+import { AreaRouteModel } from "../models/AreaRoute.model";
+import { User } from "../models";
 
 export class FieldOpsService {
-
   // ==================== DASHBOARD ====================
   async getDashboard(userId: string) {
     if (!Types.ObjectId.isValid(userId)) {
-      throw new Error('Invalid user ID');
+      throw new Error("Invalid user ID");
     }
 
-    const user = await User.findById(userId).select('name email');
+    const user = await User.findById(userId).select("name email");
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     // Get task counts (tasks are now assigned to User IDs)
     const [assignedTasks, pendingRefills, priorityMachines] = await Promise.all([
       FieldOpsTask.countDocuments({
         assignedAgent: userId,
-        status: { $in: ['pending', 'in_progress'] }
+        status: { $in: ["pending", "in_progress"] },
       }),
       FieldOpsTask.countDocuments({
         assignedAgent: userId,
-        taskType: 'machine_refill',
-        status: 'pending'
+        taskType: "machine_refill",
+        status: "pending",
       }),
       FieldOpsTask.countDocuments({
         assignedAgent: userId,
-        priority: 'high',
-        status: { $in: ['pending', 'in_progress'] }
-      })
+        priority: "high",
+        status: { $in: ["pending", "in_progress"] },
+      }),
     ]);
 
     // Get today's tasks
@@ -46,12 +45,12 @@ export class FieldOpsService {
 
     const todaysTasks = await FieldOpsTask.find({
       assignedAgent: userId,
-      status: { $in: ['pending', 'in_progress'] },
-      createdAt: { $gte: todayStart }
+      status: { $in: ["pending", "in_progress"] },
+      createdAt: { $gte: todayStart },
     })
-      .populate('dispatchId', 'dispatchId destination')
-      .populate('machineId', 'machineId name location')
-      .populate('issueId', 'issueType')
+      .populate("dispatchId", "dispatchId destination")
+      .populate("machineId", "machineId name location")
+      .populate("issueId", "issueType")
       .sort({ priority: -1, createdAt: -1 })
       .limit(10)
       .lean();
@@ -67,34 +66,37 @@ export class FieldOpsService {
         title: task.title,
         status: task.status,
         priority: task.priority,
-        badge: this.getTaskBadge(task.status, task.priority)
-      }))
+        badge: this.getTaskBadge(task.status, task.priority),
+      })),
     };
   }
 
   private getTaskBadge(status: string, priority: string): string {
-    if (status === 'in_progress') return 'In Progress';
-    if (priority === 'high') return 'Issue';
-    return 'Pending';
+    if (status === "in_progress") return "In Progress";
+    if (priority === "high") return "Issue";
+    return "Pending";
   }
 
   // ==================== TASKS ====================
-  async getTasks(agentId: string, filters: {
-    status?: string;
-    type?: string;
-    date?: string;
-  }) {
+  async getTasks(
+    agentId: string,
+    filters: {
+      status?: string;
+      type?: string;
+      date?: string;
+    }
+  ) {
     if (!Types.ObjectId.isValid(agentId)) {
-      throw new Error('Invalid agent ID');
+      throw new Error("Invalid agent ID");
     }
 
     const query: any = { assignedAgent: agentId };
 
-    if (filters.status && filters.status !== 'all') {
+    if (filters.status && filters.status !== "all") {
       query.status = filters.status;
     }
 
-    if (filters.type && filters.type !== 'all') {
+    if (filters.type && filters.type !== "all") {
       query.taskType = filters.type;
     }
 
@@ -106,15 +108,15 @@ export class FieldOpsService {
     }
 
     const tasks = await FieldOpsTask.find(query)
-      .populate('dispatchId')
-      .populate('machineId')
-      .populate('routeId')
-      .populate('issueId')
+      .populate("dispatchId")
+      .populate("machineId")
+      .populate("routeId")
+      .populate("issueId")
       .sort({ priority: -1, createdAt: -1 })
       .lean();
 
     return {
-      tasks: tasks.map(task => this.formatTaskResponse(task))
+      tasks: tasks.map(task => this.formatTaskResponse(task)),
     };
   }
 
@@ -128,29 +130,29 @@ export class FieldOpsService {
       priority: task.priority,
       dueDate: task.dueDate,
       createdAt: task.createdAt,
-      details: this.getTaskDetails(task)
+      details: this.getTaskDetails(task),
     };
   }
 
   private getTaskDetails(task: any) {
-    if (task.taskType === 'warehouse_pickup' && task.dispatchId) {
+    if (task.taskType === "warehouse_pickup" && task.dispatchId) {
       return {
         dispatchId: task.dispatchId.dispatchId,
         destination: task.dispatchId.destination,
-        products: task.dispatchId.products
+        products: task.dispatchId.products,
       };
     }
-    if (task.taskType === 'machine_refill' && task.machineId) {
+    if (task.taskType === "machine_refill" && task.machineId) {
       return {
         machineId: task.machineId.machineId,
         machineName: task.machineId.name,
-        location: task.machineId.location
+        location: task.machineId.location,
       };
     }
-    if (task.taskType === 'maintenance' && task.issueId) {
+    if (task.taskType === "maintenance" && task.issueId) {
       return {
         issueType: task.issueId.issueType,
-        description: task.issueId.description
+        description: task.issueId.description,
       };
     }
     return {};
@@ -159,19 +161,19 @@ export class FieldOpsService {
   // ==================== WAREHOUSE PICKUPS ====================
   async getWarehousePickups(agentId: string, status?: string) {
     if (!Types.ObjectId.isValid(agentId)) {
-      throw new Error('Invalid agent ID');
+      throw new Error("Invalid agent ID");
     }
 
     const query: any = {
-      assignedAgent: agentId
+      assignedAgent: agentId,
     };
 
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       query.status = status;
     }
 
     const dispatches = await DispatchOrder.find(query)
-      .populate('warehouse', 'code name location')
+      .populate("warehouse", "code name location")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -182,33 +184,33 @@ export class FieldOpsService {
         return {
           id: dispatch._id,
           status: dispatch.status,
-          warehouseId: warehouse?.code || '',
-          warehouseName: warehouse?.name || '',
+          warehouseId: warehouse?.code || "",
+          warehouseName: warehouse?.name || "",
           location: warehouse?.location?.address || dispatch.destination,
-          dispatchId: dispatch.dispatchId
+          dispatchId: dispatch.dispatchId,
         };
-      })
+      }),
     };
   }
 
   async getWarehousePickupById(pickupId: string) {
     if (!Types.ObjectId.isValid(pickupId)) {
-      throw new Error('Invalid pickup ID');
+      throw new Error("Invalid pickup ID");
     }
 
     const dispatch = await DispatchOrder.findById(pickupId)
-      .populate('warehouse', 'code name location')
-      .populate('assignedAgent', 'name')
+      .populate("warehouse", "code name location")
+      .populate("assignedAgent", "name")
       .lean();
 
     if (!dispatch) {
-      throw new Error('Pickup not found');
+      throw new Error("Pickup not found");
     }
 
     const warehouse = dispatch.warehouse as any;
     return {
-      warehouseId: warehouse?.code || '',
-      warehouseName: warehouse?.name || '',
+      warehouseId: warehouse?.code || "",
+      warehouseName: warehouse?.name || "",
       location: warehouse?.location?.address || dispatch.destination,
       dispatchId: dispatch.dispatchId,
       status: dispatch.status,
@@ -216,44 +218,44 @@ export class FieldOpsService {
         sku: p.sku,
         productName: p.productName || p.sku,
         quantity: p.quantity,
-        batchId: p.batchId || ''
-      }))
+        batchId: p.batchId || "",
+      })),
     };
   }
 
   async markPickupAsCollected(pickupId: string, agentId: string, data: { collectedAt: Date }) {
     if (!Types.ObjectId.isValid(pickupId)) {
-      throw new Error('Invalid pickup ID');
+      throw new Error("Invalid pickup ID");
     }
 
     const dispatch = await DispatchOrder.findOne({
       _id: pickupId,
-      assignedAgent: agentId
+      assignedAgent: agentId,
     });
 
     if (!dispatch) {
-      throw new Error('Pickup not found or not assigned to you');
+      throw new Error("Pickup not found or not assigned to you");
     }
 
-    dispatch.status = 'in_transit';
+    dispatch.status = "in_transit";
     await dispatch.save();
 
     // Update associated task
     await FieldOpsTask.updateOne(
       { dispatchId: pickupId, assignedAgent: agentId },
-      { status: 'in_progress' }
+      { status: "in_progress" }
     );
 
     return {
-      message: 'Pickup marked as collected',
-      status: 'collected'
+      message: "Pickup marked as collected",
+      status: "collected",
     };
   }
 
   // ==================== HANDOVER ====================
   async createHandover(agentId: string, data: any) {
     if (!Types.ObjectId.isValid(agentId)) {
-      throw new Error('Invalid agent ID');
+      throw new Error("Invalid agent ID");
     }
 
     // Smart lookup: Accept both ObjectId and human-readable IDs
@@ -316,104 +318,108 @@ export class FieldOpsService {
       reason: data.reason,
       notes: data.notes,
       images: data.images || [],
-      status: 'pending'
+      status: "pending",
     });
 
     return {
       success: true,
-      message: 'Handover summary created successfully',
+      message: "Handover summary created successfully",
       data: {
         handoverId: handover.handoverId,
         id: handover._id,
         dispatchId: handover.dispatchId,
         status: handover.status,
-        createdAt: handover.createdAt
-      }
+        createdAt: handover.createdAt,
+      },
     };
   }
 
   // ==================== ROUTES ====================
   async getMyRoutes(agentId: string) {
     if (!Types.ObjectId.isValid(agentId)) {
-      throw new Error('Invalid agent ID');
+      throw new Error("Invalid agent ID");
     }
 
     const agent = await FieldAgent.findById(agentId).lean();
     if (!agent) {
-      throw new Error('Agent not found');
+      throw new Error("Agent not found");
     }
 
     const routes = await AreaRouteModel.find({
-      _id: { $in: agent.assignedRoutes }
+      _id: { $in: agent.assignedRoutes },
     }).lean();
 
     return {
-      routes: await Promise.all(routes.map(async (route: any) => {
-        const totalMachines = route.selected_machine?.length || 0;
-        const completedToday = await this.getCompletedMachinesToday(agentId, route._id);
+      routes: await Promise.all(
+        routes.map(async (route: any) => {
+          const totalMachines = route.selected_machine?.length || 0;
+          const completedToday = await this.getCompletedMachinesToday(agentId, route._id);
 
-        return {
-          routeId: route._id,
-          routeName: route.route_name || `Route ${route._id}`,
-          areaLocation: route.route_description || '',
-          totalMachines,
-          status: completedToday === totalMachines ? 'completed' : 'pending',
-          completedMachines: completedToday,
-          pendingMachines: totalMachines - completedToday
-        };
-      }))
+          return {
+            routeId: route._id,
+            routeName: route.route_name || `Route ${route._id}`,
+            areaLocation: route.route_description || "",
+            totalMachines,
+            status: completedToday === totalMachines ? "completed" : "pending",
+            completedMachines: completedToday,
+            pendingMachines: totalMachines - completedToday,
+          };
+        })
+      ),
     };
   }
 
   async getRouteMachines(routeId: string, agentId: string) {
     if (!Types.ObjectId.isValid(routeId)) {
-      throw new Error('Invalid route ID');
+      throw new Error("Invalid route ID");
     }
 
     const route: any = await AreaRouteModel.findById(routeId).lean();
     if (!route) {
-      throw new Error('Route not found');
+      throw new Error("Route not found");
     }
 
     const machines = await VendingMachine.find({
-      machineId: { $in: route.selected_machine || [] }
+      machineId: { $in: route.selected_machine || [] },
     }).lean();
 
     // Get today's refill status for each machine
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const machinesWithStatus = await Promise.all(machines.map(async (machine: any) => {
-      const refillToday = await MachineRefill.findOne({
-        machineId: machine._id,
-        agentId,
-        createdAt: { $gte: today }
-      });
+    const machinesWithStatus = await Promise.all(
+      machines.map(async (machine: any) => {
+        const refillToday = await MachineRefill.findOne({
+          machineId: machine._id,
+          agentId,
+          createdAt: { $gte: today },
+        });
 
-      const skipToday = await MachineSkip.findOne({
-        machineId: machine._id,
-        agentId,
-        createdAt: { $gte: today }
-      });
+        const skipToday = await MachineSkip.findOne({
+          machineId: machine._id,
+          agentId,
+          createdAt: { $gte: today },
+        });
 
-      return {
-        id: machine._id,
-        machineId: machine.machineId,
-        location: machine.location.address,
-        floor: machine.location.landmark || '',
-        vendType: 'Refill',
-        priority: this.getMachinePriority(machine),
-        status: refillToday ? 'Completed' : (skipToday ? 'Skipped' : 'Pending'),
-        action: refillToday ? 'View' : 'Skip ↻'
-      };
-    }));
+        return {
+          id: machine._id,
+          machineId: machine.machineId,
+          location: machine.location.address,
+          floor: machine.location.landmark || "",
+          vendType: "Refill",
+          priority: this.getMachinePriority(machine),
+          status: refillToday ? "Completed" : skipToday ? "Skipped" : "Pending",
+          action: refillToday ? "View" : "Skip ↻",
+        };
+      })
+    );
 
     return {
       routeId: route._id,
       routeName: route.route_name,
-      areaLocation: route.route_description || '',
+      areaLocation: route.route_description || "",
       totalMachines: machines.length,
-      machines: machinesWithStatus
+      machines: machinesWithStatus,
     };
   }
 
@@ -425,19 +431,19 @@ export class FieldOpsService {
       agentId,
       routeId,
       createdAt: { $gte: today },
-      status: 'completed'
+      status: "completed",
     });
   }
 
   private getMachinePriority(machine: any): string {
     // Logic to determine priority based on stock levels
-    const lowStockSlots = machine.productSlots?.filter((slot: any) =>
-      slot.quantity < (slot.maxCapacity * 0.3)
-    ).length || 0;
+    const lowStockSlots =
+      machine.productSlots?.filter((slot: any) => slot.quantity < slot.maxCapacity * 0.3).length ||
+      0;
 
-    if (lowStockSlots > 3) return 'High';
-    if (lowStockSlots > 1) return 'Medium';
-    return 'Low';
+    if (lowStockSlots > 3) return "High";
+    if (lowStockSlots > 1) return "Medium";
+    return "Low";
   }
 
   // ==================== MACHINE VERIFICATION ====================
@@ -454,7 +460,7 @@ export class FieldOpsService {
     if (!machine) {
       return {
         valid: false,
-        message: 'Machine not found. Please verify and try again.'
+        message: "Machine not found. Please verify and try again.",
       };
     }
 
@@ -462,15 +468,17 @@ export class FieldOpsService {
     const agent = await FieldAgent.findById(agentId).lean();
     const routes = await AreaRouteModel.find({
       _id: { $in: agent?.assignedRoutes || [] },
-      selected_machine: machine.machineId
+      selected_machine: machine.machineId,
     });
 
     const assignedToRoute = routes.length > 0;
 
     // Get last refill
     const lastRefill = await MachineRefill.findOne({
-      machineId: machine._id
-    }).sort({ createdAt: -1 }).lean();
+      machineId: machine._id,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return {
       valid: true,
@@ -478,11 +486,11 @@ export class FieldOpsService {
       machine: {
         machineId: machine.machineId,
         location: machine.location.address,
-        floor: machine.location.landmark || 'Ground Floor',
-        contactPerson: 'ABC - 94411003', // TODO: Add to machine model
+        floor: machine.location.landmark || "Ground Floor",
+        contactPerson: "ABC - 94411003", // TODO: Add to machine model
         lastSync: this.getRelativeTime(machine.updatedAt),
-        lastRefill: lastRefill ? this.formatDateTime(lastRefill.createdAt) : 'Never'
-      }
+        lastRefill: lastRefill ? this.formatDateTime(lastRefill.createdAt) : "Never",
+      },
     };
   }
 
@@ -491,20 +499,22 @@ export class FieldOpsService {
     const machine = await VendingMachine.findOne({ machineId }).lean();
 
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     const lastRefill = await MachineRefill.findOne({
-      machineId: machine._id
-    }).sort({ createdAt: -1 }).lean();
+      machineId: machine._id,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return {
       machineId: machine.machineId,
       location: machine.location.address,
-      contactPerson: 'ABC - 94411003',
-      floor: machine.location.landmark || 'Ground Floor',
+      contactPerson: "ABC - 94411003",
+      floor: machine.location.landmark || "Ground Floor",
       lastSync: this.getRelativeTime(machine.updatedAt),
-      lastRefill: lastRefill ? this.formatDateTime(lastRefill.createdAt) : 'Never'
+      lastRefill: lastRefill ? this.formatDateTime(lastRefill.createdAt) : "Never",
     };
   }
 
@@ -512,43 +522,46 @@ export class FieldOpsService {
     const machine = await VendingMachine.findOne({ machineId }).lean();
 
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     // Get recent issues
     const recentIssues = await MaintenanceIssue.find({
       machineId: machine._id,
-      status: { $in: ['open', 'in_progress'] }
-    }).sort({ createdAt: -1 }).limit(5).lean();
+      status: { $in: ["open", "in_progress"] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
 
     return {
-      status: machine.isOnline ? 'online' : 'offline',
+      status: machine.isOnline ? "online" : "offline",
       lastSync: this.getRelativeTime(machine.updatedAt),
       metrics: {
         temperature: {
           value: machine.temperature || 18,
-          status: machine.temperature && machine.temperature > 25 ? 'abnormal' : 'ok',
-          label: 'Temp (Abnormal)',
-          unit: '°C'
+          status: machine.temperature && machine.temperature > 25 ? "abnormal" : "ok",
+          label: "Temp (Abnormal)",
+          unit: "°C",
         },
         paymentErrors: 40, // TODO: Get from transactions
         skippedVends: 1, // TODO: Get from transactions
-        doorStatus: 'closed'
+        doorStatus: "closed",
       },
       alerts: recentIssues.map(issue => ({
-        message: `${issue.issueType} - ${this.getRelativeTime(issue.createdAt)}`
-      }))
+        message: `${issue.issueType} - ${this.getRelativeTime(issue.createdAt)}`,
+      })),
     };
   }
 
   // ==================== REFILL ====================
   async getMachineRefillData(machineId: string) {
     const machine = await VendingMachine.findOne({ machineId })
-      .populate('productSlots.product')
+      .populate("productSlots.product")
       .lean();
 
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     // Group slots by rack
@@ -568,11 +581,11 @@ export class FieldOpsService {
         const product = slot.product as any;
         slotsByRack[rackNumber].push({
           slotId: slot.slotNumber,
-          productCode: product?.sku || '',
-          productName: product?.product_name || '',
-          productImage: product?.images?.[0] || '',
+          productCode: product?.sku || "",
+          productName: product?.product_name || "",
+          productImage: product?.images?.[0] || "",
           currentStock: slot.quantity,
-          maxCapacity: slot.maxCapacity
+          maxCapacity: slot.maxCapacity,
         });
       }
     });
@@ -581,7 +594,7 @@ export class FieldOpsService {
     for (const rackNum in slotsByRack) {
       racks.push({
         rackNumber: parseInt(rackNum),
-        slots: slotsByRack[rackNum].sort((a, b) => a.slotId.localeCompare(b.slotId))
+        slots: slotsByRack[rackNum].sort((a, b) => a.slotId.localeCompare(b.slotId)),
       });
     }
 
@@ -592,30 +605,30 @@ export class FieldOpsService {
       totalUnitsReplaced: null,
       beforeWithPhoto: null,
       afterRefill: null,
-      racks: racks.sort((a, b) => a.rackNumber - b.rackNumber)
+      racks: racks.sort((a, b) => a.rackNumber - b.rackNumber),
     };
   }
 
   async getSlotDetails(machineId: string, slotId: string) {
     const machine = await VendingMachine.findOne({ machineId })
-      .populate('productSlots.product')
+      .populate("productSlots.product")
       .lean();
 
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     const slot = machine.productSlots?.find((s: any) => s.slotNumber === slotId);
 
     if (!slot) {
-      throw new Error('Slot not found');
+      throw new Error("Slot not found");
     }
 
     const product = slot.product as any;
     return {
       slotId: `Rack ${Math.ceil((slotId.charCodeAt(0) - 64) / 5)} Slot ${slotId}`,
-      productCode: product?.sku || '',
-      productName: product?.product_name || '',
+      productCode: product?.sku || "",
+      productName: product?.product_name || "",
       dateTime: this.formatDateTime(new Date()),
       transUnitsDispensed: 80, // TODO: Get from transactions
       totalUnitsRefilled: null,
@@ -625,25 +638,37 @@ export class FieldOpsService {
       varianceReason: null,
       removedQty: null,
       removedReason: null,
-      expiryDate: null
+      expiryDate: null,
     };
   }
 
   async submitRefill(machineId: string, agentId: string, data: any) {
     if (!Types.ObjectId.isValid(agentId)) {
-      throw new Error('Invalid agent ID');
+      throw new Error("Invalid agent ID");
     }
 
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     // Calculate totals
-    const totalUnitsDispensed = data.refillData.reduce((sum: number, slot: any) => sum + (slot.transUnitsDispensed || 0), 0);
-    const totalUnitsRefilled = data.refillData.reduce((sum: number, slot: any) => sum + (slot.totalUnitsRefilled || 0), 0);
-    const totalUnitsRemoved = data.refillData.reduce((sum: number, slot: any) => sum + (slot.removedQty || 0), 0);
-    const totalVariance = data.refillData.reduce((sum: number, slot: any) => sum + (slot.variance || 0), 0);
+    const totalUnitsDispensed = data.refillData.reduce(
+      (sum: number, slot: any) => sum + (slot.transUnitsDispensed || 0),
+      0
+    );
+    const totalUnitsRefilled = data.refillData.reduce(
+      (sum: number, slot: any) => sum + (slot.totalUnitsRefilled || 0),
+      0
+    );
+    const totalUnitsRemoved = data.refillData.reduce(
+      (sum: number, slot: any) => sum + (slot.removedQty || 0),
+      0
+    );
+    const totalVariance = data.refillData.reduce(
+      (sum: number, slot: any) => sum + (slot.variance || 0),
+      0
+    );
 
     // Create refill record
     const refill = await MachineRefill.create({
@@ -663,57 +688,57 @@ export class FieldOpsService {
         refilledQty: slot.totalUnitsRefilled || 0,
         currentStock: slot.currentStock || 0,
         variance: slot.variance || 0,
-        varianceReason: slot.varianceReason || '',
+        varianceReason: slot.varianceReason || "",
         removedQty: slot.removedQty || 0,
-        removedReason: slot.removedReason || ''
+        removedReason: slot.removedReason || "",
       })),
       totalUnitsDispensed,
       totalUnitsRefilled,
       totalUnitsRemoved,
       totalVariance,
       totalSlots: data.refillData.length,
-      status: 'completed'
+      status: "completed",
     });
 
     // Update machine inventory
     for (const slotData of data.refillData) {
       const slotPosition = this.extractSlotPosition(slotData.slotId);
       await VendingMachine.updateOne(
-        { _id: machine._id, 'productSlots.slotNumber': slotPosition },
-        { $set: { 'productSlots.$.quantity': slotData.currentStock } }
+        { _id: machine._id, "productSlots.slotNumber": slotPosition },
+        { $set: { "productSlots.$.quantity": slotData.currentStock } }
       );
     }
 
     // Update task status
     await FieldOpsTask.updateOne(
-      { machineId: machine._id, assignedAgent: agentId, status: 'in_progress' },
-      { status: 'completed', completedAt: new Date(), completedBy: agentId }
+      { machineId: machine._id, assignedAgent: agentId, status: "in_progress" },
+      { status: "completed", completedAt: new Date(), completedBy: agentId }
     );
 
     return {
       refillId: refill.refillId,
-      message: 'Refill submitted successfully',
+      message: "Refill submitted successfully",
       summary: {
         totalUnitsDispensed,
         totalUnitsRefilled,
         totalUnitsRemoved,
-        totalVariance
-      }
+        totalVariance,
+      },
     };
   }
 
   async getRefillSummary(refillId: string) {
     const refill = await MachineRefill.findOne({ refillId })
-      .populate('machineId', 'machineId name location')
+      .populate("machineId", "machineId name location")
       .lean();
 
     if (!refill) {
-      throw new Error('Refill not found');
+      throw new Error("Refill not found");
     }
 
     const machine = refill.machineId as any;
     return {
-      machineId: machine?.machineId || '',
+      machineId: machine?.machineId || "",
       dateTime: this.formatDateTime(refill.refillDateTime),
       items: refill.slotRefills.map(slot => ({
         slotId: slot.slotId,
@@ -727,8 +752,8 @@ export class FieldOpsService {
         variance: slot.variance,
         varianceReason: slot.varianceReason,
         removedQty: slot.removedQty,
-        removedReason: slot.removedReason
-      }))
+        removedReason: slot.removedReason,
+      })),
     };
   }
 
@@ -746,7 +771,7 @@ export class FieldOpsService {
   async skipMachine(machineId: string, agentId: string, data: any) {
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     const skip = await MachineSkip.create({
@@ -755,17 +780,21 @@ export class FieldOpsService {
       agentId,
       reason: data.reason,
       notes: data.notes,
-      skippedAt: new Date()
+      skippedAt: new Date(),
     });
 
     // Update task status
     await FieldOpsTask.updateOne(
-      { machineId: machine._id, assignedAgent: agentId, status: { $in: ['pending', 'in_progress'] } },
-      { status: 'skipped' }
+      {
+        machineId: machine._id,
+        assignedAgent: agentId,
+        status: { $in: ["pending", "in_progress"] },
+      },
+      { status: "skipped" }
     );
 
     return {
-      message: 'Machine skipped successfully'
+      message: "Machine skipped successfully",
     };
   }
 
@@ -773,7 +802,7 @@ export class FieldOpsService {
   async raiseIssue(machineId: string, agentId: string, data: any) {
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
-      throw new Error('Machine not found');
+      throw new Error("Machine not found");
     }
 
     const issue = await MaintenanceIssue.create({
@@ -787,13 +816,13 @@ export class FieldOpsService {
       affectedSlots: data.affectedSlots,
       photos: data.photos || [],
       officialNote: data.officialNote,
-      priority: data.priority || 'medium',
-      status: 'open'
+      priority: data.priority || "medium",
+      status: "open",
     });
 
     return {
       issueId: issue.issueId,
-      message: 'Issue raised successfully'
+      message: "Issue raised successfully",
     };
   }
 
@@ -808,28 +837,24 @@ export class FieldOpsService {
     const [assignedTasks, completedTasks, refills] = await Promise.all([
       FieldOpsTask.countDocuments({
         assignedAgent: agentId,
-        createdAt: { $gte: startOfDay, $lte: endOfDay }
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
       }),
       FieldOpsTask.countDocuments({
         assignedAgent: agentId,
-        status: 'completed',
-        completedAt: { $gte: startOfDay, $lte: endOfDay }
+        status: "completed",
+        completedAt: { $gte: startOfDay, $lte: endOfDay },
       }),
       MachineRefill.find({
         agentId,
-        createdAt: { $gte: startOfDay, $lte: endOfDay }
-      }).lean()
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
+      }).lean(),
     ]);
 
     return {
       date: this.formatDate(queryDate),
       assignedTasks,
       completedTasks,
-      reportTypes: [
-        'Pickup reports',
-        'Refill reports',
-        'Maintenance Reports'
-      ]
+      reportTypes: ["Pickup reports", "Refill reports", "Maintenance Reports"],
     };
   }
 
@@ -838,52 +863,52 @@ export class FieldOpsService {
     // Placeholder - implement notification system
     return {
       notifications: [],
-      unreadCount: 0
+      unreadCount: 0,
     };
   }
 
   // ==================== PROFILE ====================
   async getProfile(agentId: string) {
-    const agent = await FieldAgent.findById(agentId)
-      .populate('createdBy', 'name email')
-      .lean();
+    const agent = await FieldAgent.findById(agentId).populate("createdBy", "name email").lean();
 
     if (!agent) {
-      throw new Error('Agent not found');
+      throw new Error("Agent not found");
     }
 
     return {
       name: agent.name,
-      email: '',
-      phone: '+91 98765 43210',
+      email: "",
+      phone: "+91 98765 43210",
       assignedWarehouse: {
-        id: 'WH-A-01',
-        name: 'Whitefield'
+        id: "WH-A-01",
+        name: "Whitefield",
       },
       assignedArea: {
-        id: 'area-1',
-        name: 'Whitefield'
-      }
+        id: "area-1",
+        name: "Whitefield",
+      },
     };
   }
 
   // ==================== UTILITY FUNCTIONS ====================
   private formatDateTime(date: Date): string {
-    return new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }).replace(',', ' |');
+    return new Date(date)
+      .toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(",", " |");
   }
 
   private formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
   }
 
@@ -894,9 +919,9 @@ export class FieldOpsService {
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
     const days = Math.floor(hours / 24);
-    return `${days} day${days > 1 ? 's' : ''} ago`;
+    return `${days} day${days > 1 ? "s" : ""} ago`;
   }
 }
 

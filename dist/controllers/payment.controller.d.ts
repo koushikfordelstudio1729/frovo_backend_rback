@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 export declare const initiatePayment: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getPayment: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getUserPayments: (req: Request, res: Response, next: import("express").NextFunction) => void;

@@ -132,10 +132,7 @@ const startServer = async () => {
         await seedDatabase();
         logger.info("✅ Database seeded successfully");
       } catch (seedError) {
-        logger.warn(
-          "⚠️ Database seeding failed (may already be seeded):",
-          seedError
-        );
+        logger.warn("⚠️ Database seeding failed (may already be seeded):", seedError);
       }
     }
 
@@ -143,9 +140,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       logger.info("🚀 Frovo RBAC Backend Server Started");
       logger.info(`📡 Server running on port ${PORT}`);
-      logger.info(
-        `🌍 Environment: ${process.env["NODE_ENV"] || "development"}`
-      );
+      logger.info(`🌍 Environment: ${process.env["NODE_ENV"] || "development"}`);
       logger.info("📊 Database: Connected");
       logger.info("");
       logger.info("📋 Available Routes:");
@@ -163,16 +158,8 @@ const startServer = async () => {
       if (process.env["SEED_DATABASE"] === "true") {
         logger.info("");
         logger.info("🔐 Default Super Admin Credentials:");
-        logger.info(
-          `   Email: ${
-            process.env["SUPER_ADMIN_EMAIL"] || "superadmin@vendingapp.com"
-          }`
-        );
-        logger.info(
-          `   Password: ${
-            process.env["SUPER_ADMIN_PASSWORD"] || "SuperAdmin@123"
-          }`
-        );
+        logger.info(`   Email: ${process.env["SUPER_ADMIN_EMAIL"] || "superadmin@vendingapp.com"}`);
+        logger.info(`   Password: ${process.env["SUPER_ADMIN_PASSWORD"] || "SuperAdmin@123"}`);
       }
     });
   } catch (error) {

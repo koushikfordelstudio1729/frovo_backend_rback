@@ -1,6 +1,6 @@
-import { PaymentStatus } from '../models/Order.model';
-import { OrderStatus } from '../models/Order.model';
-import { Types } from 'mongoose';
+import { PaymentStatus } from "../models/Order.model";
+import { OrderStatus } from "../models/Order.model";
+import { Types } from "mongoose";
 export interface CreateOrderData {
     paymentMethod: string;
     paymentGateway: string;

@@ -14,16 +14,16 @@
 
 // Interfaces
 export {
-    IStorageProvider,
-    IUploadResult,
-    IUploadOptions,
-    IDeleteResult,
-    IStorageConfig
-} from './storage.interface';
+  IStorageProvider,
+  IUploadResult,
+  IUploadOptions,
+  IDeleteResult,
+  IStorageConfig,
+} from "./storage.interface";
 
 // Providers
-export { CloudinaryProvider } from './cloudinary.provider';
-export { S3Provider } from './s3.provider';
+export { CloudinaryProvider } from "./cloudinary.provider";
+export { S3Provider } from "./s3.provider";
 
 // Factory
-export { StorageFactory, StorageProviderType, getStorageProvider } from './storage.factory';
+export { StorageFactory, StorageProviderType, getStorageProvider } from "./storage.factory";

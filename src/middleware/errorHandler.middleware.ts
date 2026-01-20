@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
-import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
-import { ZodError } from 'zod';
-import { sendError, sendInternalError, sendValidationError } from '../utils/response.util';
-import { logger } from '../utils/logger.util';
-import { HTTP_STATUS, MESSAGES } from '../config/constants';
+import { Request, Response, NextFunction } from "express";
+import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import { ZodError } from "zod";
+import { sendError, sendInternalError, sendValidationError } from "../utils/response.util";
+import { logger } from "../utils/logger.util";
+import { HTTP_STATUS, MESSAGES } from "../config/constants";
 
 interface CustomError extends Error {
   statusCode?: number;
@@ -18,41 +18,39 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): any => {
-  let error = { ...err };
+  const error = { ...err };
   error.message = err.message;
 
   // Log error
-  logger.error('API Error:', {
+  logger.error("API Error:", {
     message: err.message,
     stack: err.stack,
     url: req.originalUrl,
     method: req.method,
     ip: req.ip,
-    user: (req as any).user?.email || 'Anonymous'
+    user: (req as any).user?.email || "Anonymous",
   });
 
   // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = 'Invalid resource ID format';
+  if (err.name === "CastError") {
+    const message = "Invalid resource ID format";
     return sendError(res, message, HTTP_STATUS.BAD_REQUEST);
   }
 
   // Mongoose duplicate key error
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0];
-    const message = field 
-      ? `Duplicate value for field: ${field}` 
-      : 'Duplicate resource exists';
+    const message = field ? `Duplicate value for field: ${field}` : "Duplicate resource exists";
     return sendError(res, message, HTTP_STATUS.CONFLICT);
   }
 
   // Mongoose validation error
-  if (err.name === 'ValidationError') {
+  if (err.name === "ValidationError") {
     const errors = Object.values(err.errors || {}).map((error: any) => ({
       field: error.path,
-      message: error.message
+      message: error.message,
     }));
-    return sendValidationError(res, errors, 'Validation failed');
+    return sendValidationError(res, errors, "Validation failed");
   }
 
   // JWT errors
@@ -67,9 +65,9 @@ export const errorHandler = (
   // Zod validation errors
   if (err instanceof ZodError) {
     const errors = err.errors.map(error => ({
-      field: error.path.join('.'),
+      field: error.path.join("."),
       message: error.message,
-      code: error.code
+      code: error.code,
     }));
     return sendValidationError(res, errors);
   }
@@ -80,10 +78,8 @@ export const errorHandler = (
   }
 
   // Default to internal server error
-  const message = process.env['NODE_ENV'] === 'production' 
-    ? 'Internal server error' 
-    : err.message;
-    
+  const message = process.env["NODE_ENV"] === "production" ? "Internal server error" : err.message;
+
   return sendInternalError(res, message);
 };
 

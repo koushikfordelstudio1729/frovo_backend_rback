@@ -8,10 +8,10 @@ class VendingMachineService {
     async getAllVendingMachines(query = {}) {
         const filter = {};
         if (query.city) {
-            filter['location.city'] = new RegExp(query.city, 'i');
+            filter["location.city"] = new RegExp(query.city, "i");
         }
         if (query.state) {
-            filter['location.state'] = new RegExp(query.state, 'i');
+            filter["location.state"] = new RegExp(query.state, "i");
         }
         if (query.status) {
             filter.status = query.status;
@@ -21,42 +21,40 @@ class VendingMachineService {
         }
         if (query.search) {
             filter.$or = [
-                { name: new RegExp(query.search, 'i') },
-                { machineId: new RegExp(query.search, 'i') },
-                { 'location.address': new RegExp(query.search, 'i') },
-                { 'location.landmark': new RegExp(query.search, 'i') }
+                { name: new RegExp(query.search, "i") },
+                { machineId: new RegExp(query.search, "i") },
+                { "location.address": new RegExp(query.search, "i") },
+                { "location.landmark": new RegExp(query.search, "i") },
             ];
         }
         const machines = await VendingMachine_model_1.VendingMachine.find(filter)
-            .populate('productSlots.product')
+            .populate("productSlots.product")
             .sort({ createdAt: -1 });
         return machines;
     }
     async getVendingMachineById(id) {
         if (!mongoose_1.Types.ObjectId.isValid(id)) {
-            throw new Error('Invalid vending machine ID');
+            throw new Error("Invalid vending machine ID");
         }
-        const machine = await VendingMachine_model_1.VendingMachine.findById(id)
-            .populate('productSlots.product');
+        const machine = await VendingMachine_model_1.VendingMachine.findById(id).populate("productSlots.product");
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
         return machine;
     }
     async getVendingMachineByMachineId(machineId) {
-        const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId })
-            .populate('productSlots.product');
+        const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId }).populate("productSlots.product");
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
         return machine;
     }
     async getVendingMachineProducts(machineId) {
         const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId })
-            .populate('productSlots.product')
-            .select('productSlots name machineId location');
+            .populate("productSlots.product")
+            .select("productSlots name machineId location");
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
         const availableProducts = machine.productSlots.filter(slot => slot.quantity > 0);
         return {
@@ -68,40 +66,40 @@ class VendingMachineService {
                 product: slot.product,
                 quantity: slot.quantity,
                 price: slot.price,
-                availability: slot.quantity > 0 ? 'Available' : 'Out of Stock'
-            }))
+                availability: slot.quantity > 0 ? "Available" : "Out of Stock",
+            })),
         };
     }
     async getVendingMachinesByLocation(city, state) {
         const filter = {};
         if (city) {
-            filter['location.city'] = new RegExp(city, 'i');
+            filter["location.city"] = new RegExp(city, "i");
         }
         if (state) {
-            filter['location.state'] = new RegExp(state, 'i');
+            filter["location.state"] = new RegExp(state, "i");
         }
-        filter.status = 'Active';
+        filter.status = "Active";
         filter.isOnline = true;
         const machines = await VendingMachine_model_1.VendingMachine.find(filter)
-            .select('machineId name location status isOnline availableProducts totalStock')
-            .sort({ 'location.city': 1, name: 1 });
+            .select("machineId name location status isOnline availableProducts totalStock")
+            .sort({ "location.city": 1, name: 1 });
         return machines;
     }
     async getLocationFilters() {
         const locations = await VendingMachine_model_1.VendingMachine.aggregate([
             {
                 $match: {
-                    status: 'Active',
-                    isOnline: true
-                }
+                    status: "Active",
+                    isOnline: true,
+                },
             },
             {
                 $group: {
                     _id: null,
-                    cities: { $addToSet: '$location.city' },
-                    states: { $addToSet: '$location.state' }
-                }
-            }
+                    cities: { $addToSet: "$location.city" },
+                    states: { $addToSet: "$location.state" },
+                },
+            },
         ]);
         if (locations.length === 0) {
             return { cities: [], states: [] };
@@ -109,13 +107,13 @@ class VendingMachineService {
         const result = locations[0];
         return {
             cities: (result.cities || []).filter(Boolean).sort(),
-            states: (result.states || []).filter(Boolean).sort()
+            states: (result.states || []).filter(Boolean).sort(),
         };
     }
     async getMachineStats(machineId) {
         const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId });
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
         const totalProducts = machine.productSlots.length;
         const availableProducts = machine.productSlots.filter(slot => slot.quantity > 0).length;
@@ -133,53 +131,52 @@ class VendingMachineService {
             revenue: machine.revenue,
             totalSales: machine.totalSales,
             lastMaintenanceDate: machine.lastMaintenanceDate,
-            location: machine.location
+            location: machine.location,
         };
     }
     async checkProductAvailability(machineId, slotNumber) {
-        const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId })
-            .populate('productSlots.product');
+        const machine = await VendingMachine_model_1.VendingMachine.findOne({ machineId }).populate("productSlots.product");
         if (!machine) {
-            throw new Error('Vending machine not found');
+            throw new Error("Vending machine not found");
         }
         const slot = machine.productSlots.find(s => s.slotNumber === slotNumber);
         if (!slot) {
-            throw new Error('Product slot not found');
+            throw new Error("Product slot not found");
         }
         return {
             slotNumber: slot.slotNumber,
             product: slot.product,
             quantity: slot.quantity,
             price: slot.price,
-            isAvailable: slot.quantity > 0
+            isAvailable: slot.quantity > 0,
         };
     }
     async searchProductAcrossMachines(productSearchTerm, currentMachineId) {
         try {
             const matchingProducts = await Product_model_1.Product.find({
                 $or: [
-                    { name: new RegExp(productSearchTerm, 'i') },
-                    { brand: new RegExp(productSearchTerm, 'i') },
-                    { category: new RegExp(productSearchTerm, 'i') }
-                ]
+                    { name: new RegExp(productSearchTerm, "i") },
+                    { brand: new RegExp(productSearchTerm, "i") },
+                    { category: new RegExp(productSearchTerm, "i") },
+                ],
             });
             if (matchingProducts.length === 0) {
                 return {
                     searchTerm: productSearchTerm,
                     currentMachine: currentMachineId || null,
                     productsFound: [],
-                    alternativeMachines: []
+                    alternativeMachines: [],
                 };
             }
             const productIds = matchingProducts.map(p => p._id);
             const machinesWithProducts = await VendingMachine_model_1.VendingMachine.find({
-                'productSlots.product': { $in: productIds },
-                'productSlots.quantity': { $gt: 0 },
-                status: 'Active',
-                isOnline: true
+                "productSlots.product": { $in: productIds },
+                "productSlots.quantity": { $gt: 0 },
+                status: "Active",
+                isOnline: true,
             })
-                .populate('productSlots.product')
-                .select('machineId name location productSlots');
+                .populate("productSlots.product")
+                .select("machineId name location productSlots");
             const results = [];
             for (const machine of machinesWithProducts) {
                 const availableProducts = machine.productSlots.filter(slot => productIds.some(id => id.toString() === slot.product._id.toString()) &&
@@ -194,8 +191,8 @@ class VendingMachineService {
                             slotNumber: slot.slotNumber,
                             product: slot.product,
                             quantity: slot.quantity,
-                            price: slot.price
-                        }))
+                            price: slot.price,
+                        })),
                     });
                 }
             }
@@ -212,11 +209,11 @@ class VendingMachineService {
                     return a.machineName.localeCompare(b.machineName);
                 }),
                 totalMachinesWithProduct: results.length,
-                totalAlternatives: alternativeMachines.length
+                totalAlternatives: alternativeMachines.length,
             };
         }
         catch (error) {
-            throw new Error(`Failed to search products across machines: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to search products across machines: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
 }

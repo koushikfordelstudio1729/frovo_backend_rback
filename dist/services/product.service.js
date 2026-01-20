@@ -39,41 +39,40 @@ const mongoose_1 = require("mongoose");
 class ProductService {
     async getProductById(id) {
         if (!mongoose_1.Types.ObjectId.isValid(id)) {
-            throw new Error('Invalid product ID');
+            throw new Error("Invalid product ID");
         }
         const product = await Product_model_1.Product.findById(id);
         if (!product) {
-            throw new Error('Product not found');
+            throw new Error("Product not found");
         }
         return product;
     }
     async getAllProducts(query = {}) {
         const filter = {};
         if (query.category) {
-            filter.category = new RegExp(query.category, 'i');
+            filter.category = new RegExp(query.category, "i");
         }
         if (query.brand) {
-            filter.brand = new RegExp(query.brand, 'i');
+            filter.brand = new RegExp(query.brand, "i");
         }
         if (query.isActive !== undefined) {
             filter.isActive = query.isActive;
         }
         if (query.search) {
             filter.$or = [
-                { name: new RegExp(query.search, 'i') },
-                { brand: new RegExp(query.search, 'i') },
-                { category: new RegExp(query.search, 'i') },
-                { description: new RegExp(query.search, 'i') }
+                { name: new RegExp(query.search, "i") },
+                { brand: new RegExp(query.search, "i") },
+                { category: new RegExp(query.search, "i") },
+                { description: new RegExp(query.search, "i") },
             ];
         }
-        const products = await Product_model_1.Product.find(filter)
-            .sort({ name: 1 });
+        const products = await Product_model_1.Product.find(filter).sort({ name: 1 });
         return products;
     }
     async getProductsByCategory(category) {
         const products = await Product_model_1.Product.find({
-            category: new RegExp(category, 'i'),
-            isActive: true
+            category: new RegExp(category, "i"),
+            isActive: true,
         }).sort({ name: 1 });
         return products;
     }
@@ -81,41 +80,41 @@ class ProductService {
         const categories = await Product_model_1.Product.aggregate([
             {
                 $match: {
-                    isActive: true
-                }
+                    isActive: true,
+                },
             },
             {
                 $group: {
-                    _id: '$category',
-                    count: { $sum: 1 }
-                }
+                    _id: "$category",
+                    count: { $sum: 1 },
+                },
             },
             {
                 $project: {
-                    category: '$_id',
+                    category: "$_id",
                     count: 1,
-                    _id: 0
-                }
+                    _id: 0,
+                },
             },
             {
-                $sort: { category: 1 }
-            }
+                $sort: { category: 1 },
+            },
         ]);
         return categories;
     }
     async getProductAvailabilityAcrossMachines(productId) {
         if (!mongoose_1.Types.ObjectId.isValid(productId)) {
-            throw new Error('Invalid product ID');
+            throw new Error("Invalid product ID");
         }
-        const { VendingMachine } = await Promise.resolve().then(() => __importStar(require('../models/VendingMachine.model')));
+        const { VendingMachine } = await Promise.resolve().then(() => __importStar(require("../models/VendingMachine.model")));
         const machinesWithProduct = await VendingMachine.find({
-            'productSlots.product': productId,
-            'productSlots.quantity': { $gt: 0 },
-            status: 'Active',
-            isOnline: true
+            "productSlots.product": productId,
+            "productSlots.quantity": { $gt: 0 },
+            status: "Active",
+            isOnline: true,
         })
-            .populate('productSlots.product')
-            .select('machineId name location productSlots');
+            .populate("productSlots.product")
+            .select("machineId name location productSlots");
         const availability = [];
         for (const machine of machinesWithProduct) {
             const productSlots = machine.productSlots.filter(slot => slot.product._id.toString() === productId && slot.quantity > 0);
@@ -127,9 +126,9 @@ class ProductService {
                     slots: productSlots.map(slot => ({
                         slotNumber: slot.slotNumber,
                         quantity: slot.quantity,
-                        price: slot.price
+                        price: slot.price,
                     })),
-                    totalAvailable: productSlots.reduce((sum, slot) => sum + slot.quantity, 0)
+                    totalAvailable: productSlots.reduce((sum, slot) => sum + slot.quantity, 0),
                 });
             }
         }
@@ -142,7 +141,7 @@ class ProductService {
                     return a.location.city.localeCompare(b.location.city);
                 }
                 return a.machineName.localeCompare(b.machineName);
-            })
+            }),
         };
     }
 }

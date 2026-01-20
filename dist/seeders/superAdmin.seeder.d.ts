@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types } from "mongoose";
 export declare const seedSuperAdmin: (departmentMap: {
     [key: string]: Types.ObjectId;
 }, roleMap: {

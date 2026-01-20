@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 export declare const createDepartment: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getDepartments: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getDepartmentById: (req: Request, res: Response, next: import("express").NextFunction) => void;

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 export declare const updateSecurityConfigSchema: z.ZodObject<{
     body: z.ZodEffects<z.ZodObject<{
         mfaEnforced: z.ZodOptional<z.ZodBoolean>;

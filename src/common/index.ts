@@ -12,4 +12,4 @@
  */
 
 // Storage Module - File upload abstraction layer
-export * from './storage';
+export * from "./storage";

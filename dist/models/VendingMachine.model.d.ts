@@ -1,4 +1,4 @@
-import mongoose, { Document, Types } from 'mongoose';
+import mongoose, { Document, Types } from "mongoose";
 export interface ILocation {
     address: string;
     city: string;
@@ -21,7 +21,7 @@ export interface IVendingMachine extends Document {
     machineId: string;
     name: string;
     location: ILocation;
-    status: 'Active' | 'Inactive' | 'Maintenance' | 'Out of Service';
+    status: "Active" | "Inactive" | "Maintenance" | "Out of Service";
     machineModel: string;
     manufacturer?: string;
     installationDate: Date;

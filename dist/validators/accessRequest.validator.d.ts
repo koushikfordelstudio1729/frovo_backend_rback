@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { AccessRequestStatus } from '../models/enums';
+import { z } from "zod";
+import { AccessRequestStatus } from "../models/enums";
 export declare const createAccessRequestSchema: z.ZodObject<{
     body: z.ZodEffects<z.ZodObject<{
         requestedRole: z.ZodOptional<z.ZodString>;

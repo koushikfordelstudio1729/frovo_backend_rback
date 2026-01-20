@@ -44,18 +44,18 @@ const grnNumberSchema = new mongoose_1.Schema({
     scanned_challan: { type: String },
     qc_status: {
         type: String,
-        enum: ['bad', 'moderate', 'excellent'],
-        required: true
+        enum: ["bad", "moderate", "excellent"],
+        required: true,
     },
     purchase_order: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'RaisePurchaseOrder',
-        required: true
+        ref: "RaisePurchaseOrder",
+        required: true,
     },
     vendor: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'VendorCreate',
-        required: true
+        ref: "VendorCreate",
+        required: true,
     },
     vendor_details: {
         vendor_name: { type: String, required: true },
@@ -67,9 +67,10 @@ const grnNumberSchema = new mongoose_1.Schema({
         verification_status: { type: String, required: true },
         vendor_address: { type: String, required: true },
         vendor_contact: { type: String, required: true },
-        vendor_id: { type: String, required: true }
+        vendor_id: { type: String, required: true },
     },
-    grn_line_items: [{
+    grn_line_items: [
+        {
             line_no: { type: Number, required: true },
             sku: { type: String, required: true },
             productName: { type: String, required: true },
@@ -82,26 +83,28 @@ const grnNumberSchema = new mongoose_1.Schema({
             location: { type: String, required: true },
             received_quantity: { type: Number, default: 0 },
             accepted_quantity: { type: Number, default: 0 },
-            rejected_quantity: { type: Number, default: 0 }
-        }],
+            rejected_quantity: { type: Number, default: 0 },
+        },
+    ],
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    }
+        ref: "User",
+        required: true,
+    },
 }, {
-    timestamps: true
+    timestamps: true,
 });
-exports.GRNnumber = mongoose_1.default.model('GRNnumber', grnNumberSchema);
+exports.GRNnumber = mongoose_1.default.model("GRNnumber", grnNumberSchema);
 const raisePurchaseOrderSchema = new mongoose_1.Schema({
     po_number: {
         type: String,
         required: false,
         unique: true,
         uppercase: true,
-        trim: true
+        trim: true,
     },
-    po_line_items: [{
+    po_line_items: [
+        {
             line_no: { type: Number, required: true },
             sku: { type: String, required: true },
             productName: { type: String, required: true },
@@ -112,24 +115,27 @@ const raisePurchaseOrderSchema = new mongoose_1.Schema({
             unit_price: { type: Number, required: true },
             expected_delivery_date: { type: Date, required: true },
             location: { type: String, required: true },
-            images: [{
+            images: [
+                {
                     file_name: { type: String, required: true },
                     file_url: { type: String, required: true },
                     cloudinary_public_id: { type: String, required: true },
                     file_size: { type: Number, required: true },
                     mime_type: { type: String, required: true },
-                    uploaded_at: { type: Date, default: Date.now }
-                }]
-        }],
+                    uploaded_at: { type: Date, default: Date.now },
+                },
+            ],
+        },
+    ],
     vendor: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'VendorCreate',
-        required: true
+        ref: "VendorCreate",
+        required: true,
     },
     warehouse: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Warehouse',
-        required: true
+        ref: "Warehouse",
+        required: true,
     },
     vendor_details: {
         vendor_name: { type: String, required: true },
@@ -141,30 +147,30 @@ const raisePurchaseOrderSchema = new mongoose_1.Schema({
         verification_status: { type: String, required: true },
         vendor_address: { type: String, required: true },
         vendor_contact: { type: String, required: true },
-        vendor_id: { type: String, required: true }
+        vendor_id: { type: String, required: true },
     },
     po_status: {
         type: String,
-        enum: ['draft', 'approved', 'pending'],
-        default: 'draft'
+        enum: ["draft", "approved", "pending"],
+        default: "draft",
     },
     po_raised_date: {
         type: Date,
         required: true,
-        default: Date.now
+        default: Date.now,
     },
     remarks: {
-        type: String
+        type: String,
     },
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    }
+        ref: "User",
+        required: true,
+    },
 }, {
-    timestamps: true
+    timestamps: true,
 });
-raisePurchaseOrderSchema.pre('save', async function (next) {
+raisePurchaseOrderSchema.pre("save", async function (next) {
     if (this.isNew && !this.po_number) {
         this.po_number = await this.generatePONumber();
     }
@@ -174,9 +180,9 @@ raisePurchaseOrderSchema.pre('save', async function (next) {
     next();
 });
 raisePurchaseOrderSchema.methods.generatePONumber = async function () {
-    const PO = mongoose_1.default.model('RaisePurchaseOrder');
+    const PO = mongoose_1.default.model("RaisePurchaseOrder");
     let isUnique = false;
-    let poNumber = '';
+    let poNumber = "";
     let attempts = 0;
     const maxAttempts = 10;
     while (!isUnique && attempts < maxAttempts) {
@@ -189,7 +195,7 @@ raisePurchaseOrderSchema.methods.generatePONumber = async function () {
         }
     }
     if (!isUnique) {
-        throw new Error('Failed to generate unique PO number after multiple attempts');
+        throw new Error("Failed to generate unique PO number after multiple attempts");
     }
     return poNumber;
 };
@@ -203,97 +209,99 @@ const warehouseSchema = new mongoose_1.Schema({
     partner: { type: String, required: true },
     location: { type: String, required: true },
     capacity: { type: Number, required: true },
-    manager: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    manager: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     isActive: { type: Boolean, default: true },
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true }
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 const dispatchOrderSchema = new mongoose_1.Schema({
     dispatchId: { type: String, required: true, unique: true },
     destination: { type: String, required: true },
-    products: [{
+    products: [
+        {
             sku: { type: String, required: true },
-            quantity: { type: Number, required: true, min: 1 }
-        }],
-    assignedAgent: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
-    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+            quantity: { type: Number, required: true, min: 1 },
+        },
+    ],
+    assignedAgent: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: "Warehouse", required: true },
     notes: { type: String, maxlength: 500 },
     status: {
         type: String,
-        enum: ['pending', 'assigned', 'in_transit', 'delivered', 'cancelled'],
-        default: 'pending'
+        enum: ["pending", "assigned", "in_transit", "delivered", "cancelled"],
+        default: "pending",
     },
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 const qcTemplateSchema = new mongoose_1.Schema({
     title: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
     },
     sku: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
     },
     parameters: [
         {
             name: {
                 type: String,
                 required: true,
-                trim: true
+                trim: true,
             },
             value: {
                 type: String,
                 required: true,
-                trim: true
-            }
-        }
+                trim: true,
+            },
+        },
     ],
     isActive: {
         type: Boolean,
-        default: true
+        default: true,
     },
     createdBy: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    }
+        ref: "User",
+        required: true,
+    },
 }, { timestamps: true });
 const returnOrderSchema = new mongoose_1.Schema({
     batchId: { type: String, required: true },
-    vendor: { type: mongoose_1.Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
-    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+    vendor: { type: mongoose_1.Schema.Types.ObjectId, ref: "VendorCreate", required: true },
+    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: "Warehouse", required: true },
     reason: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
     status: {
         type: String,
-        enum: ['pending', 'approved', 'returned', 'rejected'],
-        default: 'pending'
+        enum: ["pending", "approved", "returned", "rejected"],
+        default: "pending",
     },
     returnType: {
         type: String,
-        enum: ['damaged', 'expired', 'wrong_item', 'overstock', 'other'],
-        required: true
+        enum: ["damaged", "expired", "wrong_item", "overstock", "other"],
+        required: true,
     },
     images: [{ type: String }],
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true }
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 const fieldAgentSchema = new mongoose_1.Schema({
-    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
     name: { type: String, required: true },
     email: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     assignedRoutes: [{ type: String }],
-    assignedWarehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Warehouse' },
-    assignedArea: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Area' },
+    assignedWarehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: "Warehouse" },
+    assignedArea: { type: mongoose_1.Schema.Types.ObjectId, ref: "Area" },
     isActive: { type: Boolean, default: true },
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true }
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 const inventorySchema = new mongoose_1.Schema({
     sku: { type: String, required: true },
     productName: { type: String, required: true },
     batchId: { type: String, required: true },
-    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+    warehouse: { type: mongoose_1.Schema.Types.ObjectId, ref: "Warehouse", required: true },
     quantity: { type: Number, required: true, min: 0 },
     minStockLevel: { type: Number, default: 0 },
     maxStockLevel: { type: Number, default: 1000 },
@@ -303,49 +311,49 @@ const inventorySchema = new mongoose_1.Schema({
         zone: { type: String, required: true },
         aisle: { type: String, required: true },
         rack: { type: String, required: true },
-        bin: { type: String, required: true }
+        bin: { type: String, required: true },
     },
     status: {
         type: String,
-        enum: ['active', 'low_stock', 'overstock', 'expired', 'quarantine', 'archived'],
-        default: 'active'
+        enum: ["active", "low_stock", "overstock", "expired", "quarantine", "archived"],
+        default: "active",
     },
     isArchived: { type: Boolean, default: false },
     archivedAt: { type: Date },
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true }
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 const expenseSchema = new mongoose_1.Schema({
     category: {
         type: String,
-        enum: ['staffing', 'supplies', 'equipment', 'transport'],
-        required: true
+        enum: ["staffing", "supplies", "equipment", "transport"],
+        required: true,
     },
     amount: { type: Number, required: true, min: 0 },
-    vendor: { type: mongoose_1.Schema.Types.ObjectId, ref: 'VendorCreate', required: true },
+    vendor: { type: mongoose_1.Schema.Types.ObjectId, ref: "VendorCreate", required: true },
     date: { type: Date, required: true },
     description: { type: String, maxlength: 200 },
     billUrl: { type: String },
     status: {
         type: String,
-        enum: ['approved', 'pending'],
-        default: 'pending'
+        enum: ["approved", "pending"],
+        default: "pending",
     },
-    assignedAgent: { type: mongoose_1.Schema.Types.ObjectId, ref: 'FieldAgent', required: true },
-    warehouseId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+    assignedAgent: { type: mongoose_1.Schema.Types.ObjectId, ref: "FieldAgent", required: true },
+    warehouseId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Warehouse", required: true },
     paymentStatus: {
         type: String,
-        enum: ['paid', 'unpaid', 'partially_paid'],
-        default: 'unpaid'
+        enum: ["paid", "unpaid", "partially_paid"],
+        default: "unpaid",
     },
-    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
-    approvedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
-    approvedAt: { type: Date }
+    createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    approvedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User" },
+    approvedAt: { type: Date },
 }, { timestamps: true });
-exports.Warehouse = mongoose_1.default.model('Warehouse', warehouseSchema);
-exports.RaisePurchaseOrder = mongoose_1.default.model('RaisePurchaseOrder', raisePurchaseOrderSchema);
-exports.DispatchOrder = mongoose_1.default.model('DispatchOrder', dispatchOrderSchema);
-exports.QCTemplate = mongoose_1.default.model('QCTemplate', qcTemplateSchema);
-exports.ReturnOrder = mongoose_1.default.model('ReturnOrder', returnOrderSchema);
-exports.Inventory = mongoose_1.default.model('Inventory', inventorySchema);
-exports.Expense = mongoose_1.default.model('Expense', expenseSchema);
-exports.FieldAgent = mongoose_1.default.model('FieldAgent', fieldAgentSchema);
+exports.Warehouse = mongoose_1.default.model("Warehouse", warehouseSchema);
+exports.RaisePurchaseOrder = mongoose_1.default.model("RaisePurchaseOrder", raisePurchaseOrderSchema);
+exports.DispatchOrder = mongoose_1.default.model("DispatchOrder", dispatchOrderSchema);
+exports.QCTemplate = mongoose_1.default.model("QCTemplate", qcTemplateSchema);
+exports.ReturnOrder = mongoose_1.default.model("ReturnOrder", returnOrderSchema);
+exports.Inventory = mongoose_1.default.model("Inventory", inventorySchema);
+exports.Expense = mongoose_1.default.model("Expense", expenseSchema);
+exports.FieldAgent = mongoose_1.default.model("FieldAgent", fieldAgentSchema);

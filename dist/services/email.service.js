@@ -21,34 +21,38 @@ class EmailService {
             this.initialized = true;
         }
         catch (error) {
-            logger_util_1.logger.error('Failed to initialize email transporter:', error);
+            logger_util_1.logger.error("Failed to initialize email transporter:", error);
             this.transporter = {
-                sendMail: async () => { throw new Error('Email service not configured'); },
-                verify: async () => { throw new Error('Email service not configured'); }
+                sendMail: async () => {
+                    throw new Error("Email service not configured");
+                },
+                verify: async () => {
+                    throw new Error("Email service not configured");
+                },
             };
             this.initialized = true;
         }
     }
     initializeTransporter() {
-        this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
-        logger_util_1.logger.info('Environment variables:');
-        logger_util_1.logger.info(`  EMAIL_HOST: ${process.env['EMAIL_HOST']}`);
-        logger_util_1.logger.info(`  EMAIL_PORT: ${process.env['EMAIL_PORT']}`);
-        logger_util_1.logger.info(`  EMAIL_USER: ${process.env['EMAIL_USER']}`);
-        logger_util_1.logger.info(`  EMAIL_PASS exists: ${!!process.env['EMAIL_PASS']}`);
+        this.fromEmail = process.env["EMAIL_FROM"] || "noreply@example.com";
+        logger_util_1.logger.info("Environment variables:");
+        logger_util_1.logger.info(`  EMAIL_HOST: ${process.env["EMAIL_HOST"]}`);
+        logger_util_1.logger.info(`  EMAIL_PORT: ${process.env["EMAIL_PORT"]}`);
+        logger_util_1.logger.info(`  EMAIL_USER: ${process.env["EMAIL_USER"]}`);
+        logger_util_1.logger.info(`  EMAIL_PASS exists: ${!!process.env["EMAIL_PASS"]}`);
         const config = {
-            host: process.env['EMAIL_HOST'] || 'smtp.gmail.com',
-            port: parseInt(process.env['EMAIL_PORT'] || '587'),
+            host: process.env["EMAIL_HOST"] || "smtp.gmail.com",
+            port: parseInt(process.env["EMAIL_PORT"] || "587"),
             secure: false,
             auth: {
-                user: process.env['EMAIL_USER'] || '',
-                pass: process.env['EMAIL_PASS'] || ''
+                user: process.env["EMAIL_USER"] || "",
+                pass: process.env["EMAIL_PASS"] || "",
             },
             tls: {
-                rejectUnauthorized: false
-            }
+                rejectUnauthorized: false,
+            },
         };
-        logger_util_1.logger.info('Email configuration:');
+        logger_util_1.logger.info("Email configuration:");
         logger_util_1.logger.info(`  Host: ${config.host}`);
         logger_util_1.logger.info(`  Port: ${config.port}`);
         logger_util_1.logger.info(`  User: ${config.auth.user}`);
@@ -56,47 +60,47 @@ class EmailService {
         this.transporter = nodemailer_1.default.createTransport(config);
     }
     async sendWelcomeEmail(email, name, password) {
-        const subject = 'Welcome to Frovo RBAC System';
+        const subject = "Welcome to Frovo RBAC System";
         const html = this.generateWelcomeEmailHTML(name, email, password);
         const text = this.generateWelcomeEmailText(name, email, password);
         await this.sendEmail({
             to: email,
             subject,
             html,
-            text
+            text,
         });
     }
     async sendEmail(options) {
         try {
             this.ensureInitialized();
             if (!this.transporter) {
-                throw new Error('Email transporter not initialized');
+                throw new Error("Email transporter not initialized");
             }
-            logger_util_1.logger.info('Verifying SMTP connection...');
+            logger_util_1.logger.info("Verifying SMTP connection...");
             await this.transporter.verify();
-            logger_util_1.logger.info('✅ SMTP connection verified');
+            logger_util_1.logger.info("✅ SMTP connection verified");
             const mailOptions = {
-                from: this.fromEmail || 'noreply@example.com',
+                from: this.fromEmail || "noreply@example.com",
                 to: options.to,
                 subject: options.subject,
                 html: options.html,
-                text: options.text
+                text: options.text,
             };
             logger_util_1.logger.info(`Attempting to send email to ${options.to}...`);
             const info = await this.transporter.sendMail(mailOptions);
             logger_util_1.logger.info(`✅ Email sent successfully to ${options.to}. Message ID: ${info.messageId}`);
         }
         catch (error) {
-            logger_util_1.logger.error('❌ Error sending email:', error);
+            logger_util_1.logger.error("❌ Error sending email:", error);
             if (error instanceof Error) {
-                logger_util_1.logger.error('Error details:', error.message);
-                logger_util_1.logger.error('Error stack:', error.stack);
-                logger_util_1.logger.error('Error code:', error.code);
-                logger_util_1.logger.error('Error response:', error.response);
+                logger_util_1.logger.error("Error details:", error.message);
+                logger_util_1.logger.error("Error stack:", error.stack);
+                logger_util_1.logger.error("Error code:", error.code);
+                logger_util_1.logger.error("Error response:", error.response);
             }
             else {
-                logger_util_1.logger.error('Non-Error object:', typeof error);
-                logger_util_1.logger.error('Error value:', error);
+                logger_util_1.logger.error("Non-Error object:", typeof error);
+                logger_util_1.logger.error("Error value:", error);
             }
             throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -177,15 +181,15 @@ This is an automated message from the Frovo RBAC System. Please do not reply to 
         try {
             this.ensureInitialized();
             if (!this.transporter) {
-                throw new Error('Email transporter not initialized');
+                throw new Error("Email transporter not initialized");
             }
             await this.transporter.verify();
-            logger_util_1.logger.info('✅ Email service connection verified successfully');
+            logger_util_1.logger.info("✅ Email service connection verified successfully");
             return true;
         }
         catch (error) {
-            logger_util_1.logger.error('❌ Email service connection failed:', error);
-            logger_util_1.logger.error('Error details:', error);
+            logger_util_1.logger.error("❌ Email service connection failed:", error);
+            logger_util_1.logger.error("Error details:", error);
             return false;
         }
     }

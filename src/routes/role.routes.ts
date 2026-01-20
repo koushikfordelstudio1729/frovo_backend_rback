@@ -1,18 +1,23 @@
-import { Router } from 'express';
-import * as roleController from '../controllers/role.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { requirePermission } from '../middleware/permission.middleware';
-import { validate, validateObjectId } from '../middleware/validation.middleware';
-import { auditCreate, auditUpdate, auditDelete, auditAssign } from '../middleware/auditLog.middleware';
+import { Router } from "express";
+import * as roleController from "../controllers/role.controller";
+import { authenticate } from "../middleware/auth.middleware";
+import { requirePermission } from "../middleware/permission.middleware";
+import { validate, validateObjectId } from "../middleware/validation.middleware";
+import {
+  auditCreate,
+  auditUpdate,
+  auditDelete,
+  auditAssign,
+} from "../middleware/auditLog.middleware";
 import {
   createRoleSchema,
   updateRoleSchema,
   assignRoleSchema,
   getRolesQuerySchema,
   publishRoleSchema,
-  cloneRoleSchema
-} from '../validators/role.validator';
-import { MODULES } from '../config/constants';
+  cloneRoleSchema,
+} from "../validators/role.validator";
+import { MODULES } from "../config/constants";
 
 const router = Router();
 
@@ -20,44 +25,45 @@ const router = Router();
 router.use(authenticate);
 
 // Get roles with pagination and filtering
-router.get('/',
-  requirePermission('roles:view'),
+router.get(
+  "/",
+  requirePermission("roles:view"),
   validate({ query: getRolesQuerySchema.shape.query }),
   roleController.getRoles
 );
 
 // Get role by ID
-router.get('/:id',
-  requirePermission('roles:view'),
-  validateObjectId(),
-  roleController.getRoleById
-);
+router.get("/:id", requirePermission("roles:view"), validateObjectId(), roleController.getRoleById);
 
 // Get role permissions
-router.get('/:id/permissions',
-  requirePermission('roles:view'),
+router.get(
+  "/:id/permissions",
+  requirePermission("roles:view"),
   validateObjectId(),
   roleController.getRolePermissions
 );
 
 // Get role users
-router.get('/:id/users',
-  requirePermission('roles:view'),
+router.get(
+  "/:id/users",
+  requirePermission("roles:view"),
   validateObjectId(),
   roleController.getRoleUsers
 );
 
 // Create new role
-router.post('/',
-  requirePermission('roles:create'),
+router.post(
+  "/",
+  requirePermission("roles:create"),
   validate({ body: createRoleSchema.shape.body }),
   auditCreate(MODULES.ROLES),
   roleController.createRole
 );
 
 // Clone role
-router.post('/:id/clone',
-  requirePermission('roles:create'),
+router.post(
+  "/:id/clone",
+  requirePermission("roles:create"),
   validateObjectId(),
   validate({ body: cloneRoleSchema.shape.body }),
   auditCreate(MODULES.ROLES),
@@ -65,8 +71,9 @@ router.post('/:id/clone',
 );
 
 // Update role
-router.put('/:id',
-  requirePermission('roles:edit'),
+router.put(
+  "/:id",
+  requirePermission("roles:edit"),
   validateObjectId(),
   validate({ body: updateRoleSchema.shape.body }),
   auditUpdate(MODULES.ROLES),
@@ -74,16 +81,18 @@ router.put('/:id',
 );
 
 // Update role permissions
-router.put('/:id/permissions',
-  requirePermission('roles:edit'),
+router.put(
+  "/:id/permissions",
+  requirePermission("roles:edit"),
   validateObjectId(),
   auditUpdate(MODULES.ROLES),
   roleController.updateRolePermissions
 );
 
 // Publish role
-router.patch('/:id/publish',
-  requirePermission('roles:edit'),
+router.patch(
+  "/:id/publish",
+  requirePermission("roles:edit"),
   validateObjectId(),
   validate({ body: publishRoleSchema.shape.body }),
   auditUpdate(MODULES.ROLES),
@@ -91,8 +100,9 @@ router.patch('/:id/publish',
 );
 
 // Assign role to users
-router.post('/:id/assign',
-  requirePermission('roles:edit'),
+router.post(
+  "/:id/assign",
+  requirePermission("roles:edit"),
   validateObjectId(),
   validate({ body: assignRoleSchema.shape.body }),
   auditAssign(MODULES.ROLES),
@@ -100,8 +110,9 @@ router.post('/:id/assign',
 );
 
 // Delete role
-router.delete('/:id',
-  requirePermission('roles:delete'),
+router.delete(
+  "/:id",
+  requirePermission("roles:delete"),
   validateObjectId(),
   auditDelete(MODULES.ROLES),
   roleController.deleteRole

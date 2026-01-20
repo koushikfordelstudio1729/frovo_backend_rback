@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 export declare const getAllVendingMachines: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getVendingMachineById: (req: Request, res: Response, next: import("express").NextFunction) => void;
 export declare const getVendingMachineByMachineId: (req: Request, res: Response, next: import("express").NextFunction) => void;

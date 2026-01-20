@@ -1,12 +1,11 @@
-import { Router } from 'express';
-import { historyController } from '../controllers/historyCatalogue.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { authorize } from '../middleware/authorize.middleware';
+import { Router } from "express";
+import { historyController } from "../controllers/historyCatalogue.controller";
+import { authenticate } from "../middleware/auth.middleware";
+import { authorize } from "../middleware/authorize.middleware";
 
 // Permission constants
-const SUPER_ADMIN_ONLY = ['super_admin'];
-const ADMIN_ACCESS = ['super_admin', 'warehouse_manager'];
-
+const SUPER_ADMIN_ONLY = ["super_admin"];
+const ADMIN_ACCESS = ["super_admin", "warehouse_manager"];
 
 const router = Router();
 
@@ -21,10 +20,8 @@ const router = Router();
  * @example GET /api/audit/entity/category/69413b4c7a1a8e0a937f92ed
  * @example GET /api/audit/entity/catalogue/675abc123def456789012345?operation=update
  */
-router.get('/entity/:entityType/:entityId',
-    authenticate,
-    authorize(ADMIN_ACCESS),
-    (req, res) => historyController.getEntityAuditLogs(req, res)
+router.get("/entity/:entityType/:entityId", authenticate, authorize(ADMIN_ACCESS), (req, res) =>
+  historyController.getEntityAuditLogs(req, res)
 );
 
 /**
@@ -33,10 +30,8 @@ router.get('/entity/:entityType/:entityId',
  * @access  Admin+ only
  * @example GET /api/audit/user/6750000000000000000000001?entityType=category
  */
-router.get('/user/:userId',
-    authenticate,
-    authorize(ADMIN_ACCESS),
-    (req, res) => historyController.getUserAuditLogs(req, res)
+router.get("/user/:userId", authenticate, authorize(ADMIN_ACCESS), (req, res) =>
+  historyController.getUserAuditLogs(req, res)
 );
 
 /**
@@ -45,10 +40,7 @@ router.get('/user/:userId',
  * @access  All authenticated users
  * @example GET /api/audit/my-logs?entityType=catalogue&limit=20
  */
-router.get('/my-logs',
-    authenticate,
-    (req, res) => historyController.getMyAuditLogs(req, res)
-);
+router.get("/my-logs", authenticate, (req, res) => historyController.getMyAuditLogs(req, res));
 
 /**
  * @route   GET /api/audit/search
@@ -56,10 +48,8 @@ router.get('/my-logs',
  * @access  Admin+ only
  * @example GET /api/audit/search?entityType=category&operation=update&startDate=2024-12-01
  */
-router.get('/search',
-    authenticate,
-    authorize(ADMIN_ACCESS),
-    (req, res) => historyController.searchAuditLogs(req, res)
+router.get("/search", authenticate, authorize(ADMIN_ACCESS), (req, res) =>
+  historyController.searchAuditLogs(req, res)
 );
 
 /**
@@ -68,10 +58,8 @@ router.get('/search',
  * @access  Admin+ only
  * @example GET /api/audit/statistics?entityType=catalogue&startDate=2024-12-01
  */
-router.get('/statistics',
-    authenticate,
-    authorize(ADMIN_ACCESS),
-    (req, res) => historyController.getAuditStatistics(req, res)
+router.get("/statistics", authenticate, authorize(ADMIN_ACCESS), (req, res) =>
+  historyController.getAuditStatistics(req, res)
 );
 
 /**
@@ -80,10 +68,8 @@ router.get('/statistics',
  * @access  Admin+ only
  * @example GET /api/audit/recent-activity?limit=50
  */
-router.get('/recent-activity',
-    authenticate,
-    authorize(ADMIN_ACCESS),
-    (req, res) => historyController.getRecentActivity(req, res)
+router.get("/recent-activity", authenticate, authorize(ADMIN_ACCESS), (req, res) =>
+  historyController.getRecentActivity(req, res)
 );
 
 /**
@@ -92,10 +78,8 @@ router.get('/recent-activity',
  * @access  Super Admin only
  * @example GET /api/audit/export?startDate=2024-12-01&endDate=2024-12-17
  */
-router.get('/export',
-    authenticate,
-    authorize(SUPER_ADMIN_ONLY),
-    (req, res) => historyController.exportAuditLogsCSV(req, res)
+router.get("/export", authenticate, authorize(SUPER_ADMIN_ONLY), (req, res) =>
+  historyController.exportAuditLogsCSV(req, res)
 );
 
 export default router;

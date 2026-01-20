@@ -1,7 +1,7 @@
-import mongoose, { Document, Types } from 'mongoose';
+import mongoose, { Document, Types } from "mongoose";
 export interface IVendorDocument {
     document_name: string;
-    document_type: 'signed_contract' | 'gst_certificate' | 'msme_certificate' | 'tds_exemption' | 'pan_card' | 'bank_proof' | 'other';
+    document_type: "signed_contract" | "gst_certificate" | "msme_certificate" | "tds_exemption" | "pan_card" | "bank_proof" | "other";
     file_url: string;
     cloudinary_public_id: string;
     file_size: number;
@@ -20,8 +20,8 @@ export interface ICompanyCreate extends Document {
     corporate_website: string;
     directory_signature_name: string;
     din: string;
-    company_status: 'active' | 'inactive' | 'blacklisted' | 'under_review';
-    risk_rating: 'low' | 'medium' | 'high';
+    company_status: "active" | "inactive" | "blacklisted" | "under_review";
+    risk_rating: "low" | "medium" | "high";
 }
 export declare const CompanyCreate: mongoose.Model<ICompanyCreate, {}, {}, {}, mongoose.Document<unknown, {}, ICompanyCreate, {}, {}> & ICompanyCreate & Required<{
     _id: Types.ObjectId;
@@ -50,9 +50,9 @@ export interface IVendorCreate extends Document {
     tds_rate: number;
     billing_cycle: string;
     vendor_status_cycle: string;
-    vendor_status: 'active' | 'inactive' | 'deactivated';
-    verification_status: 'draft' | 'pending' | 'under_review' | 'verified' | 'rejected' | 'failed' | 'suspended' | 'contract_expired' | 'blacklisted';
-    risk_rating: 'low' | 'medium' | 'high';
+    vendor_status: "active" | "inactive" | "deactivated";
+    verification_status: "draft" | "pending" | "under_review" | "verified" | "rejected" | "failed" | "suspended" | "contract_expired" | "blacklisted";
+    risk_rating: "low" | "medium" | "high";
     risk_notes: string;
     verified_by?: Types.ObjectId;
     contract_terms: string;
@@ -77,10 +77,10 @@ export interface IVendorDashboard extends Document {
     vendors: {
         vendor_name: string;
         vendor_category: string;
-        verification_status: 'pending' | 'verified' | 'failed' | 'rejected';
-        risk_level: 'low' | 'medium' | 'high';
+        verification_status: "pending" | "verified" | "failed" | "rejected";
+        risk_level: "low" | "medium" | "high";
         contract_expiry_date: Date;
-        action: 'edit' | 'delete' | 'view';
+        action: "edit" | "delete" | "view";
     }[];
     createdBy: Types.ObjectId;
     createdAt: Date;

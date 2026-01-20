@@ -1,4 +1,4 @@
-import { Document, Types } from 'mongoose';
+import { Document, Types } from "mongoose";
 export declare enum OrderStatus {
     PENDING = "pending",
     CONFIRMED = "confirmed",

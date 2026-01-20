@@ -1,27 +1,29 @@
-import { Request, Response } from 'express';
-import mongoose, { Types } from 'mongoose';
-import { VendorService } from '../services/vendor.service';
-import { AuditTrailService } from '../services/auditTrail.service';
-import { VendorCreate } from '../models/Vendor.model';
+import { Request, Response } from "express";
+import mongoose, { Types } from "mongoose";
+import { VendorService } from "../services/vendor.service";
+import { AuditTrailService } from "../services/auditTrail.service";
+import { VendorCreate } from "../models/Vendor.model";
 
 const vendorService = new VendorService();
 const auditTrailService = new AuditTrailService();
 
-
 export class VendorController {
-  
   // Utility function to safely extract user - NOW STATIC
-  private static getLoggedInUser(req: Request): { _id: Types.ObjectId; roles: any[]; email: string } {
+  private static getLoggedInUser(req: Request): {
+    _id: Types.ObjectId;
+    roles: any[];
+    email: string;
+  } {
     const user = (req as any).user;
-    
+
     if (!user || !user._id) {
-      throw new Error('User authentication required');
+      throw new Error("User authentication required");
     }
-    
+
     return {
       _id: user._id,
       roles: user.roles || [],
-      email: user.email || ''
+      email: user.email || "",
     };
   }
 
@@ -32,7 +34,7 @@ export class VendorController {
     try {
       // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-      const userRole = roles[0]?.key || 'unknown';
+      const userRole = roles[0]?.key || "unknown";
 
       const {
         registered_company_name,
@@ -46,7 +48,7 @@ export class VendorController {
         directory_signature_name,
         din,
         company_status,
-        risk_rating
+        risk_rating,
       } = req.body;
 
       // Validate date format
@@ -56,7 +58,7 @@ export class VendorController {
         if (isNaN(parsedDate.getTime())) {
           res.status(400).json({
             success: false,
-            message: 'Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)'
+            message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
           });
           return;
         }
@@ -74,7 +76,7 @@ export class VendorController {
         directory_signature_name,
         din,
         company_status,
-        risk_rating
+        risk_rating,
       };
 
       // Call the static method from VendorService with user info for audit
@@ -88,27 +90,26 @@ export class VendorController {
 
       res.status(201).json({
         success: true,
-        message: 'Company created successfully',
-        data: newCompany
+        message: "Company created successfully",
+        data: newCompany,
       });
-
     } catch (error) {
-      console.error('Error creating company:', error);
-      
+      console.error("Error creating company:", error);
+
       // Handle duplicate key errors
       if (error instanceof Error) {
-        if (error.message.includes('already exists') || error.message.includes('duplicate key')) {
+        if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
           res.status(409).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
-        
-        if (error.message.includes('Invalid') || error.message.includes('Missing')) {
+
+        if (error.message.includes("Invalid") || error.message.includes("Missing")) {
           res.status(400).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
@@ -116,8 +117,8 @@ export class VendorController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -127,35 +128,28 @@ export class VendorController {
    */
   public static async getAllCompanies(req: Request, res: Response): Promise<void> {
     try {
-      const {
-        page = 1,
-        limit = 10,
-        search,
-        sortBy = 'createdAt',
-        sortOrder = 'desc'
-      } = req.query;
+      const { page = 1, limit = 10, search, sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
       const result = await VendorService.getAllCompaniesService({
         page: Number(page),
         limit: Number(limit),
         search: search as string,
         sortBy: sortBy as string,
-        sortOrder: sortOrder as 'asc' | 'desc'
+        sortOrder: sortOrder as "asc" | "desc",
       });
 
       res.status(200).json({
         success: true,
-        message: 'Companies retrieved successfully',
+        message: "Companies retrieved successfully",
         data: result.data,
-        pagination: result.pagination
+        pagination: result.pagination,
       });
-
     } catch (error) {
-      console.error('Error fetching companies:', error);
+      console.error("Error fetching companies:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -171,18 +165,17 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: 'Company retrieved successfully',
-        data: company
+        message: "Company retrieved successfully",
+        data: company,
       });
-
     } catch (error) {
-      console.error('Error fetching company:', error);
-      
+      console.error("Error fetching company:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+        if (error.message.includes("Invalid") || error.message.includes("not found")) {
           res.status(404).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
@@ -190,8 +183,8 @@ export class VendorController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -203,7 +196,7 @@ export class VendorController {
     try {
       // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-      const userRole = roles[0]?.key || 'unknown';
+      const userRole = roles[0]?.key || "unknown";
 
       const { cin } = req.params;
       const updateData = req.body;
@@ -214,7 +207,7 @@ export class VendorController {
         if (isNaN(parsedDate.getTime())) {
           res.status(400).json({
             success: false,
-            message: 'Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)'
+            message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
           });
           return;
         }
@@ -222,7 +215,7 @@ export class VendorController {
       }
 
       const updatedCompany = await VendorService.updateCompanyService(
-        cin, 
+        cin,
         updateData,
         userId,
         userEmail,
@@ -233,41 +226,40 @@ export class VendorController {
       if (!updatedCompany) {
         res.status(404).json({
           success: false,
-          message: 'Company not found'
+          message: "Company not found",
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Company updated successfully',
-        data: updatedCompany
+        message: "Company updated successfully",
+        data: updatedCompany,
       });
-
     } catch (error) {
-      console.error('Error updating company:', error);
-      
+      console.error("Error updating company:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+        if (error.message.includes("Invalid") || error.message.includes("not found")) {
           res.status(404).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
-        
-        if (error.message.includes('already exists')) {
+
+        if (error.message.includes("already exists")) {
           res.status(409).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
-        
-        if (error.message.includes('Invalid') || error.message.includes('cannot be')) {
+
+        if (error.message.includes("Invalid") || error.message.includes("cannot be")) {
           res.status(400).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
@@ -275,8 +267,8 @@ export class VendorController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -288,7 +280,7 @@ export class VendorController {
     try {
       // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-      const userRole = roles[0]?.key || 'unknown';
+      const userRole = roles[0]?.key || "unknown";
 
       const { cin } = req.params;
 
@@ -302,18 +294,17 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: 'Company deleted successfully',
-        data: deletedCompany
+        message: "Company deleted successfully",
+        data: deletedCompany,
       });
-
     } catch (error) {
-      console.error('Error deleting company:', error);
-      
+      console.error("Error deleting company:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes('Invalid') || error.message.includes('not found')) {
+        if (error.message.includes("Invalid") || error.message.includes("not found")) {
           res.status(404).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
@@ -321,8 +312,8 @@ export class VendorController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -334,10 +325,10 @@ export class VendorController {
     try {
       const { q, limit = 10 } = req.query;
 
-      if (!q || typeof q !== 'string' || q.trim() === '') {
+      if (!q || typeof q !== "string" || q.trim() === "") {
         res.status(400).json({
           success: false,
-          message: 'Search query is required'
+          message: "Search query is required",
         });
         return;
       }
@@ -346,18 +337,17 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: 'Companies search completed',
-        data: companies
+        message: "Companies search completed",
+        data: companies,
       });
-
     } catch (error) {
-      console.error('Error searching companies:', error);
-      
+      console.error("Error searching companies:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes('required')) {
+        if (error.message.includes("required")) {
           res.status(400).json({
             success: false,
-            message: error.message
+            message: error.message,
           });
           return;
         }
@@ -365,8 +355,8 @@ export class VendorController {
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -382,16 +372,15 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: 'Company existence checked',
-        data: { exists }
+        message: "Company existence checked",
+        data: { exists },
       });
-
     } catch (error) {
-      console.error('Error checking company existence:', error);
+      console.error("Error checking company existence:", error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -402,16 +391,19 @@ export class VendorController {
    */
   async getCommonDashboard(req: Request, res: Response) {
     try {
-      console.log('📊 Common Dashboard endpoint called');
-      
+      console.log("📊 Common Dashboard endpoint called");
+
       const { roles } = VendorController.getLoggedInUser(req);
-      console.log('👥 User Roles:', roles.map(r => r.key));
+      console.log(
+        "👥 User Roles:",
+        roles.map(r => r.key)
+      );
 
       // Validate user has access (both super_admin and vendor_admin can access)
-      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
+      if (!roles.some(role => ["super_admin", "vendor_admin"].includes(role.key))) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. This dashboard is only for Super Admin and Vendor Admin.'
+          message: "Access denied. This dashboard is only for Super Admin and Vendor Admin.",
         });
       }
 
@@ -422,30 +414,30 @@ export class VendorController {
         search: req.query.search as string,
         company_search: req.query.company_search as string,
         page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
+        limit: parseInt(req.query.limit as string) || 10,
       };
 
-      console.log('🔍 Filters:', filters);
+      console.log("🔍 Filters:", filters);
 
       const dashboardData = await vendorService.getCommonDashboard(filters);
 
-      console.log('✅ Common dashboard data retrieved:', {
+      console.log("✅ Common dashboard data retrieved:", {
         total_companies: dashboardData.total_companies,
         total_vendors: dashboardData.total_vendors,
         companies_count: dashboardData.companies?.length || 0,
-        vendors_count: dashboardData.vendors?.length || 0
+        vendors_count: dashboardData.vendors?.length || 0,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Common dashboard data retrieved successfully',
-        data: dashboardData
+        message: "Common dashboard data retrieved successfully",
+        data: dashboardData,
       });
     } catch (error: any) {
-      console.error('❌ Error fetching common dashboard:', error);
+      console.error("❌ Error fetching common dashboard:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -457,16 +449,19 @@ export class VendorController {
    */
   async getSuperAdminVendorManagement(req: Request, res: Response) {
     try {
-      console.log('👑 Super Admin Vendor Management Dashboard endpoint called');
-      
+      console.log("👑 Super Admin Vendor Management Dashboard endpoint called");
+
       const { roles } = VendorController.getLoggedInUser(req);
-      console.log('👥 User Roles:', roles.map(r => r.key));
+      console.log(
+        "👥 User Roles:",
+        roles.map(r => r.key)
+      );
 
       // Validate user is Super Admin ONLY
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. This dashboard is only for Super Admin.'
+          message: "Access denied. This dashboard is only for Super Admin.",
         });
       }
 
@@ -476,29 +471,29 @@ export class VendorController {
         vendor_category: req.query.vendor_category as string,
         search: req.query.search as string,
         page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
+        limit: parseInt(req.query.limit as string) || 10,
       };
 
-      console.log('🔍 Filters:', filters);
+      console.log("🔍 Filters:", filters);
 
       const dashboardData = await vendorService.getSuperAdminVendorManagementDashboard(filters);
 
-      console.log('✅ Super admin vendor management data retrieved:', {
+      console.log("✅ Super admin vendor management data retrieved:", {
         total_vendors: dashboardData.total_vendors,
         pending_approvals: dashboardData.pending_approvals,
-        vendors_count: dashboardData.vendors?.length || 0
+        vendors_count: dashboardData.vendors?.length || 0,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Super admin vendor management dashboard data retrieved successfully',
-        data: dashboardData
+        message: "Super admin vendor management dashboard data retrieved successfully",
+        data: dashboardData,
       });
     } catch (error: any) {
-      console.error('❌ Error fetching super admin vendor management dashboard:', error);
+      console.error("❌ Error fetching super admin vendor management dashboard:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -506,12 +501,12 @@ export class VendorController {
   async getAllVendorsForSuperAdmin(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
-      
+
       // Validate user is Super Admin
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Only Super Admin can access this endpoint'
+          message: "Only Super Admin can access this endpoint",
         });
       }
 
@@ -524,19 +519,19 @@ export class VendorController {
         date_from: req.query.date_from as string,
         date_to: req.query.date_to as string,
         page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
+        limit: parseInt(req.query.limit as string) || 10,
       };
 
       const result = await vendorService.getAllVendorsForSuperAdmin(filters);
-      
+
       res.status(200).json({
         success: true,
-        data: result
+        data: result,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -545,12 +540,12 @@ export class VendorController {
   async getVendorStatistics(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
-      
+
       // Validate user is Super Admin
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Only Super Admin can access this endpoint'
+          message: "Only Super Admin can access this endpoint",
         });
       }
 
@@ -558,12 +553,12 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        data: statistics
+        data: statistics,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -572,12 +567,12 @@ export class VendorController {
   async getPendingApprovals(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
-      
+
       // Validate user is Super Admin
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Only Super Admin can access pending approvals'
+          message: "Only Super Admin can access pending approvals",
         });
       }
 
@@ -585,12 +580,12 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        data: pendingApprovals
+        data: pendingApprovals,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -600,48 +595,48 @@ export class VendorController {
     try {
       const { _id: createdBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
-      
+
       // Validate user has permission to create vendors
-      if (!roles.some(role => ['super_admin', 'vendor_admin'].includes(role.key))) {
+      if (!roles.some(role => ["super_admin", "vendor_admin"].includes(role.key))) {
         return res.status(403).json({
           success: false,
-          message: 'Insufficient permissions to create vendors'
+          message: "Insufficient permissions to create vendors",
         });
       }
 
       const vendor = await vendorService.createCompleteVendor(
-        req.body, 
-        createdBy, 
-        userEmail, 
-        userRole, 
+        req.body,
+        createdBy,
+        userEmail,
+        userRole,
         req
       );
 
       res.status(201).json({
         success: true,
-        message: 'Vendor created successfully',
-        data: vendor
+        message: "Vendor created successfully",
+        data: vendor,
       });
     } catch (error: any) {
-      console.error('Error creating vendor:', error);
-      
-      if (error.message.includes('already exists')) {
+      console.error("Error creating vendor:", error);
+
+      if (error.message.includes("already exists")) {
         return res.status(409).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
-      
-      if (error.message.includes('validation failed') || error.message.includes('is required')) {
+
+      if (error.message.includes("validation failed") || error.message.includes("is required")) {
         return res.status(422).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -655,14 +650,14 @@ export class VendorController {
       if (!Array.isArray(vendors) || vendors.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Vendors array is required and cannot be empty'
+          message: "Vendors array is required and cannot be empty",
         });
       }
 
       if (vendors.length > 50) {
         return res.status(400).json({
           success: false,
-          message: 'Cannot process more than 50 vendors at once'
+          message: "Cannot process more than 50 vendors at once",
         });
       }
 
@@ -671,134 +666,129 @@ export class VendorController {
       res.status(207).json({
         success: true,
         message: `Processed ${vendors.length} vendors. ${result.successful.length} successful, ${result.failed.length} failed.`,
-        data: result
+        data: result,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
 
-/**
- * Get vendors by company registration number
- */
-public static async getVendorsByCompany(req: Request, res: Response): Promise<void> {
-  try {
-    const { cin } = req.params;
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      verification_status,
-      risk_rating,
-      vendor_category
-    } = req.query;
+  /**
+   * Get vendors by company registration number
+   */
+  public static async getVendorsByCompany(req: Request, res: Response): Promise<void> {
+    try {
+      const { cin } = req.params;
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        verification_status,
+        risk_rating,
+        vendor_category,
+      } = req.query;
 
-    if (!cin) {
-      res.status(400).json({
-        success: false,
-        message: 'Company registration number is required'
-      });
-      return;
-    }
+      if (!cin) {
+        res.status(400).json({
+          success: false,
+          message: "Company registration number is required",
+        });
+        return;
+      }
 
-    const result = await VendorService.getVendorsByCompanyService(
-      cin,
-      {
+      const result = await VendorService.getVendorsByCompanyService(cin, {
         page: Number(page),
         limit: Number(limit),
         search: search as string,
         verification_status: verification_status as string,
         risk_rating: risk_rating as string,
-        vendor_category: vendor_category as string
-      }
-    );
+        vendor_category: vendor_category as string,
+      });
 
-    res.status(200).json({
-      success: true,
-      message: 'Vendors retrieved successfully',
-      data: result
-    });
+      res.status(200).json({
+        success: true,
+        message: "Vendors retrieved successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error fetching vendors by company:", error);
 
-  } catch (error) {
-    console.error('Error fetching vendors by company:', error);
-    
-    if (error instanceof Error) {
-      if (error.message.includes('Company not found')) {
-        res.status(404).json({
-          success: false,
-          message: error.message
-        });
-        return;
+      if (error instanceof Error) {
+        if (error.message.includes("Company not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
       }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
   }
-}
 
-/**
- * Get company details with vendor statistics
- */
-public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
-  try {
-    const { cin } = req.params;
+  /**
+   * Get company details with vendor statistics
+   */
+  public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
+    try {
+      const { cin } = req.params;
 
-    const result = await VendorService.getCompanyWithVendorStatsService(cin);
+      const result = await VendorService.getCompanyWithVendorStatsService(cin);
 
-    res.status(200).json({
-      success: true,
-      message: 'Company with vendor statistics retrieved successfully',
-      data: result
-    });
+      res.status(200).json({
+        success: true,
+        message: "Company with vendor statistics retrieved successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Error fetching company with vendor stats:", error);
 
-  } catch (error) {
-    console.error('Error fetching company with vendor stats:', error);
-    
-    if (error instanceof Error) {
-      if (error.message.includes('Company not found')) {
-        res.status(404).json({
-          success: false,
-          message: error.message
-        });
-        return;
+      if (error instanceof Error) {
+        if (error.message.includes("Company not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
       }
-    }
 
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
   // Get Vendor by ID
   async getVendorById(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const vendor = await vendorService.getVendorById(id);
-      
+
       if (!vendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: vendor
+        data: vendor,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -812,18 +802,18 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       if (!vendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: vendor
+        data: vendor,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -837,14 +827,14 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
 
       res.status(200).json({
         success: true,
-        message: 'Vendor profile retrieved successfully',
-        data: profile
+        message: "Vendor profile retrieved successfully",
+        data: profile,
       });
     } catch (error: any) {
-      console.error('Error fetching vendor profile:', error);
+      console.error("Error fetching vendor profile:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -857,28 +847,28 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       const userRole = roles[0]?.key;
 
       const vendor = await vendorService.getVendorForEdit(id, userId, userRole);
-      
+
       if (!vendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: vendor
+        data: vendor,
       });
     } catch (error: any) {
-      if (error.message.includes('You can only access')) {
+      if (error.message.includes("You can only access")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -892,19 +882,19 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
         vendor_category: req.query.vendor_category as string,
         search: req.query.search as string,
         page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10
+        limit: parseInt(req.query.limit as string) || 10,
       };
 
       const result = await vendorService.getAllVendors(filters);
-      
+
       res.status(200).json({
         success: true,
-        data: result
+        data: result,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -917,44 +907,44 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       const userRole = roles[0]?.key;
 
       const updatedVendor = await vendorService.updateVendor(
-        id, 
-        req.body, 
-        userRole, 
-        userId, 
-        userEmail, 
+        id,
+        req.body,
+        userRole,
+        userId,
+        userEmail,
         req
       );
-      
+
       if (!updatedVendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Vendor updated successfully',
-        data: updatedVendor
+        message: "Vendor updated successfully",
+        data: updatedVendor,
       });
     } catch (error: any) {
-      if (error.message.includes('already exists')) {
+      if (error.message.includes("already exists")) {
         return res.status(409).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
-      if (error.message.includes('Only Super Admin')) {
+      if (error.message.includes("Only Super Admin")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -966,38 +956,46 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      const updatedVendor = await vendorService.updateVendorForAdmin(id, req.body, userId, userRole);
-      
+      const updatedVendor = await vendorService.updateVendorForAdmin(
+        id,
+        req.body,
+        userId,
+        userRole
+      );
+
       if (!updatedVendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Vendor updated successfully',
-        data: updatedVendor
+        message: "Vendor updated successfully",
+        data: updatedVendor,
       });
     } catch (error: any) {
-      if (error.message.includes('You can only update') || error.message.includes('Only Super Admin')) {
+      if (
+        error.message.includes("You can only update") ||
+        error.message.includes("Only Super Admin")
+      ) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
-      if (error.message.includes('already exists')) {
+      if (error.message.includes("already exists")) {
         return res.status(409).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1010,16 +1008,16 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      if (!['verified', 'rejected', 'pending'].includes(verification_status)) {
+      if (!["verified", "rejected", "pending"].includes(verification_status)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid verification status. Must be: verified, rejected, or pending'
+          message: "Invalid verification status. Must be: verified, rejected, or pending",
         });
       }
 
       const updatedVendor = await vendorService.updateVendorVerification(
         id,
-        verification_status as 'verified' | 'rejected' | 'pending',
+        verification_status as "verified" | "rejected" | "pending",
         verifiedBy,
         userRole,
         userEmail,
@@ -1030,100 +1028,99 @@ public static async getCompanyWithVendorStats(req: Request, res: Response): Prom
       res.status(200).json({
         success: true,
         message: `Vendor status updated to ${verification_status}`,
-        data: updatedVendor
+        data: updatedVendor,
       });
     } catch (error: any) {
-      if (error.message.includes('Only Super Admin')) {
+      if (error.message.includes("Only Super Admin")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
-// In VendorController.ts, add this method:
+  // In VendorController.ts, add this method:
 
-/**
- * Quick Verify/Reject Vendor from route
- * PUT /vendors/:id/quick-verify - automatically verifies vendor
- * PUT /vendors/:id/quick-reject - automatically rejects vendor
- */
-async quickVerifyOrRejectVendor(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const action = req.path.split('/').pop(); // Get 'quick-verify' or 'quick-reject'
-    const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key;
+  /**
+   * Quick Verify/Reject Vendor from route
+   * PUT /vendors/:id/quick-verify - automatically verifies vendor
+   * PUT /vendors/:id/quick-reject - automatically rejects vendor
+   */
+  async quickVerifyOrRejectVendor(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const action = req.path.split("/").pop(); // Get 'quick-verify' or 'quick-reject'
+      const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key;
 
-    // Validate user is Super Admin
-    if (userRole !== 'super_admin') {
-      return res.status(403).json({
+      // Validate user is Super Admin
+      if (userRole !== "super_admin") {
+        return res.status(403).json({
+          success: false,
+          message: "Only Super Admin can verify or reject vendors",
+        });
+      }
+
+      let verificationStatus: "verified" | "rejected";
+      let actionDescription: string;
+
+      // Determine action based on route
+      if (action === "quick-verify") {
+        verificationStatus = "verified";
+        actionDescription = "Vendor quickly verified via quick-verify route";
+      } else if (action === "quick-reject") {
+        verificationStatus = "rejected";
+        actionDescription = "Vendor quickly rejected via quick-reject route";
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid action. Use quick-verify or quick-reject",
+        });
+      }
+
+      // Call service method
+      const updatedVendor = await vendorService.quickVerifyOrRejectVendor(
+        id,
+        verificationStatus,
+        verifiedBy,
+        userEmail,
+        userRole,
+        actionDescription,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Vendor ${verificationStatus} successfully`,
+        data: updatedVendor,
+      });
+    } catch (error: any) {
+      console.error("Error in quick verify/reject:", error);
+
+      if (error.message.includes("Only Super Admin")) {
+        return res.status(403).json({
+          success: false,
+          message: error.message,
+        });
+      }
+
+      if (error.message.includes("Vendor not found")) {
+        return res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      }
+
+      res.status(400).json({
         success: false,
-        message: 'Only Super Admin can verify or reject vendors'
+        message: error.message,
       });
     }
-
-    let verificationStatus: 'verified' | 'rejected';
-    let actionDescription: string;
-
-    // Determine action based on route
-    if (action === 'quick-verify') {
-      verificationStatus = 'verified';
-      actionDescription = 'Vendor quickly verified via quick-verify route';
-    } else if (action === 'quick-reject') {
-      verificationStatus = 'rejected';
-      actionDescription = 'Vendor quickly rejected via quick-reject route';
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Use quick-verify or quick-reject'
-      });
-    }
-
-    // Call service method
-    const updatedVendor = await vendorService.quickVerifyOrRejectVendor(
-      id,
-      verificationStatus,
-      verifiedBy,
-      userEmail,
-      userRole,
-      actionDescription,
-      req
-    );
-
-    res.status(200).json({
-      success: true,
-      message: `Vendor ${verificationStatus} successfully`,
-      data: updatedVendor
-    });
-
-  } catch (error: any) {
-    console.error('Error in quick verify/reject:', error);
-    
-    if (error.message.includes('Only Super Admin')) {
-      return res.status(403).json({
-        success: false,
-        message: error.message
-      });
-    }
-    
-    if (error.message.includes('Vendor not found')) {
-      return res.status(404).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
   }
-}
   // Toggle Vendor Verification (Verify ↔ Reject)
   async toggleVendorVerification(req: Request, res: Response) {
     try {
@@ -1131,27 +1128,23 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       const { _id: verifiedBy, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      const updatedVendor = await vendorService.toggleVendorVerification(
-        id,
-        verifiedBy,
-        userRole
-      );
+      const updatedVendor = await vendorService.toggleVendorVerification(id, verifiedBy, userRole);
 
       res.status(200).json({
         success: true,
         message: `Vendor status toggled to ${updatedVendor.verification_status}`,
-        data: updatedVendor
+        data: updatedVendor,
       });
     } catch (error: any) {
-      if (error.message.includes('Only Super Admin')) {
+      if (error.message.includes("Only Super Admin")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1163,23 +1156,23 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       const { _id: verifiedBy, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      if (!['verified', 'rejected'].includes(verification_status)) {
+      if (!["verified", "rejected"].includes(verification_status)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid verification status'
+          message: "Invalid verification status",
         });
       }
 
       if (!Array.isArray(vendor_ids) || vendor_ids.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Vendor IDs array is required'
+          message: "Vendor IDs array is required",
         });
       }
 
       const result = await vendorService.bulkUpdateVendorVerification(
         vendor_ids,
-        verification_status as 'verified' | 'rejected',
+        verification_status as "verified" | "rejected",
         verifiedBy,
         userRole,
         rejection_reason
@@ -1188,18 +1181,18 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       res.status(200).json({
         success: true,
         message: `Bulk verification completed. ${result.successful.length} successful, ${result.failed.length} failed.`,
-        data: result
+        data: result,
       });
     } catch (error: any) {
-      if (error.message.includes('Only Super Admin')) {
+      if (error.message.includes("Only Super Admin")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1212,22 +1205,22 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       const userRole = roles[0]?.key;
 
       const result = await vendorService.deleteVendor(id, userId, userEmail, userRole, req);
-      
+
       if (!result) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Vendor deleted successfully'
+        message: "Vendor deleted successfully",
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1240,29 +1233,29 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       const userRole = roles[0]?.key;
 
       const result = await vendorService.deleteVendorForAdmin(id, userId, userRole);
-      
+
       if (!result) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        message: 'Vendor deleted successfully'
+        message: "Vendor deleted successfully",
       });
     } catch (error: any) {
-      if (error.message.includes('You can only delete')) {
+      if (error.message.includes("You can only delete")) {
         return res.status(403).json({
           success: false,
-          message: error.message
+          message: error.message,
         });
       }
 
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1278,30 +1271,30 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
         user: userId,
         user_email: userEmail,
         user_role: userRole,
-        action: 'login',
-        action_description: 'User logged into the system',
+        action: "login",
+        action_description: "User logged into the system",
         ip_address: req.ip,
-        user_agent: req.get('User-Agent')
+        user_agent: req.get("User-Agent"),
       });
 
       await auditTrailService.createAuditRecord({
         user: userId,
         user_email: userEmail,
         user_role: userRole,
-        action: 'view',
-        action_description: 'Viewed vendor dashboard',
+        action: "view",
+        action_description: "Viewed vendor dashboard",
         ip_address: req.ip,
-        user_agent: req.get('User-Agent')
+        user_agent: req.get("User-Agent"),
       });
 
       res.status(200).json({
         success: true,
-        message: 'Test audit data generated successfully'
+        message: "Test audit data generated successfully",
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1319,7 +1312,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       if (!vendor) {
         return res.status(404).json({
           success: false,
-          message: 'Vendor not found'
+          message: "Vendor not found",
         });
       }
 
@@ -1332,14 +1325,14 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
 
       res.status(200).json({
         success: true,
-        message: 'Vendor audit trail retrieved successfully',
-        data: auditData
+        message: "Vendor audit trail retrieved successfully",
+        data: auditData,
       });
     } catch (error: any) {
-      console.error('Error fetching vendor audit trail:', error);
+      console.error("Error fetching vendor audit trail:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1357,7 +1350,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       if (!company) {
         return res.status(404).json({
           success: false,
-          message: 'Company not found'
+          message: "Company not found",
         });
       }
 
@@ -1370,14 +1363,14 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
 
       res.status(200).json({
         success: true,
-        message: 'Company audit trail retrieved successfully',
-        data: auditData
+        message: "Company audit trail retrieved successfully",
+        data: auditData,
       });
     } catch (error: any) {
-      console.error('Error fetching company audit trail:', error);
+      console.error("Error fetching company audit trail:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1396,7 +1389,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       if (!req.file) {
         return res.status(400).json({
           success: false,
-          message: 'No file uploaded'
+          message: "No file uploaded",
         });
       }
 
@@ -1404,7 +1397,7 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       if (!document_type) {
         return res.status(400).json({
           success: false,
-          message: 'Document type is required'
+          message: "Document type is required",
         });
       }
 
@@ -1423,13 +1416,13 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
 
       res.status(200).json({
         success: true,
-        message: 'Document uploaded successfully',
-        data: vendor
+        message: "Document uploaded successfully",
+        data: vendor,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1452,13 +1445,13 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
 
       res.status(200).json({
         success: true,
-        message: 'Document deleted successfully',
-        data: vendor
+        message: "Document deleted successfully",
+        data: vendor,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1472,12 +1465,12 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
 
       res.status(200).json({
         success: true,
-        data: documents
+        data: documents,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -1492,18 +1485,18 @@ async quickVerifyOrRejectVendor(req: Request, res: Response) {
       if (!document) {
         return res.status(404).json({
           success: false,
-          message: 'Document not found'
+          message: "Document not found",
         });
       }
 
       res.status(200).json({
         success: true,
-        data: document
+        data: document,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }

@@ -1,22 +1,21 @@
-import { Request, Response } from 'express';
-import { AuditTrailService } from '../services/auditTrail.service';
+import { Request, Response } from "express";
+import { AuditTrailService } from "../services/auditTrail.service";
 
 const auditTrailService = new AuditTrailService();
 
 export class AuditTrailController {
-  
   // Utility function to safely extract user
   private getLoggedInUser(req: Request): { _id: any; roles: any[]; email: string } {
     const user = (req as any).user;
-    
+
     if (!user || !user._id) {
-      throw new Error('User authentication required');
+      throw new Error("User authentication required");
     }
-    
+
     return {
       _id: user._id,
       roles: user.roles || [],
-      email: user.email || ''
+      email: user.email || "",
     };
   }
 
@@ -27,12 +26,12 @@ export class AuditTrailController {
   async getAuditTrails(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
-      
+
       // ✅ SUPER ADMIN ONLY - Strict access control
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Only Super Admin can access audit trails.'
+          message: "Access denied. Only Super Admin can access audit trails.",
         });
       }
 
@@ -47,21 +46,21 @@ export class AuditTrailController {
         date_to: req.query.date_to as string,
         search: req.query.search as string,
         page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 20
+        limit: parseInt(req.query.limit as string) || 20,
       };
 
       const result = await auditTrailService.getAuditTrails(filters);
 
       res.status(200).json({
         success: true,
-        message: 'Audit trails retrieved successfully',
-        data: result
+        message: "Audit trails retrieved successfully",
+        data: result,
       });
     } catch (error: any) {
-      console.error('Error fetching audit trails:', error);
+      console.error("Error fetching audit trails:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -73,12 +72,12 @@ export class AuditTrailController {
     try {
       const { vendorId } = req.params;
       const { roles } = this.getLoggedInUser(req);
-      
+
       // ✅ SUPER ADMIN ONLY
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Only Super Admin can access vendor audit trails.'
+          message: "Access denied. Only Super Admin can access vendor audit trails.",
         });
       }
 
@@ -90,13 +89,13 @@ export class AuditTrailController {
       res.status(200).json({
         success: true,
         message: `Audit trails for vendor retrieved successfully`,
-        data: result
+        data: result,
       });
     } catch (error: any) {
-      console.error('Error fetching vendor audit trails:', error);
+      console.error("Error fetching vendor audit trails:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -108,12 +107,12 @@ export class AuditTrailController {
     try {
       const { companyId } = req.params;
       const { roles } = this.getLoggedInUser(req);
-      
+
       // ✅ SUPER ADMIN ONLY
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Only Super Admin can access company audit trails.'
+          message: "Access denied. Only Super Admin can access company audit trails.",
         });
       }
 
@@ -125,13 +124,13 @@ export class AuditTrailController {
       res.status(200).json({
         success: true,
         message: `Audit trails for company retrieved successfully`,
-        data: result
+        data: result,
       });
     } catch (error: any) {
-      console.error('Error fetching company audit trails:', error);
+      console.error("Error fetching company audit trails:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -143,12 +142,12 @@ export class AuditTrailController {
     try {
       const { userId } = req.params;
       const { _id: currentUserId, roles } = this.getLoggedInUser(req);
-      
+
       // Users can only see their own activity unless they are Super Admin
-      if (userId !== currentUserId.toString() && !roles.some(role => role.key === 'super_admin')) {
+      if (userId !== currentUserId.toString() && !roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'You can only view your own activity. Super Admin can view all activities.'
+          message: "You can only view your own activity. Super Admin can view all activities.",
         });
       }
 
@@ -159,14 +158,14 @@ export class AuditTrailController {
 
       res.status(200).json({
         success: true,
-        message: 'User activity retrieved successfully',
-        data: result
+        message: "User activity retrieved successfully",
+        data: result,
       });
     } catch (error: any) {
-      console.error('Error fetching user activity:', error);
+      console.error("Error fetching user activity:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -177,12 +176,12 @@ export class AuditTrailController {
   async getAuditStatistics(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
-      
+
       // ✅ SUPER ADMIN ONLY
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Only Super Admin can access audit statistics.'
+          message: "Access denied. Only Super Admin can access audit statistics.",
         });
       }
 
@@ -190,14 +189,14 @@ export class AuditTrailController {
 
       res.status(200).json({
         success: true,
-        message: 'Audit statistics retrieved successfully',
-        data: statistics
+        message: "Audit statistics retrieved successfully",
+        data: statistics,
       });
     } catch (error: any) {
-      console.error('Error fetching audit statistics:', error);
+      console.error("Error fetching audit statistics:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }
@@ -208,12 +207,12 @@ export class AuditTrailController {
   async getAuditSummary(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
-      
+
       // ✅ SUPER ADMIN ONLY
-      if (!roles.some(role => role.key === 'super_admin')) {
+      if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied. Only Super Admin can access audit summary.'
+          message: "Access denied. Only Super Admin can access audit summary.",
         });
       }
 
@@ -221,14 +220,14 @@ export class AuditTrailController {
 
       res.status(200).json({
         success: true,
-        message: 'Audit summary retrieved successfully',
-        data: summary
+        message: "Audit summary retrieved successfully",
+        data: summary,
       });
     } catch (error: any) {
-      console.error('Error fetching audit summary:', error);
+      console.error("Error fetching audit summary:", error);
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
     }
   }

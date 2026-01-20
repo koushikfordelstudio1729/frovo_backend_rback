@@ -1,6 +1,5 @@
-import nodemailer from 'nodemailer';
-import { logger } from '../utils/logger.util';
-
+import nodemailer from "nodemailer";
+import { logger } from "../utils/logger.util";
 
 interface EmailOptions {
   to: string;
@@ -27,11 +26,15 @@ class EmailService {
       this.initializeTransporter();
       this.initialized = true;
     } catch (error) {
-      logger.error('Failed to initialize email transporter:', error);
+      logger.error("Failed to initialize email transporter:", error);
       // Create a dummy transporter to prevent crashes
       this.transporter = {
-        sendMail: async () => { throw new Error('Email service not configured'); },
-        verify: async () => { throw new Error('Email service not configured'); }
+        sendMail: async () => {
+          throw new Error("Email service not configured");
+        },
+        verify: async () => {
+          throw new Error("Email service not configured");
+        },
       } as any;
       this.initialized = true;
     }
@@ -39,28 +42,28 @@ class EmailService {
 
   private initializeTransporter(): void {
     // Set fromEmail
-    this.fromEmail = process.env['EMAIL_FROM'] || 'noreply@example.com';
+    this.fromEmail = process.env["EMAIL_FROM"] || "noreply@example.com";
     // Debug environment variables
-    logger.info('Environment variables:');
-    logger.info(`  EMAIL_HOST: ${process.env['EMAIL_HOST']}`);
-    logger.info(`  EMAIL_PORT: ${process.env['EMAIL_PORT']}`);
-    logger.info(`  EMAIL_USER: ${process.env['EMAIL_USER']}`);
-    logger.info(`  EMAIL_PASS exists: ${!!process.env['EMAIL_PASS']}`);
+    logger.info("Environment variables:");
+    logger.info(`  EMAIL_HOST: ${process.env["EMAIL_HOST"]}`);
+    logger.info(`  EMAIL_PORT: ${process.env["EMAIL_PORT"]}`);
+    logger.info(`  EMAIL_USER: ${process.env["EMAIL_USER"]}`);
+    logger.info(`  EMAIL_PASS exists: ${!!process.env["EMAIL_PASS"]}`);
 
     const config = {
-      host: process.env['EMAIL_HOST'] || 'smtp.gmail.com',
-      port: parseInt(process.env['EMAIL_PORT'] || '587'),
+      host: process.env["EMAIL_HOST"] || "smtp.gmail.com",
+      port: parseInt(process.env["EMAIL_PORT"] || "587"),
       secure: false,
       auth: {
-        user: process.env['EMAIL_USER'] || '',
-        pass: process.env['EMAIL_PASS'] || ''
+        user: process.env["EMAIL_USER"] || "",
+        pass: process.env["EMAIL_PASS"] || "",
       },
       tls: {
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     };
 
-    logger.info('Email configuration:');
+    logger.info("Email configuration:");
     logger.info(`  Host: ${config.host}`);
     logger.info(`  Port: ${config.port}`);
     logger.info(`  User: ${config.auth.user}`);
@@ -70,7 +73,7 @@ class EmailService {
   }
 
   async sendWelcomeEmail(email: string, name: string, password: string): Promise<void> {
-    const subject = 'Welcome to Frovo RBAC System';
+    const subject = "Welcome to Frovo RBAC System";
     const html = this.generateWelcomeEmailHTML(name, email, password);
     const text = this.generateWelcomeEmailText(name, email, password);
 
@@ -78,7 +81,7 @@ class EmailService {
       to: email,
       subject,
       html,
-      text
+      text,
     });
   }
 
@@ -88,37 +91,39 @@ class EmailService {
       this.ensureInitialized();
 
       if (!this.transporter) {
-        throw new Error('Email transporter not initialized');
+        throw new Error("Email transporter not initialized");
       }
 
       // First verify the connection
-      logger.info('Verifying SMTP connection...');
+      logger.info("Verifying SMTP connection...");
       await this.transporter.verify();
-      logger.info('✅ SMTP connection verified');
+      logger.info("✅ SMTP connection verified");
 
       const mailOptions = {
-        from: this.fromEmail || 'noreply@example.com',
+        from: this.fromEmail || "noreply@example.com",
         to: options.to,
         subject: options.subject,
         html: options.html,
-        text: options.text
+        text: options.text,
       };
 
       logger.info(`Attempting to send email to ${options.to}...`);
       const info = await this.transporter.sendMail(mailOptions);
       logger.info(`✅ Email sent successfully to ${options.to}. Message ID: ${info.messageId}`);
     } catch (error) {
-      logger.error('❌ Error sending email:', error);
+      logger.error("❌ Error sending email:", error);
       if (error instanceof Error) {
-        logger.error('Error details:', error.message);
-        logger.error('Error stack:', error.stack);
-        logger.error('Error code:', (error as any).code);
-        logger.error('Error response:', (error as any).response);
+        logger.error("Error details:", error.message);
+        logger.error("Error stack:", error.stack);
+        logger.error("Error code:", (error as any).code);
+        logger.error("Error response:", (error as any).response);
       } else {
-        logger.error('Non-Error object:', typeof error);
-        logger.error('Error value:', error);
+        logger.error("Non-Error object:", typeof error);
+        logger.error("Error value:", error);
       }
-      throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to send email: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -202,15 +207,15 @@ This is an automated message from the Frovo RBAC System. Please do not reply to 
       this.ensureInitialized();
 
       if (!this.transporter) {
-        throw new Error('Email transporter not initialized');
+        throw new Error("Email transporter not initialized");
       }
 
       await this.transporter.verify();
-      logger.info('✅ Email service connection verified successfully');
+      logger.info("✅ Email service connection verified successfully");
       return true;
     } catch (error) {
-      logger.error('❌ Email service connection failed:', error);
-      logger.error('Error details:', error);
+      logger.error("❌ Email service connection failed:", error);
+      logger.error("Error details:", error);
       return false;
     }
   }

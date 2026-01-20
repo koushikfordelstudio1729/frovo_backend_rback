@@ -1,21 +1,21 @@
 export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  DEBUG = 'debug'
+  ERROR = "error",
+  WARN = "warn",
+  INFO = "info",
+  DEBUG = "debug",
 }
 
 class Logger {
-  private isDevelopment = process.env['NODE_ENV'] === 'development';
+  private isDevelopment = process.env["NODE_ENV"] === "development";
 
   private formatMessage(level: LogLevel, message: string, meta?: any): string {
     const timestamp = new Date().toISOString();
     const baseMessage = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
-    
+
     if (meta && this.isDevelopment) {
       return `${baseMessage} ${JSON.stringify(meta, null, 2)}`;
     }
-    
+
     return baseMessage;
   }
 

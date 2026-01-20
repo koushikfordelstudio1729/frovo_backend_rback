@@ -1,5 +1,5 @@
-import { IUser } from '../models';
-import { Types } from 'mongoose';
+import { IUser } from "../models";
+import { Types } from "mongoose";
 export interface AuthResponse {
     user: Partial<IUser>;
     accessToken: string;
