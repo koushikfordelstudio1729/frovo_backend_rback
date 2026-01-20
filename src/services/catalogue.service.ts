@@ -124,17 +124,34 @@ export interface SubCategoryListResponseDTO {
 
 export interface DashboardResponseDTO {
   products: Array<{
+    id: any;
     sku_id: string;
     product_name: string;
-    category: string;
-    sub_category: string;
     brand_name: string;
+    description: string;
+    category: {
+      _id: any;
+      category_name: string;
+    };
+    sub_category: {
+      _id: any;
+      sub_category_name: string;
+    };
+    manufacturer_name: string;
+    manufacturer_address: string;
+    shell_life: string;
+    expiry_alert_threshold: number;
+    tages_label: string;
     unit_size: string;
     base_price: number;
     final_price: number;
-    status: "active" | "inactive";
+    barcode: string;
+    nutrition_information: string;
+    ingredients: string;
     product_images: any[];
+    status: "active" | "inactive";
     createdAt: Date;
+    updatedAt: Date;
   }>;
   total: number;
   page: number;
@@ -1226,6 +1243,12 @@ export class CatalogueService {
       const product = new CatalogueModel(productData);
       const savedProduct = await product.save();
 
+      // Populate category and sub_category for response
+      const populatedProduct = await CatalogueModel.findById(savedProduct._id)
+        .populate("category", "category_name")
+        .populate("sub_category", "sub_category_name")
+        .lean();
+
       if (this.req) {
         await historyCatalogueService
           .logCreate(
@@ -1238,7 +1261,7 @@ export class CatalogueService {
           .catch(err => logger.error("Failed to log create:", err));
       }
 
-      return savedProduct;
+      return populatedProduct as unknown as ICatalogue;
     } catch (error: any) {
       logger.error("Error creating catalogue:", error);
 
@@ -1586,10 +1609,14 @@ export class CatalogueService {
         product_name: product.product_name,
         brand_name: product.brand_name,
         description: product.description,
-        category: (product.category as any)?._id || product.category,
-        category_name: (product.category as any)?.category_name || "Unknown",
-        sub_category: (product.sub_category as any)?._id || product.sub_category,
-        sub_category_name: (product.sub_category as any)?.sub_category_name || "Unknown",
+        category: {
+          _id: (product.category as any)?._id || product.category,
+          category_name: (product.category as any)?.category_name || "Unknown",
+        },
+        sub_category: {
+          _id: (product.sub_category as any)?._id || product.sub_category,
+          sub_category_name: (product.sub_category as any)?.sub_category_name || "Unknown",
+        },
         manufacturer_name: product.manufacturer_name,
         manufacturer_address: product.manufacturer_address,
         shell_life: product.shell_life,
