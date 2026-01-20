@@ -103,37 +103,37 @@ const PORT = process.env["PORT"] || 3000;
 // Set up error handlers FIRST, before any async operations
 process.on("uncaughtException", error => {
   try {
-    console.error("💥 Uncaught Exception caught");
-    console.error("💥 Error Type:", typeof error);
-    console.error("💥 Error is null?", error === null);
-    console.error("💥 Error is undefined?", error === undefined);
+    logger.error("💥 Uncaught Exception caught");
+    logger.error("💥 Error Type:", typeof error);
+    logger.error("💥 Error is null?", error === null);
+    logger.error("💥 Error is undefined?", error === undefined);
 
     if (error instanceof Error) {
-      console.error("💥 Error Name:", error.name || "NO_NAME");
-      console.error("💥 Error Message:", error.message || "NO_MESSAGE");
-      console.error("💥 Error Stack:", error.stack || "NO_STACK");
+      logger.error("💥 Error Name:", error.name || "NO_NAME");
+      logger.error("💥 Error Message:", error.message || "NO_MESSAGE");
+      logger.error("💥 Error Stack:", error.stack || "NO_STACK");
     } else if (error) {
-      console.error("💥 Non-Error Exception:", String(error));
+      logger.error("💥 Non-Error Exception:", String(error));
     } else {
-      console.error("💥 Error is null or undefined");
+      logger.error("💥 Error is null or undefined");
     }
   } catch (logError) {
-    console.error("Failed to log uncaught exception:", logError);
-    console.error("Original error:", error);
+    logger.error("Failed to log uncaught exception:", logError);
+    logger.error("Original error:", error);
   }
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   try {
-    console.error("💥 Unhandled Rejection at:", promise);
-    console.error("💥 Rejection reason:", reason);
-    console.error("💥 Reason type:", typeof reason);
+    logger.error("💥 Unhandled Rejection at:", promise);
+    logger.error("💥 Rejection reason:", reason);
+    logger.error("💥 Reason type:", typeof reason);
     if (reason instanceof Error) {
-      console.error("💥 Rejection stack:", reason.stack);
+      logger.error("💥 Rejection stack:", reason.stack);
     }
   } catch (logError) {
-    console.error("Failed to log unhandled rejection:", logError);
+    logger.error("Failed to log unhandled rejection:", logError);
   }
   process.exit(1);
 });

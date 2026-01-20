@@ -44,9 +44,9 @@ const seedRoles = async (createdBy, departmentMap) => {
         if (existingCount > 0) {
             logger_util_1.logger.info(`✅ Roles already seeded (${existingCount} roles found)`);
             const existingRoles = await models_1.Role.find();
-            console.log("🔍 Existing roles in database:");
+            logger_util_1.logger.info("🔍 Existing roles in database:");
             existingRoles.forEach(role => {
-                console.log(`   - ${role.name} (systemRole: ${role.systemRole})`);
+                logger_util_1.logger.info(`   - ${role.name} (systemRole: ${role.systemRole})`);
             });
             const warehouseStaffExists = existingRoles.some(role => role.systemRole === models_1.SystemRole.WAREHOUSE_STAFF);
             if (!warehouseStaffExists) {
@@ -85,7 +85,7 @@ const seedRoles = async (createdBy, departmentMap) => {
                     roleMap[role.systemRole] = role._id;
                 }
             });
-            console.log("🔍 Role map created:", Object.keys(roleMap));
+            logger_util_1.logger.info("🔍 Role map created:", Object.keys(roleMap));
             return roleMap;
         }
         const roles = [

@@ -12,10 +12,10 @@ export const seedSuperAdmin = async (
     logger.info("🌱 Seeding Super Admin and Vendor Admin...");
 
     // DEBUG: Check what's in the maps
-    console.log("🔍 Department Map Keys:", Object.keys(departmentMap));
-    console.log("🔍 Role Map Keys:", Object.keys(roleMap));
-    console.log("🔍 Looking for Vendor Admin role:", SystemRole.VENDOR_ADMIN in roleMap);
-    console.log("🔍 Looking for Operations department:", "Operations" in departmentMap);
+    logger.info("🔍 Department Map Keys:", Object.keys(departmentMap));
+    logger.info("🔍 Role Map Keys:", Object.keys(roleMap));
+    logger.info("🔍 Looking for Vendor Admin role:", SystemRole.VENDOR_ADMIN in roleMap);
+    logger.info("🔍 Looking for Operations department:", "Operations" in departmentMap);
 
     // Check if any user already exists
     const existingUserCount = await User.countDocuments();

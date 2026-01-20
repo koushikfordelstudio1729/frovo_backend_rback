@@ -49,6 +49,7 @@ import {
   IDeleteResult,
 } from "./storage.interface";
 
+import { logger } from "../../utils/logger.util";
 export class S3Provider implements IStorageProvider {
   readonly providerName = "s3";
   private client: any = null;
@@ -85,7 +86,7 @@ export class S3Provider implements IStorageProvider {
     const config = this.getConfig();
 
     if (!this.isConfigured()) {
-      console.error("AWS S3 Configuration Missing:", {
+      logger.error("AWS S3 Configuration Missing:", {
         access_key: config.accessKeyId ? "SET" : "MISSING",
         secret_key: config.secretAccessKey ? "SET" : "MISSING",
         region: config.region || "MISSING",
@@ -111,7 +112,7 @@ export class S3Provider implements IStorageProvider {
     this.client = new S3Client(clientConfig);
     this.isInitialized = true;
 
-    console.log("AWS S3 provider initialized:", {
+    logger.info("AWS S3 provider initialized:", {
       region: config.region,
       bucket: config.bucket,
       endpoint: config.endpoint || "AWS S3",
@@ -178,7 +179,7 @@ export class S3Provider implements IStorageProvider {
         },
       };
     } catch (error: any) {
-      console.error("S3 upload error:", error);
+      logger.error("S3 upload error:", error);
       throw new Error(`S3 upload failed: ${error.message}`);
     }
   }
@@ -191,7 +192,7 @@ export class S3Provider implements IStorageProvider {
     }
 
     const config = this.getConfig();
-    console.log(`Deleting from S3: ${publicId} (bucket: ${config.bucket})`);
+    logger.info(`Deleting from S3: ${publicId} (bucket: ${config.bucket})`);
 
     const command = new DeleteObjectCommand({
       Bucket: config.bucket,
@@ -200,14 +201,14 @@ export class S3Provider implements IStorageProvider {
 
     try {
       await this.client.send(command);
-      console.log(`S3 delete successful: ${publicId}`);
+      logger.info(`S3 delete successful: ${publicId}`);
       return {
         success: true,
         publicId,
         provider: this.providerName,
       };
     } catch (error: any) {
-      console.error("S3 delete error:", error);
+      logger.error("S3 delete error:", error);
       throw new Error(`Failed to delete from S3: ${error.message}`);
     }
   }

@@ -7,6 +7,6 @@ interface CustomError extends Error {
 }
 export declare const errorHandler: (err: CustomError, req: Request, res: Response, _next: NextFunction) => any;
 export declare const notFound: (req: Request, res: Response, _next: NextFunction) => any;
-export declare const catchAsync: (fn: Function) => (req: Request, res: Response, next: NextFunction) => void;
+export declare const catchAsync: (fn: (req: Request, res: Response, next: NextFunction) => Promise<void> | void) => (req: Request, res: Response, next: NextFunction) => void;
 export {};
 //# sourceMappingURL=errorHandler.middleware.d.ts.map

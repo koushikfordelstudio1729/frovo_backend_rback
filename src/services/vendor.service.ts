@@ -11,6 +11,7 @@ import {
 import { AuditTrailService } from "./auditTrail.service";
 import { DocumentUploadService } from "./documentUpload.service";
 
+import { logger } from "../utils/logger.util";
 export class VendorService {
   private auditTrailService = new AuditTrailService();
   private documentUploadService = new DocumentUploadService();
@@ -158,7 +159,7 @@ export class VendorService {
         user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
       });
     } catch (auditError) {
-      console.error("Failed to create company audit trail:", auditError);
+      logger.error("Failed to create company audit trail:", auditError);
       // Don't fail the company creation if audit fails
     }
 
@@ -416,7 +417,7 @@ export class VendorService {
           user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
         });
       } catch (auditError) {
-        console.error("Failed to create company update audit trail:", auditError);
+        logger.error("Failed to create company update audit trail:", auditError);
         // Don't fail the update if audit fails
       }
     }
@@ -471,7 +472,7 @@ export class VendorService {
           user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
         });
       } catch (auditError) {
-        console.error("Failed to create company deletion audit trail:", auditError);
+        logger.error("Failed to create company deletion audit trail:", auditError);
         // Don't fail the deletion if audit fails
       }
     }
@@ -842,8 +843,8 @@ export class VendorService {
     };
   }> {
     try {
-      console.log("📊 COMMON DASHBOARD (Accessible by Super Admin & Vendor Admin)");
-      console.log("🔍 Filters:", filters);
+      logger.info("📊 COMMON DASHBOARD (Accessible by Super Admin & Vendor Admin)");
+      logger.info("🔍 Filters:", filters);
 
       // Get all company statistics
       const totalCompanies = await CompanyCreate.countDocuments();
@@ -856,7 +857,7 @@ export class VendorService {
         VendorCreate.countDocuments({ verification_status: "rejected" }),
       ]);
 
-      console.log("📈 Statistics:", {
+      logger.info("📈 Statistics:", {
         totalCompanies,
         totalVendors,
         pendingVendors,
@@ -917,7 +918,7 @@ export class VendorService {
         ];
       }
 
-      console.log("🔍 Vendor Query:", JSON.stringify(vendorQuery, null, 2));
+      logger.info("🔍 Vendor Query:", JSON.stringify(vendorQuery, null, 2));
 
       const page = filters.page || 1;
       const limit = filters.limit || 10;
@@ -938,8 +939,8 @@ export class VendorService {
         VendorCreate.countDocuments(vendorQuery),
       ]);
 
-      console.log("✅ Vendors found:", vendors.length);
-      console.log("📊 Total vendor count with filters:", totalCount);
+      logger.info("✅ Vendors found:", vendors.length);
+      logger.info("📊 Total vendor count with filters:", totalCount);
 
       // Format vendors for response
       const dashboardVendors = vendors.map(vendor => ({
@@ -978,7 +979,7 @@ export class VendorService {
         },
       };
     } catch (error: any) {
-      console.error("❌ Error getting common dashboard:", error);
+      logger.error("❌ Error getting common dashboard:", error);
       throw new Error(`Error getting common dashboard: ${error.message}`);
     }
   }
@@ -1014,8 +1015,8 @@ export class VendorService {
     };
   }> {
     try {
-      console.log("👑 SUPER ADMIN VENDOR MANAGEMENT DASHBOARD");
-      console.log("🔍 Filters:", filters);
+      logger.info("👑 SUPER ADMIN VENDOR MANAGEMENT DASHBOARD");
+      logger.info("🔍 Filters:", filters);
 
       // Get vendor counts for all statuses
       const [totalVendors, pendingApprovals, verifiedVendors, rejectedVendors, failedVendors] =
@@ -1027,7 +1028,7 @@ export class VendorService {
           VendorCreate.countDocuments({ verification_status: "failed" }),
         ]);
 
-      console.log("📈 Vendor Statistics:", {
+      logger.info("📈 Vendor Statistics:", {
         totalVendors,
         pendingApprovals,
         verifiedVendors,
@@ -1060,7 +1061,7 @@ export class VendorService {
         ];
       }
 
-      console.log("🔍 Final Query:", JSON.stringify(query, null, 2));
+      logger.info("🔍 Final Query:", JSON.stringify(query, null, 2));
 
       const page = filters.page || 1;
       const limit = filters.limit || 10;
@@ -1081,8 +1082,8 @@ export class VendorService {
         VendorCreate.countDocuments(query),
       ]);
 
-      console.log("✅ Vendors found:", vendors.length);
-      console.log("📊 Total count with filters:", totalCount);
+      logger.info("✅ Vendors found:", vendors.length);
+      logger.info("📊 Total count with filters:", totalCount);
 
       // Format vendors with super admin actions
       const managementVendors = vendors.map(vendor => ({
@@ -1122,7 +1123,7 @@ export class VendorService {
         },
       };
     } catch (error: any) {
-      console.error("❌ Error getting super admin vendor management dashboard:", error);
+      logger.error("❌ Error getting super admin vendor management dashboard:", error);
       throw new Error(`Error getting super admin vendor management dashboard: ${error.message}`);
     }
   }
@@ -2115,7 +2116,7 @@ export class VendorService {
         user_agent: req?.get("User-Agent"),
       });
     } catch (error) {
-      console.error("Failed to create audit record:", error);
+      logger.error("Failed to create audit record:", error);
       // Don't throw error - audit failure shouldn't break main functionality
     }
   }

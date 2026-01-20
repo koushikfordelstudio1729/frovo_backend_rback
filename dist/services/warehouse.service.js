@@ -43,6 +43,7 @@ const mongoose_2 = require("mongoose");
 const documentUpload_service_1 = require("./documentUpload.service");
 const FieldOpsTask_model_1 = require("../models/FieldOpsTask.model");
 const models_1 = require("../models");
+const logger_util_1 = require("../utils/logger.util");
 class WarehouseService {
     constructor() {
         this.documentUploadService = new documentUpload_service_1.DocumentUploadService();
@@ -166,7 +167,7 @@ class WarehouseService {
             };
         }
         catch (error) {
-            console.error("Error getting filter options:", error);
+            logger_util_1.logger.error("Error getting filter options:", error);
             return {
                 categories: ["Snacks", "Beverages", "Perishable", "Non-Perishable"],
                 partners: ["XYZ Warehouse", "ABC Suppliers", "Global Foods"],
@@ -188,7 +189,7 @@ class WarehouseService {
             };
         }
         catch (error) {
-            console.error("Error getting warehouse info:", error);
+            logger_util_1.logger.error("Error getting warehouse info:", error);
             return {
                 name: "XYZ WAREHOUSE",
                 pendingBatches: 3,
@@ -215,7 +216,7 @@ class WarehouseService {
                 }
             }
             catch (error) {
-                console.error("Error parsing custom date:", error);
+                logger_util_1.logger.error("Error parsing custom date:", error);
                 return {};
             }
         }
@@ -226,7 +227,7 @@ class WarehouseService {
                     $gte: new Date(now.setHours(0, 0, 0, 0)),
                     $lte: new Date(now.setHours(23, 59, 59, 999)),
                 };
-            case "this_week":
+            case "this_week": {
                 const startOfWeek = new Date(now);
                 startOfWeek.setDate(now.getDate() - now.getDay());
                 startOfWeek.setHours(0, 0, 0, 0);
@@ -234,18 +235,20 @@ class WarehouseService {
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 endOfWeek.setHours(23, 59, 59, 999);
                 return { $gte: startOfWeek, $lte: endOfWeek };
-            case "this_month":
+            }
+            case "this_month": {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
                 const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
                 endOfMonth.setHours(23, 59, 59, 999);
                 return { $gte: startOfMonth, $lte: endOfMonth };
+            }
             default:
                 return {};
         }
     }
     async createPurchaseOrder(data, createdBy) {
         try {
-            console.log("📦 Received PO data:", {
+            logger_util_1.logger.info("📦 Received PO data:", {
                 vendor: data.vendor,
                 warehouse: data.warehouse,
                 po_line_items_count: data.po_line_items?.length || 0,
@@ -260,7 +263,7 @@ class WarehouseService {
                 throw new Error("Warehouse ID is required when creating a purchase order");
             }
             const warehouseId = new mongoose_2.Types.ObjectId(data.warehouse);
-            console.log("🏢 Using warehouse ID:", warehouseId);
+            logger_util_1.logger.info("🏢 Using warehouse ID:", warehouseId);
             const warehouseExists = await Warehouse_model_1.Warehouse.findOne({
                 _id: warehouseId,
                 isActive: true,
@@ -290,17 +293,17 @@ class WarehouseService {
                 po_line_items: data.po_line_items || [],
                 createdBy,
             });
-            console.log("✅ PO created with vendor details and warehouse stored in document");
+            logger_util_1.logger.info("✅ PO created with vendor details and warehouse stored in document");
             return purchaseOrder;
         }
         catch (error) {
-            console.error("❌ Error creating PO:", error);
+            logger_util_1.logger.error("❌ Error creating PO:", error);
             throw new Error(`Failed to create purchase order: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
     async createGRN(purchaseOrderId, grnData, createdBy, uploadedFile) {
         try {
-            console.log("📦 Creating GRN for PO:", purchaseOrderId);
+            logger_util_1.logger.info("📦 Creating GRN for PO:", purchaseOrderId);
             if (!mongoose_2.Types.ObjectId.isValid(purchaseOrderId)) {
                 throw new Error("Invalid purchase order ID");
             }
@@ -321,11 +324,11 @@ class WarehouseService {
             const grnNumber = await this.generateGRNNumber();
             let scannedChallanUrl = grnData.scanned_challan;
             if (uploadedFile) {
-                console.log("📤 Uploading scanned challan to Cloudinary...");
+                logger_util_1.logger.info("📤 Uploading scanned challan to Cloudinary...");
                 const documentUploadService = new documentUpload_service_1.DocumentUploadService();
                 const uploadResult = await documentUploadService.uploadToCloudinary(uploadedFile.buffer, uploadedFile.originalname, "frovo/grn_challans");
                 scannedChallanUrl = uploadResult.url;
-                console.log("✅ Scanned challan uploaded:", uploadResult.url);
+                logger_util_1.logger.info("✅ Scanned challan uploaded:", uploadResult.url);
             }
             const grnPayload = {
                 grn_number: grnNumber,
@@ -362,14 +365,14 @@ class WarehouseService {
             };
             const grn = await Warehouse_model_1.GRNnumber.create(grnPayload);
             await Warehouse_model_1.RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, { po_status: "received" });
-            console.log("✅ GRN created successfully:", grn.delivery_challan);
+            logger_util_1.logger.info("✅ GRN created successfully:", grn.delivery_challan);
             const warehouseId = purchaseOrder.warehouse;
             if (!warehouseId) {
-                console.warn("⚠️  Warning: Purchase order does not have warehouse assigned. Skipping inventory creation.");
-                console.warn("   Please add warehouse field to existing POs for inventory tracking.");
+                logger_util_1.logger.warn("⚠️  Warning: Purchase order does not have warehouse assigned. Skipping inventory creation.");
+                logger_util_1.logger.warn("   Please add warehouse field to existing POs for inventory tracking.");
             }
             else {
-                console.log("📦 Adding inventory from GRN to warehouse:", warehouseId);
+                logger_util_1.logger.info("📦 Adding inventory from GRN to warehouse:", warehouseId);
                 for (const item of purchaseOrder.po_line_items) {
                     const quantityData = grnData.quantities?.find((q) => q.sku === item.sku);
                     const existingInventory = await Warehouse_model_1.Inventory.findOne({
@@ -387,7 +390,7 @@ class WarehouseService {
                             }
                         }
                         await Warehouse_model_1.Inventory.findByIdAndUpdate(existingInventory._id, updateData);
-                        console.log(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
+                        logger_util_1.logger.info(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
                     }
                     else {
                         const inventoryData = {
@@ -413,7 +416,7 @@ class WarehouseService {
                             inventoryData.expiryDate = new Date(quantityData.expiry_date);
                         }
                         await Warehouse_model_1.Inventory.create(inventoryData);
-                        console.log(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
+                        logger_util_1.logger.info(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
                     }
                 }
             }
@@ -424,7 +427,7 @@ class WarehouseService {
             return populatedGRN;
         }
         catch (error) {
-            console.error("❌ Error creating GRN:", error);
+            logger_util_1.logger.error("❌ Error creating GRN:", error);
             throw new Error(`Failed to create GRN: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
@@ -464,17 +467,17 @@ class WarehouseService {
                 throw new Error("Cannot delete approved purchase order");
             }
             await Warehouse_model_1.RaisePurchaseOrder.findByIdAndDelete(id);
-            console.log(`✅ Purchase order ${id} deleted successfully`);
+            logger_util_1.logger.info(`✅ Purchase order ${id} deleted successfully`);
         }
         catch (error) {
-            console.error("❌ Error deleting purchase order:", error);
+            logger_util_1.logger.error("❌ Error deleting purchase order:", error);
             throw new Error(`Failed to delete purchase order: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
     async getGRNById(grnId) {
         try {
             if (!mongoose_2.Types.ObjectId.isValid(grnId)) {
-                console.warn("⚠️ Invalid GRN ID format:", grnId);
+                logger_util_1.logger.warn("⚠️ Invalid GRN ID format:", grnId);
                 return null;
             }
             const grn = await Warehouse_model_1.GRNnumber.findById(grnId)
@@ -482,13 +485,13 @@ class WarehouseService {
                 .populate("purchase_order")
                 .populate("createdBy", "name email");
             if (!grn) {
-                console.warn("⚠️ GRN not found with ID:", grnId);
+                logger_util_1.logger.warn("⚠️ GRN not found with ID:", grnId);
                 return null;
             }
             return grn;
         }
         catch (error) {
-            console.error("❌ Error fetching GRN by ID:", error);
+            logger_util_1.logger.error("❌ Error fetching GRN by ID:", error);
             throw new Error(`Failed to fetch GRN: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
@@ -526,11 +529,11 @@ class WarehouseService {
                 .populate("purchase_order")
                 .populate("createdBy", "name email")
                 .sort({ recieved_date: -1, createdAt: -1 });
-            console.log(`✅ Found ${grns.length} GRNs with applied filters`);
+            logger_util_1.logger.info(`✅ Found ${grns.length} GRNs with applied filters`);
             return grns;
         }
         catch (error) {
-            console.error("❌ Error fetching GRNs:", error);
+            logger_util_1.logger.error("❌ Error fetching GRNs:", error);
             throw new Error(`Failed to fetch GRNs: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
@@ -566,11 +569,11 @@ class WarehouseService {
             if (!updatedGRN) {
                 throw new Error("GRN not found");
             }
-            console.log(`✅ GRN ${grnId} status updated to: ${qc_status}`);
+            logger_util_1.logger.info(`✅ GRN ${grnId} status updated to: ${qc_status}`);
             return updatedGRN;
         }
         catch (error) {
-            console.error("❌ Error updating GRN status:", error);
+            logger_util_1.logger.error("❌ Error updating GRN status:", error);
             throw new Error(`Failed to update GRN status: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
@@ -602,11 +605,11 @@ class WarehouseService {
                 .populate("vendor")
                 .populate("purchase_order")
                 .populate("createdBy", "name email");
-            console.log(`✅ GRN ${grnId} line items updated successfully`);
+            logger_util_1.logger.info(`✅ GRN ${grnId} line items updated successfully`);
             return populatedGRN;
         }
         catch (error) {
-            console.error("❌ Error updating GRN line items:", error);
+            logger_util_1.logger.error("❌ Error updating GRN line items:", error);
             throw new Error(`Failed to update GRN line items: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
@@ -1002,11 +1005,12 @@ class WarehouseService {
         if (filters.expiryStatus) {
             const today = new Date();
             switch (filters.expiryStatus) {
-                case "expiring_soon":
+                case "expiring_soon": {
                     const next30Days = new Date(today);
                     next30Days.setDate(today.getDate() + 30);
                     query.expiryDate = { $gte: today, $lte: next30Days };
                     break;
+                }
                 case "expired":
                     query.expiryDate = { $lt: today };
                     break;
@@ -2111,7 +2115,7 @@ class WarehouseService {
             }
         }
         catch (error) {
-            console.error("Error generating alerts:", error);
+            logger_util_1.logger.error("Error generating alerts:", error);
         }
         return alerts;
     }
@@ -2150,7 +2154,7 @@ class WarehouseService {
                 .slice(0, 8);
         }
         catch (error) {
-            console.error("Error getting recent activities:", error);
+            logger_util_1.logger.error("Error getting recent activities:", error);
             return [];
         }
     }
@@ -2305,7 +2309,7 @@ class WarehouseService {
     }
     async getMyWarehouse(managerId) {
         const managerObjectId = typeof managerId === "string" ? new mongoose_2.Types.ObjectId(managerId) : managerId;
-        console.log("🔍 Looking for warehouse with manager ID:", managerObjectId.toString());
+        logger_util_1.logger.info("🔍 Looking for warehouse with manager ID:", managerObjectId.toString());
         const warehouse = await Warehouse_model_1.Warehouse.findOne({
             manager: managerObjectId,
             isActive: true,
@@ -2318,13 +2322,13 @@ class WarehouseService {
                 manager: managerObjectId,
             }).lean();
             if (anyWarehouse) {
-                console.log("⚠️  Warehouse found but isActive:", anyWarehouse.isActive);
+                logger_util_1.logger.info("⚠️  Warehouse found but isActive:", anyWarehouse.isActive);
                 throw new Error("Warehouse assigned to this manager is not active");
             }
-            console.log("❌ No warehouse found for manager ID:", managerObjectId.toString());
+            logger_util_1.logger.info("❌ No warehouse found for manager ID:", managerObjectId.toString());
             throw new Error("No warehouse assigned to this manager");
         }
-        console.log("✅ Warehouse found:", warehouse.code);
+        logger_util_1.logger.info("✅ Warehouse found:", warehouse.code);
         return warehouse;
     }
 }

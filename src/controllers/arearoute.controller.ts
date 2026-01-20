@@ -9,6 +9,7 @@ import {
   AuditLogParams,
 } from "../services/arearoute.service";
 
+import { logger } from "../utils/logger.util";
 export class AreaController {
   /**
    * Helper method to get audit parameters from request
@@ -51,7 +52,7 @@ export class AreaController {
         },
       });
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      logger.error("Error fetching audit logs:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -72,7 +73,7 @@ export class AreaController {
         data: activities,
       });
     } catch (error) {
-      console.error("Error fetching recent activities:", error);
+      logger.error("Error fetching recent activities:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -153,7 +154,7 @@ export class AreaController {
         });
       }
     } catch (error) {
-      console.error("Error exporting area audit logs:", error);
+      logger.error("Error exporting area audit logs:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -223,7 +224,7 @@ export class AreaController {
         });
       }
     } catch (error) {
-      console.error("Error exporting recent audit activities:", error);
+      logger.error("Error exporting recent audit activities:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -316,7 +317,7 @@ export class AreaController {
 
       return csv;
     } catch (error) {
-      console.error("Error converting audit logs to CSV:", error);
+      logger.error("Error converting audit logs to CSV:", error);
       return "Error generating audit log CSV";
     }
   }
@@ -412,7 +413,7 @@ export class AreaController {
 
       return csv;
     } catch (error) {
-      console.error("Error converting activities to CSV:", error);
+      logger.error("Error converting activities to CSV:", error);
       return "Error generating activities CSV";
     }
   }
@@ -453,7 +454,7 @@ export class AreaController {
         data: newArea,
       });
     } catch (error) {
-      console.error("Error creating area route:", error);
+      logger.error("Error creating area route:", error);
 
       const statusCode = error.message.includes("already exists")
         ? 409
@@ -492,7 +493,7 @@ export class AreaController {
         pagination: result.pagination,
       });
     } catch (error) {
-      console.error("Error fetching area routes:", error);
+      logger.error("Error fetching area routes:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -522,7 +523,7 @@ export class AreaController {
         data: areaRoute,
       });
     } catch (error) {
-      console.error("Error fetching area route:", error);
+      logger.error("Error fetching area route:", error);
 
       const statusCode = error.message.includes("Invalid MongoDB ObjectId") ? 400 : 500;
 
@@ -558,7 +559,7 @@ export class AreaController {
         data: updatedAreaRoute,
       });
     } catch (error) {
-      console.error("Error updating area route:", error);
+      logger.error("Error updating area route:", error);
 
       const statusCode = error.message.includes("already exists")
         ? 409
@@ -614,7 +615,7 @@ export class AreaController {
         data: updatedArea,
       });
     } catch (error) {
-      console.error("Error adding sub-location:", error);
+      logger.error("Error adding sub-location:", error);
 
       const statusCode = error.message.includes("already exists")
         ? 409
@@ -655,7 +656,7 @@ export class AreaController {
         data: deletedAreaRoute,
       });
     } catch (error) {
-      console.error("Error deleting area route:", error);
+      logger.error("Error deleting area route:", error);
 
       const statusCode = error.message.includes("Invalid MongoDB ObjectId") ? 400 : 500;
 
@@ -690,7 +691,7 @@ export class AreaController {
         data: updatedAreaRoute,
       });
     } catch (error) {
-      console.error("Error toggling area status:", error);
+      logger.error("Error toggling area status:", error);
       res.status(400).json({
         success: false,
         message: error.message || "Invalid area ID",
@@ -710,7 +711,7 @@ export class AreaController {
         data: filterOptions,
       });
     } catch (error) {
-      console.error("Error fetching filter options:", error);
+      logger.error("Error fetching filter options:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -740,7 +741,7 @@ export class AreaController {
         data: { exists },
       });
     } catch (error) {
-      console.error("Error checking area existence:", error);
+      logger.error("Error checking area existence:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -779,7 +780,7 @@ export class AreaController {
         });
       }
     } catch (error) {
-      console.error("Error exporting areas:", error);
+      logger.error("Error exporting areas:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -813,7 +814,7 @@ export class AreaController {
         data: dashboardData,
       });
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      logger.error("Error fetching dashboard data:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -853,7 +854,7 @@ export class AreaController {
         },
       });
     } catch (error) {
-      console.error("Error fetching dashboard table:", error);
+      logger.error("Error fetching dashboard table:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -899,7 +900,7 @@ export class AreaController {
         });
       }
     } catch (error) {
-      console.error("Error exporting dashboard data:", error);
+      logger.error("Error exporting dashboard data:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -957,7 +958,7 @@ export class AreaController {
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.status(200).send(csv);
     } catch (error) {
-      console.error("Error exporting areas by IDs:", error);
+      logger.error("Error exporting areas by IDs:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -1098,7 +1099,7 @@ export class AreaController {
 
       return csv;
     } catch (error) {
-      console.error("Error generating CSV:", error);
+      logger.error("Error generating CSV:", error);
       return "Error generating CSV data";
     }
   }

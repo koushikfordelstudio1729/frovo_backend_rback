@@ -4,6 +4,7 @@ exports.authService = void 0;
 const models_1 = require("../models");
 const jwt_util_1 = require("../utils/jwt.util");
 const email_service_1 = require("./email.service");
+const logger_util_1 = require("../utils/logger.util");
 class AuthService {
     async register(userData, createdBy, deviceInfo) {
         const existingUserCount = await models_1.User.countDocuments();
@@ -45,7 +46,7 @@ class AuthService {
             await email_service_1.emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
         }
         catch (emailError) {
-            console.error("Failed to send welcome email:", emailError);
+            logger_util_1.logger.error("Failed to send welcome email:", emailError);
         }
         const userResponse = user.toObject();
         const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;

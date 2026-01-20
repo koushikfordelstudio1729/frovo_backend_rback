@@ -3,6 +3,7 @@ import { HistoryCatalogue, IHistoryCatalogue } from "../models/HistoryCatalogue.
 
 import mongoose from "mongoose";
 
+import { logger } from "../utils/logger.util";
 // History Catalogue Service
 export class HistoryCatalogueService {
   /**
@@ -126,9 +127,9 @@ export class HistoryCatalogueService {
       });
 
       await auditLog.save();
-      console.log(`✅ Audit log created: CREATE ${entityType} by ${userDetails.user_email}`);
+      logger.info(`✅ Audit log created: CREATE ${entityType} by ${userDetails.user_email}`);
     } catch (error) {
-      console.error("❌ Failed to create audit log:", error);
+      logger.error("❌ Failed to create audit log:", error);
     }
   }
 
@@ -167,9 +168,9 @@ export class HistoryCatalogueService {
       });
 
       await auditLog.save();
-      console.log(`✅ Audit log created: UPDATE ${entityType} by ${userDetails.user_email}`);
+      logger.info(`✅ Audit log created: UPDATE ${entityType} by ${userDetails.user_email}`);
     } catch (error) {
-      console.error("❌ Failed to create audit log:", error);
+      logger.error("❌ Failed to create audit log:", error);
     }
   }
 
@@ -204,9 +205,9 @@ export class HistoryCatalogueService {
       });
 
       await auditLog.save();
-      console.log(`✅ Audit log created: DELETE ${entityType} by ${userDetails.user_email}`);
+      logger.info(`✅ Audit log created: DELETE ${entityType} by ${userDetails.user_email}`);
     } catch (error) {
-      console.error("❌ Failed to create audit log:", error);
+      logger.error("❌ Failed to create audit log:", error);
     }
   }
 
@@ -236,9 +237,9 @@ export class HistoryCatalogueService {
       });
 
       await auditLog.save();
-      console.log(`✅ Audit log created: VIEW ${entityType} by ${userDetails.user_email}`);
+      logger.info(`✅ Audit log created: VIEW ${entityType} by ${userDetails.user_email}`);
     } catch (error) {
-      console.error("❌ Failed to create audit log:", error);
+      logger.error("❌ Failed to create audit log:", error);
     }
   }
 
@@ -272,7 +273,7 @@ export class HistoryCatalogueService {
 
       return logs as unknown as IHistoryCatalogue[];
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      logger.error("Error fetching audit logs:", error);
       throw error;
     }
   }
@@ -318,7 +319,7 @@ export class HistoryCatalogueService {
 
       return logs as unknown as IHistoryCatalogue[];
     } catch (error) {
-      console.error("Error fetching user history logs:", error);
+      logger.error("Error fetching user history logs:", error);
       throw error;
     }
   }
@@ -363,7 +364,7 @@ export class HistoryCatalogueService {
 
       return { logs: logs as unknown as IHistoryCatalogue[], total };
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      logger.error("Error fetching audit logs:", error);
       throw error;
     }
   }
@@ -423,7 +424,7 @@ export class HistoryCatalogueService {
         success_rate: totalOps > 0 ? (successCount / totalOps) * 100 : 0,
       };
     } catch (error) {
-      console.error("Error calculating audit statistics:", error);
+      logger.error("Error calculating audit statistics:", error);
       throw error;
     }
   }

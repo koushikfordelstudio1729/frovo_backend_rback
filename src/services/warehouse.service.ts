@@ -26,6 +26,7 @@ import { DocumentUploadService } from "./documentUpload.service";
 import { FieldOpsTask } from "../models/FieldOpsTask.model";
 import { User, Role } from "../models";
 
+import { logger } from "../utils/logger.util";
 // Interfaces
 export interface InventoryStats {
   totalItems: number;
@@ -411,7 +412,7 @@ class WarehouseService {
             : ["XYZ Warehouse", "ABC Suppliers", "Global Foods"],
       };
     } catch (error) {
-      console.error("Error getting filter options:", error);
+      logger.error("Error getting filter options:", error);
       return {
         categories: ["Snacks", "Beverages", "Perishable", "Non-Perishable"],
         partners: ["XYZ Warehouse", "ABC Suppliers", "Global Foods"],
@@ -437,7 +438,7 @@ class WarehouseService {
         pendingBatches,
       };
     } catch (error) {
-      console.error("Error getting warehouse info:", error);
+      logger.error("Error getting warehouse info:", error);
       return {
         name: "XYZ WAREHOUSE",
         pendingBatches: 3,
@@ -467,7 +468,7 @@ class WarehouseService {
           return { $gte: startOfDay, $lte: endOfDay };
         }
       } catch (error) {
-        console.error("Error parsing custom date:", error);
+        logger.error("Error parsing custom date:", error);
         return {};
       }
     }
@@ -505,7 +506,7 @@ class WarehouseService {
     createdBy: Types.ObjectId
   ): Promise<IRaisePurchaseOrder> {
     try {
-      console.log("📦 Received PO data:", {
+      logger.info("📦 Received PO data:", {
         vendor: data.vendor,
         warehouse: data.warehouse,
         po_line_items_count: data.po_line_items?.length || 0,
@@ -525,7 +526,7 @@ class WarehouseService {
       }
 
       const warehouseId = new Types.ObjectId(data.warehouse);
-      console.log("🏢 Using warehouse ID:", warehouseId);
+      logger.info("🏢 Using warehouse ID:", warehouseId);
 
       // Verify warehouse exists and is active
       const warehouseExists = await Warehouse.findOne({
@@ -563,10 +564,10 @@ class WarehouseService {
         createdBy,
       });
 
-      console.log("✅ PO created with vendor details and warehouse stored in document");
+      logger.info("✅ PO created with vendor details and warehouse stored in document");
       return purchaseOrder;
     } catch (error) {
-      console.error("❌ Error creating PO:", error);
+      logger.error("❌ Error creating PO:", error);
       throw new Error(
         `Failed to create purchase order: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -580,7 +581,7 @@ class WarehouseService {
     uploadedFile?: Express.Multer.File
   ): Promise<IGRNnumber> {
     try {
-      console.log("📦 Creating GRN for PO:", purchaseOrderId);
+      logger.info("📦 Creating GRN for PO:", purchaseOrderId);
 
       // Validate ObjectId
       if (!Types.ObjectId.isValid(purchaseOrderId)) {
@@ -617,7 +618,7 @@ class WarehouseService {
       // Handle scanned challan upload
       let scannedChallanUrl = grnData.scanned_challan;
       if (uploadedFile) {
-        console.log("📤 Uploading scanned challan to Cloudinary...");
+        logger.info("📤 Uploading scanned challan to Cloudinary...");
         const documentUploadService = new DocumentUploadService();
         const uploadResult = await documentUploadService.uploadToCloudinary(
           uploadedFile.buffer,
@@ -625,7 +626,7 @@ class WarehouseService {
           "frovo/grn_challans"
         );
         scannedChallanUrl = uploadResult.url;
-        console.log("✅ Scanned challan uploaded:", uploadResult.url);
+        logger.info("✅ Scanned challan uploaded:", uploadResult.url);
       }
 
       // Create GRN with proper structure
@@ -675,19 +676,19 @@ class WarehouseService {
       // Update purchase order status to 'received'
       await RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, { po_status: "received" });
 
-      console.log("✅ GRN created successfully:", grn.delivery_challan);
+      logger.info("✅ GRN created successfully:", grn.delivery_challan);
 
       // Get warehouse ID from purchase order
       const warehouseId = purchaseOrder.warehouse;
 
       if (!warehouseId) {
-        console.warn(
+        logger.warn(
           "⚠️  Warning: Purchase order does not have warehouse assigned. Skipping inventory creation."
         );
-        console.warn("   Please add warehouse field to existing POs for inventory tracking.");
+        logger.warn("   Please add warehouse field to existing POs for inventory tracking.");
       } else {
         // Add inventory for each line item
-        console.log("📦 Adding inventory from GRN to warehouse:", warehouseId);
+        logger.info("📦 Adding inventory from GRN to warehouse:", warehouseId);
         for (const item of purchaseOrder.po_line_items) {
           // Find matching quantity data to get expiry date
           const quantityData = grnData.quantities?.find((q: any) => q.sku === item.sku);
@@ -712,7 +713,7 @@ class WarehouseService {
             }
 
             await Inventory.findByIdAndUpdate(existingInventory._id, updateData);
-            console.log(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
+            logger.info(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
           } else {
             // Create new inventory
             const inventoryData: any = {
@@ -741,7 +742,7 @@ class WarehouseService {
             }
 
             await Inventory.create(inventoryData);
-            console.log(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
+            logger.info(`  ✅ Created inventory for ${item.sku}: ${item.quantity} units`);
           }
         }
       }
@@ -754,7 +755,7 @@ class WarehouseService {
 
       return populatedGRN as IGRNnumber;
     } catch (error) {
-      console.error("❌ Error creating GRN:", error);
+      logger.error("❌ Error creating GRN:", error);
       throw new Error(
         `Failed to create GRN: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -814,9 +815,9 @@ class WarehouseService {
 
       await RaisePurchaseOrder.findByIdAndDelete(id);
 
-      console.log(`✅ Purchase order ${id} deleted successfully`);
+      logger.info(`✅ Purchase order ${id} deleted successfully`);
     } catch (error) {
-      console.error("❌ Error deleting purchase order:", error);
+      logger.error("❌ Error deleting purchase order:", error);
       throw new Error(
         `Failed to delete purchase order: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -825,7 +826,7 @@ class WarehouseService {
   async getGRNById(grnId: string): Promise<IGRNnumber | null> {
     try {
       if (!Types.ObjectId.isValid(grnId)) {
-        console.warn("⚠️ Invalid GRN ID format:", grnId);
+        logger.warn("⚠️ Invalid GRN ID format:", grnId);
         return null;
       }
 
@@ -835,13 +836,13 @@ class WarehouseService {
         .populate("createdBy", "name email");
 
       if (!grn) {
-        console.warn("⚠️ GRN not found with ID:", grnId);
+        logger.warn("⚠️ GRN not found with ID:", grnId);
         return null;
       }
 
       return grn;
     } catch (error) {
-      console.error("❌ Error fetching GRN by ID:", error);
+      logger.error("❌ Error fetching GRN by ID:", error);
       throw new Error(
         `Failed to fetch GRN: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -902,10 +903,10 @@ class WarehouseService {
         .populate("createdBy", "name email")
         .sort({ recieved_date: -1, createdAt: -1 });
 
-      console.log(`✅ Found ${grns.length} GRNs with applied filters`);
+      logger.info(`✅ Found ${grns.length} GRNs with applied filters`);
       return grns;
     } catch (error) {
-      console.error("❌ Error fetching GRNs:", error);
+      logger.error("❌ Error fetching GRNs:", error);
       throw new Error(
         `Failed to fetch GRNs: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -964,10 +965,10 @@ class WarehouseService {
         throw new Error("GRN not found");
       }
 
-      console.log(`✅ GRN ${grnId} status updated to: ${qc_status}`);
+      logger.info(`✅ GRN ${grnId} status updated to: ${qc_status}`);
       return updatedGRN;
     } catch (error) {
-      console.error("❌ Error updating GRN status:", error);
+      logger.error("❌ Error updating GRN status:", error);
       throw new Error(
         `Failed to update GRN status: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -1024,10 +1025,10 @@ class WarehouseService {
         .populate("purchase_order")
         .populate("createdBy", "name email");
 
-      console.log(`✅ GRN ${grnId} line items updated successfully`);
+      logger.info(`✅ GRN ${grnId} line items updated successfully`);
       return populatedGRN as IGRNnumber;
     } catch (error) {
-      console.error("❌ Error updating GRN line items:", error);
+      logger.error("❌ Error updating GRN line items:", error);
       throw new Error(
         `Failed to update GRN line items: ${error instanceof Error ? error.message : "Unknown error"}`
       );
@@ -2997,7 +2998,7 @@ class WarehouseService {
         });
       }
     } catch (error) {
-      console.error("Error generating alerts:", error);
+      logger.error("Error generating alerts:", error);
     }
 
     return alerts;
@@ -3041,7 +3042,7 @@ class WarehouseService {
         .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 8);
     } catch (error) {
-      console.error("Error getting recent activities:", error);
+      logger.error("Error getting recent activities:", error);
       return [];
     }
   }
@@ -3306,7 +3307,7 @@ class WarehouseService {
     const managerObjectId =
       typeof managerId === "string" ? new Types.ObjectId(managerId) : managerId;
 
-    console.log("🔍 Looking for warehouse with manager ID:", managerObjectId.toString());
+    logger.info("🔍 Looking for warehouse with manager ID:", managerObjectId.toString());
 
     const warehouse = await Warehouse.findOne({
       manager: managerObjectId,
@@ -3323,15 +3324,15 @@ class WarehouseService {
       }).lean();
 
       if (anyWarehouse) {
-        console.log("⚠️  Warehouse found but isActive:", (anyWarehouse as any).isActive);
+        logger.info("⚠️  Warehouse found but isActive:", (anyWarehouse as any).isActive);
         throw new Error("Warehouse assigned to this manager is not active");
       }
 
-      console.log("❌ No warehouse found for manager ID:", managerObjectId.toString());
+      logger.info("❌ No warehouse found for manager ID:", managerObjectId.toString());
       throw new Error("No warehouse assigned to this manager");
     }
 
-    console.log("✅ Warehouse found:", (warehouse as any).code);
+    logger.info("✅ Warehouse found:", (warehouse as any).code);
     return warehouse;
   }
 }

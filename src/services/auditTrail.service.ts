@@ -2,6 +2,7 @@
 import { AuditTrail } from "../models/AuditTrail.model";
 import { Types } from "mongoose";
 
+import { logger } from "../utils/logger.util";
 export class AuditTrailService {
   /**
    * Create audit record for vendor or company operations
@@ -55,7 +56,7 @@ export class AuditTrailService {
 
       return await auditRecord.save();
     } catch (error) {
-      console.error("Error creating audit record:", error);
+      logger.error("Error creating audit record:", error);
       throw error;
     }
   }

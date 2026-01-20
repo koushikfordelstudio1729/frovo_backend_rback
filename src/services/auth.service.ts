@@ -3,6 +3,7 @@ import { generateTokenPair, verifyRefreshToken } from "../utils/jwt.util";
 import { Types } from "mongoose";
 import { emailService } from "./email.service";
 
+import { logger } from "../utils/logger.util";
 export interface AuthResponse {
   user: Partial<IUser>;
   accessToken: string;
@@ -104,7 +105,7 @@ class AuthService {
       await emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
     } catch (emailError) {
       // Log email error but don't fail registration
-      console.error("Failed to send welcome email:", emailError);
+      logger.error("Failed to send welcome email:", emailError);
     }
 
     // Return user without sensitive data

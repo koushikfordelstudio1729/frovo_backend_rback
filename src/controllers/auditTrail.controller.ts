@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AuditTrailService } from "../services/auditTrail.service";
 
+import { logger } from "../utils/logger.util";
 const auditTrailService = new AuditTrailService();
 
 export class AuditTrailController {
@@ -57,7 +58,7 @@ export class AuditTrailController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching audit trails:", error);
+      logger.error("Error fetching audit trails:", error);
       res.status(400).json({
         success: false,
         message: error.message,
@@ -92,7 +93,7 @@ export class AuditTrailController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching vendor audit trails:", error);
+      logger.error("Error fetching vendor audit trails:", error);
       res.status(400).json({
         success: false,
         message: error.message,
@@ -127,7 +128,7 @@ export class AuditTrailController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching company audit trails:", error);
+      logger.error("Error fetching company audit trails:", error);
       res.status(400).json({
         success: false,
         message: error.message,
@@ -162,7 +163,7 @@ export class AuditTrailController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching user activity:", error);
+      logger.error("Error fetching user activity:", error);
       res.status(400).json({
         success: false,
         message: error.message,
@@ -193,7 +194,7 @@ export class AuditTrailController {
         data: statistics,
       });
     } catch (error: any) {
-      console.error("Error fetching audit statistics:", error);
+      logger.error("Error fetching audit statistics:", error);
       res.status(400).json({
         success: false,
         message: error.message,
@@ -224,7 +225,7 @@ export class AuditTrailController {
         data: summary,
       });
     } catch (error: any) {
-      console.error("Error fetching audit summary:", error);
+      logger.error("Error fetching audit summary:", error);
       res.status(400).json({
         success: false,
         message: error.message,

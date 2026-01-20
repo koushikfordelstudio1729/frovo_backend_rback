@@ -16,6 +16,7 @@ import {
   ISubCategoryImageData,
 } from "../models/Catalogue.model";
 
+import { logger } from "../utils/logger.util";
 export interface IImageMetadata {
   image_name: string;
   file_url: string;
@@ -59,7 +60,7 @@ export class ImageUploadService {
         publicId: result.publicId,
       };
     } catch (error: any) {
-      console.error(`Upload failed (${this.storage.providerName}):`, error);
+      logger.error(`Upload failed (${this.storage.providerName}):`, error);
       throw new Error(`Failed to upload file: ${error.message}`);
     }
   }

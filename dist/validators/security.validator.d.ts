@@ -43,7 +43,6 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
         maxLoginAttempts: z.ZodOptional<z.ZodNumber>;
         lockoutDuration: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -60,10 +59,10 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     }, {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -80,10 +79,10 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     }>, {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -100,10 +99,10 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     }, {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -120,12 +119,12 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     }>;
 }, "strip", z.ZodTypeAny, {
     body?: {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -142,12 +141,12 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     };
 }, {
     body?: {
-        sessionTimeout?: number;
         mfaEnforced?: boolean;
         ipAllowlist?: string[];
         ssoEnabled?: boolean;
@@ -164,6 +163,7 @@ export declare const updateSecurityConfigSchema: z.ZodObject<{
             requireSpecialChars?: boolean;
             expiryDays?: number;
         };
+        sessionTimeout?: number;
         maxLoginAttempts?: number;
         lockoutDuration?: number;
     };

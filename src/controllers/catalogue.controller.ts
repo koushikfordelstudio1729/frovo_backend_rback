@@ -22,6 +22,7 @@ import {
 import { Types } from "mongoose";
 import { ImageUploadService } from "../services/catalogueFileUpload.service";
 
+import { logger } from "../utils/logger.util";
 const imageUploadService = new ImageUploadService();
 
 // Base controller class with common functionality
@@ -160,7 +161,7 @@ export class CatalogueController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error creating product:", error);
+      logger.error("Error creating product:", error);
 
       const errorMessages: Record<string, number> = {
         "Product with this SKU already exists": 409,
@@ -244,7 +245,7 @@ export class CatalogueController extends BaseController {
         data: catalogueResponse,
       });
     } catch (error: any) {
-      console.error("Error fetching product:", error);
+      logger.error("Error fetching product:", error);
 
       const statusCode = error.message.includes("Invalid product ID") ? 400 : 500;
       res.status(statusCode).json({
@@ -340,7 +341,7 @@ export class CatalogueController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating product:", error);
+      logger.error("Error updating product:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid product ID")) {
@@ -378,7 +379,7 @@ export class CatalogueController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error deleting product:", error);
+      logger.error("Error deleting product:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid product ID")) {
@@ -405,7 +406,7 @@ export class CatalogueController extends BaseController {
         data: dashboardData,
       });
     } catch (error: any) {
-      console.error("Error fetching dashboard data:", error);
+      logger.error("Error fetching dashboard data:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch dashboard data",
@@ -429,7 +430,7 @@ export class CatalogueController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching filter options:", error);
+      logger.error("Error fetching filter options:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch filter options",
@@ -449,7 +450,7 @@ export class CatalogueController extends BaseController {
         data: cataloguesData,
       });
     } catch (error: any) {
-      console.error("Error fetching all catalogues:", error);
+      logger.error("Error fetching all catalogues:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch catalogues",
@@ -516,7 +517,7 @@ export class CatalogueController extends BaseController {
         data: uploadedImages,
       });
     } catch (error: any) {
-      console.error("Error uploading product images:", error);
+      logger.error("Error uploading product images:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Failed to upload images",
@@ -543,7 +544,7 @@ export class CatalogueController extends BaseController {
         message: "Image deleted successfully",
       });
     } catch (error: any) {
-      console.error("Error deleting image:", error);
+      logger.error("Error deleting image:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Failed to delete image",
@@ -608,7 +609,7 @@ export class CatalogueController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating product status:", error);
+      logger.error("Error updating product status:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid product ID")) {
@@ -651,7 +652,7 @@ export class CatalogueController extends BaseController {
       res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.csv");
       res.status(200).send(csv);
     } catch (error: any) {
-      console.error("Error exporting dashboard CSV:", error);
+      logger.error("Error exporting dashboard CSV:", error);
       res.status(500).json({
         success: false,
         message: "Failed to export dashboard data",
@@ -673,7 +674,7 @@ export class CatalogueController extends BaseController {
       res.setHeader("Content-Disposition", "attachment; filename=all-catalogues.csv");
       res.status(200).send(csv);
     } catch (error: any) {
-      console.error("Error exporting all catalogues CSV:", error);
+      logger.error("Error exporting all catalogues CSV:", error);
       res.status(500).json({
         success: false,
         message: "Failed to export catalogues",
@@ -792,7 +793,7 @@ export class CategoryController extends BaseController {
 
         categoryImagesData = await Promise.all(uploadPromises);
 
-        console.log(`Uploaded ${categoryImagesData.length} category images`);
+        logger.info(`Uploaded ${categoryImagesData.length} category images`);
       }
 
       // Extract data from request
@@ -832,7 +833,7 @@ export class CategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error creating category:", error);
+      logger.error("Error creating category:", error);
 
       let statusCode = 500;
       if (error.message.includes("already exists")) {
@@ -905,7 +906,7 @@ export class CategoryController extends BaseController {
         data: categoryResponse,
       });
     } catch (error: any) {
-      console.error("Error fetching category:", error);
+      logger.error("Error fetching category:", error);
 
       const statusCode = error.message.includes("Invalid category ID") ? 400 : 500;
       res.status(statusCode).json({
@@ -936,7 +937,7 @@ export class CategoryController extends BaseController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching all categories:", error);
+      logger.error("Error fetching all categories:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch categories",
@@ -979,7 +980,7 @@ export class CategoryController extends BaseController {
           }
         }
 
-        console.log(`Uploaded ${newCategoryImages.length} new category images`);
+        logger.info(`Uploaded ${newCategoryImages.length} new category images`);
       }
 
       // Update category
@@ -1024,7 +1025,7 @@ export class CategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating category:", error);
+      logger.error("Error updating category:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid category ID")) {
@@ -1098,7 +1099,7 @@ export class CategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating category status:", error);
+      logger.error("Error updating category status:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid category ID")) {
@@ -1138,7 +1139,7 @@ export class CategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error deleting category:", error);
+      logger.error("Error deleting category:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid category ID")) {
@@ -1168,7 +1169,7 @@ export class CategoryController extends BaseController {
         data: stats,
       });
     } catch (error: any) {
-      console.error("Error fetching category dashboard stats:", error);
+      logger.error("Error fetching category dashboard stats:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch category dashboard statistics",
@@ -1203,7 +1204,7 @@ export class CategoryController extends BaseController {
         data: imageData,
       });
     } catch (error: any) {
-      console.error("Error uploading category image:", error);
+      logger.error("Error uploading category image:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Failed to upload category image",
@@ -1274,7 +1275,7 @@ export class CategoryController extends BaseController {
       res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
       res.status(200).send(csv);
     } catch (error: any) {
-      console.error("Error exporting category with sub-categories CSV:", error);
+      logger.error("Error exporting category with sub-categories CSV:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid category ID")) {
@@ -1398,7 +1399,7 @@ export class CategoryController extends BaseController {
       res.setHeader("Content-Disposition", "attachment; filename=all-categories.csv");
       res.status(200).send(csv);
     } catch (error: any) {
-      console.error("Error exporting all categories CSV:", error);
+      logger.error("Error exporting all categories CSV:", error);
       res.status(500).json({
         success: false,
         message: "Failed to export categories",
@@ -1480,7 +1481,7 @@ export class SubCategoryController extends BaseController {
 
         subCategoryImagesData = await Promise.all(uploadPromises);
 
-        console.log(`Uploaded ${subCategoryImagesData.length} sub-category images`);
+        logger.info(`Uploaded ${subCategoryImagesData.length} sub-category images`);
       }
 
       // Extract data from request
@@ -1525,7 +1526,7 @@ export class SubCategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error creating sub-category:", error);
+      logger.error("Error creating sub-category:", error);
 
       let statusCode = 500;
       if (error.message.includes("already exists")) {
@@ -1592,7 +1593,7 @@ export class SubCategoryController extends BaseController {
         data: subCategoryResponse,
       });
     } catch (error: any) {
-      console.error("Error fetching sub-category:", error);
+      logger.error("Error fetching sub-category:", error);
 
       const statusCode = error.message.includes("Invalid sub-category ID") ? 400 : 500;
       res.status(statusCode).json({
@@ -1653,7 +1654,7 @@ export class SubCategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching sub-categories by category:", error);
+      logger.error("Error fetching sub-categories by category:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch sub-categories",
@@ -1684,7 +1685,7 @@ export class SubCategoryController extends BaseController {
         data: result,
       });
     } catch (error: any) {
-      console.error("Error fetching all sub-categories:", error);
+      logger.error("Error fetching all sub-categories:", error);
       res.status(500).json({
         success: false,
         message: "Failed to fetch sub-categories",
@@ -1727,7 +1728,7 @@ export class SubCategoryController extends BaseController {
           }
         }
 
-        console.log(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
+        logger.info(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
       }
 
       // Update sub-category
@@ -1770,7 +1771,7 @@ export class SubCategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating sub-category:", error);
+      logger.error("Error updating sub-category:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid sub-category ID")) {
@@ -1842,7 +1843,7 @@ export class SubCategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error updating sub-category status:", error);
+      logger.error("Error updating sub-category status:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid sub-category ID")) {
@@ -1881,7 +1882,7 @@ export class SubCategoryController extends BaseController {
         },
       });
     } catch (error: any) {
-      console.error("Error deleting sub-category:", error);
+      logger.error("Error deleting sub-category:", error);
 
       let statusCode = 500;
       if (error.message.includes("Invalid sub-category ID")) {
@@ -1926,7 +1927,7 @@ export class SubCategoryController extends BaseController {
         data: imageData,
       });
     } catch (error: any) {
-      console.error("Error uploading sub-category image:", error);
+      logger.error("Error uploading sub-category image:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Failed to upload sub-category image",
@@ -1953,7 +1954,7 @@ export class SubCategoryController extends BaseController {
       res.setHeader("Content-Disposition", "attachment; filename=all-subcategories.csv");
       res.status(200).send(csv);
     } catch (error: any) {
-      console.error("Error exporting all sub-categories CSV:", error);
+      logger.error("Error exporting all sub-categories CSV:", error);
       res.status(500).json({
         success: false,
         message: "Failed to export sub-categories",

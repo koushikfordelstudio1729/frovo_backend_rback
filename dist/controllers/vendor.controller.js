@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VendorController = void 0;
 const vendor_service_1 = require("../services/vendor.service");
 const auditTrail_service_1 = require("../services/auditTrail.service");
+const logger_util_1 = require("../utils/logger.util");
 const vendorService = new vendor_service_1.VendorService();
 const auditTrailService = new auditTrail_service_1.AuditTrailService();
 class VendorController {
@@ -55,7 +56,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error creating company:", error);
+            logger_util_1.logger.error("Error creating company:", error);
             if (error instanceof Error) {
                 if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
                     res.status(409).json({
@@ -97,7 +98,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching companies:", error);
+            logger_util_1.logger.error("Error fetching companies:", error);
             res.status(500).json({
                 success: false,
                 message: "Internal server error",
@@ -116,7 +117,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching company:", error);
+            logger_util_1.logger.error("Error fetching company:", error);
             if (error instanceof Error) {
                 if (error.message.includes("Invalid") || error.message.includes("not found")) {
                     res.status(404).json({
@@ -165,7 +166,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error updating company:", error);
+            logger_util_1.logger.error("Error updating company:", error);
             if (error instanceof Error) {
                 if (error.message.includes("Invalid") || error.message.includes("not found")) {
                     res.status(404).json({
@@ -209,7 +210,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error deleting company:", error);
+            logger_util_1.logger.error("Error deleting company:", error);
             if (error instanceof Error) {
                 if (error.message.includes("Invalid") || error.message.includes("not found")) {
                     res.status(404).json({
@@ -244,7 +245,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error searching companies:", error);
+            logger_util_1.logger.error("Error searching companies:", error);
             if (error instanceof Error) {
                 if (error.message.includes("required")) {
                     res.status(400).json({
@@ -272,7 +273,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error checking company existence:", error);
+            logger_util_1.logger.error("Error checking company existence:", error);
             res.status(500).json({
                 success: false,
                 message: "Internal server error",
@@ -282,9 +283,9 @@ class VendorController {
     }
     async getCommonDashboard(req, res) {
         try {
-            console.log("📊 Common Dashboard endpoint called");
+            logger_util_1.logger.info("📊 Common Dashboard endpoint called");
             const { roles } = VendorController.getLoggedInUser(req);
-            console.log("👥 User Roles:", roles.map(r => r.key));
+            logger_util_1.logger.info("👥 User Roles:", roles.map(r => r.key));
             if (!roles.some(role => ["super_admin", "vendor_admin"].includes(role.key))) {
                 return res.status(403).json({
                     success: false,
@@ -300,9 +301,9 @@ class VendorController {
                 page: parseInt(req.query.page) || 1,
                 limit: parseInt(req.query.limit) || 10,
             };
-            console.log("🔍 Filters:", filters);
+            logger_util_1.logger.info("🔍 Filters:", filters);
             const dashboardData = await vendorService.getCommonDashboard(filters);
-            console.log("✅ Common dashboard data retrieved:", {
+            logger_util_1.logger.info("✅ Common dashboard data retrieved:", {
                 total_companies: dashboardData.total_companies,
                 total_vendors: dashboardData.total_vendors,
                 companies_count: dashboardData.companies?.length || 0,
@@ -315,7 +316,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("❌ Error fetching common dashboard:", error);
+            logger_util_1.logger.error("❌ Error fetching common dashboard:", error);
             res.status(400).json({
                 success: false,
                 message: error.message,
@@ -324,9 +325,9 @@ class VendorController {
     }
     async getSuperAdminVendorManagement(req, res) {
         try {
-            console.log("👑 Super Admin Vendor Management Dashboard endpoint called");
+            logger_util_1.logger.info("👑 Super Admin Vendor Management Dashboard endpoint called");
             const { roles } = VendorController.getLoggedInUser(req);
-            console.log("👥 User Roles:", roles.map(r => r.key));
+            logger_util_1.logger.info("👥 User Roles:", roles.map(r => r.key));
             if (!roles.some(role => role.key === "super_admin")) {
                 return res.status(403).json({
                     success: false,
@@ -341,9 +342,9 @@ class VendorController {
                 page: parseInt(req.query.page) || 1,
                 limit: parseInt(req.query.limit) || 10,
             };
-            console.log("🔍 Filters:", filters);
+            logger_util_1.logger.info("🔍 Filters:", filters);
             const dashboardData = await vendorService.getSuperAdminVendorManagementDashboard(filters);
-            console.log("✅ Super admin vendor management data retrieved:", {
+            logger_util_1.logger.info("✅ Super admin vendor management data retrieved:", {
                 total_vendors: dashboardData.total_vendors,
                 pending_approvals: dashboardData.pending_approvals,
                 vendors_count: dashboardData.vendors?.length || 0,
@@ -355,7 +356,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("❌ Error fetching super admin vendor management dashboard:", error);
+            logger_util_1.logger.error("❌ Error fetching super admin vendor management dashboard:", error);
             res.status(400).json({
                 success: false,
                 message: error.message,
@@ -457,7 +458,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error creating vendor:", error);
+            logger_util_1.logger.error("Error creating vendor:", error);
             if (error.message.includes("already exists")) {
                 return res.status(409).json({
                     success: false,
@@ -532,7 +533,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching vendors by company:", error);
+            logger_util_1.logger.error("Error fetching vendors by company:", error);
             if (error instanceof Error) {
                 if (error.message.includes("Company not found")) {
                     res.status(404).json({
@@ -560,7 +561,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching company with vendor stats:", error);
+            logger_util_1.logger.error("Error fetching company with vendor stats:", error);
             if (error instanceof Error) {
                 if (error.message.includes("Company not found")) {
                     res.status(404).json({
@@ -632,7 +633,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching vendor profile:", error);
+            logger_util_1.logger.error("Error fetching vendor profile:", error);
             res.status(400).json({
                 success: false,
                 message: error.message,
@@ -835,7 +836,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error in quick verify/reject:", error);
+            logger_util_1.logger.error("Error in quick verify/reject:", error);
             if (error.message.includes("Only Super Admin")) {
                 return res.status(403).json({
                     success: false,
@@ -1023,7 +1024,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching vendor audit trail:", error);
+            logger_util_1.logger.error("Error fetching vendor audit trail:", error);
             res.status(400).json({
                 success: false,
                 message: error.message,
@@ -1049,7 +1050,7 @@ class VendorController {
             });
         }
         catch (error) {
-            console.error("Error fetching company audit trail:", error);
+            logger_util_1.logger.error("Error fetching company audit trail:", error);
             res.status(400).json({
                 success: false,
                 message: error.message,

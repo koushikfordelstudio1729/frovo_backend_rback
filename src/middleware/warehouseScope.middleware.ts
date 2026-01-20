@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { Warehouse } from "../models/Warehouse.model";
 import { Types } from "mongoose";
 
+import { logger } from "../utils/logger.util";
 /**
  * Middleware to automatically scope warehouse operations for warehouse managers
  * This ensures warehouse managers can only access data for their assigned warehouse
@@ -58,10 +59,10 @@ export const warehouseScopeMiddleware = async (req: Request, res: Response, next
       location: warehouse.location,
     };
 
-    console.log(`🏢 Warehouse scope applied: ${warehouse.code} (${warehouse.name})`);
+    logger.info(`🏢 Warehouse scope applied: ${warehouse.code} (${warehouse.name})`);
     next();
   } catch (error) {
-    console.error("❌ Warehouse scope middleware error:", error);
+    logger.error("❌ Warehouse scope middleware error:", error);
     return res.status(500).json({
       success: false,
       message: "Error applying warehouse scope",
@@ -133,7 +134,7 @@ export const validateWarehouseAccess = async (req: Request, res: Response, next:
 
     next();
   } catch (error) {
-    console.error("❌ Warehouse access validation error:", error);
+    logger.error("❌ Warehouse access validation error:", error);
     return res.status(500).json({
       success: false,
       message: "Error validating warehouse access",

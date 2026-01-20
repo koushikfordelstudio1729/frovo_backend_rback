@@ -12,6 +12,7 @@ import {
 import { checkPermission } from "../middleware/auth.middleware";
 import { DocumentUploadService } from "../services/documentUpload.service";
 
+import { logger } from "../utils/logger.util";
 // Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
   try {
@@ -44,7 +45,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
     const uploadService = new DocumentUploadService();
     const files = (req as any).files as Express.Multer.File[] | undefined;
 
-    console.log("📥 Request received:", {
+    logger.info("📥 Request received:", {
       hasFiles: !!files,
       fileCount: files?.length || 0,
       contentType: req.headers["content-type"],
@@ -62,7 +63,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
 
     // Handle file uploads if present
     if (files && files.length > 0) {
-      console.log("📤 Processing file uploads...");
+      logger.info("📤 Processing file uploads...");
 
       // Group files by line item index (field name pattern: images_0, images_1, etc.)
       const filesByLineItem: { [key: number]: Express.Multer.File[] } = {};
@@ -79,7 +80,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         }
       }
 
-      console.log(
+      logger.info(
         "📊 Files grouped by line item:",
         Object.keys(filesByLineItem).map(key => ({
           lineItem: key,
@@ -92,7 +93,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         const index = parseInt(lineItemIndex, 10);
 
         if (!poData.po_line_items[index]) {
-          console.warn(
+          logger.warn(
             `⚠️ Warning: Files uploaded for line item ${index}, but line item doesn't exist`
           );
           continue;
@@ -102,7 +103,7 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         const uploadedImages = [];
         for (const file of lineItemFiles) {
           try {
-            console.log(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
+            logger.info(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
 
             const uploadResult = await uploadService.uploadToCloudinary(
               file.buffer,
@@ -119,9 +120,9 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
               uploaded_at: new Date(),
             });
 
-            console.log(`✅ Uploaded ${file.originalname} successfully`);
+            logger.info(`✅ Uploaded ${file.originalname} successfully`);
           } catch (uploadError) {
-            console.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
+            logger.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
             return sendError(res, `Failed to upload file ${file.originalname}`, 500);
           }
         }
@@ -130,10 +131,10 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         poData.po_line_items[index].images = uploadedImages;
       }
 
-      console.log("✅ All files uploaded successfully");
+      logger.info("✅ All files uploaded successfully");
     }
 
-    console.log("📥 Final PO data:", {
+    logger.info("📥 Final PO data:", {
       vendor: poData.vendor,
       po_line_items_count: poData.po_line_items?.length || 0,
       all_fields: Object.keys(poData),
@@ -148,12 +149,12 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
     // If user is warehouse staff, enforce draft status only
     if (isWarehouseStaff) {
       poData.po_status = "draft"; // Force draft status for warehouse staff
-      console.log("🔒 Warehouse staff: PO status forced to draft");
+      logger.info("🔒 Warehouse staff: PO status forced to draft");
     }
 
     const result = await warehouseService.createPurchaseOrder(poData, req.user._id);
 
-    console.log("📤 Service result:", {
+    logger.info("📤 Service result:", {
       po_number: result.po_number,
       warehouse: result.warehouse || "Not assigned",
       line_items_count: result.po_line_items?.length || 0,
@@ -180,14 +181,14 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         : null,
     };
 
-    console.log("📄 Final response data:", {
+    logger.info("📄 Final response data:", {
       line_items_count: responseData.po_line_items?.length || 0,
       line_items: responseData.po_line_items,
     });
 
     return sendCreated(res, responseData, "Purchase order created successfully");
   } catch (error) {
-    console.error("❌ Controller error:", error);
+    logger.error("❌ Controller error:", error);
     return sendError(
       res,
       error instanceof Error ? error.message : "Failed to create purchase order",

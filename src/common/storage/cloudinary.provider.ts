@@ -18,6 +18,7 @@ import {
   IDeleteResult,
 } from "./storage.interface";
 
+import { logger } from "../../utils/logger.util";
 export class CloudinaryProvider implements IStorageProvider {
   readonly providerName = "cloudinary";
   private isInitialized = false;
@@ -40,7 +41,7 @@ export class CloudinaryProvider implements IStorageProvider {
     const config = this.getConfig();
 
     if (!this.isConfigured()) {
-      console.error("Cloudinary Configuration Missing:", {
+      logger.error("Cloudinary Configuration Missing:", {
         cloud_name: config.cloudName || "MISSING",
         api_key: config.apiKey ? "SET" : "MISSING",
         api_secret: config.apiSecret ? "SET" : "MISSING",
@@ -55,7 +56,7 @@ export class CloudinaryProvider implements IStorageProvider {
     });
 
     this.isInitialized = true;
-    console.log("Cloudinary provider initialized:", {
+    logger.info("Cloudinary provider initialized:", {
       cloud_name: config.cloudName,
       api_key: config.apiKey.substring(0, 4) + "...",
     });
@@ -102,7 +103,7 @@ export class CloudinaryProvider implements IStorageProvider {
         uploadOptions,
         (error, result: UploadApiResponse | undefined) => {
           if (error) {
-            console.error("Cloudinary upload error:", error);
+            logger.error("Cloudinary upload error:", error);
             reject(new Error(`Cloudinary upload failed: ${error.message}`));
           } else if (result) {
             resolve({
@@ -130,24 +131,24 @@ export class CloudinaryProvider implements IStorageProvider {
     await this.initialize();
 
     try {
-      console.log(`Deleting from Cloudinary: ${publicId}`);
+      logger.info(`Deleting from Cloudinary: ${publicId}`);
 
       // Try deleting as image first (most common)
       let result = await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 
       // If not found as image, try as raw (for PDFs, docs, etc.)
       if (result.result === "not found") {
-        console.log(`Not found as image, trying as raw: ${publicId}`);
+        logger.info(`Not found as image, trying as raw: ${publicId}`);
         result = await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
       }
 
       // If still not found, try as video
       if (result.result === "not found") {
-        console.log(`Not found as raw, trying as video: ${publicId}`);
+        logger.info(`Not found as raw, trying as video: ${publicId}`);
         result = await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
       }
 
-      console.log(`Cloudinary delete result for ${publicId}:`, result);
+      logger.info(`Cloudinary delete result for ${publicId}:`, result);
 
       return {
         success: result.result === "ok",
@@ -155,7 +156,7 @@ export class CloudinaryProvider implements IStorageProvider {
         provider: this.providerName,
       };
     } catch (error: any) {
-      console.error("Cloudinary delete error:", error);
+      logger.error("Cloudinary delete error:", error);
       throw new Error(`Failed to delete from Cloudinary: ${error.message}`);
     }
   }

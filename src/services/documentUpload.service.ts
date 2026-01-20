@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { IVendorDocument } from "../models/Vendor.model";
 
+import { logger } from "../utils/logger.util";
 export class DocumentUploadService {
   private cloudinaryConfigured = false;
 
@@ -17,7 +18,7 @@ export class DocumentUploadService {
 
       // Validate configuration
       if (!config.cloud_name || !config.api_key || !config.api_secret) {
-        console.error("❌ Cloudinary Configuration Missing:", {
+        logger.error("❌ Cloudinary Configuration Missing:", {
           cloud_name: config.cloud_name || "❌ MISSING",
           api_key: config.api_key ? "✅ SET" : "❌ MISSING",
           api_secret: config.api_secret ? "✅ SET" : "❌ MISSING",
@@ -28,7 +29,7 @@ export class DocumentUploadService {
       cloudinary.config(config);
       this.cloudinaryConfigured = true;
 
-      console.log("✅ Cloudinary configured successfully:", {
+      logger.info("✅ Cloudinary configured successfully:", {
         cloud_name: config.cloud_name,
         api_key: config.api_key.substring(0, 4) + "...",
       });

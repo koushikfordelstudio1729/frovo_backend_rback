@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { historyCatalogueService } from "../services/historyCatalogue.service";
 import { Types } from "mongoose";
 
+import { logger } from "../utils/logger.util";
 export class HistoryController {
   public static getLoggedInUser(req: Request): {
     _id: Types.ObjectId;
@@ -28,7 +29,7 @@ export class HistoryController {
       const { entityType, entityId } = req.params;
       const { operation, limit, skip } = req.query;
 
-      console.log(`Fetching audit logs for ${entityType}/${entityId}`);
+      logger.info(`Fetching audit logs for ${entityType}/${entityId}`);
 
       // Validate entity type
       if (entityType !== "category" && entityType !== "catalogue") {
@@ -60,7 +61,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching entity audit logs:", error);
+      logger.error("Error fetching entity audit logs:", error);
 
       res.status(500).json({
         success: false,
@@ -78,7 +79,7 @@ export class HistoryController {
       const { userId } = req.params;
       const { entityType, operation, limit, skip, startDate, endDate } = req.query;
 
-      console.log(`Fetching audit logs for user ${userId}`);
+      logger.info(`Fetching audit logs for user ${userId}`);
 
       const logs = await historyCatalogueService.getUserHistoryLogs(userId, {
         entityType: entityType as "category" | "catalogue",
@@ -100,7 +101,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching user audit logs:", error);
+      logger.error("Error fetching user audit logs:", error);
 
       res.status(500).json({
         success: false,
@@ -120,7 +121,7 @@ export class HistoryController {
 
       const { entityType, operation, limit, skip, startDate, endDate } = req.query;
 
-      console.log(`Fetching audit logs for current user ${userId}`);
+      logger.info(`Fetching audit logs for current user ${userId}`);
 
       const logs = await historyCatalogueService.getUserHistoryLogs(userId.toString(), {
         entityType: entityType as "category" | "catalogue",
@@ -141,7 +142,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching current user audit logs:", error);
+      logger.error("Error fetching current user audit logs:", error);
 
       res.status(500).json({
         success: false,
@@ -159,7 +160,7 @@ export class HistoryController {
       const { entityType, operation, userId, userEmail, status, startDate, endDate, limit, skip } =
         req.query;
 
-      console.log("Searching audit logs with filters:", req.query);
+      logger.info("Searching audit logs with filters:", req.query);
 
       const { logs, total } = await historyCatalogueService.getAuditLogs({
         entityType: entityType as "category" | "catalogue",
@@ -197,7 +198,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error searching audit logs:", error);
+      logger.error("Error searching audit logs:", error);
 
       res.status(500).json({
         success: false,
@@ -214,7 +215,7 @@ export class HistoryController {
     try {
       const { entityType, startDate, endDate } = req.query;
 
-      console.log("Fetching audit statistics with filters:", req.query);
+      logger.info("Fetching audit statistics with filters:", req.query);
 
       const statistics = await historyCatalogueService.getAuditStatistics({
         entityType: entityType as "category" | "catalogue",
@@ -231,7 +232,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching audit statistics:", error);
+      logger.error("Error fetching audit statistics:", error);
 
       res.status(500).json({
         success: false,
@@ -248,7 +249,7 @@ export class HistoryController {
     try {
       const { entityType, operation, limit } = req.query;
 
-      console.log("Fetching recent audit activity");
+      logger.info("Fetching recent audit activity");
 
       // Get logs from last 24 hours
       const twentyFourHoursAgo = new Date();
@@ -272,7 +273,7 @@ export class HistoryController {
         },
       });
     } catch (error: any) {
-      console.error("Error fetching recent activity:", error);
+      logger.error("Error fetching recent activity:", error);
 
       res.status(500).json({
         success: false,
@@ -289,7 +290,7 @@ export class HistoryController {
     try {
       const { entityType, operation, userId, userEmail, startDate, endDate } = req.query;
 
-      console.log("Exporting audit logs to CSV with filters:", req.query);
+      logger.info("Exporting audit logs to CSV with filters:", req.query);
 
       const { logs } = await historyCatalogueService.getAuditLogs({
         entityType: entityType as "category" | "catalogue",
@@ -309,7 +310,7 @@ export class HistoryController {
       res.setHeader("Content-Disposition", "attachment; filename=audit-logs.csv");
       res.status(200).send(csvData);
     } catch (error: any) {
-      console.error("Error exporting audit logs:", error);
+      logger.error("Error exporting audit logs:", error);
 
       res.status(500).json({
         success: false,

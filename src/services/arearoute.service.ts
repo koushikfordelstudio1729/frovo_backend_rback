@@ -6,6 +6,7 @@ import {
   IHistoryArea,
 } from "../models/AreaRoute.model";
 
+import { logger } from "../utils/logger.util";
 export interface DashboardFilterParams {
   status?: "active" | "inactive" | "all";
   address?: string;
@@ -153,7 +154,7 @@ export class AreaService {
 
       await auditLog.save();
     } catch (error) {
-      console.error("Error creating audit log:", error);
+      logger.error("Error creating audit log:", error);
       // Don't throw error here to avoid breaking main operation
     }
   }
@@ -1038,7 +1039,7 @@ export class AreaService {
         new_data: activity.new_data,
       }));
     } catch (error) {
-      console.error("Error fetching recent activities:", error);
+      logger.error("Error fetching recent activities:", error);
       throw error;
     }
   }

@@ -16,6 +16,7 @@ import { IStorageProvider } from "./storage.interface";
 import { CloudinaryProvider } from "./cloudinary.provider";
 import { S3Provider } from "./s3.provider";
 
+import { logger } from "../../utils/logger.util";
 export type StorageProviderType = "cloudinary" | "s3" | "gcs" | "azure" | "local";
 
 export class StorageFactory {
@@ -39,7 +40,7 @@ export class StorageFactory {
     this.instance = this.createProvider(providerType);
     this.currentProvider = providerType;
 
-    console.log(`📦 Storage provider initialized: ${providerType}`);
+    logger.info(`📦 Storage provider initialized: ${providerType}`);
 
     return this.instance;
   }

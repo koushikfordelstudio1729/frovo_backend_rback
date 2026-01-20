@@ -24,9 +24,9 @@ export const seedRoles = async (
 
       // DEBUG: Check what roles actually exist
       const existingRoles = await Role.find();
-      console.log("🔍 Existing roles in database:");
+      logger.info("🔍 Existing roles in database:");
       existingRoles.forEach(role => {
-        console.log(`   - ${role.name} (systemRole: ${role.systemRole})`);
+        logger.info(`   - ${role.name} (systemRole: ${role.systemRole})`);
       });
 
       // Check if warehouse_staff role exists
@@ -78,7 +78,7 @@ export const seedRoles = async (
         }
       });
 
-      console.log("🔍 Role map created:", Object.keys(roleMap));
+      logger.info("🔍 Role map created:", Object.keys(roleMap));
       return roleMap;
     }
 

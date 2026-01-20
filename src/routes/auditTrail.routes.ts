@@ -4,10 +4,11 @@ import { AuditTrailController } from "../controllers/auditTrail.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
 
+import { logger } from "../utils/logger.util";
 const router = Router();
 const auditTrailController = new AuditTrailController();
 
-console.log("🔍 === AUDIT TRAIL ROUTES REGISTRATION ===");
+logger.info("🔍 === AUDIT TRAIL ROUTES REGISTRATION ===");
 
 // Apply authentication to all audit trail routes
 router.use(authenticate);
@@ -16,7 +17,7 @@ router.use(authenticate);
 const SUPER_ADMIN_ONLY = ["super_admin"];
 
 // ========== AUDIT TRAIL ROUTES (SUPER ADMIN ONLY) ==========
-console.log("📋 Registering audit trail routes...");
+logger.info("📋 Registering audit trail routes...");
 
 /**
  * Get all audit trails
@@ -85,6 +86,6 @@ router.get(
   auditTrailController.getUserActivity.bind(auditTrailController)
 );
 
-console.log("✅ === ALL AUDIT TRAIL ROUTES REGISTERED ===");
+logger.info("✅ === ALL AUDIT TRAIL ROUTES REGISTERED ===");
 
 export default router;

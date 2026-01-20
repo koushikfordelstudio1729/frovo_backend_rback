@@ -41,10 +41,10 @@ const mongoose_1 = require("mongoose");
 const seedSuperAdmin = async (departmentMap, roleMap) => {
     try {
         logger_util_1.logger.info("🌱 Seeding Super Admin and Vendor Admin...");
-        console.log("🔍 Department Map Keys:", Object.keys(departmentMap));
-        console.log("🔍 Role Map Keys:", Object.keys(roleMap));
-        console.log("🔍 Looking for Vendor Admin role:", models_1.SystemRole.VENDOR_ADMIN in roleMap);
-        console.log("🔍 Looking for Operations department:", "Operations" in departmentMap);
+        logger_util_1.logger.info("🔍 Department Map Keys:", Object.keys(departmentMap));
+        logger_util_1.logger.info("🔍 Role Map Keys:", Object.keys(roleMap));
+        logger_util_1.logger.info("🔍 Looking for Vendor Admin role:", models_1.SystemRole.VENDOR_ADMIN in roleMap);
+        logger_util_1.logger.info("🔍 Looking for Operations department:", "Operations" in departmentMap);
         const existingUserCount = await models_1.User.countDocuments();
         if (existingUserCount > 0) {
             logger_util_1.logger.info(`✅ Users already exist (${existingUserCount} users found)`);

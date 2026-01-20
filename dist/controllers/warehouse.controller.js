@@ -10,6 +10,7 @@ const warehouse_service_1 = require("../services/warehouse.service");
 const responseHandlers_1 = require("../utils/responseHandlers");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const documentUpload_service_1 = require("../services/documentUpload.service");
+const logger_util_1 = require("../utils/logger.util");
 exports.getDashboard = (0, express_async_handler_1.default)(async (req, res) => {
     try {
         const { date, category, partner, warehouseId, ...otherFilters } = req.query;
@@ -36,7 +37,7 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
     try {
         const uploadService = new documentUpload_service_1.DocumentUploadService();
         const files = req.files;
-        console.log("📥 Request received:", {
+        logger_util_1.logger.info("📥 Request received:", {
             hasFiles: !!files,
             fileCount: files?.length || 0,
             contentType: req.headers["content-type"],
@@ -51,7 +52,7 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
             }
         }
         if (files && files.length > 0) {
-            console.log("📤 Processing file uploads...");
+            logger_util_1.logger.info("📤 Processing file uploads...");
             const filesByLineItem = {};
             for (const file of files) {
                 const match = file.fieldname.match(/images_(\d+)/);
@@ -63,20 +64,20 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
                     filesByLineItem[lineItemIndex].push(file);
                 }
             }
-            console.log("📊 Files grouped by line item:", Object.keys(filesByLineItem).map(key => ({
+            logger_util_1.logger.info("📊 Files grouped by line item:", Object.keys(filesByLineItem).map(key => ({
                 lineItem: key,
                 fileCount: filesByLineItem[parseInt(key)].length,
             })));
             for (const [lineItemIndex, lineItemFiles] of Object.entries(filesByLineItem)) {
                 const index = parseInt(lineItemIndex, 10);
                 if (!poData.po_line_items[index]) {
-                    console.warn(`⚠️ Warning: Files uploaded for line item ${index}, but line item doesn't exist`);
+                    logger_util_1.logger.warn(`⚠️ Warning: Files uploaded for line item ${index}, but line item doesn't exist`);
                     continue;
                 }
                 const uploadedImages = [];
                 for (const file of lineItemFiles) {
                     try {
-                        console.log(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
+                        logger_util_1.logger.info(`⬆️ Uploading ${file.originalname} for line item ${index}...`);
                         const uploadResult = await uploadService.uploadToCloudinary(file.buffer, file.originalname, "frovo/purchase_orders");
                         uploadedImages.push({
                             file_name: file.originalname,
@@ -86,18 +87,18 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
                             mime_type: file.mimetype,
                             uploaded_at: new Date(),
                         });
-                        console.log(`✅ Uploaded ${file.originalname} successfully`);
+                        logger_util_1.logger.info(`✅ Uploaded ${file.originalname} successfully`);
                     }
                     catch (uploadError) {
-                        console.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
+                        logger_util_1.logger.error(`❌ Failed to upload ${file.originalname}:`, uploadError);
                         return (0, responseHandlers_1.sendError)(res, `Failed to upload file ${file.originalname}`, 500);
                     }
                 }
                 poData.po_line_items[index].images = uploadedImages;
             }
-            console.log("✅ All files uploaded successfully");
+            logger_util_1.logger.info("✅ All files uploaded successfully");
         }
-        console.log("📥 Final PO data:", {
+        logger_util_1.logger.info("📥 Final PO data:", {
             vendor: poData.vendor,
             po_line_items_count: poData.po_line_items?.length || 0,
             all_fields: Object.keys(poData),
@@ -107,10 +108,10 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
         });
         if (isWarehouseStaff) {
             poData.po_status = "draft";
-            console.log("🔒 Warehouse staff: PO status forced to draft");
+            logger_util_1.logger.info("🔒 Warehouse staff: PO status forced to draft");
         }
         const result = await warehouse_service_1.warehouseService.createPurchaseOrder(poData, req.user._id);
-        console.log("📤 Service result:", {
+        logger_util_1.logger.info("📤 Service result:", {
             po_number: result.po_number,
             warehouse: result.warehouse || "Not assigned",
             line_items_count: result.po_line_items?.length || 0,
@@ -134,14 +135,14 @@ exports.createPurchaseOrder = (0, express_async_handler_1.default)(async (req, r
                 }
                 : null,
         };
-        console.log("📄 Final response data:", {
+        logger_util_1.logger.info("📄 Final response data:", {
             line_items_count: responseData.po_line_items?.length || 0,
             line_items: responseData.po_line_items,
         });
         return (0, responseHandlers_1.sendCreated)(res, responseData, "Purchase order created successfully");
     }
     catch (error) {
-        console.error("❌ Controller error:", error);
+        logger_util_1.logger.error("❌ Controller error:", error);
         return (0, responseHandlers_1.sendError)(res, error instanceof Error ? error.message : "Failed to create purchase order", 500);
     }
 });

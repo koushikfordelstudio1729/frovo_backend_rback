@@ -11,6 +11,7 @@ import { historyCatalogueService } from "./historyCatalogue.service";
 import { Request } from "express";
 import { ImageUploadService } from "./catalogueFileUpload.service";
 
+import { logger } from "../utils/logger.util";
 // Image upload service instance for deleting images from storage
 const imageUploadService = new ImageUploadService();
 
@@ -177,7 +178,7 @@ export class CategoryService {
   // Create Category
   async createCategory(categoryData: CreateCategoryDTO): Promise<ICategory> {
     try {
-      console.log("Creating category:", categoryData.category_name);
+      logger.info("Creating category:", categoryData.category_name);
 
       // Check if category already exists
       const existingCategory = await CategoryModel.findOne({
@@ -213,17 +214,17 @@ export class CategoryService {
             savedCategory.category_name,
             savedCategory.toObject()
           )
-          .catch(err => console.error("Failed to log create:", err));
+          .catch(err => logger.error("Failed to log create:", err));
       }
 
-      console.log("Category created successfully:", {
+      logger.info("Category created successfully:", {
         id: savedCategory._id,
         name: savedCategory.category_name,
         imagesCount: savedCategory.category_image.length,
       });
       return savedCategory;
     } catch (error: any) {
-      console.error("Error creating category:", error);
+      logger.error("Error creating category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -237,7 +238,7 @@ export class CategoryService {
             "failed",
             error.message
           )
-          .catch(err => console.error("Failed to log failed create:", err));
+          .catch(err => logger.error("Failed to log failed create:", err));
       }
 
       throw error;
@@ -314,7 +315,7 @@ export class CategoryService {
         sub_categories_count: subCategories.length,
       };
     } catch (error: any) {
-      console.error("Error getting category with sub-categories:", error);
+      logger.error("Error getting category with sub-categories:", error);
       throw error;
     }
   }
@@ -331,12 +332,12 @@ export class CategoryService {
       if (this.req && category) {
         await historyCatalogueService
           .logView(this.req, "category", category._id, category.category_name)
-          .catch(err => console.error("Failed to log view:", err));
+          .catch(err => logger.error("Failed to log view:", err));
       }
 
       return category;
     } catch (error: any) {
-      console.error("Error fetching category by ID:", error);
+      logger.error("Error fetching category by ID:", error);
       throw error;
     }
   }
@@ -411,7 +412,7 @@ export class CategoryService {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error: any) {
-      console.error("Error fetching categories with filters:", error);
+      logger.error("Error fetching categories with filters:", error);
       throw error;
     }
   }
@@ -419,7 +420,7 @@ export class CategoryService {
   // Update Category
   async updateCategory(categoryId: string, updateData: UpdateCategoryDTO): Promise<ICategory> {
     try {
-      console.log(`Updating category ${categoryId} with data:`, updateData);
+      logger.info(`Updating category ${categoryId} with data:`, updateData);
 
       if (!mongoose.Types.ObjectId.isValid(categoryId)) {
         throw new Error("Invalid category ID format");
@@ -484,10 +485,10 @@ export class CategoryService {
             beforeState,
             updatedCategory.toObject()
           )
-          .catch(err => console.error("Failed to log update:", err));
+          .catch(err => logger.error("Failed to log update:", err));
       }
 
-      console.log("Category updated successfully:", {
+      logger.info("Category updated successfully:", {
         id: updatedCategory._id,
         name: updatedCategory.category_name,
         imagesCount: updatedCategory.category_image.length,
@@ -495,7 +496,7 @@ export class CategoryService {
 
       return updatedCategory;
     } catch (error: any) {
-      console.error("Error updating category:", error);
+      logger.error("Error updating category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -512,7 +513,7 @@ export class CategoryService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed update:", err));
+            .catch(err => logger.error("Failed to log failed update:", err));
         }
       }
 
@@ -561,7 +562,7 @@ export class CategoryService {
       const imagePublicIds: string[] = [];
 
       // Debug: Log category data
-      console.log("Category to delete:", {
+      logger.info("Category to delete:", {
         id: category._id,
         name: category.category_name,
         hasImages: !!category.category_image,
@@ -572,7 +573,7 @@ export class CategoryService {
       // Collect category images
       if (category.category_image && category.category_image.length > 0) {
         category.category_image.forEach((img: any) => {
-          console.log("Found image:", img);
+          logger.info("Found image:", img);
           if (img.cloudinary_public_id) {
             imagePublicIds.push(img.cloudinary_public_id);
           }
@@ -617,17 +618,17 @@ export class CategoryService {
             category.category_name,
             category.toObject()
           )
-          .catch(err => console.error("Failed to log delete:", err));
+          .catch(err => logger.error("Failed to log delete:", err));
       }
 
       await session.commitTransaction();
 
       // Delete images from storage after successful transaction
       if (imagePublicIds.length > 0) {
-        console.log(`Deleting ${imagePublicIds.length} images from storage:`, imagePublicIds);
+        logger.info(`Deleting ${imagePublicIds.length} images from storage:`, imagePublicIds);
         await imageUploadService
           .deleteMultipleFiles(imagePublicIds)
-          .catch(err => console.error("Failed to delete images from storage:", err));
+          .catch(err => logger.error("Failed to delete images from storage:", err));
       }
 
       return {
@@ -638,7 +639,7 @@ export class CategoryService {
       };
     } catch (error: any) {
       await session.abortTransaction();
-      console.error("Error deleting category:", error);
+      logger.error("Error deleting category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -654,7 +655,7 @@ export class CategoryService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed delete:", err));
+            .catch(err => logger.error("Failed to log failed delete:", err));
         }
       }
 
@@ -716,7 +717,7 @@ export class CategoryService {
         categories_with_subcategories: categoriesWithSubcategories,
       };
     } catch (error: any) {
-      console.error("Error fetching category stats:", error);
+      logger.error("Error fetching category stats:", error);
       throw error;
     }
   }
@@ -734,7 +735,7 @@ export class CategoryService {
 
       return productCount;
     } catch (error: any) {
-      console.error("Error fetching product count by category:", error);
+      logger.error("Error fetching product count by category:", error);
       throw error;
     }
   }
@@ -807,17 +808,17 @@ export class SubCategoryService {
             savedSubCategory.sub_category_name,
             savedSubCategory.toObject()
           )
-          .catch(err => console.error("Failed to log create:", err));
+          .catch(err => logger.error("Failed to log create:", err));
       }
 
-      console.log("Sub-category created successfully:", {
+      logger.info("Sub-category created successfully:", {
         id: savedSubCategory._id,
         name: savedSubCategory.sub_category_name,
         imagesCount: savedSubCategory.sub_category_image.length,
       });
       return savedSubCategory;
     } catch (error: any) {
-      console.error("Error creating sub-category:", error);
+      logger.error("Error creating sub-category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -831,7 +832,7 @@ export class SubCategoryService {
             "failed",
             error.message
           )
-          .catch(err => console.error("Failed to log failed create:", err));
+          .catch(err => logger.error("Failed to log failed create:", err));
       }
 
       throw error;
@@ -853,12 +854,12 @@ export class SubCategoryService {
       if (this.req && subCategory) {
         await historyCatalogueService
           .logView(this.req, "sub_category", subCategory._id, subCategory.sub_category_name)
-          .catch(err => console.error("Failed to log view:", err));
+          .catch(err => logger.error("Failed to log view:", err));
       }
 
       return subCategory;
     } catch (error: any) {
-      console.error("Error fetching sub-category by ID:", error);
+      logger.error("Error fetching sub-category by ID:", error);
       throw error;
     }
   }
@@ -877,7 +878,7 @@ export class SubCategoryService {
 
       return subCategories;
     } catch (error: any) {
-      console.error("Error fetching sub-categories by category:", error);
+      logger.error("Error fetching sub-categories by category:", error);
       throw error;
     }
   }
@@ -949,7 +950,7 @@ export class SubCategoryService {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error: any) {
-      console.error("Error fetching sub-categories with filters:", error);
+      logger.error("Error fetching sub-categories with filters:", error);
       throw error;
     }
   }
@@ -960,7 +961,7 @@ export class SubCategoryService {
     updateData: UpdateSubCategoryDTO
   ): Promise<ISubCategory> {
     try {
-      console.log(`Updating sub-category ${subCategoryId} with data:`, updateData);
+      logger.info(`Updating sub-category ${subCategoryId} with data:`, updateData);
 
       if (!mongoose.Types.ObjectId.isValid(subCategoryId)) {
         throw new Error("Invalid sub-category ID format");
@@ -1061,10 +1062,10 @@ export class SubCategoryService {
             beforeState,
             updatedSubCategory.toObject()
           )
-          .catch(err => console.error("Failed to log update:", err));
+          .catch(err => logger.error("Failed to log update:", err));
       }
 
-      console.log("Sub-category updated successfully:", {
+      logger.info("Sub-category updated successfully:", {
         id: updatedSubCategory._id,
         name: updatedSubCategory.sub_category_name,
         imagesCount: updatedSubCategory.sub_category_image.length,
@@ -1072,7 +1073,7 @@ export class SubCategoryService {
 
       return updatedSubCategory;
     } catch (error: any) {
-      console.error("Error updating sub-category:", error);
+      logger.error("Error updating sub-category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -1089,7 +1090,7 @@ export class SubCategoryService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed update:", err));
+            .catch(err => logger.error("Failed to log failed update:", err));
         }
       }
 
@@ -1107,10 +1108,10 @@ export class SubCategoryService {
         sub_category: subCategoryId,
       });
 
-      console.log(`Sub-category ${subCategoryId} has ${count} products`);
+      logger.info(`Sub-category ${subCategoryId} has ${count} products`);
       return count;
     } catch (error: any) {
-      console.error("Error getting product count for sub-category:", error);
+      logger.error("Error getting product count for sub-category:", error);
       throw error;
     }
   }
@@ -1149,7 +1150,7 @@ export class SubCategoryService {
 
       return countMap;
     } catch (error: any) {
-      console.error("Error getting product counts for sub-categories:", error);
+      logger.error("Error getting product counts for sub-categories:", error);
       throw error;
     }
   }
@@ -1208,18 +1209,18 @@ export class SubCategoryService {
             subCategory.sub_category_name,
             beforeState
           )
-          .catch(err => console.error("Failed to log delete:", err));
+          .catch(err => logger.error("Failed to log delete:", err));
       }
 
       // Delete images from storage after successful deletion
       if (imagePublicIds.length > 0) {
-        console.log(
+        logger.info(
           `Deleting ${imagePublicIds.length} sub-category images from storage:`,
           imagePublicIds
         );
         await imageUploadService
           .deleteMultipleFiles(imagePublicIds)
-          .catch(err => console.error("Failed to delete images from storage:", err));
+          .catch(err => logger.error("Failed to delete images from storage:", err));
       }
 
       return {
@@ -1228,7 +1229,7 @@ export class SubCategoryService {
         affectedCatalogues: 0,
       };
     } catch (error: any) {
-      console.error("Error deleting sub-category:", error);
+      logger.error("Error deleting sub-category:", error);
 
       // Log failed operation
       if (this.req) {
@@ -1244,7 +1245,7 @@ export class SubCategoryService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed delete:", err));
+            .catch(err => logger.error("Failed to log failed delete:", err));
         }
       }
 
@@ -1345,12 +1346,12 @@ export class CatalogueService {
             savedProduct.product_name,
             savedProduct.toObject()
           )
-          .catch(err => console.error("Failed to log create:", err));
+          .catch(err => logger.error("Failed to log create:", err));
       }
 
       return savedProduct;
     } catch (error: any) {
-      console.error("Error creating catalogue:", error);
+      logger.error("Error creating catalogue:", error);
 
       // Log failed operation
       if (this.req) {
@@ -1364,7 +1365,7 @@ export class CatalogueService {
             "failed",
             error.message
           )
-          .catch(err => console.error("Failed to log failed create:", err));
+          .catch(err => logger.error("Failed to log failed create:", err));
       }
 
       throw error;
@@ -1386,12 +1387,12 @@ export class CatalogueService {
       if (this.req && product) {
         await historyCatalogueService
           .logView(this.req, "catalogue", product._id, product.product_name)
-          .catch(err => console.error("Failed to log view:", err));
+          .catch(err => logger.error("Failed to log view:", err));
       }
 
       return product;
     } catch (error: any) {
-      console.error("Error fetching catalogue by ID:", error);
+      logger.error("Error fetching catalogue by ID:", error);
       throw error;
     }
   }
@@ -1515,12 +1516,12 @@ export class CatalogueService {
             beforeState,
             updatedProduct.toObject()
           )
-          .catch(err => console.error("Failed to log update:", err));
+          .catch(err => logger.error("Failed to log update:", err));
       }
 
       return updatedProduct;
     } catch (error: any) {
-      console.error("Error updating catalogue:", error);
+      logger.error("Error updating catalogue:", error);
 
       // Log failed operation
       if (this.req) {
@@ -1537,7 +1538,7 @@ export class CatalogueService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed update:", err));
+            .catch(err => logger.error("Failed to log failed update:", err));
         }
       }
 
@@ -1591,18 +1592,18 @@ export class CatalogueService {
       if (this.req) {
         await historyCatalogueService
           .logDelete(this.req, "catalogue", product._id, product.product_name, beforeState)
-          .catch(err => console.error("Failed to log delete:", err));
+          .catch(err => logger.error("Failed to log delete:", err));
       }
 
       // Delete images from storage after successful deletion
       if (imagePublicIds.length > 0) {
-        console.log(
+        logger.info(
           `Deleting ${imagePublicIds.length} product images from storage:`,
           imagePublicIds
         );
         await imageUploadService
           .deleteMultipleFiles(imagePublicIds)
-          .catch(err => console.error("Failed to delete images from storage:", err));
+          .catch(err => logger.error("Failed to delete images from storage:", err));
       }
 
       return {
@@ -1611,7 +1612,7 @@ export class CatalogueService {
         deletedProduct: productInfo,
       };
     } catch (error: any) {
-      console.error("Error deleting catalogue:", error);
+      logger.error("Error deleting catalogue:", error);
 
       // Log failed operation
       if (this.req) {
@@ -1627,7 +1628,7 @@ export class CatalogueService {
               "failed",
               error.message
             )
-            .catch(err => console.error("Failed to log failed delete:", err));
+            .catch(err => logger.error("Failed to log failed delete:", err));
         }
       }
 
@@ -1750,7 +1751,7 @@ export class CatalogueService {
         filters,
       };
     } catch (error: any) {
-      console.error("Error fetching dashboard data:", error);
+      logger.error("Error fetching dashboard data:", error);
       throw error;
     }
   }
@@ -1761,7 +1762,7 @@ export class CatalogueService {
       const brands = await CatalogueModel.distinct("brand_name");
       return brands.filter(brand => brand).sort();
     } catch (error: any) {
-      console.error("Error fetching brands:", error);
+      logger.error("Error fetching brands:", error);
       throw error;
     }
   }
@@ -1772,7 +1773,7 @@ export class CatalogueService {
       const categories = await CategoryModel.distinct("category_name");
       return categories.sort();
     } catch (error: any) {
-      console.error("Error fetching categories:", error);
+      logger.error("Error fetching categories:", error);
       throw error;
     }
   }
