@@ -1578,23 +1578,33 @@ export class CatalogueService {
         .sort({ [sortField]: sortDirection })
         .skip(skip)
         .limit(limit)
-        .select(
-          "sku_id product_name category sub_category brand_name unit_size base_price final_price status product_images createdAt"
-        )
         .lean();
 
       const transformedProducts = products.map(product => ({
+        id: product._id,
         sku_id: product.sku_id,
         product_name: product.product_name,
-        category: (product.category as any)?.category_name || "Unknown",
-        sub_category: (product.sub_category as any)?.sub_category_name || "Unknown",
         brand_name: product.brand_name,
+        description: product.description,
+        category: (product.category as any)?._id || product.category,
+        category_name: (product.category as any)?.category_name || "Unknown",
+        sub_category: (product.sub_category as any)?._id || product.sub_category,
+        sub_category_name: (product.sub_category as any)?.sub_category_name || "Unknown",
+        manufacturer_name: product.manufacturer_name,
+        manufacturer_address: product.manufacturer_address,
+        shell_life: product.shell_life,
+        expiry_alert_threshold: product.expiry_alert_threshold,
+        tages_label: product.tages_label,
         unit_size: product.unit_size,
         base_price: product.base_price,
         final_price: product.final_price,
-        status: product.status,
+        barcode: product.barcode,
+        nutrition_information: product.nutrition_information,
+        ingredients: product.ingredients,
         product_images: product.product_images,
+        status: product.status,
         createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
       }));
 
       return {
