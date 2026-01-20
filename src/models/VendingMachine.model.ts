@@ -219,8 +219,7 @@ const vendingMachineSchema = new Schema<IVendingMachine>(
   }
 );
 
-// Indexes
-vendingMachineSchema.index({ machineId: 1 });
+// Indexes (machineId already has unique: true in schema)
 vendingMachineSchema.index({ status: 1 });
 vendingMachineSchema.index({ "location.city": 1 });
 vendingMachineSchema.index({ "location.state": 1 });

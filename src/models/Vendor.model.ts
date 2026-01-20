@@ -478,9 +478,7 @@ vendorCreateSchema.pre("save", function (next) {
   next();
 });
 
-// Indexes for better performance
-vendorCreateSchema.index({ vendor_email: 1 }, { unique: true });
-vendorCreateSchema.index({ vendor_id: 1 }, { unique: true });
+// Indexes for better performance (vendor_email and vendor_id already have unique: true in schema)
 vendorCreateSchema.index({ verification_status: 1 });
 vendorCreateSchema.index({ risk_rating: 1 });
 vendorCreateSchema.index({ vendor_category: 1 });

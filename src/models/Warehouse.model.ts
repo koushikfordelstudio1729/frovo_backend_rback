@@ -309,8 +309,7 @@ raisePurchaseOrderSchema.methods.generatePONumber = async function (): Promise<s
   return poNumber;
 };
 
-// Index for better performance
-raisePurchaseOrderSchema.index({ po_number: 1 }, { unique: true });
+// Index for better performance (po_number already has unique: true in schema)
 raisePurchaseOrderSchema.index({ vendor: 1 });
 raisePurchaseOrderSchema.index({ po_status: 1 });
 raisePurchaseOrderSchema.index({ po_raised_date: -1 });
