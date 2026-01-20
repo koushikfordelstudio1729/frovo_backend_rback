@@ -11,9 +11,6 @@ import {
 
 import { logger } from "../utils/logger.util";
 export class AreaController {
-  /**
-   * Helper method to get audit parameters from request
-   */
   private static getAuditParams(req: Request): AuditLogParams {
     const user = (req as any).user || {};
     return {
@@ -25,9 +22,6 @@ export class AreaController {
     };
   }
 
-  /**
-   * Get audit logs for an area
-   */
   static async getAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -60,9 +54,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get recent activities for dashboard
-   */
   static async getRecentActivities(req: Request, res: Response): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
@@ -81,9 +72,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Export audit logs for a specific area (Type 1)
-   */
   static async exportAreaAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -97,7 +85,6 @@ export class AreaController {
         return;
       }
 
-      // Get area details
       const area = await AreaService.getAreaById(id);
       if (!area) {
         res.status(404).json({
@@ -107,7 +94,6 @@ export class AreaController {
         return;
       }
 
-      // Get all audit logs for this area (no pagination for export)
       const result = await AreaService.getAuditLogs(id, 1, 10000);
       const logs = result.logs;
 
@@ -162,9 +148,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Export recent audit activities (Type 2)
-   */
   static async exportRecentAuditActivities(req: Request, res: Response): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 100;
@@ -172,7 +155,6 @@ export class AreaController {
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
 
-      // Build filter for date range
       const filter: any = {};
       if (startDate) {
         filter.timestamp = { $gte: new Date(startDate) };
@@ -181,7 +163,6 @@ export class AreaController {
         filter.timestamp = { ...filter.timestamp, $lte: new Date(endDate) };
       }
 
-      // Get recent activities with date filter
       const activities = await AreaService.getRecentActivities(limit, filter);
 
       if (activities.length === 0) {
@@ -232,16 +213,12 @@ export class AreaController {
     }
   }
 
-  /**
-   * Convert audit logs to CSV format for a specific area
-   */
   private static convertAuditLogsToCSV(logs: any[], area: any): string {
     if (!logs || logs.length === 0) {
       return "No audit logs available for export";
     }
 
     try {
-      // Headers
       const headers = [
         "Log ID",
         "Action",
@@ -255,14 +232,12 @@ export class AreaController {
         "Field Changes",
       ];
 
-      let csv = "\ufeff"; // UTF-8 BOM for Excel compatibility
+      let csv = "\ufeff";
       csv += headers.join(",") + "\n";
 
-      // Data rows
       logs.forEach(log => {
         const logDoc = log.toObject ? log.toObject() : log;
 
-        // Format changes summary
         let changesSummary = "";
         let fieldChanges = "";
 
@@ -298,7 +273,6 @@ export class AreaController {
         csv += row.join(",") + "\n";
       });
 
-      // Add summary section
       csv += "\n\n";
       csv += "Summary\n";
       csv += "Area Name," + `"${area.area_name}"` + "\n";
@@ -322,16 +296,12 @@ export class AreaController {
     }
   }
 
-  /**
-   * Convert recent activities to CSV format
-   */
   private static convertActivitiesToCSV(activities: any[]): string {
     if (!activities || activities.length === 0) {
       return "No audit activities available for export";
     }
 
     try {
-      // Headers
       const headers = [
         "Activity ID",
         "Action",
@@ -346,14 +316,12 @@ export class AreaController {
         "Changes Summary",
       ];
 
-      let csv = "\ufeff"; // UTF-8 BOM for Excel compatibility
+      let csv = "\ufeff";
       csv += headers.join(",") + "\n";
 
-      // Data rows
       activities.forEach(activity => {
         const activityDoc = activity.toObject ? activity.toObject() : activity;
 
-        // Format changes summary
         let changesSummary = "";
 
         if (activityDoc.changes) {
@@ -387,7 +355,6 @@ export class AreaController {
         csv += row.join(",") + "\n";
       });
 
-      // Add summary section
       csv += "\n\n";
       csv += "Summary\n";
       csv += "Total Activities," + activities.length + "\n";
@@ -400,7 +367,6 @@ export class AreaController {
       csv += "Export Date," + new Date().toISOString() + "\n";
       csv += "Actions Breakdown\n";
 
-      // Count actions
       const actionCounts: Record<string, number> = {};
       activities.forEach(activity => {
         const action = activity.action || "UNKNOWN";
@@ -418,14 +384,10 @@ export class AreaController {
     }
   }
 
-  /**
-   * Create a new area route with audit trail
-   */
   static async createAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const areaData: CreateAreaDto = req.body;
 
-      // Basic validation
       const requiredFields = [
         "area_name",
         "state",
@@ -469,9 +431,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get all area routes
-   */
   static async getAllAreaRoutes(req: Request, res: Response): Promise<void> {
     try {
       const queryParams: AreaQueryParams = {
@@ -501,9 +460,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get area route by ID
-   */
   static async getAreaRouteById(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -534,9 +490,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Update area route with audit trail
-   */
   static async updateAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -574,9 +527,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Add sub-location with audit trail
-   */
   static async addSubLocation(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -632,9 +582,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Delete area route with audit trail
-   */
   static async deleteAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -667,9 +614,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Toggle area status with audit trail
-   */
   static async toggleAreaStatus(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -699,9 +643,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get filter options
-   */
   static async getFilterOptions(req: Request, res: Response): Promise<void> {
     try {
       const filterOptions = await AreaService.getFilterOptions();
@@ -719,9 +660,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Check if area exists
-   */
   static async checkAreaExists(req: Request, res: Response): Promise<void> {
     try {
       const { areaName, excludeId } = req.query;
@@ -749,9 +687,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Export areas
-   */
   static async exportAreas(req: Request, res: Response): Promise<void> {
     try {
       const queryParams: AreaQueryParams = {
@@ -788,9 +723,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get dashboard data with filters
-   */
   static async getDashboardData(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
@@ -822,9 +754,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Get dashboard table data
-   */
   static async getDashboardTable(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
@@ -862,9 +791,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Export dashboard data to CSV/Excel
-   */
   static async exportDashboardData(req: Request, res: Response): Promise<void> {
     try {
       const params: DashboardFilterParams = {
@@ -908,9 +834,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Export areas by IDs
-   */
   static async exportAreasByIds(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -966,9 +889,6 @@ export class AreaController {
     }
   }
 
-  /**
-   * Convert data to CSV format
-   */
   private static convertToCSV(data: any[]): string {
     if (data.length === 0) return "";
 
@@ -991,9 +911,6 @@ export class AreaController {
     return csvRows.join("\n");
   }
 
-  /**
-   * Convert table data to CSV format
-   */
   private static convertTableToCSV(data: any[]): string {
     if (data.length === 0) return "";
 
@@ -1035,9 +952,6 @@ export class AreaController {
     return csvRows.join("\n");
   }
 
-  /**
-   * Generate CSV format (one row per area)
-   */
   private static generateCSV(areas: any[]): string {
     if (!areas || areas.length === 0) {
       return "No data available for export";

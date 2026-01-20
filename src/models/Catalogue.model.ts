@@ -1,7 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-// Plain data interface for category images (without Mongoose methods)
-// CATEGORY SCHEMA
 export interface ICategory extends Document {
   category_name: string;
   description: string;
@@ -68,7 +66,6 @@ const CategorySchema = new mongoose.Schema<ICategory>(
   },
   { timestamps: true }
 );
-// SUB-CATEGORY SCHEMA
 export interface ISubCategory extends Document {
   sub_category_name: string;
   description: string;
@@ -140,7 +137,6 @@ const SubCategorySchema = new Schema<ISubCategory>(
   { timestamps: true }
 );
 
-// Compound unique index for category + sub-category name combination
 SubCategorySchema.index(
   { category_id: 1, sub_category_name: 1 },
   { unique: true, name: "category_subcategory_unique" }
@@ -150,7 +146,6 @@ export const CategoryModel = mongoose.model<ICategory>("Category", CategorySchem
 
 export const SubCategoryModel = mongoose.model<ISubCategory>("SubCategory", SubCategorySchema);
 
-// PRODUCT IMAGE INTERFACE
 export interface IProductImageData {
   image_name: string;
   file_url: string;
@@ -160,7 +155,6 @@ export interface IProductImageData {
   uploaded_at: Date;
 }
 
-// Document Sub-Schema
 const productImageSchema = new Schema<IProductImageData>(
   {
     image_name: {
@@ -192,7 +186,6 @@ const productImageSchema = new Schema<IProductImageData>(
   { _id: true }
 );
 
-// CATALOGUE SCHEMA
 export interface ICatalogue extends Document {
   sku_id: string;
   product_name: string;
@@ -250,7 +243,6 @@ const CatalogueSchema = new mongoose.Schema<ICatalogue>(
   { timestamps: true }
 );
 
-// Indexes for faster queries
 CatalogueSchema.index({ category: 1 });
 CatalogueSchema.index({ sub_category: 1 });
 CatalogueSchema.index({ status: 1 });

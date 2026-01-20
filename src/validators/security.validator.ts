@@ -51,7 +51,6 @@ export const updateSecurityConfigSchema = z.object({
     })
     .refine(
       data => {
-        // If SSO is enabled, ssoConfig must be provided
         if (data.ssoEnabled && !data.ssoConfig) {
           return false;
         }

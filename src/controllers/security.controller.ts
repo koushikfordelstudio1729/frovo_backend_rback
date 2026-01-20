@@ -10,11 +10,9 @@ export const getSecurityConfig = asyncHandler(async (req: Request, res: Response
   }
 
   try {
-    // Use a default organization ID for now
     const config = await SecurityConfig.findOne({ organizationId: req.user._id });
 
     if (!config) {
-      // Create default config if none exists
       const defaultConfig = await SecurityConfig.create({
         organizationId: req.user._id,
         updatedBy: req.user._id,

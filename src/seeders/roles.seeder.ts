@@ -15,18 +15,15 @@ export const seedRoles = async (
   departmentMap: { [key: string]: Types.ObjectId }
 ): Promise<{ [key: string]: Types.ObjectId }> => {
   try {
-    // Check if roles already exist
     const existingCount = await Role.countDocuments();
     if (existingCount > 0) {
       const existingRoles = await Role.find();
 
-      // Check if warehouse_staff role exists
       const warehouseStaffExists = existingRoles.some(
         role => role.systemRole === SystemRole.WAREHOUSE_STAFF
       );
 
       if (!warehouseStaffExists) {
-        // Create only the Warehouse Staff role
         const warehouseStaffRole = {
           name: "Warehouse Staff",
           key: "warehouse_staff",
@@ -54,7 +51,6 @@ export const seedRoles = async (
         existingRoles.push(createdWarehouseStaff);
       }
 
-      // Return existing role IDs (including newly created warehouse_staff)
       const roleMap: { [key: string]: Types.ObjectId } = {};
       existingRoles.forEach(role => {
         if (role.systemRole) {
@@ -65,7 +61,6 @@ export const seedRoles = async (
       return roleMap;
     }
 
-    // If no roles exist at all, create all roles including warehouse_staff
     const roles = [
       {
         name: "Super Admin",
@@ -73,7 +68,7 @@ export const seedRoles = async (
         systemRole: SystemRole.SUPER_ADMIN,
         type: RoleType.SYSTEM,
         department: departmentMap[DepartmentName.SYSTEM_ADMIN],
-        permissions: ["*:*"], // All permissions
+        permissions: ["*:*"],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.ADMIN_PANEL,
         status: RoleStatus.PUBLISHED,
@@ -259,7 +254,6 @@ export const seedRoles = async (
       },
     ];
 
-    // Add createdBy to each role
     const rolesWithCreatedBy = roles.map(role => ({
       ...role,
       createdBy,
@@ -267,7 +261,6 @@ export const seedRoles = async (
 
     const createdRoles = await Role.insertMany(rolesWithCreatedBy);
 
-    // Create role mapping
     const roleMap: { [key: string]: Types.ObjectId } = {};
     createdRoles.forEach(role => {
       if (role.systemRole) {
@@ -282,7 +275,6 @@ export const seedRoles = async (
   }
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     import("./departments.seeder").then(({ seedDepartments }) => {

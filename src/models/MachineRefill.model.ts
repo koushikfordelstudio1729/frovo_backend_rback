@@ -1,68 +1,54 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface ISlotRefill {
-  slotId: string; // e.g., "Rack 1 Slot A1"
+  slotId: string;
   rackNumber: number;
-  slotPosition: string; // e.g., "A1"
+  slotPosition: string;
   productCode: string;
   productName: string;
   productId?: Types.ObjectId;
 
-  // Refill data
-  transUnitsDispensed: number; // Total units sold since last refill
-  existingQty: number; // Stock before refill
-  refilledQty: number; // Units added
-  currentStock: number; // Stock after refill
-
-  // Variance tracking
+  transUnitsDispensed: number;
+  existingQty: number;
+  refilledQty: number;
+  currentStock: number;
   variance?: number;
   varianceReason?: string;
 
-  // Removal tracking
   removedQty?: number;
-  removedReason?: string; // "Damaged", "Expired", "Other"
-
-  // Product details
+  removedReason?: string;
   expiryDate?: Date;
   batchNumber?: string;
 
-  // Pricing
   unitPrice?: number;
 }
 
 export interface IMachineRefill extends Document {
   _id: Types.ObjectId;
-  refillId: string; // Unique refill ID
-
-  // References
+  refillId: string;
   machineId: Types.ObjectId;
   agentId: Types.ObjectId;
   routeId?: Types.ObjectId;
   taskId?: Types.ObjectId;
   warehouseId?: Types.ObjectId;
 
-  // Refill details
   refillDateTime: Date;
   beforePhoto?: string;
   afterPhoto?: string;
   additionalPhotos?: string[];
 
-  // Slot-wise refill data
   slotRefills: ISlotRefill[];
 
-  // Summary
   totalUnitsDispensed: number;
   totalUnitsRefilled: number;
   totalUnitsRemoved: number;
   totalVariance: number;
   totalSlots: number;
 
-  // Status
   status: "draft" | "completed" | "verified" | "rejected";
   verifiedBy?: Types.ObjectId;
   verifiedAt?: Date;
 
-  // Notes
   notes?: string;
 
   createdAt: Date;
@@ -168,12 +154,10 @@ const machineRefillSchema = new Schema<IMachineRefill>(
   }
 );
 
-// Indexes
 machineRefillSchema.index({ machineId: 1, refillDateTime: -1 });
 machineRefillSchema.index({ agentId: 1, createdAt: -1 });
 machineRefillSchema.index({ status: 1 });
 
-// Auto-generate refillId
 machineRefillSchema.pre("save", async function (next) {
   if (!this.refillId) {
     const date = new Date();

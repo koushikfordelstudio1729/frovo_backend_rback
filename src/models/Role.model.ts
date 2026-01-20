@@ -107,13 +107,11 @@ const roleSchema = new Schema<IRole>(
   }
 );
 
-// Indexes (key already has unique index from schema)
 roleSchema.index({ type: 1 });
 roleSchema.index({ status: 1 });
 roleSchema.index({ department: 1 });
 roleSchema.index({ createdAt: -1 });
 
-// Pre-save hook to generate key from name
 roleSchema.pre("save", function (next) {
   if (this.isModified("name") && !this.key) {
     this.key = this.name
@@ -125,7 +123,6 @@ roleSchema.pre("save", function (next) {
   next();
 });
 
-// Pre-save hook to set systemRole for system roles
 roleSchema.pre("save", function (next) {
   if (this.type === RoleType.SYSTEM && this.key && !this.systemRole) {
     const systemRoleKey = this.key.toUpperCase() as keyof typeof SystemRole;
@@ -136,12 +133,10 @@ roleSchema.pre("save", function (next) {
   next();
 });
 
-// Virtual for id
 roleSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 roleSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

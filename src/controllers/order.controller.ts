@@ -151,7 +151,6 @@ export const getUserOrderStats = asyncHandler(async (req: Request, res: Response
   }
 });
 
-// Admin/Machine Management Controllers
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { orderId } = req.params;

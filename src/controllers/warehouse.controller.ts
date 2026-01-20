@@ -1,4 +1,3 @@
-// controllers/warehouse.controller.ts
 import { Request, Response } from "express";
 import asyncHandler from "express-async-handler";
 import { warehouseService } from "../services/warehouse.service";
@@ -13,7 +12,6 @@ import { checkPermission } from "../middleware/auth.middleware";
 import { DocumentUploadService } from "../services/documentUpload.service";
 
 import { logger } from "../utils/logger.util";
-// Screen 1: Dashboard
 export const getDashboard = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { date, category, partner, warehouseId, ...otherFilters } = req.query;
@@ -31,12 +29,9 @@ export const getDashboard = asyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-// Screen 2: Inbound Logistics - Purchase Orders
-// controllers/warehouse.controller.ts
 export const createPurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for creating purchase orders
   if (!checkPermission(req.user, "purchase_orders:create")) {
     return sendError(res, "Insufficient permissions to create purchase orders", 403);
   }
@@ -51,7 +46,6 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       contentType: req.headers["content-type"],
     });
 
-    // Parse po_line_items if it's a string (from multipart/form-data)
     const poData = { ...req.body };
     if (typeof req.body.po_line_items === "string") {
       try {
@@ -61,15 +55,12 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       }
     }
 
-    // Handle file uploads if present
     if (files && files.length > 0) {
       logger.info("📤 Processing file uploads...");
 
-      // Group files by line item index (field name pattern: images_0, images_1, etc.)
       const filesByLineItem: { [key: number]: Express.Multer.File[] } = {};
 
       for (const file of files) {
-        // Extract line item index from field name (e.g., "images_0" -> 0)
         const match = file.fieldname.match(/images_(\d+)/);
         if (match) {
           const lineItemIndex = parseInt(match[1], 10);
@@ -88,7 +79,6 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
         }))
       );
 
-      // Upload files to Cloudinary and attach to line items
       for (const [lineItemIndex, lineItemFiles] of Object.entries(filesByLineItem)) {
         const index = parseInt(lineItemIndex, 10);
 
@@ -99,7 +89,6 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
           continue;
         }
 
-        // Upload each file for this line item
         const uploadedImages = [];
         for (const file of lineItemFiles) {
           try {
@@ -127,7 +116,6 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
           }
         }
 
-        // Attach images to the corresponding line item
         poData.po_line_items[index].images = uploadedImages;
       }
 
@@ -140,15 +128,12 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       all_fields: Object.keys(poData),
     });
 
-    // Check if user is warehouse staff by checking roles array
     const isWarehouseStaff = req.user.roles?.some((role: any) => {
-      // Check if role has systemRole property and it's warehouse_staff
       return role.systemRole === "warehouse_staff";
     });
 
-    // If user is warehouse staff, enforce draft status only
     if (isWarehouseStaff) {
-      poData.po_status = "draft"; // Force draft status for warehouse staff
+      poData.po_status = "draft";
       logger.info("🔒 Warehouse staff: PO status forced to draft");
     }
 
@@ -161,7 +146,6 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
       line_items: result.po_line_items,
     });
 
-    // Format the response to include complete vendor information
     const responseData = {
       ...result.toObject(),
       vendor: result.vendor
@@ -196,11 +180,9 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
     );
   }
 });
-// GRN Management
 export const createGRN = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for creating GRN
   if (!checkPermission(req.user, "grn:create")) {
     return sendError(res, "Insufficient permissions to create GRN", 403);
   }
@@ -212,11 +194,8 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
       return sendBadRequest(res, "Purchase order ID is required");
     }
 
-    // Get uploaded file if present (uploadGRN uses .fields())
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const uploadedFile = files?.document?.[0];
-
-    // Quantities are automatically parsed by the validator
 
     const result = await warehouseService.createGRN(
       purchaseOrderId,
@@ -231,7 +210,6 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
-  // Check permission for viewing GRN
   if (!req.user || !checkPermission(req.user, "grn:view")) {
     return sendError(res, "Insufficient permissions to view GRN", 403);
   }
@@ -256,7 +234,6 @@ export const getGRNById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getGRNs = asyncHandler(async (req: Request, res: Response) => {
-  // Check permission for viewing GRNs
   if (!req.user || !checkPermission(req.user, "grn:view")) {
     return sendError(res, "Insufficient permissions to view GRNs", 403);
   }
@@ -272,7 +249,6 @@ export const getGRNs = asyncHandler(async (req: Request, res: Response) => {
 export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for editing GRN
   if (!checkPermission(req.user, "grn:edit")) {
     return sendError(res, "Insufficient permissions to update GRN status", 403);
   }
@@ -301,7 +277,6 @@ export const updateGRNStatus = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
-  // Check permission for viewing purchase orders
   if (!req.user || !checkPermission(req.user, "purchase_orders:view")) {
     return sendError(res, "Insufficient permissions to view purchase orders", 403);
   }
@@ -320,7 +295,6 @@ export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response
 });
 
 export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Response) => {
-  // Check permission for viewing purchase orders
   if (!req.user || !checkPermission(req.user, "purchase_orders:view")) {
     return sendError(res, "Insufficient permissions to view purchase orders", 403);
   }
@@ -344,7 +318,6 @@ export const getPurchaseOrderById = asyncHandler(async (req: Request, res: Respo
 export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for updating PO status
   if (!checkPermission(req.user, "purchase_orders:status_update")) {
     return sendError(res, "Insufficient permissions to update purchase order status", 403);
   }
@@ -371,7 +344,6 @@ export const updatePurchaseOrderStatus = asyncHandler(async (req: Request, res: 
 export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for deleting purchase orders
   if (!checkPermission(req.user, "purchase_orders:delete")) {
     return sendError(res, "Insufficient permissions to delete purchase orders", 403);
   }
@@ -380,7 +352,6 @@ export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Respon
   if (!id) return sendBadRequest(res, "Purchase order ID is required");
 
   try {
-    // You'll need to add this method to your warehouse service
     await warehouseService.deletePurchaseOrder(id);
     return sendSuccess(res, null, "Purchase order deleted successfully");
   } catch (error) {
@@ -392,7 +363,6 @@ export const deletePurchaseOrder = asyncHandler(async (req: Request, res: Respon
   }
 });
 
-// Screen 3: Outbound Logistics
 export const createDispatch = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -450,7 +420,6 @@ export const updateDispatchStatus = asyncHandler(async (req: Request, res: Respo
   }
 });
 
-// QC Templates
 export const createQCTemplate = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -509,7 +478,6 @@ export const deleteQCTemplate = asyncHandler(async (req: Request, res: Response)
   }
 });
 
-// Return Management
 export const createReturnOrder = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -559,10 +527,8 @@ export const rejectReturn = asyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-// Field Agent Management
 export const getFieldAgents = asyncHandler(async (req: Request, res: Response) => {
   try {
-    // Only set isActive if the query parameter is explicitly provided
     const isActive =
       req.query["isActive"] !== undefined ? req.query["isActive"] === "true" : undefined;
     const agents = await warehouseService.getFieldAgents(isActive);
@@ -605,7 +571,6 @@ export const updateFieldAgent = asyncHandler(async (req: Request, res: Response)
   }
 });
 
-// Screen 4: Inventory Management
 export const getInventoryDashboard = asyncHandler(async (req: Request, res: Response) => {
   const { warehouseId } = req.params;
   const { page = 1, limit = 50, ...filters } = req.query;
@@ -784,7 +749,6 @@ export const bulkUnarchiveInventory = asyncHandler(async (req: Request, res: Res
   }
 });
 
-// Screen 5: Expense Management
 export const createExpense = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -925,7 +889,6 @@ export const getMonthlyExpenseTrend = asyncHandler(async (req: Request, res: Res
   }
 });
 
-// Screen 6: Reports & Analytics
 export const generateReport = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { type, warehouseId, ...filters } = req.query;
@@ -968,7 +931,6 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
   }
 });
 
-// Enhanced Reports
 export const generateInventorySummary = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId, ...filters } = req.query;
@@ -1067,7 +1029,6 @@ export const getReportTypes = asyncHandler(async (_req: Request, res: Response) 
   sendSuccess(res, reportTypes, "Report types retrieved successfully");
 });
 
-// Additional utility endpoints
 export const getStockAgeingReport = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { warehouseId } = req.query;
@@ -1084,11 +1045,9 @@ export const getStockAgeingReport = asyncHandler(async (req: Request, res: Respo
   }
 });
 
-// ==================== WAREHOUSE MANAGEMENT CONTROLLERS ====================
 export const createWarehouse = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check if user is super admin
   const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === "super_admin");
   if (!isSuperAdmin) {
     return sendError(res, "Only Super Admin can create warehouses", 403);
@@ -1109,7 +1068,6 @@ export const createWarehouse = asyncHandler(async (req: Request, res: Response) 
 export const getWarehouses = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for viewing warehouses
   if (!checkPermission(req.user, "warehouse:view")) {
     return sendError(res, "Insufficient permissions to view warehouses", 403);
   }
@@ -1140,7 +1098,6 @@ export const getWarehouses = asyncHandler(async (req: Request, res: Response) =>
 export const getWarehouseById = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for viewing warehouses
   if (!checkPermission(req.user, "warehouse:view")) {
     return sendError(res, "Insufficient permissions to view warehouse", 403);
   }
@@ -1163,7 +1120,6 @@ export const getWarehouseById = asyncHandler(async (req: Request, res: Response)
 export const updateWarehouse = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check permission for managing warehouses
   if (!checkPermission(req.user, "warehouse:manage")) {
     return sendError(res, "Insufficient permissions to update warehouse", 403);
   }
@@ -1186,7 +1142,6 @@ export const updateWarehouse = asyncHandler(async (req: Request, res: Response) 
 export const deleteWarehouse = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
-  // Check if user is super admin
   const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === "super_admin");
   if (!isSuperAdmin) {
     return sendError(res, "Only Super Admin can delete warehouses", 403);
@@ -1207,18 +1162,14 @@ export const deleteWarehouse = asyncHandler(async (req: Request, res: Response) 
   }
 });
 
-// Get warehouse assigned to logged-in manager (for warehouse managers to know their warehouse)
 export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) return sendError(res, "Unauthorized", 401);
 
   try {
-    // Check if user is super admin
     const isSuperAdmin = req.user.roles?.some((role: any) => role.systemRole === "super_admin");
 
-    // Get user's permissions
     const permissions = await req.user.getPermissions();
 
-    // Super admin has access to all warehouses, not a specific assigned warehouse
     if (isSuperAdmin) {
       const warehousesResult = await warehouseService.getWarehouses(
         { isActive: true },
@@ -1227,8 +1178,8 @@ export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) =
       );
 
       const responseData = {
-        warehouse: null, // Super admin doesn't have a single assigned warehouse
-        warehouses: warehousesResult.warehouses, // Return all warehouses for super admin
+        warehouse: null,
+        warehouses: warehousesResult.warehouses,
         pagination: warehousesResult.pagination,
         manager: {
           _id: req.user._id,
@@ -1253,10 +1204,8 @@ export const getMyWarehouse = asyncHandler(async (req: Request, res: Response) =
       );
     }
 
-    // For warehouse managers and staff, get their assigned warehouse
     const warehouse = await warehouseService.getMyWarehouse(req.user._id);
 
-    // Include permissions in the response
     const responseData = {
       warehouse,
       manager: {

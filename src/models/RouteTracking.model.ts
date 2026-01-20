@@ -27,7 +27,6 @@ const CheckInSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-// Index for efficient queries
 CheckInSchema.index({ route_id: 1, date: 1 });
 CheckInSchema.index({ agent_id: 1, date: 1 });
 

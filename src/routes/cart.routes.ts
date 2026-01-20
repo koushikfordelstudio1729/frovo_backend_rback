@@ -4,10 +4,8 @@ import { authenticate } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// All cart routes require authentication
 router.use(authenticate);
 
-// Cart management routes
 router.get("/", cartController.getCart);
 router.post("/add", cartController.addToCart);
 router.put("/item/:productId/:machineId/:slotNumber", cartController.updateCartItem);

@@ -98,19 +98,16 @@ const productSchema = new Schema<IProduct>(
   }
 );
 
-// Indexes
 productSchema.index({ name: 1 });
 productSchema.index({ category: 1 });
 productSchema.index({ isActive: 1 });
 productSchema.index({ price: 1 });
 productSchema.index({ createdAt: -1 });
 
-// Virtual for id
 productSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 productSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

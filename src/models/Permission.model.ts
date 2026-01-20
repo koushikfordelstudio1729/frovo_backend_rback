@@ -50,12 +50,10 @@ const permissionSchema = new Schema<IPermission>(
   }
 );
 
-// Indexes (key already has unique index from schema)
 permissionSchema.index({ module: 1 });
 permissionSchema.index({ group: 1 });
 permissionSchema.index({ module: 1, action: 1 });
 
-// Pre-save hook to auto-generate key
 permissionSchema.pre("save", function (next) {
   if (this.isModified("module") || this.isModified("action") || !this.key) {
     this.key = `${this.module}:${this.action}`;
@@ -63,12 +61,10 @@ permissionSchema.pre("save", function (next) {
   next();
 });
 
-// Virtual for id
 permissionSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 permissionSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

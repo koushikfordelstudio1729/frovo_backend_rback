@@ -102,7 +102,6 @@ const securityConfigSchema = new Schema<ISecurityConfig>(
         type: String,
         validate: {
           validator: function (ip: string) {
-            // Simple CIDR validation
             const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
             return cidrRegex.test(ip);
           },
@@ -124,7 +123,7 @@ const securityConfigSchema = new Schema<ISecurityConfig>(
     },
     sessionTimeout: {
       type: Number,
-      default: 86400000, // 24 hours in milliseconds
+      default: 86400000,
       min: [300000, "Session timeout cannot be less than 5 minutes"],
       max: [604800000, "Session timeout cannot exceed 7 days"],
     },
@@ -136,7 +135,7 @@ const securityConfigSchema = new Schema<ISecurityConfig>(
     },
     lockoutDuration: {
       type: Number,
-      default: 900000, // 15 minutes in milliseconds
+      default: 900000,
       min: [60000, "Lockout duration cannot be less than 1 minute"],
       max: [3600000, "Lockout duration cannot exceed 1 hour"],
     },
@@ -153,16 +152,11 @@ const securityConfigSchema = new Schema<ISecurityConfig>(
   }
 );
 
-// Index (organizationId already has unique index from schema)
-
-// Pre-save validation
 securityConfigSchema.pre("save", function (next) {
-  // If SSO is enabled, ssoConfig must be provided
   if (this.ssoEnabled && !this.ssoConfig) {
     return next(new Error("SSO configuration is required when SSO is enabled"));
   }
 
-  // If SSO is disabled, remove ssoConfig
   if (!this.ssoEnabled) {
     this.ssoConfig = undefined;
   }
@@ -170,17 +164,14 @@ securityConfigSchema.pre("save", function (next) {
   next();
 });
 
-// Virtual for id
 securityConfigSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 securityConfigSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {
     const { _id, __v, ...cleanRet } = ret;
-    // Don't expose SSO client secret
     if (cleanRet.ssoConfig && cleanRet.ssoConfig.clientSecret) {
       (cleanRet as any).ssoConfig = {
         clientId: cleanRet.ssoConfig.clientId,

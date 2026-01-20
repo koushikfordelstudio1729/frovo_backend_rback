@@ -63,10 +63,8 @@ class AuditService {
       sortOrder,
     } = query;
 
-    // Build filter
     const filter: any = {};
 
-    // Date range filter
     if (startDate || endDate) {
       filter.timestamp = {};
       if (startDate) {
@@ -97,14 +95,11 @@ class AuditService {
       filter["target.id"] = targetId;
     }
 
-    // Build sort
     const sort: any = {};
     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    // Calculate skip
     const skip = (page - 1) * limit;
 
-    // Execute queries
     const [logs, total] = await Promise.all([
       AuditLog.find(filter).populate("actor", "name email").sort(sort).skip(skip).limit(limit),
       AuditLog.countDocuments(filter),
@@ -168,24 +163,20 @@ class AuditService {
     }
 
     const [totalLogs, logsByModule, logsByAction, logsByActor, recentActivity] = await Promise.all([
-      // Total count
       AuditLog.countDocuments(filter),
 
-      // Group by module
       AuditLog.aggregate([
         { $match: filter },
         { $group: { _id: "$module", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
 
-      // Group by action
       AuditLog.aggregate([
         { $match: filter },
         { $group: { _id: "$action", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
 
-      // Group by actor
       AuditLog.aggregate([
         { $match: filter },
         { $group: { _id: "$actor", count: { $sum: 1 } } },
@@ -193,7 +184,6 @@ class AuditService {
         { $limit: 10 },
       ]),
 
-      // Recent activity
       AuditLog.find(filter).populate("actor", "name email").sort({ timestamp: -1 }).limit(10),
     ]);
 
@@ -219,7 +209,6 @@ class AuditService {
     const { startDate, endDate, actor, module, action, targetType, targetId, sortBy, sortOrder } =
       query;
 
-    // Build filter (same as getAuditLogs)
     const filter: any = {};
 
     if (startDate || endDate) {
@@ -241,7 +230,7 @@ class AuditService {
     const sort: any = {};
     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    return await AuditLog.find(filter).populate("actor", "name email").sort(sort).limit(10000); // Limit for performance
+    return await AuditLog.find(filter).populate("actor", "name email").sort(sort).limit(10000);
   }
 
   async deleteOldAuditLogs(daysToKeep = 365): Promise<{ deletedCount: number }> {

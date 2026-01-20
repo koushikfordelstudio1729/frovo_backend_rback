@@ -37,7 +37,6 @@ export const createRoleSchema = z.object({
     })
     .refine(
       data => {
-        // If scope level is not global, entities should be provided
         if (
           data.scope.level !== ScopeLevel.GLOBAL &&
           (!data.scope.entities || data.scope.entities.length === 0)

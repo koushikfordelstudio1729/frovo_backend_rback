@@ -11,15 +11,12 @@ import { errorHandler, notFound } from "./middleware/errorHandler.middleware";
 import { seedDatabase } from "./seeders";
 import { logger } from "./utils/logger.util";
 
-// Load environment variables
 dotenv.config({ path: ".env" });
 
 const app = express();
 
-// Trust proxy for accurate IP addresses
 app.set("trust proxy", 1);
 
-// Security middleware
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
@@ -27,7 +24,6 @@ app.use(
   })
 );
 
-// CORS configuration
 const corsOptions = {
   origin:
     process.env["CORS_ORIGIN"] === "*"
@@ -40,17 +36,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Cookie parsing middleware
 app.use(cookieParser());
 
-// Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env["RATE_LIMIT_WINDOW_MS"] || "60000"), // 1 minute
-  max: parseInt(process.env["RATE_LIMIT_MAX_REQUESTS"] || "100"), // 100 requests per minute
+  windowMs: parseInt(process.env["RATE_LIMIT_WINDOW_MS"] || "60000"),
+  max: parseInt(process.env["RATE_LIMIT_MAX_REQUESTS"] || "100"),
   message: {
     success: false,
     message: "Too many requests from this IP, please try again later.",
@@ -69,7 +62,6 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
-// Request logging middleware (development only)
 if (process.env["NODE_ENV"] === "development") {
   app.use((req, _res, next) => {
     logger.info(`${req.method} ${req.originalUrl} - ${req.ip}`);
@@ -77,7 +69,6 @@ if (process.env["NODE_ENV"] === "development") {
   });
 }
 
-// Health check endpoint
 app.get("/health", (_req, res) => {
   res.json({
     success: true,
@@ -89,18 +80,14 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API routes
 app.use("/api", routes);
 
-// 404 handler for undefined routes
 app.use(notFound);
 
-// Error handling middleware (must be last)
 app.use(errorHandler);
 
 const PORT = process.env["PORT"] || 3000;
 
-// Global error handlers
 process.on("uncaughtException", error => {
   logger.error("Uncaught Exception:", error);
   process.exit(1);
@@ -113,22 +100,18 @@ process.on("unhandledRejection", (reason, _promise) => {
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
     await connectDB();
 
-    // Run seeders if enabled
     if (process.env["SEED_DATABASE"] === "true") {
       await seedDatabase();
     }
 
-    // Start the server
     const server = app.listen(PORT, () => {
       logger.info(
         `Server started | Port: ${PORT} | Environment: ${process.env["NODE_ENV"] || "development"}`
       );
     });
 
-    // Graceful shutdown
     const gracefulShutdown = (signal: string) => {
       logger.info(`Received ${signal}, shutting down gracefully`);
 
@@ -144,14 +127,12 @@ const startServer = async () => {
         }
       });
 
-      // Force shutdown after 30 seconds
       setTimeout(() => {
         logger.error("Forced shutdown - connections did not close in time");
         process.exit(1);
       }, 30000);
     };
 
-    // Handle process termination
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   } catch (error) {
@@ -160,7 +141,6 @@ const startServer = async () => {
   }
 };
 
-// Start the server
 startServer();
 
 export default app;

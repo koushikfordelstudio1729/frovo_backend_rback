@@ -33,24 +33,20 @@ class AuthService {
     createdBy: Types.ObjectId,
     deviceInfo?: DeviceInfo
   ): Promise<AuthResponse> {
-    // Check if this is the first user (Super Admin)
     const existingUserCount = await User.countDocuments();
 
     if (existingUserCount > 0) {
       throw new Error("Super Admin already exists. Use regular user creation process.");
     }
 
-    // Create the Super Admin user
     const user = await User.create({
       ...userData,
       createdBy,
       status: UserStatus.ACTIVE,
     });
 
-    // Generate tokens
     const tokens = generateTokenPair(user._id);
 
-    // Store refresh token in database
     await user.addRefreshToken(
       tokens.refreshToken,
       deviceInfo?.deviceInfo,
@@ -58,7 +54,6 @@ class AuthService {
       deviceInfo?.userAgent
     );
 
-    // Return user without sensitive data
     const userResponse = user.toObject();
     const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
 
@@ -69,30 +64,25 @@ class AuthService {
   }
 
   async registerCustomer(userData: RegisterData, deviceInfo?: DeviceInfo): Promise<AuthResponse> {
-    // Check if user with this email already exists
     const existingUser = await User.findOne({ email: userData.email });
     if (existingUser) {
       throw new Error("User with this email already exists");
     }
 
-    // Find the customer role
     const customerRole = await Role.findOne({ systemRole: SystemRole.CUSTOMER });
     if (!customerRole) {
       throw new Error("Customer role not found. Please contact administrator.");
     }
 
-    // Create the customer user
     const user = await User.create({
       ...userData,
       roles: [customerRole._id],
       status: UserStatus.ACTIVE,
-      createdBy: null, // Customers are self-registered
+      createdBy: null,
     });
 
-    // Generate tokens
     const tokens = generateTokenPair(user._id);
 
-    // Store refresh token in database
     await user.addRefreshToken(
       tokens.refreshToken,
       deviceInfo?.deviceInfo,
@@ -100,15 +90,12 @@ class AuthService {
       deviceInfo?.userAgent
     );
 
-    // Send welcome email to customer
     try {
       await emailService.sendWelcomeEmail(userData.email, userData.name, userData.password);
     } catch (emailError) {
-      // Log email error but don't fail registration
       logger.error("Failed to send welcome email:", emailError);
     }
 
-    // Return user without sensitive data
     const userResponse = user.toObject();
     const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
 
@@ -121,7 +108,6 @@ class AuthService {
   async login(credentials: LoginCredentials, deviceInfo?: DeviceInfo): Promise<AuthResponse> {
     const { email, password: loginPassword } = credentials;
 
-    // Find user by email and include password
     const user = await User.findOne({ email })
       .select("+password")
       .populate("roles")
@@ -131,24 +117,19 @@ class AuthService {
       throw new Error("Invalid credentials");
     }
 
-    // Check if user is active
     if (user.status !== UserStatus.ACTIVE) {
       throw new Error("Account is inactive or suspended");
     }
 
-    // Verify password
     const isPasswordValid = await user.comparePassword(loginPassword);
     if (!isPasswordValid) {
       throw new Error("Invalid credentials");
     }
 
-    // Update last login
     user.lastLogin = new Date();
 
-    // Generate tokens
     const tokens = generateTokenPair(user._id);
 
-    // Store refresh token in database
     await user.addRefreshToken(
       tokens.refreshToken,
       deviceInfo?.deviceInfo,
@@ -156,7 +137,6 @@ class AuthService {
       deviceInfo?.userAgent
     );
 
-    // Return user without sensitive data
     const userResponse = user.toObject();
     const { password, mfaSecret, refreshTokens, ...cleanUser } = userResponse;
 
@@ -171,27 +151,21 @@ class AuthService {
     deviceInfo?: DeviceInfo
   ): Promise<{ accessToken: string; refreshToken: string }> {
     try {
-      // Verify refresh token
       const decoded = verifyRefreshToken(refreshToken);
 
-      // Find user
       const user = await User.findById(decoded.id);
       if (!user || user.status !== UserStatus.ACTIVE) {
         throw new Error("Invalid refresh token");
       }
 
-      // Check if refresh token exists in database and is valid
       if (!user.isRefreshTokenValid(refreshToken)) {
         throw new Error("Invalid or expired refresh token");
       }
 
-      // Remove old refresh token
       await user.removeRefreshToken(refreshToken);
 
-      // Generate new token pair (token rotation)
       const newTokens = generateTokenPair(user._id);
 
-      // Store new refresh token in database
       await user.addRefreshToken(
         newTokens.refreshToken,
         deviceInfo?.deviceInfo,
@@ -212,10 +186,8 @@ class AuthService {
     }
 
     if (refreshToken) {
-      // Logout from specific device
       await user.removeRefreshToken(refreshToken);
     } else {
-      // Logout from all devices
       await user.clearAllRefreshTokens();
     }
   }
@@ -253,13 +225,11 @@ class AuthService {
       throw new Error("User not found");
     }
 
-    // Verify current password
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
       throw new Error("Current password is incorrect");
     }
 
-    // Update password
     user.password = newPassword;
     await user.save();
   }
@@ -276,14 +246,10 @@ class AuthService {
   }
 
   async enableMFA(_userId: string): Promise<{ secret: string; qrCode: string }> {
-    // This would integrate with an MFA library like speakeasy
-    // For now, returning placeholder
     throw new Error("MFA not implemented yet");
   }
 
   async verifyMFA(_userId: string, _token: string): Promise<boolean> {
-    // This would verify MFA token
-    // For now, returning placeholder
     throw new Error("MFA not implemented yet");
   }
 

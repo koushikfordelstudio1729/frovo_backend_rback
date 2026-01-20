@@ -18,7 +18,6 @@ export interface ICreateArea extends Document {
   }[];
 }
 
-// Define sub-location schema separately
 const SubLocationSchema: Schema = new Schema(
   {
     campus: {
@@ -38,15 +37,14 @@ const SubLocationSchema: Schema = new Schema(
       required: true,
       validate: {
         validator: function (v: string[]) {
-          return v.length > 0; // At least one machine
+          return v.length > 0;
         },
         message: "At least one machine must be selected",
       },
     },
   },
   { _id: false }
-); // _id: false prevents creating unnecessary ObjectId for subdocuments
-
+);
 const AreaRouteSchema: Schema = new Schema(
   {
     area_name: {
@@ -100,12 +98,11 @@ const AreaRouteSchema: Schema = new Schema(
       type: String,
     },
     sub_locations: {
-      // Changed from sub_location to sub_locations (array)
-      type: [SubLocationSchema], // Now an array of sub-locations
+      type: [SubLocationSchema],
       required: true,
       validate: {
         validator: function (v: any[]) {
-          return v.length > 0; // At least one sub-location
+          return v.length > 0;
         },
         message: "At least one sub-location must be provided",
       },
@@ -114,7 +111,6 @@ const AreaRouteSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-// History Schema for audit trail
 export interface IHistoryArea extends Document {
   area_id: Types.ObjectId;
   action: "CREATE" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "ADD_SUB_LOCATION";
@@ -173,7 +169,6 @@ const HistoryAreaSchema: Schema = new Schema(
   }
 );
 
-// Indexes for faster queries
 HistoryAreaSchema.index({ area_id: 1, timestamp: -1 });
 HistoryAreaSchema.index({ "performed_by.user_id": 1 });
 HistoryAreaSchema.index({ action: 1 });

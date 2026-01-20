@@ -105,29 +105,25 @@ const auditLogSchema = new Schema<IAuditLog>(
     },
   },
   {
-    timestamps: false, // We use timestamp field instead
+    timestamps: false,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
 );
 
-// Indexes for performance
 auditLogSchema.index({ timestamp: -1 });
 auditLogSchema.index({ actor: 1, timestamp: -1 });
 auditLogSchema.index({ module: 1, timestamp: -1 });
 auditLogSchema.index({ "target.type": 1, "target.id": 1 });
 auditLogSchema.index({ action: 1, timestamp: -1 });
 
-// Compound indexes for common queries
 auditLogSchema.index({ module: 1, action: 1, timestamp: -1 });
 auditLogSchema.index({ actor: 1, module: 1, timestamp: -1 });
 
-// Virtual for id
 auditLogSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 auditLogSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

@@ -21,9 +21,6 @@ export class HistoryController {
       email: user.email || "",
     };
   }
-  /**
-   * Get audit logs for a specific entity (category or catalogue)
-   */
   async getEntityAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { entityType, entityId } = req.params;
@@ -31,7 +28,6 @@ export class HistoryController {
 
       logger.info(`Fetching audit logs for ${entityType}/${entityId}`);
 
-      // Validate entity type
       if (entityType !== "category" && entityType !== "catalogue") {
         res.status(400).json({
           success: false,
@@ -71,9 +67,6 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Get audit logs by user
-   */
   async getUserAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
@@ -111,12 +104,8 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Get current user's audit logs
-   */
   async getMyAuditLogs(req: Request, res: Response): Promise<void> {
     try {
-      // Extract logged in user
       const { _id: userId } = HistoryController.getLoggedInUser(req);
 
       const { entityType, operation, limit, skip, startDate, endDate } = req.query;
@@ -152,9 +141,6 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Search audit logs with advanced filters
-   */
   async searchAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { entityType, operation, userId, userEmail, status, startDate, endDate, limit, skip } =
@@ -208,9 +194,6 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Get audit statistics
-   */
   async getAuditStatistics(req: Request, res: Response): Promise<void> {
     try {
       const { entityType, startDate, endDate } = req.query;
@@ -242,16 +225,12 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Get recent audit activity (last 24 hours)
-   */
   async getRecentActivity(req: Request, res: Response): Promise<void> {
     try {
       const { entityType, operation, limit } = req.query;
 
       logger.info("Fetching recent audit activity");
 
-      // Get logs from last 24 hours
       const twentyFourHoursAgo = new Date();
       twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
@@ -283,9 +262,6 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Export audit logs to CSV
-   */
   async exportAuditLogsCSV(req: Request, res: Response): Promise<void> {
     try {
       const { entityType, operation, userId, userEmail, startDate, endDate } = req.query;
@@ -299,13 +275,11 @@ export class HistoryController {
         userEmail: userEmail as string,
         startDate: startDate ? new Date(startDate as string) : undefined,
         endDate: endDate ? new Date(endDate as string) : undefined,
-        limit: 10000, // Large limit for export
+        limit: 10000,
       });
 
-      // Convert to CSV
       const csvData = this.convertAuditLogsToCSV(logs);
 
-      // Set headers for CSV download
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=audit-logs.csv");
       res.status(200).send(csvData);
@@ -320,9 +294,6 @@ export class HistoryController {
     }
   }
 
-  /**
-   * Convert audit logs to CSV format
-   */
   private convertAuditLogsToCSV(logs: any[]): string {
     const headers = [
       "Timestamp",
@@ -360,5 +331,4 @@ export class HistoryController {
   }
 }
 
-// Export instance
 export const historyController = new HistoryController();

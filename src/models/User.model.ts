@@ -134,13 +134,11 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// Indexes (email already has unique index from schema)
 userSchema.index({ status: 1 });
 userSchema.index({ departments: 1 });
 userSchema.index({ roles: 1 });
 userSchema.index({ createdAt: -1 });
 
-// Pre-save hook to hash password
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
@@ -153,14 +151,12 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-// Method to compare password
 userSchema.methods["comparePassword"] = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return await bcrypt.compare(candidatePassword, this["password"]);
 };
 
-// Method to get user permissions
 userSchema.methods["getPermissions"] = async function (): Promise<string[]> {
   await this["populate"]("roles");
   const permissions = new Set<string>();
@@ -175,28 +171,23 @@ userSchema.methods["getPermissions"] = async function (): Promise<string[]> {
   return Array.from(permissions);
 };
 
-// Method to add refresh token
 userSchema.methods["addRefreshToken"] = async function (
   token: string,
   deviceInfo?: string,
   ipAddress?: string,
   userAgent?: string
 ): Promise<void> {
-  // Calculate expiration date (7 days from now)
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  // Clean up expired tokens
   this["refreshTokens"] = this["refreshTokens"].filter(
     (rt: IRefreshToken) => rt.expiresAt > new Date()
   );
 
-  // Limit to 5 active tokens per user
   if (this["refreshTokens"].length >= 5) {
-    this["refreshTokens"].shift(); // Remove oldest token
+    this["refreshTokens"].shift();
   }
 
-  // Add new token
   this["refreshTokens"].push({
     token,
     createdAt: new Date(),
@@ -209,28 +200,23 @@ userSchema.methods["addRefreshToken"] = async function (
   await this["save"]();
 };
 
-// Method to remove specific refresh token
 userSchema.methods["removeRefreshToken"] = async function (token: string): Promise<void> {
   this["refreshTokens"] = this["refreshTokens"].filter((rt: IRefreshToken) => rt.token !== token);
   await this["save"]();
 };
 
-// Method to clear all refresh tokens (logout from all devices)
 userSchema.methods["clearAllRefreshTokens"] = async function (): Promise<void> {
   this["refreshTokens"] = [];
   await this["save"]();
 };
 
-// Method to check if refresh token is valid
 userSchema.methods["isRefreshTokenValid"] = function (token: string): boolean {
   const refreshToken = this["refreshTokens"].find((rt: IRefreshToken) => rt.token === token);
   if (!refreshToken) {
     return false;
   }
 
-  // Check if token is expired
   if (refreshToken.expiresAt < new Date()) {
-    // Remove expired token
     this["refreshTokens"] = this["refreshTokens"].filter((rt: IRefreshToken) => rt.token !== token);
     this["save"]();
     return false;
@@ -239,12 +225,10 @@ userSchema.methods["isRefreshTokenValid"] = function (token: string): boolean {
   return true;
 };
 
-// Virtual for id
 userSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Ensure virtual fields are serialized
 userSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

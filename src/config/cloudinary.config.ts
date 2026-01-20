@@ -1,14 +1,12 @@
 import { v2 as cloudinary } from "cloudinary";
 
 import { logger } from "../utils/logger.util";
-// Configure Cloudinary
 const config = {
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 };
 
-// Log configuration status (without exposing secrets)
 logger.info("🌥️  Cloudinary Config:", {
   cloud_name: config.cloud_name || "❌ MISSING",
   api_key: config.api_key ? "✅ SET" : "❌ MISSING",

@@ -31,7 +31,6 @@ export const initiatePayment = asyncHandler(async (req: Request, res: Response) 
       return sendError(res, "Invalid payment gateway", 400);
     }
 
-    // Get order to verify amount
     const order = await orderService.getOrderById(orderId, userId);
 
     const paymentData: InitiatePaymentData = {
@@ -102,8 +101,6 @@ export const getUserPayments = asyncHandler(async (req: Request, res: Response) 
 
 export const processPaymentWebhook = asyncHandler(async (req: Request, res: Response) => {
   try {
-    // This endpoint would typically be called by payment gateways
-    // Skip authentication for webhook endpoints
     const webhookData: PaymentWebhookData = req.body;
 
     if (!webhookData.paymentId || !webhookData.gatewayTransactionId || !webhookData.status) {
@@ -124,7 +121,6 @@ export const processPaymentWebhook = asyncHandler(async (req: Request, res: Resp
 
 export const confirmPayment = asyncHandler(async (req: Request, res: Response) => {
   try {
-    // This endpoint can be used for manual payment confirmation (e.g., for cash payments)
     const { paymentId, gatewayTransactionId, signature } = req.body;
 
     if (!paymentId) {
@@ -224,7 +220,6 @@ export const getMachinePaymentStats = asyncHandler(async (req: Request, res: Res
   }
 });
 
-// Mock payment completion for testing (simulates successful payment)
 export const mockPaymentSuccess = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { paymentId } = req.params;
@@ -252,7 +247,6 @@ export const mockPaymentSuccess = asyncHandler(async (req: Request, res: Respons
   }
 });
 
-// Mock payment failure for testing
 export const mockPaymentFailure = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { paymentId } = req.params;

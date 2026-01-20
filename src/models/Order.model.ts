@@ -274,13 +274,11 @@ const orderSchema = new Schema<IOrder>(
   }
 );
 
-// Indexes for efficient queries
 orderSchema.index({ userId: 1, orderDate: -1 });
 orderSchema.index({ orderStatus: 1, orderDate: -1 });
 orderSchema.index({ "paymentInfo.paymentStatus": 1 });
 orderSchema.index({ "deliveryInfo.machineId": 1 });
 
-// Generate order ID
 orderSchema.pre("save", function (next) {
   if (this.isNew && !this.orderId) {
     const timestamp = Date.now().toString(36);
@@ -290,22 +288,18 @@ orderSchema.pre("save", function (next) {
   next();
 });
 
-// Virtual to check if order is completed
 orderSchema.virtual("isCompleted").get(function () {
   return this.orderStatus === OrderStatus.COMPLETED;
 });
 
-// Virtual to check if order can be cancelled
 orderSchema.virtual("canBeCancelled").get(function () {
   return [OrderStatus.PENDING, OrderStatus.CONFIRMED].includes(this.orderStatus);
 });
 
-// Virtual to check if payment is successful
 orderSchema.virtual("isPaymentSuccessful").get(function () {
   return this.paymentInfo.paymentStatus === PaymentStatus.COMPLETED;
 });
 
-// Method to update order status
 orderSchema.methods["updateStatus"] = function (status: OrderStatus, reason?: string) {
   (this as any).orderStatus = status;
 
@@ -318,7 +312,6 @@ orderSchema.methods["updateStatus"] = function (status: OrderStatus, reason?: st
   return (this as any).save();
 };
 
-// Method to update payment status
 orderSchema.methods["updatePaymentStatus"] = function (
   status: PaymentStatus,
   transactionId?: string
@@ -335,7 +328,6 @@ orderSchema.methods["updatePaymentStatus"] = function (
   return (this as any).save();
 };
 
-// Method to mark item as dispensed
 orderSchema.methods["markItemDispensed"] = function (productId: string, slotNumber: string) {
   const item = (this as any).items.find(
     (item: IOrderItem) => item.product.toString() === productId && item.slotNumber === slotNumber
@@ -345,7 +337,6 @@ orderSchema.methods["markItemDispensed"] = function (productId: string, slotNumb
     item.dispensed = true;
     item.dispensedAt = new Date();
 
-    // Check if all items are dispensed
     const allDispensed = (this as any).items.every((item: IOrderItem) => item.dispensed);
     if (allDispensed) {
       (this as any).orderStatus = OrderStatus.COMPLETED;

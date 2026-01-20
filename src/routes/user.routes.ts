@@ -21,24 +21,14 @@ import { MODULES } from "../config/constants";
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Get users with pagination and filtering
-router.get(
-  "/",
-  requirePermission("users:view"),
-  // validate({ query: getUsersQueryBaseSchema }),
-  userController.getUsers
-);
+router.get("/", requirePermission("users:view"), userController.getUsers);
 
-// Search users
 router.get("/search", requirePermission("users:view"), userController.searchUsers);
 
-// Get user by ID
 router.get("/:id", requirePermission("users:view"), validateObjectId(), userController.getUserById);
 
-// Get user permissions
 router.get(
   "/:id/permissions",
   requirePermission("users:view"),
@@ -46,7 +36,6 @@ router.get(
   userController.getUserPermissions
 );
 
-// Create new user
 router.post(
   "/",
   requirePermission("users:create"),
@@ -55,7 +44,6 @@ router.post(
   userController.createUser
 );
 
-// Update user
 router.put(
   "/:id",
   requirePermission("users:edit"),
@@ -65,7 +53,6 @@ router.put(
   userController.updateUser
 );
 
-// Update user status
 router.patch(
   "/:id/status",
   requirePermission("users:edit"),
@@ -75,7 +62,6 @@ router.patch(
   userController.updateUserStatus
 );
 
-// Update user password
 router.patch(
   "/:id/password",
   requirePermission("users:edit"),
@@ -85,7 +71,6 @@ router.patch(
   userController.updateUserPassword
 );
 
-// Assign roles to user
 router.post(
   "/:id/roles",
   requirePermission("users:edit"),
@@ -95,7 +80,6 @@ router.post(
   userController.assignRoles
 );
 
-// Remove role from user
 router.delete(
   "/:id/roles/:roleId",
   requirePermission("users:edit"),
@@ -105,7 +89,6 @@ router.delete(
   userController.removeRole
 );
 
-// Delete user
 router.delete(
   "/:id",
   requirePermission("users:delete"),

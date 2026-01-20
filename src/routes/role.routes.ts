@@ -21,10 +21,8 @@ import { MODULES } from "../config/constants";
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Get roles with pagination and filtering
 router.get(
   "/",
   requirePermission("roles:view"),
@@ -32,10 +30,8 @@ router.get(
   roleController.getRoles
 );
 
-// Get role by ID
 router.get("/:id", requirePermission("roles:view"), validateObjectId(), roleController.getRoleById);
 
-// Get role permissions
 router.get(
   "/:id/permissions",
   requirePermission("roles:view"),
@@ -43,7 +39,6 @@ router.get(
   roleController.getRolePermissions
 );
 
-// Get role users
 router.get(
   "/:id/users",
   requirePermission("roles:view"),
@@ -51,7 +46,6 @@ router.get(
   roleController.getRoleUsers
 );
 
-// Create new role
 router.post(
   "/",
   requirePermission("roles:create"),
@@ -60,7 +54,6 @@ router.post(
   roleController.createRole
 );
 
-// Clone role
 router.post(
   "/:id/clone",
   requirePermission("roles:create"),
@@ -70,7 +63,6 @@ router.post(
   roleController.cloneRole
 );
 
-// Update role
 router.put(
   "/:id",
   requirePermission("roles:edit"),
@@ -80,7 +72,6 @@ router.put(
   roleController.updateRole
 );
 
-// Update role permissions
 router.put(
   "/:id/permissions",
   requirePermission("roles:edit"),
@@ -89,7 +80,6 @@ router.put(
   roleController.updateRolePermissions
 );
 
-// Publish role
 router.patch(
   "/:id/publish",
   requirePermission("roles:edit"),
@@ -99,7 +89,6 @@ router.patch(
   roleController.publishRole
 );
 
-// Assign role to users
 router.post(
   "/:id/assign",
   requirePermission("roles:edit"),
@@ -109,7 +98,6 @@ router.post(
   roleController.assignRole
 );
 
-// Delete role
 router.delete(
   "/:id",
   requirePermission("roles:delete"),

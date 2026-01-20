@@ -13,7 +13,6 @@ export interface IMachineSkip extends Document {
 
   skippedAt: Date;
 
-  // Follow-up
   followUpRequired: boolean;
   followUpDate?: Date;
   followUpAssignedTo?: Types.ObjectId;
@@ -92,7 +91,6 @@ const machineSkipSchema = new Schema<IMachineSkip>(
   }
 );
 
-// Indexes
 machineSkipSchema.index({ machineId: 1, skippedAt: -1 });
 machineSkipSchema.index({ agentId: 1, resolved: 1 });
 

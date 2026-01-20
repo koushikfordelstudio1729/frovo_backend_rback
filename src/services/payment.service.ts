@@ -45,7 +45,6 @@ class PaymentService {
       currency = "INR",
     } = paymentData;
 
-    // Validate order exists and belongs to user
     const order = await Order.findOne({ orderId, userId });
     if (!order) {
       throw new Error("Order not found or does not belong to user");
@@ -55,7 +54,6 @@ class PaymentService {
       throw new Error("Payment amount does not match order total");
     }
 
-    // Check if payment already exists for this order
     const existingPayment = await Payment.findOne({
       orderId,
       transactionType: TransactionType.PAYMENT,
@@ -64,7 +62,6 @@ class PaymentService {
       throw new Error("Payment already completed for this order");
     }
 
-    // Create payment metadata
     const metadata = {
       orderId,
       userId: new Types.ObjectId(userId),
@@ -77,7 +74,6 @@ class PaymentService {
       })),
     };
 
-    // Create payment record
     const payment = new Payment({
       orderId,
       userId,
@@ -93,7 +89,6 @@ class PaymentService {
 
     await payment.save();
 
-    // Generate payment gateway specific data
     let gatewayData;
     switch (paymentGateway) {
       case PaymentGateway.RAZORPAY:
@@ -124,7 +119,6 @@ class PaymentService {
       throw new Error("Payment not found");
     }
 
-    // Update gateway response
     payment.gatewayResponse = {
       ...payment.gatewayResponse,
       gatewayTransactionId,
@@ -138,7 +132,6 @@ class PaymentService {
     if (status === "success") {
       await (payment as any)["markAsSuccessful"](payment.gatewayResponse);
 
-      // Update order payment status
       const order = await Order.findOne({ orderId: payment.orderId });
       if (order) {
         await (order as any)["updatePaymentStatus"](PaymentStatus.COMPLETED, gatewayTransactionId);
@@ -146,7 +139,6 @@ class PaymentService {
     } else if (status === "failed") {
       await (payment as any)["markAsFailed"](errorCode, errorMessage);
 
-      // Update order payment status
       const order = await Order.findOne({ orderId: payment.orderId });
       if (order) {
         await (order as any)["updatePaymentStatus"](PaymentStatus.FAILED);
@@ -206,7 +198,6 @@ class PaymentService {
       throw new Error("Refund amount exceeds refundable amount");
     }
 
-    // Create refund payment record
     const refundPayment = new Payment({
       orderId: payment.orderId,
       userId: payment.userId,
@@ -223,7 +214,6 @@ class PaymentService {
 
     await refundPayment.save();
 
-    // Process refund with gateway
     let refundResult;
     switch (payment.paymentGateway) {
       case PaymentGateway.RAZORPAY:
@@ -302,12 +292,10 @@ class PaymentService {
     );
   }
 
-  // Gateway-specific implementations (mock implementations)
   private async createRazorpayPayment(payment: any) {
-    // Mock Razorpay implementation
     const razorpayOrder = {
       id: `rzp_order_${Date.now()}`,
-      amount: payment.amount * 100, // Razorpay expects amount in paise
+      amount: payment.amount * 100,
       currency: payment.currency,
       receipt: payment.paymentId,
     };
@@ -319,7 +307,7 @@ class PaymentService {
       orderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      key: "rzp_test_key", // This would come from environment variables
+      key: "rzp_test_key",
       name: "Frovo Vending",
       description: `Payment for Order ${payment.orderId}`,
       prefill: {
@@ -330,11 +318,10 @@ class PaymentService {
   }
 
   private async createStripePayment(payment: any) {
-    // Mock Stripe implementation
     const stripeIntent = {
       id: `pi_${Date.now()}`,
       client_secret: `pi_${Date.now()}_secret_test`,
-      amount: payment.amount * 100, // Stripe expects amount in cents
+      amount: payment.amount * 100,
       currency: payment.currency.toLowerCase(),
     };
 
@@ -349,7 +336,6 @@ class PaymentService {
   }
 
   private async processCashPayment(payment: any) {
-    // For cash payments, mark as successful immediately
     await (payment as any)["markAsSuccessful"]({ gatewayTransactionId: `CASH_${Date.now()}` });
 
     return {
@@ -360,7 +346,6 @@ class PaymentService {
   }
 
   private async createMockPayment(payment: any) {
-    // Mock payment gateway for testing
     const mockTransactionId = `MOCK_${Date.now()}`;
 
     payment.gatewayResponse.gatewayTransactionId = mockTransactionId;
@@ -375,7 +360,6 @@ class PaymentService {
   }
 
   private async processRazorpayRefund(_payment: any, amount: number) {
-    // Mock Razorpay refund
     return {
       success: true,
       refundId: `rfnd_${Date.now()}`,
@@ -384,7 +368,6 @@ class PaymentService {
   }
 
   private async processStripeRefund(_payment: any, amount: number) {
-    // Mock Stripe refund
     return {
       success: true,
       refundId: `re_${Date.now()}`,
@@ -393,7 +376,6 @@ class PaymentService {
   }
 
   private async processCashRefund(_payment: any, amount: number) {
-    // Mock cash refund
     return {
       success: true,
       refundId: `CASH_REFUND_${Date.now()}`,
@@ -402,7 +384,6 @@ class PaymentService {
   }
 
   private async processMockRefund(_payment: any, amount: number) {
-    // Mock refund
     return {
       success: true,
       refundId: `MOCK_REFUND_${Date.now()}`,

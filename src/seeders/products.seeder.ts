@@ -8,12 +8,10 @@ export const seedProducts = async (
   try {
     logger.info("🌱 Seeding products...");
 
-    // Check if products already exist
     const existingCount = await Product.countDocuments();
     if (existingCount > 0) {
       logger.info(`✅ Products already seeded (${existingCount} products found)`);
 
-      // Return existing product IDs
       const existingProducts = await Product.find();
       const productMap: { [key: string]: Types.ObjectId } = {};
       existingProducts.forEach(product => {
@@ -23,7 +21,6 @@ export const seedProducts = async (
     }
 
     const products = [
-      // Beverages
       {
         name: "Coca-Cola",
         description: "Classic cola soft drink",
@@ -95,7 +92,6 @@ export const seedProducts = async (
         isActive: true,
       },
 
-      // Water
       {
         name: "Bisleri Water",
         description: "Packaged drinking water",
@@ -125,7 +121,6 @@ export const seedProducts = async (
         isActive: true,
       },
 
-      // Coffee
       {
         name: "Nescafe Cold Coffee",
         description: "Ready to drink cold coffee",
@@ -142,7 +137,6 @@ export const seedProducts = async (
         isActive: true,
       },
 
-      // Snacks
       {
         name: "Lays Classic",
         description: "Classic potato chips",
@@ -222,7 +216,6 @@ export const seedProducts = async (
         isActive: true,
       },
 
-      // Healthy Options
       {
         name: "Mixed Nuts",
         description: "Roasted mixed nuts pack",
@@ -254,7 +247,6 @@ export const seedProducts = async (
         isActive: true,
       },
 
-      // Candy
       {
         name: "Dairy Milk Chocolate",
         description: "Milk chocolate bar",
@@ -273,7 +265,6 @@ export const seedProducts = async (
       },
     ];
 
-    // Add createdBy to each product
     const productsWithCreatedBy = products.map(product => ({
       ...product,
       createdBy,
@@ -283,13 +274,11 @@ export const seedProducts = async (
 
     logger.info(`✅ Successfully seeded ${createdProducts.length} products`);
 
-    // Create product mapping for easy reference
     const productMap: { [key: string]: Types.ObjectId } = {};
     createdProducts.forEach(product => {
       productMap[product.name.toLowerCase().replace(/\s+/g, "_")] = product._id;
     });
 
-    // Log created products
     const productNames = createdProducts.map(p => p.name);
     logger.info(`📦 Created products: ${productNames.join(", ")}`);
 
@@ -300,7 +289,6 @@ export const seedProducts = async (
   }
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     connectDB().then(() => {

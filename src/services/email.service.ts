@@ -13,9 +13,7 @@ class EmailService {
   private fromEmail: string | null = null;
   private initialized = false;
 
-  constructor() {
-    // Delay initialization until first use to ensure environment variables are loaded
-  }
+  constructor() {}
 
   private ensureInitialized(): void {
     if (this.initialized) {
@@ -27,7 +25,6 @@ class EmailService {
       this.initialized = true;
     } catch (error) {
       logger.error("Failed to initialize email transporter:", error);
-      // Create a dummy transporter to prevent crashes
       this.transporter = {
         sendMail: async () => {
           throw new Error("Email service not configured");
@@ -41,9 +38,7 @@ class EmailService {
   }
 
   private initializeTransporter(): void {
-    // Set fromEmail
     this.fromEmail = process.env["EMAIL_FROM"] || "noreply@example.com";
-    // Debug environment variables
     logger.info("Environment variables:");
     logger.info(`  EMAIL_HOST: ${process.env["EMAIL_HOST"]}`);
     logger.info(`  EMAIL_PORT: ${process.env["EMAIL_PORT"]}`);
@@ -87,14 +82,12 @@ class EmailService {
 
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
-      // Ensure service is initialized
       this.ensureInitialized();
 
       if (!this.transporter) {
         throw new Error("Email transporter not initialized");
       }
 
-      // First verify the connection
       logger.info("Verifying SMTP connection...");
       await this.transporter.verify();
       logger.info("✅ SMTP connection verified");
@@ -203,7 +196,6 @@ This is an automated message from the Frovo RBAC System. Please do not reply to 
 
   async verifyConnection(): Promise<boolean> {
     try {
-      // Ensure service is initialized
       this.ensureInitialized();
 
       if (!this.transporter) {

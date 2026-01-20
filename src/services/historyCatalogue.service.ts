@@ -4,11 +4,7 @@ import { HistoryCatalogue, IHistoryCatalogue } from "../models/HistoryCatalogue.
 import mongoose from "mongoose";
 
 import { logger } from "../utils/logger.util";
-// History Catalogue Service
 export class HistoryCatalogueService {
-  /**
-   * Extract user details from request
-   */
   private extractUserDetails(req: Request): {
     user_id: mongoose.Types.ObjectId;
     user_email: string;
@@ -23,9 +19,6 @@ export class HistoryCatalogueService {
     };
   }
 
-  /**
-   * Extract request details
-   */
   private extractRequestDetails(req: Request): {
     ip_address: string;
     user_agent: string;
@@ -40,9 +33,6 @@ export class HistoryCatalogueService {
     };
   }
 
-  /**
-   * Calculate changes between old and new objects
-   */
   private calculateChanges(
     oldData: any,
     newData: any
@@ -53,10 +43,8 @@ export class HistoryCatalogueService {
   }> {
     const changes: Array<{ field: string; old_value: any; new_value: any }> = [];
 
-    // Get all keys from both objects
     const allKeys = new Set([...Object.keys(oldData || {}), ...Object.keys(newData || {})]);
 
-    // Exclude these fields from change tracking
     const excludeFields = ["_id", "__v", "createdAt", "updatedAt"];
 
     for (const key of allKeys) {
@@ -65,7 +53,6 @@ export class HistoryCatalogueService {
       const oldValue = oldData?.[key];
       const newValue = newData?.[key];
 
-      // Handle nested objects (like sub_details)
       if (
         typeof oldValue === "object" &&
         typeof newValue === "object" &&
@@ -83,7 +70,6 @@ export class HistoryCatalogueService {
         continue;
       }
 
-      // Compare values
       if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
         changes.push({
           field: key,
@@ -96,9 +82,6 @@ export class HistoryCatalogueService {
     return changes;
   }
 
-  /**
-   * Log CREATE operation
-   */
   async logCreate(
     req: Request,
     entityType: "category" | "sub_category" | "catalogue",
@@ -133,9 +116,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Log UPDATE operation
-   */
   async logUpdate(
     req: Request,
     entityType: "category" | "sub_category" | "catalogue",
@@ -174,9 +154,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Log DELETE operation
-   */
   async logDelete(
     req: Request,
     entityType: "category" | "sub_category" | "catalogue",
@@ -211,9 +188,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Log VIEW operation (optional - can be noisy)
-   */
   async logView(
     req: Request,
     entityType: "category" | "sub_category" | "catalogue",
@@ -243,9 +217,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Get audit logs for specific entity
-   */
   async getEntityHistoryLogs(
     entityType: "category" | "sub_category" | "catalogue",
     entityId: string,
@@ -278,9 +249,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Get audit logs by user
-   */
   async getUserHistoryLogs(
     userId: string,
     options?: {
@@ -324,9 +292,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Get audit logs with advanced filtering
-   */
   async getAuditLogs(filters: {
     entityType?: "category" | "sub_category" | "catalogue";
     operation?: "create" | "update" | "delete" | "view";
@@ -369,9 +334,6 @@ export class HistoryCatalogueService {
     }
   }
 
-  /**
-   * Get audit statistics
-   */
   async getAuditStatistics(filters?: {
     startDate?: Date;
     endDate?: Date;
@@ -430,5 +392,4 @@ export class HistoryCatalogueService {
   }
 }
 
-// Export singleton instance
 export const historyCatalogueService = new HistoryCatalogueService();

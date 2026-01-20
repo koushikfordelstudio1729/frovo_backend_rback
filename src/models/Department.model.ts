@@ -58,25 +58,20 @@ const departmentSchema = new Schema<IDepartment>(
   }
 );
 
-// Indexes (name and systemName already have unique indexes from schema)
 departmentSchema.index({ createdAt: -1 });
 
-// Virtual for id
 departmentSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Virtual for member count
 departmentSchema.virtual("memberCount").get(function () {
   return this.members?.length || 0;
 });
 
-// Virtual for role count
 departmentSchema.virtual("roleCount").get(function () {
   return this.roles?.length || 0;
 });
 
-// Ensure virtual fields are serialized
 departmentSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

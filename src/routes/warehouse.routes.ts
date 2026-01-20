@@ -1,4 +1,3 @@
-// routes/warehouse.routes.ts
 import { Router } from "express";
 import * as warehouseController from "../controllers/warehouse.controller";
 import { authenticate } from "../middleware/auth.middleware";
@@ -25,13 +24,10 @@ import {
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Apply warehouse scoping for warehouse managers (automatically injects warehouseId)
 router.use(warehouseScopeMiddleware);
 
-// ==================== SCREEN 1: DASHBOARD ====================
 router.get(
   "/dashboard",
   requirePermission("warehouse:view"),
@@ -39,12 +35,10 @@ router.get(
   warehouseController.getDashboard
 );
 
-// ==================== SCREEN 2: INBOUND LOGISTICS ====================
-// Purchase Orders
 router.post(
   "/inbound/purchase-orders",
   requirePermission("purchase_orders:create"),
-  uploadPOImages, // Handle file uploads for PO line item images
+  uploadPOImages,
   warehouseController.createPurchaseOrder
 );
 
@@ -67,18 +61,16 @@ router.patch(
   warehouseController.updatePurchaseOrderStatus
 );
 
-// Add delete purchase order route
 router.delete(
   "/inbound/purchase-orders/:id",
   requirePermission("purchase_orders:delete"),
   warehouseController.deletePurchaseOrder
 );
 
-// ==================== GRN MANAGEMENT ====================
 router.post(
   "/purchase-orders/:purchaseOrderId/grn",
   requirePermission("grn:create"),
-  uploadGRN, // Upload middleware for scanned_challan file + other form fields
+  uploadGRN,
   validate({ body: createGRNSchema.shape.body }),
   warehouseController.createGRN
 );
@@ -94,8 +86,6 @@ router.patch(
   warehouseController.updateGRNStatus
 );
 
-// ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
-// Dispatch Orders
 router.post(
   "/outbound/dispatch",
   requirePermission("dispatch:assign"),
@@ -122,7 +112,6 @@ router.patch(
   warehouseController.updateDispatchStatus
 );
 
-// QC Templates
 router.post(
   "/qc/templates",
   requirePermission("qc:manage"),
@@ -145,7 +134,6 @@ router.delete(
   warehouseController.deleteQCTemplate
 );
 
-// Return Management
 router.post(
   "/returns",
   requirePermission("returns:manage"),
@@ -167,7 +155,6 @@ router.patch(
   warehouseController.rejectReturn
 );
 
-// Field Agent Management
 router.get("/field-agents", requirePermission("agents:view"), warehouseController.getFieldAgents);
 
 router.post(
@@ -183,8 +170,6 @@ router.put(
   warehouseController.updateFieldAgent
 );
 
-// ==================== SCREEN 4: INVENTORY MANAGEMENT ====================
-// Inventory Dashboard Routes
 router.get(
   "/inventory/dashboard/:warehouseId",
   requirePermission("inventory:view"),
@@ -239,7 +224,6 @@ router.post(
   warehouseController.bulkUnarchiveInventory
 );
 
-// ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
 router.post(
   "/expenses",
   requirePermission("expenses:create"),
@@ -294,7 +278,6 @@ router.get(
   warehouseController.getMonthlyExpenseTrend
 );
 
-// ==================== SCREEN 6: REPORTS & ANALYTICS ====================
 router.get("/reports", requirePermission("reports:view"), warehouseController.generateReport);
 
 router.get(
@@ -341,18 +324,14 @@ router.get(
   warehouseController.getStockAgeingReport
 );
 
-// ==================== WAREHOUSE MANAGEMENT ====================
-// Get my assigned warehouse (for warehouse managers)
 router.get("/warehouses/my-warehouse", warehouseController.getMyWarehouse);
 
-// Create warehouse (Super Admin only - checked in controller)
 router.post(
   "/warehouses",
   validate({ body: createWarehouseSchema.shape.body }),
   warehouseController.createWarehouse
 );
 
-// Get all warehouses (with role-based filtering)
 router.get(
   "/warehouses",
   requirePermission("warehouse:view"),
@@ -360,14 +339,12 @@ router.get(
   warehouseController.getWarehouses
 );
 
-// Get warehouse by ID (with access control)
 router.get(
   "/warehouses/:id",
   requirePermission("warehouse:view"),
   warehouseController.getWarehouseById
 );
 
-// Update warehouse
 router.put(
   "/warehouses/:id",
   requirePermission("warehouse:manage"),
@@ -375,7 +352,6 @@ router.put(
   warehouseController.updateWarehouse
 );
 
-// Delete warehouse (Super Admin only - checked in controller)
 router.delete("/warehouses/:id", warehouseController.deleteWarehouse);
 
 export default router;

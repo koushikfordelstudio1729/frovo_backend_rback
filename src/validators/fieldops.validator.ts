@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// ==================== MACHINE VERIFICATION ====================
 export const verifyMachineSchema = z.object({
   body: z
     .object({
@@ -12,7 +11,6 @@ export const verifyMachineSchema = z.object({
     }),
 });
 
-// ==================== WAREHOUSE PICKUP ====================
 export const markPickupCollectedSchema = z.object({
   body: z.object({
     collectedAt: z.string().datetime().or(z.date()).optional(),
@@ -21,7 +19,6 @@ export const markPickupCollectedSchema = z.object({
   }),
 });
 
-// ==================== HANDOVER ====================
 export const createHandoverSchema = z.object({
   body: z.object({
     dispatchId: z.string().min(1, "Dispatch ID is required"),
@@ -38,7 +35,6 @@ export const createHandoverSchema = z.object({
   }),
 });
 
-// ==================== REFILL ====================
 export const submitRefillSchema = z.object({
   body: z.object({
     refillData: z
@@ -68,7 +64,6 @@ export const submitRefillSchema = z.object({
   }),
 });
 
-// ==================== SKIP MACHINE ====================
 export const skipMachineSchema = z.object({
   body: z.object({
     routeId: z.string().optional(),
@@ -80,7 +75,6 @@ export const skipMachineSchema = z.object({
   }),
 });
 
-// ==================== MAINTENANCE ISSUE ====================
 export const raiseIssueSchema = z.object({
   body: z.object({
     issueType: z.enum(
@@ -109,7 +103,6 @@ export const raiseIssueSchema = z.object({
   }),
 });
 
-// ==================== WORK SUMMARY ====================
 export const workSummaryQuerySchema = z.object({
   query: z.object({
     date: z.string().optional(),
@@ -119,7 +112,6 @@ export const workSummaryQuerySchema = z.object({
   }),
 });
 
-// ==================== TASKS ====================
 export const getTasksQuerySchema = z.object({
   query: z.object({
     status: z
@@ -130,7 +122,6 @@ export const getTasksQuerySchema = z.object({
   }),
 });
 
-// ==================== NOTIFICATIONS ====================
 export const getNotificationsQuerySchema = z.object({
   query: z.object({
     read: z.enum(["true", "false"]).optional(),
@@ -138,7 +129,6 @@ export const getNotificationsQuerySchema = z.object({
   }),
 });
 
-// ==================== PROFILE ====================
 export const updateProfileSchema = z.object({
   body: z.object({
     name: z.string().min(2).max(100).optional(),

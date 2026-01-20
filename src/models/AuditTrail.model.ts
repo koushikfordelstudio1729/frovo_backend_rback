@@ -6,7 +6,7 @@ export interface IAuditTrail extends Document {
   user_role: string;
   action: string;
   action_description: string;
-  target_type?: "vendor" | "company"; // Added to distinguish between vendor and company audits
+  target_type?: "vendor" | "company";
   target_vendor?: Types.ObjectId;
   target_vendor_name?: string;
   target_vendor_id?: string;
@@ -69,7 +69,6 @@ const auditTrailSchema = new Schema<IAuditTrail>(
       enum: ["vendor", "company"],
       required: false,
     },
-    // Vendor-related fields
     target_vendor: {
       type: Schema.Types.ObjectId,
       ref: "VendorCreate",
@@ -83,7 +82,6 @@ const auditTrailSchema = new Schema<IAuditTrail>(
       type: String,
       trim: true,
     },
-    // Company-related fields
     target_company: {
       type: Schema.Types.ObjectId,
       ref: "CompanyCreate",
@@ -125,7 +123,6 @@ const auditTrailSchema = new Schema<IAuditTrail>(
   }
 );
 
-// Compound indexes for better performance
 auditTrailSchema.index({ user: 1, timestamp: -1 });
 auditTrailSchema.index({ target_vendor: 1, timestamp: -1 });
 auditTrailSchema.index({ target_company: 1, timestamp: -1 });
@@ -134,7 +131,6 @@ auditTrailSchema.index({ user_role: 1, timestamp: -1 });
 auditTrailSchema.index({ target_type: 1, timestamp: -1 });
 auditTrailSchema.index({ timestamp: -1 });
 
-// Text index for search
 auditTrailSchema.index({
   user_email: "text",
   action_description: "text",

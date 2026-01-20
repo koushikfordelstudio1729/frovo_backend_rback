@@ -13,10 +13,8 @@ import { MODULES } from "../config/constants";
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Get access requests
 router.get(
   "/",
   requirePermission("roles:view"),
@@ -24,24 +22,16 @@ router.get(
   accessRequestController.getAccessRequests
 );
 
-// Get access request by ID
-router.get(
-  "/:id",
-  authenticate, // Users can view their own requests
-  validateObjectId(),
-  accessRequestController.getAccessRequestById
-);
+router.get("/:id", authenticate, validateObjectId(), accessRequestController.getAccessRequestById);
 
-// Create access request
 router.post(
   "/",
-  authenticate, // Any authenticated user can request access
+  authenticate,
   validate({ body: createAccessRequestSchema.shape.body }),
   auditCreate(MODULES.ACCESS_REQUESTS),
   accessRequestController.createAccessRequest
 );
 
-// Approve access request
 router.put(
   "/:id/approve",
   requirePermission("roles:edit"),
@@ -51,7 +41,6 @@ router.put(
   accessRequestController.approveAccessRequest
 );
 
-// Reject access request
 router.put(
   "/:id/reject",
   requirePermission("roles:edit"),

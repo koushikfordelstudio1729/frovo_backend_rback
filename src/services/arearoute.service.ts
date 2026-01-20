@@ -124,9 +124,6 @@ export interface AuditLogParams {
 }
 
 export class AreaService {
-  /**
-   * Create audit trail entry
-   */
   private static async createAuditLog(
     areaId: string,
     action: IHistoryArea["action"],
@@ -155,13 +152,9 @@ export class AreaService {
       await auditLog.save();
     } catch (error) {
       logger.error("Error creating audit log:", error);
-      // Don't throw error here to avoid breaking main operation
     }
   }
 
-  /**
-   * Compare two objects and find differences
-   */
   private static findChanges(oldObj: any, newObj: any): Record<string, { old: any; new: any }> {
     const changes: Record<string, { old: any; new: any }> = {};
 
@@ -179,9 +172,6 @@ export class AreaService {
     return changes;
   }
 
-  /**
-   * Get audit logs for an area
-   */
   static async getAuditLogs(
     areaId: string,
     page: number = 1,
@@ -222,9 +212,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Get audit trail summary for dashboard
-   */
   static async getAuditSummary(limit: number = 10): Promise<IHistoryArea[]> {
     return await HistoryAreaModel.find()
       .sort({ timestamp: -1 })
@@ -232,20 +219,15 @@ export class AreaService {
       .populate("area_id", "area_name state district");
   }
 
-  /**
-   * Create a new area with audit trail
-   */
   static async createArea(
     areaData: CreateAreaDto,
     auditParams?: AuditLogParams
   ): Promise<ICreateArea> {
     try {
-      // Check for duplicate area name WITH SAME SUB-LOCATIONS
       const existingAreas = await AreaRouteModel.find({
         area_name: areaData.area_name,
       });
 
-      // Check if any existing area has overlapping sub-locations
       if (Array.isArray(areaData.sub_locations)) {
         for (const newSubLoc of areaData.sub_locations) {
           for (const existingArea of existingAreas) {
@@ -266,10 +248,8 @@ export class AreaService {
         }
       }
 
-      // Validate sub-location(s)
       this.validateSubLocation(areaData.sub_locations);
 
-      // Validate coordinates if provided
       if (areaData.latitude !== undefined || areaData.longitude !== undefined) {
         this.validateCoordinates(areaData.latitude, areaData.longitude);
       }
@@ -277,7 +257,6 @@ export class AreaService {
       const newArea = new AreaRouteModel(areaData);
       const savedArea = await newArea.save();
 
-      // Create audit log
       await this.createAuditLog(
         savedArea._id.toString(),
         "CREATE",
@@ -297,17 +276,11 @@ export class AreaService {
     }
   }
 
-  /**
-   * Get area by ID
-   */
   static async getAreaById(id: string): Promise<ICreateArea | null> {
     this.validateObjectId(id);
     return await AreaRouteModel.findById(id);
   }
 
-  /**
-   * Get all areas with filtering and pagination
-   */
   static async getAllAreas(queryParams: AreaQueryParams): Promise<AreaPaginationResult> {
     const {
       page = 1,
@@ -346,9 +319,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Update area by ID with audit trail
-   */
   static async updateArea(
     id: string,
     updateData: UpdateAreaDto,
@@ -356,13 +326,11 @@ export class AreaService {
   ): Promise<ICreateArea | null> {
     this.validateObjectId(id);
 
-    // Get the existing area before update
     const existingArea = await AreaRouteModel.findById(id);
     if (!existingArea) {
       throw new Error("Area not found");
     }
 
-    // Check for duplicate area name if updating
     if (updateData.area_name) {
       const duplicateArea = await AreaRouteModel.findOne({
         area_name: updateData.area_name,
@@ -374,17 +342,14 @@ export class AreaService {
       }
     }
 
-    // Validate sub-location if updating
     if (updateData.sub_locations) {
       this.validateSubLocation(updateData.sub_locations as any);
     }
 
-    // Validate coordinates if updating
     if (updateData.latitude !== undefined || updateData.longitude !== undefined) {
       this.validateCoordinates(updateData.latitude, updateData.longitude);
     }
 
-    // Find changes
     const oldData = existingArea.toObject();
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       id,
@@ -396,7 +361,6 @@ export class AreaService {
       const newData = updatedArea.toObject();
       const changes = this.findChanges(oldData, newData);
 
-      // Create audit log only if there are actual changes
       if (Object.keys(changes).length > 0) {
         await this.createAuditLog(id, "UPDATE", oldData, newData, changes, auditParams);
       }
@@ -405,13 +369,9 @@ export class AreaService {
     return updatedArea;
   }
 
-  /**
-   * Delete area by ID with audit trail
-   */
   static async deleteArea(id: string, auditParams?: AuditLogParams): Promise<ICreateArea | null> {
     this.validateObjectId(id);
 
-    // Get the area before deletion
     const existingArea = await AreaRouteModel.findById(id);
     if (!existingArea) {
       return null;
@@ -433,9 +393,6 @@ export class AreaService {
     return deletedArea;
   }
 
-  /**
-   * Get areas by status
-   */
   static async getAreasByStatus(status: "active" | "inactive"): Promise<ICreateArea[]> {
     if (!["active", "inactive"].includes(status)) {
       throw new Error("Invalid status value");
@@ -444,9 +401,6 @@ export class AreaService {
     return await AreaRouteModel.find({ status });
   }
 
-  /**
-   * Update area status with audit trail
-   */
   static async updateAreaStatus(
     id: string,
     status: "active" | "inactive",
@@ -458,7 +412,6 @@ export class AreaService {
       throw new Error("Invalid status value");
     }
 
-    // Get the existing area before update
     const existingArea = await AreaRouteModel.findById(id);
     if (!existingArea) {
       return null;
@@ -488,9 +441,6 @@ export class AreaService {
     return updatedArea;
   }
 
-  /**
-   * Check if area exists by name
-   */
   static async checkAreaExists(areaName: string, excludeId?: string): Promise<boolean> {
     const filter: any = { area_name: areaName };
     if (excludeId) {
@@ -501,9 +451,6 @@ export class AreaService {
     return count > 0;
   }
 
-  /**
-   * Toggle area status with audit trail
-   */
   static async toggleAreaStatus(
     id: string,
     auditParams?: AuditLogParams
@@ -519,18 +466,12 @@ export class AreaService {
     return await this.updateAreaStatus(id, newStatus, auditParams);
   }
 
-  /**
-   * Validate MongoDB ObjectId
-   */
   private static validateObjectId(id: string): void {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Invalid MongoDB ObjectId");
     }
   }
 
-  /**
-   * Validate sub-location structure
-   */
   private static validateSubLocation(subLocation: any): void {
     if (Array.isArray(subLocation)) {
       if (subLocation.length === 0) {
@@ -559,9 +500,6 @@ export class AreaService {
     }
   }
 
-  /**
-   * Validate coordinates
-   */
   private static validateCoordinates(latitude?: number, longitude?: number): void {
     if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
       throw new Error("Latitude must be between -90 and 90");
@@ -572,9 +510,6 @@ export class AreaService {
     }
   }
 
-  /**
-   * Build filter for querying
-   */
   private static buildFilter(params: {
     status?: string;
     state?: string;
@@ -600,9 +535,6 @@ export class AreaService {
     return filter;
   }
 
-  /**
-   * Build sort object
-   */
   private static buildSort(sortBy: string, sortOrder: "asc" | "desc"): any {
     const sort: any = {};
 
@@ -622,9 +554,6 @@ export class AreaService {
     return sort;
   }
 
-  /**
-   * Get unique values for filtering
-   */
   static async getFilterOptions(): Promise<{
     states: string[];
     districts: string[];
@@ -649,9 +578,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Add sub-location with audit trail
-   */
   static async addSubLocation(
     areaId: string,
     newSubLocation: {
@@ -664,10 +590,8 @@ export class AreaService {
   ): Promise<ICreateArea | null> {
     this.validateObjectId(areaId);
 
-    // Validate the new sub-location
     this.validateSubLocation(newSubLocation);
 
-    // Get existing area data
     const existingArea = await AreaRouteModel.findById(areaId);
     if (!existingArea) {
       return null;
@@ -675,7 +599,6 @@ export class AreaService {
 
     const oldSubLocations = [...(existingArea.sub_locations || [])];
 
-    // Check if this exact sub-location already exists for this area
     const duplicateExists = existingArea.sub_locations?.some(
       subLoc =>
         subLoc.campus === newSubLocation.campus &&
@@ -689,7 +612,6 @@ export class AreaService {
       );
     }
 
-    // Add the new sub-location
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
       {
@@ -722,9 +644,6 @@ export class AreaService {
     return updatedArea;
   }
 
-  /**
-   * Get dashboard data with filters
-   */
   static async getDashboardData(params: DashboardFilterParams): Promise<DashboardData> {
     const {
       status = "all",
@@ -780,9 +699,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Build dashboard filter
-   */
   private static buildDashboardFilter(params: {
     status?: string;
     address?: string;
@@ -838,9 +754,6 @@ export class AreaService {
     return filter;
   }
 
-  /**
-   * Get dashboard statistics
-   */
   private static async getDashboardStatistics(): Promise<{
     totalAreas: number;
     activeAreas: number;
@@ -899,9 +812,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Get dashboard table data
-   */
   static async getDashboardTableData(params: DashboardFilterParams): Promise<{
     data: any[];
     total: number;
@@ -948,9 +858,6 @@ export class AreaService {
     };
   }
 
-  /**
-   * Get areas by IDs
-   */
   static async getAreasByIds(areaIds: string[]): Promise<ICreateArea[]> {
     const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
     if (invalidIds.length > 0) {
@@ -966,9 +873,6 @@ export class AreaService {
       );
   }
 
-  /**
-   * Get summarized areas data for export
-   */
   static async getSummarizedAreasByIds(areaIds: string[]): Promise<any[]> {
     const areas = await this.getAreasByIds(areaIds);
 
@@ -1003,16 +907,10 @@ export class AreaService {
     });
   }
 
-  // Add this method to the AreaService class:
-
-  /**
-   * Get recent audit activities with optional filters
-   */
   static async getRecentActivities(limit: number = 10, filter?: any): Promise<any[]> {
     try {
       let query = HistoryAreaModel.find();
 
-      // Apply filter if provided
       if (filter) {
         query = query.where(filter);
       }

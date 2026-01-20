@@ -56,12 +56,10 @@ export const seedDepartments = async (
   try {
     logger.info("🌱 Seeding departments...");
 
-    // Check if departments already exist
     const existingCount = await Department.countDocuments();
     if (existingCount > 0) {
       logger.info(`✅ Departments already seeded (${existingCount} departments found)`);
 
-      // Return existing department IDs
       const existingDepartments = await Department.find();
       const departmentMap: { [key: string]: Types.ObjectId } = {};
       existingDepartments.forEach(dept => {
@@ -72,7 +70,6 @@ export const seedDepartments = async (
       return departmentMap;
     }
 
-    // Create departments
     const departmentsWithCreatedBy = departments.map(dept => ({
       ...dept,
       createdBy,
@@ -82,7 +79,6 @@ export const seedDepartments = async (
 
     logger.info(`✅ Successfully seeded ${createdDepartments.length} departments`);
 
-    // Create department mapping
     const departmentMap: { [key: string]: Types.ObjectId } = {};
     createdDepartments.forEach(dept => {
       if (dept.systemName) {
@@ -90,7 +86,6 @@ export const seedDepartments = async (
       }
     });
 
-    // Log created departments
     const departmentNames = createdDepartments.map(d => d.name);
     logger.info(`📋 Created departments: ${departmentNames.join(", ")}`);
 
@@ -101,11 +96,9 @@ export const seedDepartments = async (
   }
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     connectDB().then(() => {
-      // Use a dummy ObjectId for standalone execution
       const dummyCreatedBy = new Types.ObjectId();
       seedDepartments(dummyCreatedBy)
         .then(() => {

@@ -39,13 +39,10 @@ class PermissionService {
       return { hasPermission: false };
     }
 
-    // Get all user permissions
     const userPermissions = await user.getPermissions();
 
-    // Type the populated roles
     const populatedRoles = user.roles as unknown as IRole[];
 
-    // Check for wildcard (Super Admin)
     if (userPermissions.includes("*:*")) {
       return {
         hasPermission: true,
@@ -54,14 +51,11 @@ class PermissionService {
       };
     }
 
-    // Check exact match
     if (userPermissions.includes(permissionKey)) {
-      // Get scope information from roles that have this permission
       const rolesWithPermission = populatedRoles.filter(
         role => role.permissions.includes(permissionKey) || role.permissions.includes("*:*")
       );
 
-      // Return the highest scope level
       let scope = null;
       for (const role of rolesWithPermission) {
         if (role.scope && role.scope.level === "global") {
@@ -85,7 +79,6 @@ class PermissionService {
       };
     }
 
-    // Check module wildcard (e.g., 'machines:*')
     const [module] = permissionKey.split(":");
     if (userPermissions.includes(`${module}:*`)) {
       const rolesWithModuleAccess = populatedRoles.filter(
@@ -174,7 +167,6 @@ class PermissionService {
     };
 
     permissions.forEach(permission => {
-      // Count by module
       if (permission.module) {
         if (!stats.permissionsByModule[permission.module]) {
           stats.permissionsByModule[permission.module] = 0;
@@ -183,7 +175,6 @@ class PermissionService {
           (stats.permissionsByModule[permission.module] || 0) + 1;
       }
 
-      // Count by group
       if (permission.group) {
         if (!stats.permissionsByGroup[permission.group]) {
           stats.permissionsByGroup[permission.group] = 0;
@@ -217,7 +208,6 @@ class PermissionService {
   }
 
   async createPermission(permissionData: Partial<IPermission>): Promise<IPermission> {
-    // Check if permission already exists
     const existingPermission = await Permission.findOne({ key: permissionData.key });
     if (existingPermission) {
       throw new Error("Permission already exists");
@@ -245,7 +235,6 @@ class PermissionService {
       throw new Error("Permission not found");
     }
 
-    // Check if permission is used in any roles
     const roleCount = await Role.countDocuments({
       permissions: { $in: [permission.key] },
     });

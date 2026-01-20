@@ -26,22 +26,18 @@ class ProductService {
   async getAllProducts(query: ProductQuery = {}) {
     const filter: any = {};
 
-    // Category filter
     if (query.category) {
       filter.category = new RegExp(query.category, "i");
     }
 
-    // Brand filter
     if (query.brand) {
       filter.brand = new RegExp(query.brand, "i");
     }
 
-    // Active status filter
     if (query.isActive !== undefined) {
       filter.isActive = query.isActive;
     }
 
-    // Search filter (name, brand, or category)
     if (query.search) {
       filter.$or = [
         { name: new RegExp(query.search, "i") },
@@ -66,7 +62,6 @@ class ProductService {
   }
 
   async getProductCategories() {
-    // Get unique categories from active products
     const categories = await Product.aggregate([
       {
         $match: {
@@ -101,7 +96,6 @@ class ProductService {
 
     const { VendingMachine } = await import("../models/VendingMachine.model");
 
-    // Find all machines that have this product in stock
     const machinesWithProduct = await VendingMachine.find({
       "productSlots.product": productId,
       "productSlots.quantity": { $gt: 0 },
@@ -138,7 +132,6 @@ class ProductService {
       totalMachines: availability.length,
       totalQuantity: availability.reduce((sum, machine) => sum + machine.totalAvailable, 0),
       availability: availability.sort((a, b) => {
-        // Sort by city first, then by machine name
         if (a.location.city !== b.location.city) {
           return a.location.city.localeCompare(b.location.city);
         }

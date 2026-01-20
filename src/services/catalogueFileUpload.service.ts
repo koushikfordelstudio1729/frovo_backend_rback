@@ -1,14 +1,3 @@
-/**
- * Catalogue File Upload Service
- *
- * Handles file uploads for catalogue module (categories, sub-categories, products).
- * Uses the storage abstraction layer for provider-agnostic file operations.
- *
- * To switch storage providers, set STORAGE_PROVIDER environment variable:
- * - cloudinary (default)
- * - s3 (AWS S3 or S3-compatible like MinIO)
- */
-
 import { StorageFactory, IStorageProvider, IUploadResult } from "../common/storage";
 import {
   ICategoryImageData,
@@ -20,7 +9,7 @@ import { logger } from "../utils/logger.util";
 export interface IImageMetadata {
   image_name: string;
   file_url: string;
-  cloudinary_public_id: string; // Keep for backward compatibility, actually stores provider's public_id
+  cloudinary_public_id: string;
   file_size: number;
   mime_type: string;
   uploaded_at: Date;
@@ -34,20 +23,10 @@ export class ImageUploadService {
     this.storage = StorageFactory.getProvider();
   }
 
-  /**
-   * Get current storage provider name
-   */
   getProviderName(): string {
     return this.storage.providerName;
   }
 
-  /**
-   * Upload a file to the configured storage provider
-   * @param fileBuffer - File buffer from multer
-   * @param fileName - Original file name
-   * @param folder - Storage folder path
-   * @returns Promise with upload result
-   */
   async uploadToCloudinary(
     fileBuffer: Buffer,
     fileName: string,
@@ -65,10 +44,6 @@ export class ImageUploadService {
     }
   }
 
-  /**
-   * Delete a file from the configured storage provider
-   * @param publicId - The public ID or key of the file
-   */
   async deleteFromCloudinary(publicId: string): Promise<void> {
     try {
       await this.storage.delete(publicId);
@@ -77,9 +52,6 @@ export class ImageUploadService {
     }
   }
 
-  /**
-   * Create image metadata object (generic method)
-   */
   private createImageMetadata(
     file: Express.Multer.File,
     uploadResult: { url: string; publicId: string }
@@ -87,7 +59,7 @@ export class ImageUploadService {
     return {
       image_name: file.originalname,
       file_url: uploadResult.url,
-      cloudinary_public_id: uploadResult.publicId, // Works for any provider
+      cloudinary_public_id: uploadResult.publicId,
       file_size: file.size,
       mime_type: file.mimetype,
       uploaded_at: new Date(),
@@ -95,9 +67,6 @@ export class ImageUploadService {
     };
   }
 
-  /**
-   * Create category document metadata
-   */
   createCategoryDocumentMetadata(
     file: Express.Multer.File,
     cloudinaryUrl: string,
@@ -113,9 +82,6 @@ export class ImageUploadService {
     };
   }
 
-  /**
-   * Create sub-category document metadata
-   */
   createSubCategoryDocumentMetadata(
     file: Express.Multer.File,
     cloudinaryUrl: string,
@@ -131,9 +97,6 @@ export class ImageUploadService {
     };
   }
 
-  /**
-   * Create product document metadata
-   */
   createProductDocumentMetadata(
     file: Express.Multer.File,
     cloudinaryUrl: string,
@@ -149,11 +112,6 @@ export class ImageUploadService {
     };
   }
 
-  // ==================== NEW UNIFIED METHODS ====================
-
-  /**
-   * Upload and create metadata in one step (recommended)
-   */
   async uploadCategoryImage(
     file: Express.Multer.File,
     folder?: string
@@ -163,9 +121,6 @@ export class ImageUploadService {
     return this.createCategoryDocumentMetadata(file, result.url, result.publicId);
   }
 
-  /**
-   * Upload and create sub-category metadata in one step
-   */
   async uploadSubCategoryImage(
     file: Express.Multer.File,
     folder?: string
@@ -176,18 +131,12 @@ export class ImageUploadService {
     return this.createSubCategoryDocumentMetadata(file, result.url, result.publicId);
   }
 
-  /**
-   * Upload and create product metadata in one step
-   */
   async uploadProductImage(file: Express.Multer.File, folder?: string): Promise<IProductImageData> {
     const uploadFolder = folder || process.env.CATALOGUE_IMAGE_FOLDER || "frovo/catalogue_images";
     const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
     return this.createProductDocumentMetadata(file, result.url, result.publicId);
   }
 
-  /**
-   * Upload multiple files in parallel
-   */
   async uploadMultipleFiles(
     files: Express.Multer.File[],
     folder: string,
@@ -207,9 +156,6 @@ export class ImageUploadService {
     return Promise.all(uploadPromises);
   }
 
-  /**
-   * Delete multiple files in parallel
-   */
   async deleteMultipleFiles(publicIds: string[]): Promise<void> {
     const deletePromises = publicIds.map(id => this.deleteFromCloudinary(id));
     await Promise.all(deletePromises);

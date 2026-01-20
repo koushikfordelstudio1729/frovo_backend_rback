@@ -12,7 +12,6 @@ const router = express.Router();
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const MANAGEMENT = ["super_admin", "admin", "ops_manager"];
 
-// ==================== CATEGORY ROUTES ====================
 router.post(
   "/categories",
   authenticate,
@@ -78,15 +77,12 @@ router.get(
   authorize(MANAGEMENT),
   categoryController.exportAllCategoriesCSV.bind(categoryController)
 );
-// Add this route in your routes file
 router.get(
   "/export/category/csv/:id",
   authenticate,
   authorize(MANAGEMENT),
   categoryController.exportCategoryWithSubCategoriesCSV.bind(categoryController)
 );
-// ==================== SUB-CATEGORY ROUTES ====================
-// Create a new sub-category under a category
 router.post(
   "/sub-categories",
   authenticate,
@@ -95,7 +91,6 @@ router.post(
   subCategoryController.createSubCategory.bind(subCategoryController)
 );
 
-// Get all sub-categories (with optional filters)
 router.get(
   "/sub-categories",
   authenticate,
@@ -103,7 +98,6 @@ router.get(
   subCategoryController.getAllSubCategories.bind(subCategoryController)
 );
 
-// Get sub-categories by category ID
 router.get(
   "/categories/:categoryId/sub-categories",
   authenticate,
@@ -111,7 +105,6 @@ router.get(
   subCategoryController.getSubCategoriesByCategory.bind(subCategoryController)
 );
 
-// Get a specific sub-category by ID
 router.get(
   "/sub-categories/:id",
   authenticate,
@@ -119,7 +112,6 @@ router.get(
   subCategoryController.getSubCategoryById.bind(subCategoryController)
 );
 
-// Update a sub-category
 router.put(
   "/sub-categories/:id",
   authenticate,
@@ -128,7 +120,6 @@ router.put(
   subCategoryController.updateSubCategory.bind(subCategoryController)
 );
 
-// Update sub-category status only
 router.patch(
   "/sub-categories/:id/status",
   authenticate,
@@ -136,7 +127,6 @@ router.patch(
   subCategoryController.updateSubCategoryStatus.bind(subCategoryController)
 );
 
-// Delete a sub-category
 router.delete(
   "/sub-categories/:id",
   authenticate,
@@ -144,7 +134,6 @@ router.delete(
   subCategoryController.deleteSubCategory.bind(subCategoryController)
 );
 
-// Upload sub-category image
 router.post(
   "/sub-categories/upload-image",
   authenticate,
@@ -153,7 +142,6 @@ router.post(
   subCategoryController.uploadSubCategoryImage.bind(subCategoryController)
 );
 
-// Export sub-categories to CSV
 router.get(
   "/export/sub-category/csv",
   authenticate,
@@ -161,7 +149,6 @@ router.get(
   subCategoryController.exportAllSubCategoriesCSV.bind(subCategoryController)
 );
 
-// ==================== CATALOGUE ROUTES ====================
 router.post(
   "/sku-catalogues",
   authenticate,
@@ -192,7 +179,6 @@ router.delete(
   catalogueController.deleteProductImage.bind(catalogueController)
 );
 
-// ==================== DASHBOARD ROUTES ====================
 router.get(
   "/dashboard",
   authenticate,
@@ -214,7 +200,6 @@ router.get(
   catalogueController.exportDashboardCSV.bind(catalogueController)
 );
 
-// ==================== CATALOGUE DETAIL ROUTES ====================
 router.get(
   "/sku-catalogues/:id",
   authenticate,
@@ -230,7 +215,6 @@ router.put(
   catalogueController.updateCatalogue.bind(catalogueController)
 );
 
-// Payload-based status update
 router.patch(
   "/sku-catalogues/:id/status",
   authenticate,
@@ -245,7 +229,6 @@ router.delete(
   catalogueController.deleteCatalogue.bind(catalogueController)
 );
 
-// ==================== EXPORT ROUTES ====================
 router.get(
   "/export/sku/csv",
   authenticate,

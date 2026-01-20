@@ -6,12 +6,10 @@ import { connectDB } from "./config/database";
 import { seedDatabase } from "./seeders";
 import { logger } from "./utils/logger.util";
 
-// Load environment variable
 dotenv.config();
 
 const app = express();
 
-// Security middleware
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
@@ -22,7 +20,6 @@ app.use(
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
 app.get("/health", (_req, res) => {
   res.json({
     success: true,
@@ -34,7 +31,6 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API info endpoint
 app.get("/api/info", (_req, res) => {
   res.json({
     success: true,
@@ -92,7 +88,6 @@ app.get("/api/info", (_req, res) => {
   });
 });
 
-// Database status endpoint
 app.get("/api/database/status", async (_req, res) => {
   try {
     const mongoose = await import("mongoose");
@@ -121,11 +116,9 @@ const PORT = process.env["PORT"] || 3000;
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
     logger.info("🔌 Connecting to MongoDB...");
     await connectDB();
 
-    // Run seeders if enabled
     if (process.env["SEED_DATABASE"] === "true") {
       logger.info("🌱 Seeding database...");
       try {
@@ -136,7 +129,6 @@ const startServer = async () => {
       }
     }
 
-    // Start the server
     app.listen(PORT, () => {
       logger.info("🚀 Frovo RBAC Backend Server Started");
       logger.info(`📡 Server running on port ${PORT}`);
@@ -168,7 +160,6 @@ const startServer = async () => {
   }
 };
 
-// Start the server
 startServer();
 
 export default app;

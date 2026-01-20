@@ -73,7 +73,6 @@ export enum PermissionModule {
   TICKET = "ticket",
   BATCH = "batch",
   DISPATCH = "dispatch",
-  // New warehouse management modules
   WAREHOUSE = "warehouse",
   PURCHASE_ORDERS = "purchase_orders",
   GRN = "grn",
@@ -96,7 +95,6 @@ export enum PermissionAction {
   DISPATCH = "dispatch",
   UPDATE = "update",
   LOG = "log",
-  // New warehouse management actions
   STATUS_UPDATE = "status_update",
   MANAGE = "manage",
   ADMIN = "admin",

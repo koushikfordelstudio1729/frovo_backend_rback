@@ -21,7 +21,6 @@ export const createAccessRequestSchema = z.object({
     })
     .refine(
       data => {
-        // Either requestedRole or requestedPermissions must be provided
         return (
           data.requestedRole || (data.requestedPermissions && data.requestedPermissions.length > 0)
         );

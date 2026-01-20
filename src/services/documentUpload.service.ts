@@ -5,9 +5,6 @@ import { logger } from "../utils/logger.util";
 export class DocumentUploadService {
   private cloudinaryConfigured = false;
 
-  /**
-   * Configure Cloudinary (lazy initialization)
-   */
   private ensureCloudinaryConfigured() {
     if (!this.cloudinaryConfigured) {
       const config = {
@@ -16,7 +13,6 @@ export class DocumentUploadService {
         api_secret: process.env.CLOUDINARY_API_SECRET,
       };
 
-      // Validate configuration
       if (!config.cloud_name || !config.api_key || !config.api_secret) {
         logger.error("❌ Cloudinary Configuration Missing:", {
           cloud_name: config.cloud_name || "❌ MISSING",
@@ -35,19 +31,11 @@ export class DocumentUploadService {
       });
     }
   }
-  /**
-   * Upload a file to Cloudinary
-   * @param fileBuffer - File buffer from multer
-   * @param fileName - Original file name
-   * @param folder - Cloudinary folder path
-   * @returns Promise with upload result
-   */
   async uploadToCloudinary(
     fileBuffer: Buffer,
     fileName: string,
     folder: string = "frovo/vendor_documents"
   ): Promise<{ url: string; publicId: string }> {
-    // Ensure Cloudinary is configured before upload
     this.ensureCloudinaryConfigured();
 
     return new Promise((resolve, reject) => {
@@ -77,13 +65,7 @@ export class DocumentUploadService {
     });
   }
 
-  /**
-   * Delete a file from Cloudinary
-   * @param publicId - Cloudinary public ID
-   * @returns Promise with deletion result
-   */
   async deleteFromCloudinary(publicId: string): Promise<void> {
-    // Ensure Cloudinary is configured before deletion
     this.ensureCloudinaryConfigured();
 
     try {
@@ -93,15 +75,6 @@ export class DocumentUploadService {
     }
   }
 
-  /**
-   * Create document metadata object
-   * @param file - Multer file object
-   * @param documentType - Type of document
-   * @param cloudinaryUrl - URL from Cloudinary
-   * @param cloudinaryPublicId - Public ID from Cloudinary
-   * @param expiryDate - Optional expiry date
-   * @returns IVendorDocument object
-   */
   createDocumentMetadata(
     file: Express.Multer.File,
     documentType: IVendorDocument["document_type"],
@@ -121,11 +94,6 @@ export class DocumentUploadService {
     };
   }
 
-  /**
-   * Validate document type
-   * @param documentType - Type to validate
-   * @returns boolean
-   */
   validateDocumentType(documentType: string): boolean {
     const validTypes = [
       "signed_contract",

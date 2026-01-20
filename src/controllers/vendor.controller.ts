@@ -9,7 +9,6 @@ const vendorService = new VendorService();
 const auditTrailService = new AuditTrailService();
 
 export class VendorController {
-  // Utility function to safely extract user - NOW STATIC
   private static getLoggedInUser(req: Request): {
     _id: Types.ObjectId;
     roles: any[];
@@ -28,12 +27,8 @@ export class VendorController {
     };
   }
 
-  /**
-   * Create a new company
-   */
   public static async createCompany(req: Request, res: Response): Promise<void> {
     try {
-      // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
@@ -52,7 +47,6 @@ export class VendorController {
         risk_rating,
       } = req.body;
 
-      // Validate date format
       let parsedDate: Date;
       if (date_of_incorporation) {
         parsedDate = new Date(date_of_incorporation);
@@ -80,7 +74,6 @@ export class VendorController {
         risk_rating,
       };
 
-      // Call the static method from VendorService with user info for audit
       const newCompany = await VendorService.createCompanyService(
         companyData,
         userId,
@@ -97,7 +90,6 @@ export class VendorController {
     } catch (error) {
       logger.error("Error creating company:", error);
 
-      // Handle duplicate key errors
       if (error instanceof Error) {
         if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
           res.status(409).json({
@@ -124,9 +116,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get all companies
-   */
   public static async getAllCompanies(req: Request, res: Response): Promise<void> {
     try {
       const { page = 1, limit = 10, search, sortBy = "createdAt", sortOrder = "desc" } = req.query;
@@ -155,9 +144,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get company by ID
-   */
   public static async getCompanyById(req: Request, res: Response): Promise<void> {
     try {
       const { cin } = req.params;
@@ -190,19 +176,14 @@ export class VendorController {
     }
   }
 
-  /**
-   * Update company
-   */
   public static async updateCompany(req: Request, res: Response): Promise<void> {
     try {
-      // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
       const { cin } = req.params;
       const updateData = req.body;
 
-      // Validate date format if provided
       if (updateData.date_of_incorporation) {
         const parsedDate = new Date(updateData.date_of_incorporation);
         if (isNaN(parsedDate.getTime())) {
@@ -274,12 +255,8 @@ export class VendorController {
     }
   }
 
-  /**
-   * Delete company
-   */
   public static async deleteCompany(req: Request, res: Response): Promise<void> {
     try {
-      // Get logged in user info - USING STATIC METHOD
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
@@ -319,9 +296,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Search companies
-   */
   public static async searchCompanies(req: Request, res: Response): Promise<void> {
     try {
       const { q, limit = 10 } = req.query;
@@ -362,9 +336,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Check if company exists
-   */
   public static async checkCompanyExists(req: Request, res: Response): Promise<void> {
     try {
       const { cin } = req.params;
@@ -385,11 +356,6 @@ export class VendorController {
       });
     }
   }
-  /**
-   * COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
-   * Shows: All companies, All vendors created by all admins, Total counts
-   * Route: GET /api/vendors/common-dashboard
-   */
   async getCommonDashboard(req: Request, res: Response) {
     try {
       logger.info("📊 Common Dashboard endpoint called");
@@ -400,7 +366,6 @@ export class VendorController {
         roles.map(r => r.key)
       );
 
-      // Validate user has access (both super_admin and vendor_admin can access)
       if (!roles.some(role => ["super_admin", "vendor_admin"].includes(role.key))) {
         return res.status(403).json({
           success: false,
@@ -443,11 +408,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only for Super Admin
-   * Shows: Only vendors with full management capabilities (verify/reject/approve)
-   * Route: GET /api/vendors/super-admin/vendor-management
-   */
   async getSuperAdminVendorManagement(req: Request, res: Response) {
     try {
       logger.info("👑 Super Admin Vendor Management Dashboard endpoint called");
@@ -458,7 +418,6 @@ export class VendorController {
         roles.map(r => r.key)
       );
 
-      // Validate user is Super Admin ONLY
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -498,12 +457,10 @@ export class VendorController {
       });
     }
   }
-  // Get All Vendors for Super Admin
   async getAllVendorsForSuperAdmin(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
 
-      // Validate user is Super Admin
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -537,12 +494,10 @@ export class VendorController {
     }
   }
 
-  // Get Vendor Statistics for Super Admin
   async getVendorStatistics(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
 
-      // Validate user is Super Admin
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -564,12 +519,10 @@ export class VendorController {
     }
   }
 
-  // Get Pending Approvals for Super Admin
   async getPendingApprovals(req: Request, res: Response) {
     try {
       const { roles } = VendorController.getLoggedInUser(req);
 
-      // Validate user is Super Admin
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -591,13 +544,11 @@ export class VendorController {
     }
   }
 
-  // Create Complete Vendor with Audit Trail
   async createCompleteVendor(req: Request, res: Response) {
     try {
       const { _id: createdBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      // Validate user has permission to create vendors
       if (!roles.some(role => ["super_admin", "vendor_admin"].includes(role.key))) {
         return res.status(403).json({
           success: false,
@@ -642,7 +593,6 @@ export class VendorController {
     }
   }
 
-  // Bulk Create Vendors
   async createBulkVendors(req: Request, res: Response) {
     try {
       const { _id: createdBy, roles } = VendorController.getLoggedInUser(req);
@@ -677,9 +627,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get vendors by company registration number
-   */
   public static async getVendorsByCompany(req: Request, res: Response): Promise<void> {
     try {
       const { cin } = req.params;
@@ -735,9 +682,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get company details with vendor statistics
-   */
   public static async getCompanyWithVendorStats(req: Request, res: Response): Promise<void> {
     try {
       const { cin } = req.params;
@@ -769,7 +713,6 @@ export class VendorController {
       });
     }
   }
-  // Get Vendor by ID
   async getVendorById(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -794,7 +737,6 @@ export class VendorController {
     }
   }
 
-  // Get Vendor by Vendor ID
   async getVendorByVendorId(req: Request, res: Response) {
     try {
       const { vendorId } = req.params;
@@ -819,7 +761,6 @@ export class VendorController {
     }
   }
 
-  // Get My Vendor Profile (Logged-in User's Vendors)
   async getMyVendorProfile(req: Request, res: Response) {
     try {
       const { _id: userId } = VendorController.getLoggedInUser(req);
@@ -840,7 +781,6 @@ export class VendorController {
     }
   }
 
-  // Get Vendor for Edit (with authorization)
   async getVendorForEdit(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -874,7 +814,6 @@ export class VendorController {
     }
   }
 
-  // Get All Vendors
   async getAllVendors(req: Request, res: Response) {
     try {
       const filters = {
@@ -900,7 +839,6 @@ export class VendorController {
     }
   }
 
-  // Enhanced Update Vendor with Audit Trail
   async updateVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -950,7 +888,6 @@ export class VendorController {
     }
   }
 
-  // Update Vendor for Vendor Admin
   async updateVendorForAdmin(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1001,7 +938,6 @@ export class VendorController {
     }
   }
 
-  // Enhanced Vendor Verification with Audit Trail
   async updateVendorVerification(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1044,21 +980,14 @@ export class VendorController {
       });
     }
   }
-  // In VendorController.ts, add this method:
 
-  /**
-   * Quick Verify/Reject Vendor from route
-   * PUT /vendors/:id/quick-verify - automatically verifies vendor
-   * PUT /vendors/:id/quick-reject - automatically rejects vendor
-   */
   async quickVerifyOrRejectVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const action = req.path.split("/").pop(); // Get 'quick-verify' or 'quick-reject'
+      const action = req.path.split("/").pop();
       const { _id: verifiedBy, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      // Validate user is Super Admin
       if (userRole !== "super_admin") {
         return res.status(403).json({
           success: false,
@@ -1069,7 +998,6 @@ export class VendorController {
       let verificationStatus: "verified" | "rejected";
       let actionDescription: string;
 
-      // Determine action based on route
       if (action === "quick-verify") {
         verificationStatus = "verified";
         actionDescription = "Vendor quickly verified via quick-verify route";
@@ -1083,7 +1011,6 @@ export class VendorController {
         });
       }
 
-      // Call service method
       const updatedVendor = await vendorService.quickVerifyOrRejectVendor(
         id,
         verificationStatus,
@@ -1122,7 +1049,6 @@ export class VendorController {
       });
     }
   }
-  // Toggle Vendor Verification (Verify ↔ Reject)
   async toggleVendorVerification(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1150,7 +1076,6 @@ export class VendorController {
     }
   }
 
-  // Bulk Verify/Reject Vendors
   async bulkUpdateVendorVerification(req: Request, res: Response) {
     try {
       const { vendor_ids, verification_status, rejection_reason } = req.body;
@@ -1198,7 +1123,6 @@ export class VendorController {
     }
   }
 
-  // Enhanced Delete Vendor with Audit Trail
   async deleteVendor(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1226,7 +1150,6 @@ export class VendorController {
     }
   }
 
-  // Delete Vendor for Vendor Admin
   async deleteVendorForAdmin(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1261,13 +1184,11 @@ export class VendorController {
     }
   }
 
-  // Test endpoint to generate audit data
   async generateTestAuditData(req: Request, res: Response) {
     try {
       const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      // Create test audit records
       await auditTrailService.createAuditRecord({
         user: userId,
         user_email: userEmail,
@@ -1300,15 +1221,11 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get audit trail for a specific vendor
-   */
   async getVendorAuditTrail(req: Request, res: Response) {
     try {
       const { id } = req.params;
       const { page = 1, limit = 50 } = req.query;
 
-      // Verify vendor exists
       const vendor = await vendorService.getVendorById(id);
       if (!vendor) {
         return res.status(404).json({
@@ -1317,7 +1234,6 @@ export class VendorController {
         });
       }
 
-      // Get audit trails for this vendor
       const auditData = await auditTrailService.getVendorAuditTrails(
         id,
         Number(page),
@@ -1338,15 +1254,11 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get audit trail for a specific company
-   */
   async getCompanyAuditTrail(req: Request, res: Response) {
     try {
       const { cin } = req.params;
       const { page = 1, limit = 50 } = req.query;
 
-      // Verify company exists
       const company = await VendorService.getCompanyByIdService(cin);
       if (!company) {
         return res.status(404).json({
@@ -1355,7 +1267,6 @@ export class VendorController {
         });
       }
 
-      // Get audit trails for this company (using company MongoDB _id for audit lookup)
       const auditData = await auditTrailService.getCompanyAuditTrails(
         company._id.toString(),
         Number(page),
@@ -1376,9 +1287,6 @@ export class VendorController {
     }
   }
 
-  // ==================== DOCUMENT MANAGEMENT ENDPOINTS ====================
-
-  // Upload vendor document
   async uploadVendorDocument(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1386,7 +1294,6 @@ export class VendorController {
       const { _id: userId, roles, email: userEmail } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key;
 
-      // Check if file exists
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -1394,7 +1301,6 @@ export class VendorController {
         });
       }
 
-      // Validate document type
       if (!document_type) {
         return res.status(400).json({
           success: false,
@@ -1428,7 +1334,6 @@ export class VendorController {
     }
   }
 
-  // Delete vendor document
   async deleteVendorDocument(req: Request, res: Response) {
     try {
       const { id, documentId } = req.params;
@@ -1457,7 +1362,6 @@ export class VendorController {
     }
   }
 
-  // Get all vendor documents
   async getVendorDocuments(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -1476,7 +1380,6 @@ export class VendorController {
     }
   }
 
-  // Get single vendor document
   async getVendorDocument(req: Request, res: Response) {
     try {
       const { id, documentId } = req.params;

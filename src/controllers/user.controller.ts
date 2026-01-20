@@ -30,7 +30,6 @@ export const createUser = asyncHandler(async (req: Request, res: Response): Prom
 
 export const getUsers = asyncHandler(async (req: Request, res: Response) => {
   try {
-    // Provide default query parameters
     const query = {
       page: parseInt((req.query["page"] as string) || "1", 10),
       limit: parseInt((req.query["limit"] as string) || "10", 10),

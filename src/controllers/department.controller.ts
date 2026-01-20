@@ -121,7 +121,6 @@ export const deleteDepartment = asyncHandler(async (req: Request, res: Response)
       return sendNotFound(res, MESSAGES.DEPARTMENT_NOT_FOUND);
     }
 
-    // Check if department has members or roles
     if (department.members.length > 0 || department.roles.length > 0) {
       return sendError(res, MESSAGES.DEPARTMENT_IN_USE, 400);
     }

@@ -5,7 +5,6 @@ import { auditLogin, auditLogout } from "../middleware/auditLog.middleware";
 
 const router = Router();
 
-// Public routes
 router.post("/register", authController.register);
 
 router.post("/register-customer", authController.registerCustomer);
@@ -14,7 +13,6 @@ router.post("/login", auditLogin(), authController.login);
 
 router.post("/refresh-token", authController.refreshToken);
 
-// Protected routes
 router.use(authenticate);
 
 router.post("/logout", auditLogout(), authController.logout);

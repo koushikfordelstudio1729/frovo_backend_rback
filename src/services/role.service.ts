@@ -47,7 +47,6 @@ export interface PaginatedRoles {
 
 class RoleService {
   async createRole(roleData: CreateRoleData, createdBy: Types.ObjectId): Promise<IRole> {
-    // Validate permissions exist
     if (roleData.permissions && roleData.permissions.length > 0) {
       const permissionCount = await Permission.countDocuments({
         key: { $in: roleData.permissions },
@@ -57,7 +56,6 @@ class RoleService {
       }
     }
 
-    // Force type to CUSTOM for API-created roles (SYSTEM roles should only be created via seeders)
     const role = await Role.create({
       ...roleData,
       type: RoleType.CUSTOM,
@@ -86,7 +84,6 @@ class RoleService {
       throw new Error("Role not found");
     }
 
-    // Validate permissions if provided
     if (updateData.permissions && updateData.permissions.length > 0) {
       const permissionCount = await Permission.countDocuments({
         key: { $in: updateData.permissions },
@@ -133,7 +130,6 @@ class RoleService {
       throw new Error("Role not found");
     }
 
-    // Check if role is assigned to any users
     const userCount = await User.countDocuments({ roles: { $in: [id] } });
     if (userCount > 0) {
       throw new Error("Role is currently assigned to users and cannot be deleted");
@@ -145,7 +141,6 @@ class RoleService {
   async getRoles(query: RoleQuery): Promise<PaginatedRoles> {
     const { page, limit, search, scope, type, status, department, sortBy, sortOrder } = query;
 
-    // Build filter
     const filter: any = {};
 
     if (search) {
@@ -172,14 +167,11 @@ class RoleService {
       filter.department = department;
     }
 
-    // Build sort
     const sort: any = {};
     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    // Calculate skip
     const skip = (page - 1) * limit;
 
-    // Execute queries
     const [roles, total] = await Promise.all([
       Role.find(filter)
         .populate("department", "name systemName")
@@ -211,7 +203,6 @@ class RoleService {
       throw new Error("Only published roles can be assigned");
     }
 
-    // Validate users exist
     const userCount = await User.countDocuments({
       _id: { $in: userIds },
     });
@@ -219,7 +210,6 @@ class RoleService {
       throw new Error("One or more users not found");
     }
 
-    // Assign role to users
     const result = await User.updateMany(
       { _id: { $in: userIds } },
       { $addToSet: { roles: roleId } }
@@ -239,7 +229,6 @@ class RoleService {
       throw new Error("Role not found");
     }
 
-    // Check if role with new name exists
     const existingRole = await Role.findOne({ name: newName });
     if (existingRole) {
       throw new Error("Role with this name already exists");
@@ -275,7 +264,6 @@ class RoleService {
       throw new Error("Role not found");
     }
 
-    // Validate permissions exist
     const permissionCount = await Permission.countDocuments({
       key: { $in: permissions },
     });

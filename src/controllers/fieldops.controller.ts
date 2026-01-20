@@ -6,12 +6,10 @@ import { FieldAgent } from "../models/Warehouse.model";
 import { User } from "../models";
 
 export class FieldOpsController {
-  // Helper method to get FieldAgent ID from User ID (auto-creates if not exists)
   private async getFieldAgentId(userId: string): Promise<string> {
     let agent = await FieldAgent.findOne({ userId });
 
     if (!agent) {
-      // Auto-create FieldAgent record if it doesn't exist
       const user = await User.findById(userId).select("name email phone");
       if (!user) {
         throw new Error("User not found");
@@ -31,15 +29,12 @@ export class FieldOpsController {
     return agent._id.toString();
   }
 
-  // ==================== DASHBOARD ====================
   getDashboard = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
     try {
-      // Ensure FieldAgent record exists (auto-create if needed)
       await this.getFieldAgentId(req.user._id.toString());
 
-      // Pass User ID to service (tasks are assigned to Users now)
       const dashboard = await fieldOpsService.getDashboard(req.user._id.toString());
       return sendSuccess(res, dashboard, "Dashboard data retrieved successfully");
     } catch (error) {
@@ -51,12 +46,10 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== TASKS ====================
   getTasks = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
     try {
-      // Ensure FieldAgent record exists (auto-create if needed)
       await this.getFieldAgentId(req.user._id.toString());
 
       const filters = {
@@ -65,7 +58,6 @@ export class FieldOpsController {
         date: req.query.date as string,
       };
 
-      // Pass User ID to service (tasks are assigned to Users now)
       const tasks = await fieldOpsService.getTasks(req.user._id.toString(), filters);
       return sendSuccess(res, tasks, "Tasks retrieved successfully");
     } catch (error) {
@@ -73,15 +65,12 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== WAREHOUSE PICKUPS ====================
   getWarehousePickups = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
     try {
-      // Ensure FieldAgent record exists (auto-create if needed)
       await this.getFieldAgentId(req.user._id.toString());
 
-      // Pass User ID to service (dispatch orders are assigned to Users)
       const status = req.query.status as string;
       const pickups = await fieldOpsService.getWarehousePickups(req.user._id.toString(), status);
       return sendSuccess(res, pickups, "Warehouse pickups retrieved successfully");
@@ -115,10 +104,8 @@ export class FieldOpsController {
 
     try {
       const { id } = req.params;
-      // Ensure FieldAgent record exists
       await this.getFieldAgentId(req.user._id.toString());
 
-      // Pass User ID to service
       const result = await fieldOpsService.markPickupAsCollected(
         id,
         req.user._id.toString(),
@@ -134,15 +121,12 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== HANDOVER ====================
   createHandover = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
     try {
-      // Ensure FieldAgent record exists
       await this.getFieldAgentId(req.user._id.toString());
 
-      // Pass User ID to service
       const handover = await fieldOpsService.createHandover(req.user._id.toString(), req.body);
       return sendCreated(res, handover, "Handover summary created successfully");
     } catch (error) {
@@ -154,7 +138,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== ROUTES ====================
   getMyRoutes = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -184,7 +167,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== MACHINE VERIFICATION ====================
   verifyMachine = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -205,7 +187,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== MACHINE DETAILS ====================
   getMachineDetails = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -238,7 +219,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== REFILL ====================
   getMachineRefillData = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -304,7 +284,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== SKIP MACHINE ====================
   skipMachine = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -318,7 +297,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== MAINTENANCE ====================
   raiseIssue = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -332,7 +310,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== WORK SUMMARY ====================
   getWorkSummary = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -350,7 +327,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== NOTIFICATIONS ====================
   getNotifications = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -403,7 +379,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== PROFILE ====================
   getProfile = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 
@@ -431,7 +406,6 @@ export class FieldOpsController {
     }
   });
 
-  // ==================== HELP & SUPPORT ====================
   getHelpSections = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) return sendError(res, "Unauthorized", 401);
 

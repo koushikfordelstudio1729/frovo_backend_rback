@@ -20,10 +20,8 @@ import { MODULES } from "../config/constants";
 
 const router = Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Get departments
 router.get(
   "/",
   requirePermission("departments:view"),
@@ -31,7 +29,6 @@ router.get(
   departmentController.getDepartments
 );
 
-// Get department by ID
 router.get(
   "/:id",
   requirePermission("departments:view"),
@@ -39,7 +36,6 @@ router.get(
   departmentController.getDepartmentById
 );
 
-// Create department (Super Admin only)
 router.post(
   "/",
   requireSuperAdmin(),
@@ -48,7 +44,6 @@ router.post(
   departmentController.createDepartment
 );
 
-// Update department (Super Admin only)
 router.put(
   "/:id",
   requireSuperAdmin(),
@@ -58,7 +53,6 @@ router.put(
   departmentController.updateDepartment
 );
 
-// Add members to department
 router.post(
   "/:id/members",
   requirePermission("departments:edit"),
@@ -68,7 +62,6 @@ router.post(
   departmentController.addMembers
 );
 
-// Remove member from department
 router.delete(
   "/:id/members/:userId",
   requirePermission("departments:edit"),
@@ -78,7 +71,6 @@ router.delete(
   departmentController.removeMember
 );
 
-// Delete department (Super Admin only)
 router.delete(
   "/:id",
   requireSuperAdmin(),

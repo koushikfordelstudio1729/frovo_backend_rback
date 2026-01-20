@@ -14,38 +14,30 @@ export interface IMaintenanceIssue extends Document {
   _id: Types.ObjectId;
   issueId: string;
 
-  // References
   machineId: Types.ObjectId;
   agentId: Types.ObjectId;
   routeId?: Types.ObjectId;
 
-  // Issue details
   issueType: IssueType;
   machineName?: string;
   dateTime: Date;
   lastVisit?: Date;
 
   description: string;
-  affectedSlots?: string[]; // e.g., ["A1", "B2"]
-
-  // Documentation
+  affectedSlots?: string[];
   photos: string[];
   officialNote?: string;
 
-  // Priority and Status
   priority: "high" | "medium" | "low";
   status: "open" | "in_progress" | "resolved" | "closed";
 
-  // Assignment
-  assignedTo?: Types.ObjectId; // Maintenance technician
+  assignedTo?: Types.ObjectId;
   assignedAt?: Date;
 
-  // Resolution
   resolution?: string;
   resolvedBy?: Types.ObjectId;
   resolvedAt?: Date;
 
-  // Follow-up
   followUpRequired: boolean;
   followUpDate?: Date;
 
@@ -171,12 +163,10 @@ const maintenanceIssueSchema = new Schema<IMaintenanceIssue>(
   }
 );
 
-// Indexes
 maintenanceIssueSchema.index({ machineId: 1, status: 1, createdAt: -1 });
 maintenanceIssueSchema.index({ agentId: 1, createdAt: -1 });
 maintenanceIssueSchema.index({ status: 1, priority: 1 });
 
-// Auto-generate issueId
 maintenanceIssueSchema.pre("save", async function (next) {
   if (!this.issueId) {
     const date = new Date();

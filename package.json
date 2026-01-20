@@ -17,6 +17,7 @@
     "lint:check": "eslint \"src/**/*.{ts,js}\"",
     "lint:fix": "eslint \"src/**/*.{ts,js}\" --fix",
     "clean:console": "node scripts/remove-console.js",
+    "clean:comments": "node scripts/remove-comments.js",
     "prepare": "husky"
   },
   "keywords": [

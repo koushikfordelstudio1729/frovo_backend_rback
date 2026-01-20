@@ -10,7 +10,6 @@ import { AreaRouteModel } from "../models/AreaRoute.model";
 import { User } from "../models";
 
 export class FieldOpsService {
-  // ==================== DASHBOARD ====================
   async getDashboard(userId: string) {
     if (!Types.ObjectId.isValid(userId)) {
       throw new Error("Invalid user ID");
@@ -21,7 +20,6 @@ export class FieldOpsService {
       throw new Error("User not found");
     }
 
-    // Get task counts (tasks are now assigned to User IDs)
     const [assignedTasks, pendingRefills, priorityMachines] = await Promise.all([
       FieldOpsTask.countDocuments({
         assignedAgent: userId,
@@ -39,7 +37,6 @@ export class FieldOpsService {
       }),
     ]);
 
-    // Get today's tasks
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -77,7 +74,6 @@ export class FieldOpsService {
     return "Pending";
   }
 
-  // ==================== TASKS ====================
   async getTasks(
     agentId: string,
     filters: {
@@ -158,7 +154,6 @@ export class FieldOpsService {
     return {};
   }
 
-  // ==================== WAREHOUSE PICKUPS ====================
   async getWarehousePickups(agentId: string, status?: string) {
     if (!Types.ObjectId.isValid(agentId)) {
       throw new Error("Invalid agent ID");
@@ -240,7 +235,6 @@ export class FieldOpsService {
     dispatch.status = "in_transit";
     await dispatch.save();
 
-    // Update associated task
     await FieldOpsTask.updateOne(
       { dispatchId: pickupId, assignedAgent: agentId },
       { status: "in_progress" }
@@ -252,18 +246,15 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== HANDOVER ====================
   async createHandover(agentId: string, data: any) {
     if (!Types.ObjectId.isValid(agentId)) {
       throw new Error("Invalid agent ID");
     }
 
-    // Smart lookup: Accept both ObjectId and human-readable IDs
     let dispatchObjectId = data.dispatchId;
     let warehouseObjectId = data.warehouseId;
     let machineObjectId = data.machineId;
 
-    // Lookup Dispatch Order (supports "DO-0019" or ObjectId)
     if (data.dispatchId) {
       if (Types.ObjectId.isValid(data.dispatchId)) {
         dispatchObjectId = data.dispatchId;
@@ -276,7 +267,6 @@ export class FieldOpsService {
       }
     }
 
-    // Lookup Warehouse (supports "WH-DEL-0010" or ObjectId)
     if (data.warehouseId) {
       if (Types.ObjectId.isValid(data.warehouseId)) {
         warehouseObjectId = data.warehouseId;
@@ -289,8 +279,6 @@ export class FieldOpsService {
       }
     }
 
-    // Lookup Vending Machine (supports "VM-221" or ObjectId)
-    // Machine is optional - if not found, just skip it
     if (data.machineId) {
       if (Types.ObjectId.isValid(data.machineId)) {
         machineObjectId = data.machineId;
@@ -299,7 +287,6 @@ export class FieldOpsService {
         if (machine) {
           machineObjectId = machine._id;
         } else {
-          // Machine not found - set to undefined (optional field)
           machineObjectId = undefined;
         }
       }
@@ -334,7 +321,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== ROUTES ====================
   async getMyRoutes(agentId: string) {
     if (!Types.ObjectId.isValid(agentId)) {
       throw new Error("Invalid agent ID");
@@ -383,7 +369,6 @@ export class FieldOpsService {
       machineId: { $in: route.selected_machine || [] },
     }).lean();
 
-    // Get today's refill status for each machine
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -436,7 +421,6 @@ export class FieldOpsService {
   }
 
   private getMachinePriority(machine: any): string {
-    // Logic to determine priority based on stock levels
     const lowStockSlots =
       machine.productSlots?.filter((slot: any) => slot.quantity < slot.maxCapacity * 0.3).length ||
       0;
@@ -446,14 +430,12 @@ export class FieldOpsService {
     return "Low";
   }
 
-  // ==================== MACHINE VERIFICATION ====================
   async verifyMachine(data: { machineId?: string; qrCode?: string }, agentId: string) {
     let machine;
 
     if (data.machineId) {
       machine = await VendingMachine.findOne({ machineId: data.machineId }).lean();
     } else if (data.qrCode) {
-      // Parse QR code to extract machine ID
       machine = await VendingMachine.findOne({ machineId: data.qrCode }).lean();
     }
 
@@ -464,7 +446,6 @@ export class FieldOpsService {
       };
     }
 
-    // Check if machine is on agent's assigned routes
     const agent = await FieldAgent.findById(agentId).lean();
     const routes = await AreaRouteModel.find({
       _id: { $in: agent?.assignedRoutes || [] },
@@ -473,7 +454,6 @@ export class FieldOpsService {
 
     const assignedToRoute = routes.length > 0;
 
-    // Get last refill
     const lastRefill = await MachineRefill.findOne({
       machineId: machine._id,
     })
@@ -494,7 +474,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== MACHINE DETAILS ====================
   async getMachineDetails(machineId: string) {
     const machine = await VendingMachine.findOne({ machineId }).lean();
 
@@ -525,7 +504,6 @@ export class FieldOpsService {
       throw new Error("Machine not found");
     }
 
-    // Get recent issues
     const recentIssues = await MaintenanceIssue.find({
       machineId: machine._id,
       status: { $in: ["open", "in_progress"] },
@@ -554,7 +532,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== REFILL ====================
   async getMachineRefillData(machineId: string) {
     const machine = await VendingMachine.findOne({ machineId })
       .populate("productSlots.product")
@@ -564,7 +541,6 @@ export class FieldOpsService {
       throw new Error("Machine not found");
     }
 
-    // Group slots by rack
     const racks: any[] = [];
     const slotsByRack: { [key: number]: any[] } = {};
 
@@ -572,8 +548,7 @@ export class FieldOpsService {
       const match = slot.slotNumber.match(/^([A-Z])(\d+)$/);
       if (match) {
         const rackLetter = match[1];
-        const rackNumber = rackLetter.charCodeAt(0) - 64; // A=1, B=2, etc.
-
+        const rackNumber = rackLetter.charCodeAt(0) - 64;
         if (!slotsByRack[rackNumber]) {
           slotsByRack[rackNumber] = [];
         }
@@ -590,7 +565,6 @@ export class FieldOpsService {
       }
     });
 
-    // Convert to array and sort
     for (const rackNum in slotsByRack) {
       racks.push({
         rackNumber: parseInt(rackNum),
@@ -652,7 +626,6 @@ export class FieldOpsService {
       throw new Error("Machine not found");
     }
 
-    // Calculate totals
     const totalUnitsDispensed = data.refillData.reduce(
       (sum: number, slot: any) => sum + (slot.transUnitsDispensed || 0),
       0
@@ -670,7 +643,6 @@ export class FieldOpsService {
       0
     );
 
-    // Create refill record
     const refill = await MachineRefill.create({
       machineId: machine._id,
       agentId,
@@ -700,7 +672,6 @@ export class FieldOpsService {
       status: "completed",
     });
 
-    // Update machine inventory
     for (const slotData of data.refillData) {
       const slotPosition = this.extractSlotPosition(slotData.slotId);
       await VendingMachine.updateOne(
@@ -709,7 +680,6 @@ export class FieldOpsService {
       );
     }
 
-    // Update task status
     await FieldOpsTask.updateOne(
       { machineId: machine._id, assignedAgent: agentId, status: "in_progress" },
       { status: "completed", completedAt: new Date(), completedBy: agentId }
@@ -767,7 +737,6 @@ export class FieldOpsService {
     return match ? match[1] : slotId;
   }
 
-  // ==================== SKIP MACHINE ====================
   async skipMachine(machineId: string, agentId: string, data: any) {
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
@@ -783,7 +752,6 @@ export class FieldOpsService {
       skippedAt: new Date(),
     });
 
-    // Update task status
     await FieldOpsTask.updateOne(
       {
         machineId: machine._id,
@@ -798,7 +766,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== MAINTENANCE ====================
   async raiseIssue(machineId: string, agentId: string, data: any) {
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
@@ -826,7 +793,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== WORK SUMMARY ====================
   async getWorkSummary(agentId: string, date?: string) {
     const queryDate = date ? new Date(date) : new Date();
     const startOfDay = new Date(queryDate);
@@ -858,16 +824,13 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== NOTIFICATIONS ====================
   async getNotifications(agentId: string, read?: boolean) {
-    // Placeholder - implement notification system
     return {
       notifications: [],
       unreadCount: 0,
     };
   }
 
-  // ==================== PROFILE ====================
   async getProfile(agentId: string) {
     const agent = await FieldAgent.findById(agentId).populate("createdBy", "name email").lean();
 
@@ -890,7 +853,6 @@ export class FieldOpsService {
     };
   }
 
-  // ==================== UTILITY FUNCTIONS ====================
   private formatDateTime(date: Date): string {
     return new Date(date)
       .toLocaleString("en-IN", {

@@ -6,7 +6,7 @@ import {
   IVendorDashboard,
   IVendorDocument,
   ICompanyCreate,
-  CompanyCreate, // Add this import
+  CompanyCreate,
 } from "../models/Vendor.model";
 import { AuditTrailService } from "./auditTrail.service";
 import { DocumentUploadService } from "./documentUpload.service";
@@ -16,9 +16,6 @@ export class VendorService {
   private auditTrailService = new AuditTrailService();
   private documentUploadService = new DocumentUploadService();
 
-  /**
-   * Create a new company
-   */
   public static async createCompanyService(
     data: {
       registered_company_name: string;
@@ -54,7 +51,6 @@ export class VendorService {
       risk_rating,
     } = data;
 
-    // Validate required fields
     const requiredFields = [
       "registered_company_name",
       "company_address",
@@ -72,31 +68,26 @@ export class VendorService {
       throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(office_email)) {
       throw new Error("Invalid email format");
     }
 
-    // Validate date
     const incorporationDate = new Date(date_of_incorporation);
     if (isNaN(incorporationDate.getTime())) {
       throw new Error("Invalid date format for date_of_incorporation");
     }
 
-    // Check if date is not in the future
     const today = new Date();
     if (incorporationDate > today) {
       throw new Error("Date of incorporation cannot be in the future");
     }
 
-    // Validate GST number format (15 characters)
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
     if (!gstRegex.test(gst_number)) {
       throw new Error("Invalid GST number format");
     }
 
-    // Check for unique constraints
     const existingCompanies = await Promise.all([
       CompanyCreate.findOne({ office_email }),
       CompanyCreate.findOne({ cin }),
@@ -114,7 +105,6 @@ export class VendorService {
       throw new Error(errors.join(", "));
     }
 
-    // Validate corporate website if provided
     if (corporate_website) {
       const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
       if (!urlRegex.test(corporate_website)) {
@@ -122,7 +112,6 @@ export class VendorService {
       }
     }
 
-    // Create new company
     const newCompany = new CompanyCreate({
       registered_company_name,
       company_address,
@@ -140,7 +129,6 @@ export class VendorService {
 
     const savedCompany = await newCompany.save();
 
-    // ✅ CREATE AUDIT TRAIL FOR COMPANY CREATION
     const auditTrailService = new AuditTrailService();
     try {
       await auditTrailService.createAuditRecord({
@@ -160,19 +148,14 @@ export class VendorService {
       });
     } catch (auditError) {
       logger.error("Failed to create company audit trail:", auditError);
-      // Don't fail the company creation if audit fails
     }
 
-    // Convert to plain object and remove sensitive/technical fields
     const companyObj = savedCompany.toObject();
     delete companyObj.__v;
 
     return companyObj;
   }
 
-  /**
-   * Get all companies with pagination
-   */
   public static async getAllCompaniesService(
     query: {
       page?: number;
@@ -209,14 +192,12 @@ export class VendorService {
       CompanyCreate.countDocuments(filter),
     ]);
 
-    // Get vendor counts for each company
     const companiesWithVendorCounts = await Promise.all(
       companies.map(async company => {
         const vendorCount = await VendorCreate.countDocuments({
           cin: company.cin,
         });
 
-        // Convert to plain object and add vendorCount
         const companyObj = company.toObject();
         return {
           ...companyObj,
@@ -240,9 +221,6 @@ export class VendorService {
     };
   }
 
-  /**
-   * Get company by CIN
-   */
   public static async getCompanyByIdService(cin: string) {
     if (!cin || cin.trim() === "") {
       throw new Error("Company CIN is required");
@@ -257,9 +235,6 @@ export class VendorService {
     return company;
   }
 
-  /**
-   * Update company by CIN
-   */
   public static async updateCompanyService(
     cin: string,
     data: Partial<{
@@ -281,28 +256,23 @@ export class VendorService {
     userRole: string,
     req?: any
   ) {
-    // Validate CIN
     if (!cin || cin.trim() === "") {
       throw new Error("Company CIN is required");
     }
 
-    // Check if company exists
     const existingCompany = await CompanyCreate.findOne({ cin: cin });
     if (!existingCompany) {
       throw new Error("Company not found");
     }
 
-    // Store before state for audit
     const beforeState = existingCompany.toObject();
 
-    // Validate email if being updated
     if (data.office_email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(data.office_email)) {
         throw new Error("Invalid email format");
       }
 
-      // Check for duplicate email
       const companyWithSameEmail = await CompanyCreate.findOne({
         office_email: data.office_email.toLowerCase(),
         cin: { $ne: cin },
@@ -315,14 +285,12 @@ export class VendorService {
       data.office_email = data.office_email.toLowerCase();
     }
 
-    // Validate GST number if being updated
     if (data.gst_number) {
       const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
       if (!gstRegex.test(data.gst_number)) {
         throw new Error("Invalid GST number format");
       }
 
-      // Check for duplicate GST number
       const companyWithSameGST = await CompanyCreate.findOne({
         gst_number: data.gst_number.toUpperCase(),
         cin: { $ne: cin },
@@ -335,7 +303,6 @@ export class VendorService {
       data.gst_number = data.gst_number.toUpperCase();
     }
 
-    // Validate date if being updated
     if (data.date_of_incorporation) {
       const incorporationDate = new Date(data.date_of_incorporation);
       if (isNaN(incorporationDate.getTime())) {
@@ -350,7 +317,6 @@ export class VendorService {
       data.date_of_incorporation = incorporationDate;
     }
 
-    // Validate registration number if being updated
     if (data.cin && data.cin !== cin) {
       const companyWithSameRegNo = await CompanyCreate.findOne({
         cin: data.cin,
@@ -361,7 +327,6 @@ export class VendorService {
       }
     }
 
-    // Validate DIN if being updated
     if (data.din) {
       const companyWithSameDIN = await CompanyCreate.findOne({
         din: data.din,
@@ -373,7 +338,6 @@ export class VendorService {
       }
     }
 
-    // Validate website if being updated
     if (data.corporate_website) {
       const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
       if (!urlRegex.test(data.corporate_website)) {
@@ -381,17 +345,14 @@ export class VendorService {
       }
     }
 
-    // Update company
     const updatedCompany = await CompanyCreate.findOneAndUpdate({ cin: cin }, data, {
       new: true,
       runValidators: true,
     }).select("-__v");
 
-    // ✅ CREATE AUDIT TRAIL FOR COMPANY UPDATE
     if (updatedCompany) {
       const auditTrailService = new AuditTrailService();
 
-      // Get changed fields
       const changedFields = Object.keys(data).filter(key => {
         const oldValue = beforeState[key as keyof typeof beforeState];
         const newValue = data[key as keyof typeof data];
@@ -418,16 +379,12 @@ export class VendorService {
         });
       } catch (auditError) {
         logger.error("Failed to create company update audit trail:", auditError);
-        // Don't fail the update if audit fails
       }
     }
 
     return updatedCompany;
   }
 
-  /**
-   * Delete company by CIN
-   */
   public static async deleteCompanyService(
     cin: string,
     userId: any,
@@ -435,12 +392,10 @@ export class VendorService {
     userRole: string,
     req?: any
   ) {
-    // Validate CIN
     if (!cin || cin.trim() === "") {
       throw new Error("Company CIN is required");
     }
 
-    // Get company before deletion for audit trail
     const companyToDelete = await CompanyCreate.findOne({ cin: cin });
 
     if (!companyToDelete) {
@@ -450,7 +405,6 @@ export class VendorService {
     const beforeState = companyToDelete.toObject();
     const deletedCompany = await CompanyCreate.findOneAndDelete({ cin: cin });
 
-    // ✅ CREATE AUDIT TRAIL FOR COMPANY DELETION
     if (deletedCompany) {
       const auditTrailService = new AuditTrailService();
 
@@ -473,16 +427,12 @@ export class VendorService {
         });
       } catch (auditError) {
         logger.error("Failed to create company deletion audit trail:", auditError);
-        // Don't fail the deletion if audit fails
       }
     }
 
     return deletedCompany;
   }
 
-  /**
-   * Check if company exists by CIN
-   */
   public static async checkCompanyExists(cin: string): Promise<boolean> {
     if (!cin || cin.trim() === "") {
       return false;
@@ -491,9 +441,6 @@ export class VendorService {
     return !!company;
   }
 
-  /**
-   * Search companies by name or email
-   */
   public static async searchCompaniesService(searchTerm: string, limit: number = 10) {
     if (!searchTerm || searchTerm.trim() === "") {
       throw new Error("Search term is required");
@@ -511,7 +458,6 @@ export class VendorService {
 
     return companies;
   }
-  // Create Complete Vendor with Audit Trail
   async createCompleteVendor(
     vendorData: Partial<IVendorCreate>,
     createdBy: Types.ObjectId,
@@ -520,10 +466,8 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate> {
     try {
-      // Validate vendor data
       VendorValidationService.validateCompleteVendorData(vendorData);
 
-      // ===== IMPORTANT: Validate company_registration_number =====
       if (vendorData.cin) {
         const companyExists = await CompanyCreate.findOne({
           cin: vendorData.cin,
@@ -537,19 +481,13 @@ export class VendorService {
       } else {
         throw new Error("Company registration number is required");
       }
-      // ===== END VALIDATION =====
 
-      // ===== VERIFICATION STATUS CONTROL =====
-      // Only super_admin can set verification_status to "verified" during creation
-      // All other roles (vendor_admin, etc.) will have default "pending" status
       let verificationStatus = "pending";
 
       if (vendorData.verification_status) {
         if (userRole === "super_admin") {
-          // Super admin can set any verification status
           verificationStatus = vendorData.verification_status;
         } else {
-          // Non-super admins can only set to "pending"
           if (vendorData.verification_status !== "pending") {
             throw new Error(
               "Only Super Admin can set verification status to verified/failed/rejected"
@@ -558,9 +496,7 @@ export class VendorService {
           verificationStatus = vendorData.verification_status;
         }
       }
-      // ===== END VERIFICATION STATUS CONTROL =====
 
-      // Check for duplicate vendor email
       const existingVendorByEmail = await VendorCreate.findOne({
         vendor_email: vendorData.vendor_email?.toLowerCase(),
       });
@@ -569,11 +505,9 @@ export class VendorService {
         throw new Error("Vendor with this email already exists");
       }
 
-      // Generate vendor ID if not provided
       if (!vendorData.vendor_id) {
         vendorData.vendor_id = this.generateVendorId();
       } else {
-        // Check for duplicate vendor ID if provided
         const existingVendorById = await VendorCreate.findOne({
           vendor_id: vendorData.vendor_id,
         });
@@ -583,18 +517,16 @@ export class VendorService {
         }
       }
 
-      // Prepare vendor data with defaults
       const completeVendorData = {
         ...vendorData,
         createdBy,
-        verification_status: verificationStatus, // Use controlled verification status
+        verification_status: verificationStatus,
         verified_by: verificationStatus === "verified" ? createdBy : undefined,
       };
 
       const vendor = new VendorCreate(completeVendorData);
       const savedVendor = await vendor.save();
 
-      // Create audit trail record
       await this.createVendorAuditRecord(
         createdBy,
         userEmail,
@@ -614,7 +546,6 @@ export class VendorService {
       throw new Error(`Error creating vendor: ${error.message}`);
     }
   }
-  // Enhanced Update Vendor with Audit Trail
   async updateVendor(
     id: string,
     updateData: Partial<IVendorCreate>,
@@ -624,14 +555,11 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate | null> {
     try {
-      // Get current state before update
       const currentVendor = await VendorCreate.findById(id);
       if (!currentVendor) {
         throw new Error("Vendor not found");
       }
 
-      // Only Super Admin and Vendor Admin can modify verification_status
-      // Block other roles from changing verification status
       if (
         !["super_admin", "vendor_admin"].includes(userRole) &&
         "verification_status" in updateData
@@ -639,11 +567,9 @@ export class VendorService {
         if (updateData.verification_status !== currentVendor.verification_status) {
           throw new Error("Only Super Admin or Vendor Admin can modify verification status");
         }
-        // If status hasn't changed, remove it from updateData to avoid unnecessary updates
         delete updateData.verification_status;
       }
 
-      // Validate update data
       if (updateData.vendor_email) {
         const existingVendor = await VendorCreate.findOne({
           vendor_email: updateData.vendor_email.toLowerCase(),
@@ -674,7 +600,6 @@ export class VendorService {
         .populate("verified_by", "name email");
 
       if (updatedVendor) {
-        // Create audit trail record
         await this.createVendorAuditRecord(
           userId,
           userEmail,
@@ -696,7 +621,6 @@ export class VendorService {
     }
   }
 
-  // Enhanced Vendor Verification with Audit Trail
   async updateVendorVerification(
     vendorId: string,
     verificationStatus: "verified" | "rejected" | "pending",
@@ -707,12 +631,10 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate> {
     try {
-      // Check if user has vendor management permissions
       if (userRole !== "super_admin" && userRole !== "vendor_admin") {
         throw new Error("Only Super Admin or Vendor Admin can modify vendor verification status");
       }
 
-      // Get current state before update
       const currentVendor = await VendorCreate.findById(vendorId);
       if (!currentVendor) {
         throw new Error("Vendor not found");
@@ -724,7 +646,6 @@ export class VendorService {
         updatedAt: new Date(),
       };
 
-      // Add notes if provided
       if (notes) {
         updateData.risk_notes = `${verificationStatus.toUpperCase()} - ${notes} (${new Date().toISOString()})`;
       } else {
@@ -742,7 +663,6 @@ export class VendorService {
         throw new Error("Vendor not found");
       }
 
-      // Create audit trail record
       await this.createVendorAuditRecord(
         verifiedBy,
         userEmail,
@@ -763,7 +683,6 @@ export class VendorService {
     }
   }
 
-  // Enhanced Delete Vendor with Audit Trail
   async deleteVendor(
     id: string,
     userId: Types.ObjectId,
@@ -772,7 +691,6 @@ export class VendorService {
     req?: any
   ): Promise<boolean> {
     try {
-      // Get vendor details before deletion
       const vendorToDelete = await VendorCreate.findById(id);
       if (!vendorToDelete) {
         throw new Error("Vendor not found");
@@ -781,7 +699,6 @@ export class VendorService {
       const result = await VendorCreate.findByIdAndDelete(id);
 
       if (result) {
-        // Create audit trail record
         await this.createVendorAuditRecord(
           userId,
           userEmail,
@@ -803,18 +720,12 @@ export class VendorService {
     }
   }
 
-  // Generate unique vendor ID
   private generateVendorId(): string {
     const timestamp = new Date().getTime().toString().slice(-6);
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     return `VEND-${timestamp}-${random}`;
   }
 
-  /**
-   * COMMON DASHBOARD - Accessible by both Super Admin and Vendor Admin
-   * Shows: All companies, All vendors (created by all admins), Total counts
-   * This is a shared dashboard showing the complete system overview
-   */
   async getCommonDashboard(
     filters: {
       verification_status?: string;
@@ -846,10 +757,8 @@ export class VendorService {
       logger.info("📊 COMMON DASHBOARD (Accessible by Super Admin & Vendor Admin)");
       logger.info("🔍 Filters:", filters);
 
-      // Get all company statistics
       const totalCompanies = await CompanyCreate.countDocuments();
 
-      // Get all vendor statistics (no filtering by creator)
       const [totalVendors, pendingVendors, verifiedVendors, rejectedVendors] = await Promise.all([
         VendorCreate.countDocuments(),
         VendorCreate.countDocuments({ verification_status: "pending" }),
@@ -865,7 +774,6 @@ export class VendorService {
         rejectedVendors,
       });
 
-      // Build query for companies
       const companyQuery: any = {};
       if (filters.company_search) {
         companyQuery.$or = [
@@ -875,14 +783,12 @@ export class VendorService {
         ];
       }
 
-      // Get recent companies (limit to 5 for dashboard)
       const companies = await CompanyCreate.find(companyQuery)
         .select("registered_company_name office_email cin date_of_incorporation createdAt")
         .sort({ createdAt: -1 })
         .limit(5)
         .lean();
 
-      // Add vendor count to each company
       const companiesWithVendorCount = await Promise.all(
         companies.map(async company => {
           const vendorCount = await VendorCreate.countDocuments({ cin: company.cin });
@@ -893,7 +799,6 @@ export class VendorService {
         })
       );
 
-      // Build query for vendors
       const vendorQuery: any = {};
 
       if (filters.verification_status) {
@@ -924,7 +829,6 @@ export class VendorService {
       const limit = filters.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Get ALL vendors (created by all admins - no createdBy filter)
       const [vendors, totalCount] = await Promise.all([
         VendorCreate.find(vendorQuery)
           .populate("createdBy", "name email")
@@ -942,7 +846,6 @@ export class VendorService {
       logger.info("✅ Vendors found:", vendors.length);
       logger.info("📊 Total vendor count with filters:", totalCount);
 
-      // Format vendors for response
       const dashboardVendors = vendors.map(vendor => ({
         _id: vendor._id,
         vendor_id: vendor.vendor_id,
@@ -956,7 +859,7 @@ export class VendorService {
         verified_by: vendor.verified_by,
         created_at: vendor.createdAt,
         updated_at: vendor.updatedAt,
-        actions: ["view"], // Common dashboard - view only access
+        actions: ["view"],
       }));
 
       const totalPages = Math.ceil(totalCount / limit);
@@ -984,11 +887,6 @@ export class VendorService {
     }
   }
 
-  /**
-   * SUPER ADMIN VENDOR MANAGEMENT DASHBOARD - Only for Super Admin
-   * Shows: Only vendors (no companies), with full management capabilities
-   * Focus: Vendor verification, approval workflow, vendor management
-   */
   async getSuperAdminVendorManagementDashboard(
     filters: {
       verification_status?: string;
@@ -1018,7 +916,6 @@ export class VendorService {
       logger.info("👑 SUPER ADMIN VENDOR MANAGEMENT DASHBOARD");
       logger.info("🔍 Filters:", filters);
 
-      // Get vendor counts for all statuses
       const [totalVendors, pendingApprovals, verifiedVendors, rejectedVendors, failedVendors] =
         await Promise.all([
           VendorCreate.countDocuments(),
@@ -1036,7 +933,6 @@ export class VendorService {
         failedVendors,
       });
 
-      // Build query for vendors with filters
       const query: any = {};
 
       if (filters.verification_status) {
@@ -1067,7 +963,6 @@ export class VendorService {
       const limit = filters.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Get vendors with full details for management
       const [vendors, totalCount] = await Promise.all([
         VendorCreate.find(query)
           .populate("createdBy", "name email")
@@ -1085,7 +980,6 @@ export class VendorService {
       logger.info("✅ Vendors found:", vendors.length);
       logger.info("📊 Total count with filters:", totalCount);
 
-      // Format vendors with super admin actions
       const managementVendors = vendors.map(vendor => ({
         _id: vendor._id,
         vendor_id: vendor.vendor_id,
@@ -1100,7 +994,6 @@ export class VendorService {
         risk_notes: vendor.risk_notes,
         created_at: vendor.createdAt,
         updated_at: vendor.updatedAt,
-        // Super admin can verify/reject/edit/delete
         actions: this.getSuperAdminActions(vendor.verification_status),
       }));
 
@@ -1128,7 +1021,6 @@ export class VendorService {
     }
   }
 
-  // Helper method for super admin actions (can verify/reject vendors)
   private getSuperAdminActions(verificationStatus: string): string[] {
     switch (verificationStatus) {
       case "pending":
@@ -1144,14 +1036,12 @@ export class VendorService {
     }
   }
 
-  // Toggle Vendor Verification Status (Verify ↔ Reject)
   async toggleVendorVerification(
     vendorId: string,
     verifiedBy: Types.ObjectId,
     userRole: string
   ): Promise<IVendorCreate> {
     try {
-      // Check if user is Super Admin
       if (userRole !== "super_admin") {
         throw new Error("Only Super Admin can verify or reject vendors");
       }
@@ -1167,7 +1057,6 @@ export class VendorService {
         updatedAt: new Date(),
       };
 
-      // Toggle between verified and rejected
       if (vendor.verification_status === "verified") {
         newStatus = "rejected";
         updateData.verification_status = newStatus;
@@ -1177,7 +1066,6 @@ export class VendorService {
         updateData.verification_status = newStatus;
         updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
       } else {
-        // If pending, default to verify
         newStatus = "verified";
         updateData.verification_status = newStatus;
         updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
@@ -1200,7 +1088,6 @@ export class VendorService {
     }
   }
 
-  // Get All Vendors for Super Admin with advanced filtering
   async getAllVendorsForSuperAdmin(
     filters: {
       verification_status?: string;
@@ -1296,7 +1183,6 @@ export class VendorService {
     }
   }
 
-  // Bulk Verify/Reject Vendors
   async bulkUpdateVendorVerification(
     vendorIds: string[],
     verificationStatus: "verified" | "rejected",
@@ -1305,7 +1191,6 @@ export class VendorService {
     rejectionReason?: string
   ): Promise<{ successful: string[]; failed: any[] }> {
     try {
-      // Check if user has vendor management permissions
       if (userRole !== "super_admin" && userRole !== "vendor_admin") {
         throw new Error("Only Super Admin or Vendor Admin can verify or reject vendors");
       }
@@ -1345,11 +1230,7 @@ export class VendorService {
       throw new Error(`Error bulk updating vendor verification: ${error.message}`);
     }
   }
-  // In VendorService.ts, add this method:
 
-  /**
-   * Quick Verify/Reject Vendor (automatic, no body required)
-   */
   async quickVerifyOrRejectVendor(
     vendorId: string,
     verificationStatus: "verified" | "rejected",
@@ -1360,25 +1241,21 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate> {
     try {
-      // Check if user has vendor management permissions
       if (userRole !== "super_admin" && userRole !== "vendor_admin") {
         throw new Error("Only Super Admin or Vendor Admin can verify or reject vendors");
       }
 
-      // Get current state before update
       const currentVendor = await VendorCreate.findById(vendorId);
       if (!currentVendor) {
         throw new Error("Vendor not found");
       }
 
-      // Prepare update data
       const updateData: any = {
         verification_status: verificationStatus,
         verified_by: verifiedBy,
         updatedAt: new Date(),
       };
 
-      // Add automatic notes based on action
       const timestamp = new Date().toISOString();
       if (verificationStatus === "verified") {
         updateData.risk_notes = `QUICK VERIFIED via API route on ${timestamp}. ${actionDescription}`;
@@ -1386,7 +1263,6 @@ export class VendorService {
         updateData.risk_notes = `QUICK REJECTED via API route on ${timestamp}. ${actionDescription}`;
       }
 
-      // Update vendor
       const updatedVendor = await VendorCreate.findByIdAndUpdate(vendorId, updateData, {
         new: true,
         runValidators: true,
@@ -1398,7 +1274,6 @@ export class VendorService {
         throw new Error("Vendor not found");
       }
 
-      // Create audit trail record
       await this.createVendorAuditRecord(
         verifiedBy,
         userEmail,
@@ -1418,7 +1293,6 @@ export class VendorService {
       throw new Error(`Error quick ${verificationStatus} vendor: ${error.message}`);
     }
   }
-  // Get Vendor Statistics for Super Admin
   async getVendorStatistics(): Promise<{
     total_vendors: number;
     pending_approvals: number;
@@ -1486,7 +1360,6 @@ export class VendorService {
     }
   }
 
-  // Get Pending Approvals with detailed information
   async getPendingApprovals(): Promise<any[]> {
     try {
       return await VendorCreate.find({ verification_status: "pending" })
@@ -1501,7 +1374,6 @@ export class VendorService {
     }
   }
 
-  // Get Vendor by ID
   async getVendorById(id: string): Promise<IVendorCreate | null> {
     try {
       return await VendorCreate.findById(id)
@@ -1512,7 +1384,6 @@ export class VendorService {
     }
   }
 
-  // Get Vendor by Vendor ID
   async getVendorByVendorId(vendorId: string): Promise<IVendorCreate | null> {
     try {
       return await VendorCreate.findOne({ vendor_id: vendorId })
@@ -1523,7 +1394,6 @@ export class VendorService {
     }
   }
 
-  // Get Logged-in Vendor Profile (My Vendors)
   async getMyVendorProfile(userId: Types.ObjectId): Promise<{
     user_info: {
       user_id: Types.ObjectId;
@@ -1539,13 +1409,11 @@ export class VendorService {
     vendors: IVendorCreate[];
   }> {
     try {
-      // Get all vendors created by this user
       const vendors = await VendorCreate.find({ createdBy: userId })
         .populate("createdBy", "name email")
         .populate("verified_by", "name email")
         .sort({ createdAt: -1 });
 
-      // Calculate statistics
       const statistics = {
         total_vendors: vendors.length,
         pending_vendors: vendors.filter(v => v.verification_status === "pending").length,
@@ -1567,7 +1435,6 @@ export class VendorService {
     }
   }
 
-  // Get All Vendors with filtering and pagination (for general use)
   async getAllVendors(
     filters: {
       verification_status?: string;
@@ -1627,7 +1494,6 @@ export class VendorService {
     }
   }
 
-  // Bulk Create Vendors
   async createBulkVendors(
     vendorsData: Partial<IVendorCreate>[],
     createdBy: Types.ObjectId
@@ -1640,7 +1506,6 @@ export class VendorService {
 
     for (let i = 0; i < vendorsData.length; i++) {
       try {
-        // ===== IMPORTANT: Validate company_registration_number for each vendor =====
         if (vendorsData[i].cin) {
           const companyExists = await CompanyCreate.findOne({
             cin: vendorsData[i].cin,
@@ -1654,7 +1519,6 @@ export class VendorService {
         } else {
           throw new Error("Company registration number is required");
         }
-        // ===== END VALIDATION =====
 
         const result = await this.createCompleteVendor(
           vendorsData[i],
@@ -1681,11 +1545,7 @@ export class VendorService {
 
     return { successful, failed };
   }
-  // In VendorService.ts, add these methods:
 
-  /**
-   * Get all vendors for a specific company
-   */
   public static async getVendorsByCompanyService(
     cin: string,
     query: {
@@ -1697,7 +1557,6 @@ export class VendorService {
       vendor_category?: string;
     } = {}
   ) {
-    // First, verify company exists
     const company = await CompanyCreate.findOne({
       cin: cin,
     });
@@ -1723,7 +1582,6 @@ export class VendorService {
       cin: cin,
     };
 
-    // Add optional filters
     if (verification_status) {
       filter.verification_status = verification_status;
     }
@@ -1779,11 +1637,7 @@ export class VendorService {
     };
   }
 
-  /**
-   * Get company with vendor statistics
-   */
   public static async getCompanyWithVendorStatsService(cin: string) {
-    // Get company details by CIN
     const company = await CompanyCreate.findOne({
       cin: cin,
     }).select("-__v");
@@ -1792,10 +1646,8 @@ export class VendorService {
       throw new Error("Company not found");
     }
 
-    // Run all database operations in parallel for better performance
     const [vendorStats, vendorsByCategory, vendorsByRisk, recentVendors, totalVendors] =
       await Promise.all([
-        // Get vendor statistics by verification status
         VendorCreate.aggregate([
           {
             $match: {
@@ -1810,7 +1662,6 @@ export class VendorService {
           },
         ]),
 
-        // Get vendors by category
         VendorCreate.aggregate([
           {
             $match: {
@@ -1826,7 +1677,6 @@ export class VendorService {
           { $sort: { count: -1 } },
         ]),
 
-        // Get vendors by risk rating
         VendorCreate.aggregate([
           {
             $match: {
@@ -1841,7 +1691,6 @@ export class VendorService {
           },
         ]),
 
-        // Get recent vendors (last 5)
         VendorCreate.find({
           cin: company.cin,
         })
@@ -1850,13 +1699,11 @@ export class VendorService {
           .sort({ createdAt: -1 })
           .limit(5),
 
-        // Get total vendors count
         VendorCreate.countDocuments({
           cin: company.cin,
         }),
       ]);
 
-    // Transform vendor stats with default values
     const statsObject = {
       pending: 0,
       verified: 0,
@@ -1866,7 +1713,6 @@ export class VendorService {
       approved: 0,
     };
 
-    // Merge the aggregation results into statsObject
     vendorStats.forEach(stat => {
       const statusKey = stat._id?.toLowerCase()?.replace(/\s+/g, "-") || stat._id;
       if (statusKey in statsObject) {
@@ -1876,14 +1722,12 @@ export class VendorService {
       }
     });
 
-    // Calculate additional statistics
     const verifiedPercentage =
       totalVendors > 0 ? Math.round((statsObject.verified / totalVendors) * 100) : 0;
 
     const pendingPercentage =
       totalVendors > 0 ? Math.round((statsObject.pending / totalVendors) * 100) : 0;
 
-    // Get risk distribution percentages
     const riskDistribution = {};
     vendorsByRisk.forEach(risk => {
       const riskKey = risk._id || "Not Rated";
@@ -1895,7 +1739,6 @@ export class VendorService {
       };
     });
 
-    // Get top categories
     const topCategories = vendorsByCategory.slice(0, 3).map(cat => ({
       category: cat._id || "Uncategorized",
       count: cat.count,
@@ -1926,7 +1769,6 @@ export class VendorService {
       },
     };
   }
-  // Update Vendor for Vendor Admin (with restrictions)
   async updateVendorForAdmin(
     id: string,
     updateData: Partial<IVendorCreate>,
@@ -1934,19 +1776,15 @@ export class VendorService {
     userRole: string
   ): Promise<IVendorCreate | null> {
     try {
-      // Check if vendor exists and belongs to the user
       const existingVendor = await VendorCreate.findById(id);
       if (!existingVendor) {
         throw new Error("Vendor not found");
       }
 
-      // Vendor admin can only update their own vendors
       if (userRole === "vendor_admin" && !existingVendor.createdBy.equals(userId)) {
         throw new Error("You can only update vendors created by you");
       }
 
-      // Only Super Admin and Vendor Admin can modify verification_status
-      // This check is now redundant since vendor_admin is allowed, but keeping for other roles
       if (
         !["super_admin", "vendor_admin"].includes(userRole) &&
         "verification_status" in updateData
@@ -1954,11 +1792,9 @@ export class VendorService {
         if (updateData.verification_status !== existingVendor.verification_status) {
           throw new Error("Only Super Admin or Vendor Admin can modify verification status");
         }
-        // If status hasn't changed, remove it from updateData to avoid unnecessary updates
         delete updateData.verification_status;
       }
 
-      // Define allowed fields for vendor admin to update
       const allowedFields = [
         "vendor_name",
         "vendor_billing_name",
@@ -1985,7 +1821,6 @@ export class VendorService {
         "documents_uploaded",
       ];
 
-      // Filter update data to only include allowed fields
       const filteredUpdateData: Record<string, any> = {};
       Object.keys(updateData).forEach(key => {
         if (allowedFields.includes(key)) {
@@ -1993,7 +1828,6 @@ export class VendorService {
         }
       });
 
-      // Validate email uniqueness if being updated
       if (filteredUpdateData.vendor_email) {
         const existingVendorWithEmail = await VendorCreate.findOne({
           vendor_email: filteredUpdateData.vendor_email.toLowerCase(),
@@ -2016,7 +1850,6 @@ export class VendorService {
     }
   }
 
-  // Get Vendor Details for Edit (with proper authorization)
   async getVendorForEdit(
     id: string,
     userId: Types.ObjectId,
@@ -2031,7 +1864,6 @@ export class VendorService {
         throw new Error("Vendor not found");
       }
 
-      // Vendor admin can only access their own vendors
       if (userRole === "vendor_admin" && !vendor.createdBy.equals(userId)) {
         throw new Error("You can only access vendors created by you");
       }
@@ -2042,7 +1874,6 @@ export class VendorService {
     }
   }
 
-  // Delete Vendor with authorization check
   async deleteVendorForAdmin(
     id: string,
     userId: Types.ObjectId,
@@ -2055,7 +1886,6 @@ export class VendorService {
         throw new Error("Vendor not found");
       }
 
-      // Vendor admin can only delete their own vendors
       if (userRole === "vendor_admin" && !vendor.createdBy.equals(userId)) {
         throw new Error("You can only delete vendors created by you");
       }
@@ -2067,7 +1897,6 @@ export class VendorService {
     }
   }
 
-  // Helper method to get changed fields between two objects
   private getChangedFields(before: any, after: any): string[] {
     const changedFields: string[] = [];
 
@@ -2084,7 +1913,6 @@ export class VendorService {
     return changedFields;
   }
 
-  // Helper method to create audit record
   private async createVendorAuditRecord(
     user: Types.ObjectId,
     user_email: string,
@@ -2117,24 +1945,9 @@ export class VendorService {
       });
     } catch (error) {
       logger.error("Failed to create audit record:", error);
-      // Don't throw error - audit failure shouldn't break main functionality
     }
   }
 
-  // ==================== DOCUMENT MANAGEMENT METHODS ====================
-
-  /**
-   * Upload document to vendor
-   * @param vendorId - Vendor MongoDB ID
-   * @param file - Multer file object
-   * @param documentType - Type of document
-   * @param expiryDate - Optional expiry date
-   * @param userId - User performing the action
-   * @param userEmail - User email
-   * @param userRole - User role
-   * @param req - Request object for audit
-   * @returns Updated vendor document
-   */
   async uploadVendorDocument(
     vendorId: string,
     file: Express.Multer.File,
@@ -2146,25 +1959,21 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate | null> {
     try {
-      // Find vendor
       const vendor = await VendorCreate.findById(vendorId);
       if (!vendor) {
         throw new Error("Vendor not found");
       }
 
-      // Validate document type
       if (!this.documentUploadService.validateDocumentType(documentType)) {
         throw new Error("Invalid document type");
       }
 
-      // Upload to Cloudinary
       const { url, publicId } = await this.documentUploadService.uploadToCloudinary(
         file.buffer,
         file.originalname,
         `frovo/vendors/${vendor.vendor_id}`
       );
 
-      // Create document metadata
       const documentMetadata = this.documentUploadService.createDocumentMetadata(
         file,
         documentType,
@@ -2173,12 +1982,10 @@ export class VendorService {
         expiryDate
       );
 
-      // Add document to vendor
       const beforeState = vendor.toObject();
       vendor.documents.push(documentMetadata as any);
       await vendor.save();
 
-      // Create audit trail
       await this.createVendorAuditRecord(
         userId,
         userEmail,
@@ -2199,16 +2006,6 @@ export class VendorService {
     }
   }
 
-  /**
-   * Delete vendor document
-   * @param vendorId - Vendor MongoDB ID
-   * @param documentId - Document MongoDB ID
-   * @param userId - User performing the action
-   * @param userEmail - User email
-   * @param userRole - User role
-   * @param req - Request object for audit
-   * @returns Updated vendor document
-   */
   async deleteVendorDocument(
     vendorId: string,
     documentId: string,
@@ -2218,13 +2015,11 @@ export class VendorService {
     req?: any
   ): Promise<IVendorCreate | null> {
     try {
-      // Find vendor
       const vendor = await VendorCreate.findById(vendorId);
       if (!vendor) {
         throw new Error("Vendor not found");
       }
 
-      // Find document by _id
       const documentIndex = vendor.documents.findIndex(
         (doc: any) => doc._id.toString() === documentId
       );
@@ -2235,10 +2030,8 @@ export class VendorService {
 
       const document = vendor.documents[documentIndex];
 
-      // Delete from Cloudinary
       await this.documentUploadService.deleteFromCloudinary(document.cloudinary_public_id);
 
-      // Remove document from vendor
       const beforeState = vendor.toObject();
       const documentName = document.document_name;
       const documentType = document.document_type;
@@ -2246,7 +2039,6 @@ export class VendorService {
       vendor.documents.splice(documentIndex, 1);
       await vendor.save();
 
-      // Create audit trail
       await this.createVendorAuditRecord(
         userId,
         userEmail,
@@ -2267,11 +2059,6 @@ export class VendorService {
     }
   }
 
-  /**
-   * Get vendor documents
-   * @param vendorId - Vendor MongoDB ID
-   * @returns Array of vendor documents
-   */
   async getVendorDocuments(vendorId: string): Promise<IVendorDocument[]> {
     try {
       const vendor = await VendorCreate.findById(vendorId);
@@ -2284,12 +2071,6 @@ export class VendorService {
     }
   }
 
-  /**
-   * Get single vendor document
-   * @param vendorId - Vendor MongoDB ID
-   * @param documentId - Document MongoDB ID
-   * @returns Single vendor document
-   */
   async getVendorDocument(vendorId: string, documentId: string): Promise<IVendorDocument | null> {
     try {
       const vendor = await VendorCreate.findById(vendorId);
@@ -2297,7 +2078,6 @@ export class VendorService {
         throw new Error("Vendor not found");
       }
 
-      // Find document by _id
       const document = vendor.documents.find((doc: any) => doc._id.toString() === documentId);
 
       if (!document) {
@@ -2311,10 +2091,8 @@ export class VendorService {
   }
 }
 
-// Validation Service
 class VendorValidationService {
   static validateCompleteVendorData(data: Partial<IVendorCreate>): void {
-    // Basic Information Validation
     if (!data.vendor_name) {
       throw new Error("Vendor name is required");
     }
@@ -2352,7 +2130,6 @@ class VendorValidationService {
       throw new Error("At least one vendor type is required");
     }
 
-    // Financial Information Validation
     if (!data.bank_account_number) {
       throw new Error("Bank account number is required");
     }
@@ -2366,7 +2143,6 @@ class VendorValidationService {
       throw new Error("Valid IFSC code is required (format: ABCD0123456)");
     }
 
-    // Compliance Information Validation
     if (!data.gst_number) {
       throw new Error("GST number is required");
     }
@@ -2383,7 +2159,6 @@ class VendorValidationService {
       throw new Error("TDS rate must be between 0 and 100");
     }
 
-    // Contract Information Validation
     if (!data.contract_expiry_date) {
       throw new Error("Contract expiry date is required");
     }
@@ -2401,7 +2176,6 @@ class VendorValidationService {
       }
     }
 
-    // Risk Information Validation
     if (!data.risk_notes) {
       throw new Error("Risk notes are required");
     }

@@ -14,7 +14,6 @@ class VendingMachineService {
   async getAllVendingMachines(query: VendingMachineQuery = {}) {
     const filter: any = {};
 
-    // Location filters
     if (query.city) {
       filter["location.city"] = new RegExp(query.city, "i");
     }
@@ -23,17 +22,14 @@ class VendingMachineService {
       filter["location.state"] = new RegExp(query.state, "i");
     }
 
-    // Status filter
     if (query.status) {
       filter.status = query.status;
     }
 
-    // Online status filter
     if (query.isOnline !== undefined) {
       filter.isOnline = query.isOnline;
     }
 
-    // Search filter (name, machineId, or location)
     if (query.search) {
       filter.$or = [
         { name: new RegExp(query.search, "i") },
@@ -83,7 +79,6 @@ class VendingMachineService {
       throw new Error("Vending machine not found");
     }
 
-    // Filter only available products (quantity > 0)
     const availableProducts = machine.productSlots.filter(slot => slot.quantity > 0);
 
     return {
@@ -111,7 +106,6 @@ class VendingMachineService {
       filter["location.state"] = new RegExp(state, "i");
     }
 
-    // Only active and online machines
     filter.status = "Active";
     filter.isOnline = true;
 
@@ -123,7 +117,6 @@ class VendingMachineService {
   }
 
   async getLocationFilters() {
-    // Get unique cities and states for filter options
     const locations = await VendingMachine.aggregate([
       {
         $match: {
@@ -203,7 +196,6 @@ class VendingMachineService {
 
   async searchProductAcrossMachines(productSearchTerm: string, currentMachineId?: string) {
     try {
-      // First, find products matching the search term
       const matchingProducts = await Product.find({
         $or: [
           { name: new RegExp(productSearchTerm, "i") },
@@ -223,7 +215,6 @@ class VendingMachineService {
 
       const productIds = matchingProducts.map(p => p._id);
 
-      // Find all machines that have these products in stock
       const machinesWithProducts = await VendingMachine.find({
         "productSlots.product": { $in: productIds },
         "productSlots.quantity": { $gt: 0 },
@@ -233,7 +224,6 @@ class VendingMachineService {
         .populate("productSlots.product")
         .select("machineId name location productSlots");
 
-      // Process results to show product availability by machine
       const results = [];
 
       for (const machine of machinesWithProducts) {
@@ -259,7 +249,6 @@ class VendingMachineService {
         }
       }
 
-      // Separate current machine from alternatives
       const currentMachine = results.find(r => r.isCurrentMachine);
       const alternativeMachines = results.filter(r => !r.isCurrentMachine);
 
@@ -268,7 +257,6 @@ class VendingMachineService {
         currentMachine: currentMachine || null,
         productsFound: matchingProducts,
         alternativeMachines: alternativeMachines.sort((a, b) => {
-          // Sort by city first, then by machine name
           if (a.location.city !== b.location.city) {
             return a.location.city.localeCompare(b.location.city);
           }

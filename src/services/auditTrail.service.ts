@@ -1,12 +1,8 @@
-// services/auditTrail.service.ts
 import { AuditTrail } from "../models/AuditTrail.model";
 import { Types } from "mongoose";
 
 import { logger } from "../utils/logger.util";
 export class AuditTrailService {
-  /**
-   * Create audit record for vendor or company operations
-   */
   async createAuditRecord(auditData: {
     user: any;
     user_email: string;
@@ -14,15 +10,12 @@ export class AuditTrailService {
     action: string;
     action_description: string;
     target_type?: "vendor" | "company";
-    // Vendor fields
     target_vendor?: any;
     target_vendor_name?: string;
     target_vendor_id?: string;
-    // Company fields
     target_company?: any;
     target_company_name?: string;
     target_company_cin?: string;
-    // State tracking
     before_state?: any;
     after_state?: any;
     changed_fields?: string[];
@@ -37,15 +30,12 @@ export class AuditTrailService {
         action: auditData.action,
         action_description: auditData.action_description,
         target_type: auditData.target_type,
-        // Vendor fields
         target_vendor: auditData.target_vendor,
         target_vendor_name: auditData.target_vendor_name,
         target_vendor_id: auditData.target_vendor_id,
-        // Company fields
         target_company: auditData.target_company,
         target_company_name: auditData.target_company_name,
         target_company_cin: auditData.target_company_cin,
-        // State tracking
         before_state: auditData.before_state,
         after_state: auditData.after_state,
         changed_fields: auditData.changed_fields || [],
@@ -61,9 +51,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get all audit trails with filtering (Super Admin only)
-   */
   async getAuditTrails(filters: any) {
     try {
       const {
@@ -80,7 +67,6 @@ export class AuditTrailService {
         limit = 20,
       } = filters;
 
-      // Build query
       const query: any = {};
 
       if (user) query.user = new Types.ObjectId(user);
@@ -90,14 +76,12 @@ export class AuditTrailService {
       if (action) query.action = action;
       if (user_role) query.user_role = user_role;
 
-      // Date range filter
       if (date_from || date_to) {
         query.timestamp = {};
         if (date_from) query.timestamp.$gte = new Date(date_from);
         if (date_to) query.timestamp.$lte = new Date(date_to);
       }
 
-      // Search across multiple fields
       if (search) {
         query.$or = [
           { user_email: { $regex: search, $options: "i" } },
@@ -135,9 +119,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get audit trails for a specific vendor
-   */
   async getVendorAuditTrails(vendorId: string, page: number = 1, limit: number = 20) {
     try {
       const skip = (page - 1) * limit;
@@ -171,9 +152,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get audit trails for a specific company
-   */
   async getCompanyAuditTrails(companyId: string, page: number = 1, limit: number = 20) {
     try {
       const skip = (page - 1) * limit;
@@ -207,9 +185,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get user activity
-   */
   async getUserActivity(userId: string, page: number = 1, limit: number = 20) {
     try {
       const skip = (page - 1) * limit;
@@ -237,9 +212,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get audit statistics (Super Admin only)
-   */
   async getAuditStatistics() {
     try {
       const [
@@ -253,7 +225,6 @@ export class AuditTrailService {
       ] = await Promise.all([
         AuditTrail.countDocuments(),
 
-        // Actions breakdown
         AuditTrail.aggregate([
           {
             $group: {
@@ -264,7 +235,6 @@ export class AuditTrailService {
           { $sort: { count: -1 } },
         ]),
 
-        // Users breakdown
         AuditTrail.aggregate([
           {
             $group: {
@@ -275,7 +245,6 @@ export class AuditTrailService {
           { $sort: { count: -1 } },
         ]),
 
-        // Target type breakdown
         AuditTrail.aggregate([
           {
             $match: {
@@ -290,7 +259,6 @@ export class AuditTrailService {
           },
         ]),
 
-        // Top vendors
         AuditTrail.aggregate([
           {
             $match: {
@@ -311,7 +279,6 @@ export class AuditTrailService {
           { $limit: 10 },
         ]),
 
-        // Top companies
         AuditTrail.aggregate([
           {
             $match: {
@@ -332,7 +299,6 @@ export class AuditTrailService {
           { $limit: 10 },
         ]),
 
-        // Recent activity (last 10 actions)
         AuditTrail.find()
           .populate("user", "name email")
           .populate("target_vendor", "vendor_name vendor_id")
@@ -357,9 +323,6 @@ export class AuditTrailService {
     }
   }
 
-  /**
-   * Get audit summary for dashboard
-   */
   async getAuditSummary() {
     try {
       const today = new Date();

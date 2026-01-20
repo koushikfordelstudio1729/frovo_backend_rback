@@ -10,18 +10,14 @@ export interface IFieldOpsTask extends Document {
   priority: "high" | "medium" | "low";
   dueDate?: Date;
 
-  // For warehouse pickup tasks
   dispatchId?: Types.ObjectId;
   warehouseId?: Types.ObjectId;
 
-  // For refill tasks
   machineId?: Types.ObjectId;
   routeId?: Types.ObjectId;
 
-  // For maintenance tasks
   issueId?: Types.ObjectId;
 
-  // Metadata
   createdBy: Types.ObjectId;
   completedAt?: Date;
   completedBy?: Types.ObjectId;
@@ -68,7 +64,6 @@ const fieldOpsTaskSchema = new Schema<IFieldOpsTask>(
       type: Date,
     },
 
-    // Task-specific references
     dispatchId: {
       type: Schema.Types.ObjectId,
       ref: "DispatchOrder",
@@ -90,7 +85,6 @@ const fieldOpsTaskSchema = new Schema<IFieldOpsTask>(
       ref: "MaintenanceIssue",
     },
 
-    // Metadata
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -113,7 +107,6 @@ const fieldOpsTaskSchema = new Schema<IFieldOpsTask>(
   }
 );
 
-// Indexes for better query performance
 fieldOpsTaskSchema.index({ assignedAgent: 1, status: 1, createdAt: -1 });
 fieldOpsTaskSchema.index({ taskType: 1, status: 1 });
 

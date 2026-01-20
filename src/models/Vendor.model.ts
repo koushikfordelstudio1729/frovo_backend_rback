@@ -1,6 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-// Document Interface
 export interface IVendorDocument {
   document_name: string;
   document_type:
@@ -110,12 +109,11 @@ const companyCreateSchema = new Schema<ICompanyCreate>(
 );
 export const CompanyCreate = mongoose.model<ICompanyCreate>("CompanyCreate", companyCreateSchema);
 export interface IVendorCreate extends Document {
-  // Basic Information
   vendor_name: string;
   vendor_billing_name: string;
-  vendor_type: string[]; // Multi-select: snacks, beverages, packaging, services
+  vendor_type: string[];
   vendor_category: string;
-  material_categories_supplied: string[]; // Materials/products this vendor supplies
+  material_categories_supplied: string[];
   primary_contact_name: string;
   contact_phone: string;
   vendor_email: string;
@@ -124,19 +122,16 @@ export interface IVendorCreate extends Document {
   cin: string;
   warehouse_id?: Types.ObjectId;
 
-  // Financial Information
   bank_account_number: string;
   ifsc_code: string;
   payment_terms: string;
   payment_methods: string;
 
-  // Compliance Information
   gst_number: string;
   pan_number: string;
   tds_rate: number;
   billing_cycle: string;
 
-  // Status & Risk Information
   vendor_status_cycle: string;
   vendor_status: "active" | "inactive" | "deactivated";
   verification_status:
@@ -153,24 +148,19 @@ export interface IVendorCreate extends Document {
   risk_notes: string;
   verified_by?: Types.ObjectId;
 
-  // Contract Information
   contract_terms: string;
   contract_expiry_date: Date;
   contract_renewal_date: Date;
 
-  // Documents
   documents: IVendorDocument[];
 
-  // System Information
   internal_notes: string;
 
-  // Audit Fields
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Document Sub-Schema
 const vendorDocumentSchema = new Schema<IVendorDocument>(
   {
     document_name: {
@@ -221,7 +211,6 @@ const vendorDocumentSchema = new Schema<IVendorDocument>(
 
 const vendorCreateSchema = new Schema<IVendorCreate>(
   {
-    // Basic Information
     vendor_name: {
       type: String,
       required: true,
@@ -295,11 +284,10 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       references: "CompanyCreate",
       validate: {
         validator: async function (value: string) {
-          // Check if company exists with this registration number
           const company = await mongoose.model("CompanyCreate").findOne({
             cin: value,
           });
-          return !!company; // Return true if company exists
+          return !!company;
         },
         message: "Company with this registration number does not exist",
       },
@@ -310,7 +298,6 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       required: false,
     },
 
-    // Financial Information
     bank_account_number: {
       type: String,
       required: true,
@@ -336,7 +323,6 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       default: "neft",
     },
 
-    // Compliance Information
     gst_number: {
       type: String,
       required: true,
@@ -363,7 +349,6 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       default: "monthly",
     },
 
-    // Status & Risk Information
     vendor_status_cycle: {
       type: String,
       required: true,
@@ -409,7 +394,6 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       ref: "User",
     },
 
-    // Contract Information
     contract_terms: {
       type: String,
       required: false,
@@ -425,10 +409,8 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       required: true,
     },
 
-    // Documents
     documents: [vendorDocumentSchema],
 
-    // System Information
     internal_notes: {
       type: String,
       required: false,
@@ -436,7 +418,6 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
       default: "",
     },
 
-    // Audit Fields
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -449,21 +430,17 @@ const vendorCreateSchema = new Schema<IVendorCreate>(
   }
 );
 
-// Pre-save middleware for vendor ID generation and validation
 vendorCreateSchema.pre("save", function (next) {
-  // Generate vendor ID if not provided
   if (!this.vendor_id) {
     const timestamp = new Date().getTime().toString().slice(-6);
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     this.vendor_id = `VEND-${timestamp}-${random}`;
   }
 
-  // Validate contract dates
   if (this.contract_expiry_date <= this.contract_renewal_date) {
     return next(new Error("Contract expiry date must be after renewal date"));
   }
 
-  // Auto-set verification date when status changes to verified/rejected/failed
   if (
     this.isModified("verification_status") &&
     (this.verification_status === "verified" ||
@@ -478,7 +455,6 @@ vendorCreateSchema.pre("save", function (next) {
   next();
 });
 
-// Indexes for better performance (vendor_email and vendor_id already have unique: true in schema)
 vendorCreateSchema.index({ verification_status: 1 });
 vendorCreateSchema.index({ risk_rating: 1 });
 vendorCreateSchema.index({ vendor_category: 1 });

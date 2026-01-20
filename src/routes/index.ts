@@ -1,4 +1,3 @@
-// routes/index.ts
 import { Router } from "express";
 import authRoutes from "./auth.routes";
 import userRoutes from "./user.routes";
@@ -21,7 +20,6 @@ import fieldOpsRoutes from "./fieldops.routes";
 
 const router = Router();
 
-// Health check route
 router.get("/health", (_req, res) => {
   res.json({
     success: true,
@@ -31,7 +29,6 @@ router.get("/health", (_req, res) => {
   });
 });
 
-// API routes
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/roles", roleRoutes);

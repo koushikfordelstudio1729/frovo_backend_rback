@@ -2,7 +2,6 @@ import { Permission, PermissionModule, PermissionAction } from "../models";
 import { logger } from "../utils/logger.util";
 
 const permissions = [
-  // Vendor Management Permissions
   {
     key: "vendors:view",
     module: PermissionModule.VENDORS,
@@ -53,7 +52,6 @@ const permissions = [
     group: "Vendors",
   },
 
-  // Machines
   {
     key: "machines:view",
     module: PermissionModule.MACHINES,
@@ -83,7 +81,6 @@ const permissions = [
     group: "Machines",
   },
 
-  // Planogram
   {
     key: "planogram:view",
     module: PermissionModule.PLANOGRAM,
@@ -106,7 +103,6 @@ const permissions = [
     group: "Planogram",
   },
 
-  // Orders
   {
     key: "orders:view",
     module: PermissionModule.ORDERS,
@@ -122,7 +118,6 @@ const permissions = [
     group: "Orders",
   },
 
-  // Finance
   {
     key: "finance:view",
     module: PermissionModule.FINANCE,
@@ -131,7 +126,6 @@ const permissions = [
     group: "Finance",
   },
 
-  // Settlement
   {
     key: "settlement:view",
     module: PermissionModule.SETTLEMENT,
@@ -147,7 +141,6 @@ const permissions = [
     group: "Finance",
   },
 
-  // Payout
   {
     key: "payout:compute",
     module: PermissionModule.PAYOUT,
@@ -156,7 +149,6 @@ const permissions = [
     group: "Finance",
   },
 
-  // Refills
   {
     key: "refills:view",
     module: PermissionModule.REFILLS,
@@ -179,7 +171,6 @@ const permissions = [
     group: "Refills",
   },
 
-  // Job
   {
     key: "job:update",
     module: PermissionModule.JOB,
@@ -188,7 +179,6 @@ const permissions = [
     group: "Field Operations",
   },
 
-  // Maintenance
   {
     key: "maintenance:view",
     module: PermissionModule.MAINTENANCE,
@@ -197,7 +187,6 @@ const permissions = [
     group: "Maintenance",
   },
 
-  // Ticket
   {
     key: "ticket:resolve",
     module: PermissionModule.TICKET,
@@ -206,7 +195,6 @@ const permissions = [
     group: "Maintenance",
   },
 
-  // Inventory
   {
     key: "inventory:receive",
     module: PermissionModule.INVENTORY,
@@ -215,7 +203,6 @@ const permissions = [
     group: "Inventory",
   },
 
-  // Batch
   {
     key: "batch:log",
     module: PermissionModule.BATCH,
@@ -224,7 +211,6 @@ const permissions = [
     group: "Inventory",
   },
 
-  // Dispatch
   {
     key: "dispatch:assign",
     module: PermissionModule.DISPATCH,
@@ -233,7 +219,6 @@ const permissions = [
     group: "Inventory",
   },
 
-  // Audit
   {
     key: "audit:view",
     module: PermissionModule.AUDIT,
@@ -249,7 +234,6 @@ const permissions = [
     group: "Audit",
   },
 
-  // Users
   {
     key: "users:view",
     module: PermissionModule.USERS,
@@ -279,7 +263,6 @@ const permissions = [
     group: "Users",
   },
 
-  // Roles
   {
     key: "roles:view",
     module: PermissionModule.ROLES,
@@ -309,7 +292,6 @@ const permissions = [
     group: "Roles",
   },
 
-  // Departments
   {
     key: "departments:view",
     module: PermissionModule.DEPARTMENTS,
@@ -339,7 +321,6 @@ const permissions = [
     group: "Departments",
   },
 
-  // Warehouse Management Permissions
   {
     key: "warehouse:view",
     module: PermissionModule.WAREHOUSE,
@@ -362,7 +343,6 @@ const permissions = [
     group: "Warehouse",
   },
 
-  // Purchase Orders Permissions
   {
     key: "purchase_orders:view",
     module: PermissionModule.PURCHASE_ORDERS,
@@ -399,7 +379,6 @@ const permissions = [
     group: "Purchase Orders",
   },
 
-  // GRN (Goods Received Note) Permissions
   {
     key: "grn:view",
     module: PermissionModule.GRN,
@@ -434,19 +413,16 @@ export const seedPermissions = async (): Promise<void> => {
   try {
     logger.info("🌱 Seeding permissions...");
 
-    // Check if permissions already exist
     const existingCount = await Permission.countDocuments();
     if (existingCount > 0) {
       logger.info(`✅ Permissions already seeded (${existingCount} permissions found)`);
       return;
     }
 
-    // Create permissions
     const createdPermissions = await Permission.insertMany(permissions);
 
     logger.info(`✅ Successfully seeded ${createdPermissions.length} permissions`);
 
-    // Log permission groups
     const groups = [...new Set(permissions.map(p => p.group))];
     logger.info(`📋 Permission groups: ${groups.join(", ")}`);
   } catch (error) {
@@ -455,7 +431,6 @@ export const seedPermissions = async (): Promise<void> => {
   }
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     connectDB().then(() => {

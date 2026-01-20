@@ -9,12 +9,10 @@ export const seedVendingMachines = async (
   try {
     logger.info("🌱 Seeding vending machines...");
 
-    // Check if vending machines already exist
     const existingCount = await VendingMachine.countDocuments();
     if (existingCount > 0) {
       logger.info(`✅ Vending machines already seeded (${existingCount} machines found)`);
 
-      // Return existing machine IDs
       const existingMachines = await VendingMachine.find();
       const machineMap: { [key: string]: Types.ObjectId } = {};
       existingMachines.forEach(machine => {
@@ -476,7 +474,6 @@ export const seedVendingMachines = async (
       },
     ];
 
-    // Add createdBy to each machine
     const machinesWithCreatedBy = machines.map(machine => ({
       ...machine,
       createdBy,
@@ -486,13 +483,11 @@ export const seedVendingMachines = async (
 
     logger.info(`✅ Successfully seeded ${createdMachines.length} vending machines`);
 
-    // Create machine mapping
     const machineMap: { [key: string]: Types.ObjectId } = {};
     createdMachines.forEach(machine => {
       machineMap[machine.machineId] = machine._id;
     });
 
-    // Log created machines
     const machineNames = createdMachines.map(m => `${m.name} (${m.machineId})`);
     logger.info(`🏪 Created vending machines: ${machineNames.join(", ")}`);
 
@@ -503,7 +498,6 @@ export const seedVendingMachines = async (
   }
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     import("./products.seeder").then(({ seedProducts }) => {

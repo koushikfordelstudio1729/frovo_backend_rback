@@ -112,12 +112,10 @@ export const approveAccessRequest = asyncHandler(async (req: Request, res: Respo
       return sendError(res, "Only pending requests can be approved", 400);
     }
 
-    // Update request status
     request.status = AccessRequestStatus.APPROVED;
     request.approver = req.user._id;
     request.approvedAt = new Date();
 
-    // Assign role or permissions to user
     if (request.requestedRole) {
       await User.findByIdAndUpdate(request.requester._id, {
         $addToSet: { roles: request.requestedRole._id },

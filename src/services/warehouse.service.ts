@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-// services/warehouse.service.ts
 import {
   RaisePurchaseOrder,
   DispatchOrder,
@@ -27,7 +26,6 @@ import { FieldOpsTask } from "../models/FieldOpsTask.model";
 import { User, Role } from "../models";
 
 import { logger } from "../utils/logger.util";
-// Interfaces
 export interface InventoryStats {
   totalItems: number;
   activeItems: number;
@@ -91,7 +89,7 @@ export interface DashboardData {
 export interface RaisePurchaseOrderData {
   po_number?: string;
   vendor: Types.ObjectId;
-  warehouse: string; // Warehouse ID (required - ensures inventory is created properly)
+  warehouse: string;
   po_raised_date: Date;
   po_status: "pending" | "approved" | "draft";
   vendor_id: string;
@@ -257,7 +255,6 @@ class WarehouseService {
     this.documentUploadService = new DocumentUploadService();
   }
 
-  // ==================== SCREEN 1: DASHBOARD ====================
   async getDashboard(warehouseId?: string, filters?: any): Promise<DashboardData> {
     const dateFilter = this.getDateFilter(filters?.dateRange);
 
@@ -267,31 +264,26 @@ class WarehouseService {
       baseQuery.warehouse = new Types.ObjectId(warehouseId);
     }
 
-    // Apply category filter if provided
     if (filters?.category) {
       baseQuery.productName = { $regex: filters.category, $options: "i" };
     }
 
     const [inbound, outbound, pendingQC, todayDispatches] = await Promise.all([
-      // Use RaisePurchaseOrder for inbound count
       RaisePurchaseOrder.countDocuments({
         ...baseQuery,
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
       }),
 
-      // Use DispatchOrder for outbound count
       DispatchOrder.countDocuments({
         ...baseQuery,
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
       }),
 
-      // Use RaisePurchaseOrder with draft status for pending QC
       RaisePurchaseOrder.countDocuments({
         ...baseQuery,
         po_status: "draft",
       }),
 
-      // Today's dispatches
       DispatchOrder.countDocuments({
         ...baseQuery,
         createdAt: {
@@ -325,7 +317,6 @@ class WarehouseService {
     pendingPercentages: number[];
     refillPercentages: number[];
   }> {
-    // Sample data
     const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
     const pendingPercentages = [100, 90, 60, 40, 20, 50, 70];
     const refillPercentages = [80, 70, 90, 60, 40, 85, 95];
@@ -338,7 +329,6 @@ class WarehouseService {
     partners: string[];
   }> {
     try {
-      // Get unique categories from Inventory
       const categories = await Inventory.aggregate([
         {
           $match: {
@@ -363,7 +353,6 @@ class WarehouseService {
         .map((cat: any) => cat.name.charAt(0).toUpperCase() + cat.name.slice(1))
         .filter((name: string) => name.length > 0);
 
-      // Get partners from RaisePurchaseOrder vendors
       const partners = await RaisePurchaseOrder.aggregate([
         {
           $lookup: {
@@ -449,7 +438,6 @@ class WarehouseService {
   private getDateFilter(dateRange?: any): any {
     if (!dateRange) return {};
 
-    // Handle custom date string like "22-10-2025"
     if (typeof dateRange === "string" && dateRange.includes("-")) {
       try {
         const parts = dateRange.split("-");
@@ -500,7 +488,6 @@ class WarehouseService {
     }
   }
 
-  // ==================== SCREEN 2: INBOUND LOGISTICS ====================
   async createPurchaseOrder(
     data: RaisePurchaseOrderData,
     createdBy: Types.ObjectId
@@ -513,14 +500,12 @@ class WarehouseService {
         vendor_details_present: data.vendor_details ? "Yes" : "No",
       });
 
-      // Validate vendor exists and get vendor details
       const VendorModel = mongoose.model("VendorCreate");
       const vendor = await VendorModel.findById(data.vendor);
       if (!vendor) {
         throw new Error("Vendor not found");
       }
 
-      // Validate and use provided warehouse ID (now required)
       if (!data.warehouse) {
         throw new Error("Warehouse ID is required when creating a purchase order");
       }
@@ -528,7 +513,6 @@ class WarehouseService {
       const warehouseId = new Types.ObjectId(data.warehouse);
       logger.info("🏢 Using warehouse ID:", warehouseId);
 
-      // Verify warehouse exists and is active
       const warehouseExists = await Warehouse.findOne({
         _id: warehouseId,
         isActive: true,
@@ -538,7 +522,6 @@ class WarehouseService {
         throw new Error("Warehouse not found or inactive");
       }
 
-      // Extract vendor details to store in PO document
       const vendorDetails = {
         vendor_name: vendor.vendor_name,
         vendor_billing_name: vendor.vendor_billing_name,
@@ -552,10 +535,9 @@ class WarehouseService {
         vendor_id: vendor.vendor_id,
       };
 
-      // Create purchase order with vendor details and warehouse stored directly
       const purchaseOrder = await RaisePurchaseOrder.create({
         vendor: data.vendor,
-        warehouse: warehouseId, // Add warehouse ID
+        warehouse: warehouseId,
         vendor_details: vendorDetails,
         po_raised_date: data.po_raised_date || new Date(),
         po_status: data.po_status || "draft",
@@ -583,19 +565,16 @@ class WarehouseService {
     try {
       logger.info("📦 Creating GRN for PO:", purchaseOrderId);
 
-      // Validate ObjectId
       if (!Types.ObjectId.isValid(purchaseOrderId)) {
         throw new Error("Invalid purchase order ID");
       }
 
-      // Validate GRN data
       if (!grnData.delivery_challan || !grnData.transporter_name || !grnData.vehicle_number) {
         throw new Error(
           "Missing required GRN fields: delivery_challan, transporter_name, vehicle_number"
         );
       }
 
-      // Validate purchase order exists and is approved
       const purchaseOrder = await RaisePurchaseOrder.findById(purchaseOrderId).populate("vendor");
 
       if (!purchaseOrder) {
@@ -606,16 +585,13 @@ class WarehouseService {
         throw new Error("Cannot create GRN for non-approved purchase order");
       }
 
-      // Check if GRN already exists for this PO using purchase_order field
       const existingGRN = await GRNnumber.findOne({ purchase_order: purchaseOrderId });
       if (existingGRN) {
         throw new Error("GRN already exists for this purchase order");
       }
 
-      // Generate unique GRN number
       const grnNumber = await this.generateGRNNumber();
 
-      // Handle scanned challan upload
       let scannedChallanUrl = grnData.scanned_challan;
       if (uploadedFile) {
         logger.info("📤 Uploading scanned challan to Cloudinary...");
@@ -629,7 +605,6 @@ class WarehouseService {
         logger.info("✅ Scanned challan uploaded:", uploadResult.url);
       }
 
-      // Create GRN with proper structure
       const grnPayload = {
         grn_number: grnNumber,
         purchase_order: purchaseOrderId,
@@ -638,16 +613,13 @@ class WarehouseService {
         vehicle_number: grnData.vehicle_number,
         recieved_date: grnData.recieved_date,
         remarks: grnData.remarks,
-        scanned_challan: scannedChallanUrl, // Use uploaded URL or provided URL
+        scanned_challan: scannedChallanUrl,
         qc_status: grnData.qc_status,
 
-        // Copy vendor information from PO
         vendor: purchaseOrder.vendor,
         vendor_details: purchaseOrder.vendor_details,
 
-        // Copy and transform line items
         grn_line_items: purchaseOrder.po_line_items.map(item => {
-          // Find matching quantity data from frontend
           const quantityData = grnData.quantities?.find((q: any) => q.sku === item.sku);
 
           return {
@@ -673,12 +645,10 @@ class WarehouseService {
 
       const grn = await GRNnumber.create(grnPayload);
 
-      // Update purchase order status to 'received'
       await RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, { po_status: "received" });
 
       logger.info("✅ GRN created successfully:", grn.delivery_challan);
 
-      // Get warehouse ID from purchase order
       const warehouseId = purchaseOrder.warehouse;
 
       if (!warehouseId) {
@@ -687,24 +657,20 @@ class WarehouseService {
         );
         logger.warn("   Please add warehouse field to existing POs for inventory tracking.");
       } else {
-        // Add inventory for each line item
         logger.info("📦 Adding inventory from GRN to warehouse:", warehouseId);
         for (const item of purchaseOrder.po_line_items) {
-          // Find matching quantity data to get expiry date
           const quantityData = grnData.quantities?.find((q: any) => q.sku === item.sku);
 
           const existingInventory = await Inventory.findOne({
             sku: item.sku,
-            warehouse: warehouseId, // ✅ Using correct warehouse ID from PO
+            warehouse: warehouseId,
           });
 
           if (existingInventory) {
-            // Update existing inventory
             const updateData: any = {
               $inc: { quantity: item.quantity },
             };
 
-            // Update expiry date if provided and newer
             if (quantityData?.expiry_date) {
               const newExpiryDate = new Date(quantityData.expiry_date);
               if (!existingInventory.expiryDate || newExpiryDate < existingInventory.expiryDate) {
@@ -715,12 +681,11 @@ class WarehouseService {
             await Inventory.findByIdAndUpdate(existingInventory._id, updateData);
             logger.info(`  ✅ Updated inventory for ${item.sku}: +${item.quantity}`);
           } else {
-            // Create new inventory
             const inventoryData: any = {
               sku: item.sku,
               productName: item.productName,
-              batchId: grn.delivery_challan, // Use delivery challan as batch ID
-              warehouse: warehouseId, // ✅ Using correct warehouse ID from PO
+              batchId: grn.delivery_challan,
+              warehouse: warehouseId,
               quantity: item.quantity,
               minStockLevel: 0,
               maxStockLevel: 10000,
@@ -736,7 +701,6 @@ class WarehouseService {
               createdBy,
             };
 
-            // Add expiry date if provided
             if (quantityData?.expiry_date) {
               inventoryData.expiryDate = new Date(quantityData.expiry_date);
             }
@@ -747,7 +711,6 @@ class WarehouseService {
         }
       }
 
-      // Populate vendor details for response
       const populatedGRN = await GRNnumber.findById(grn._id)
         .populate("vendor")
         .populate("purchase_order")
@@ -762,7 +725,6 @@ class WarehouseService {
     }
   }
 
-  // Helper method to generate unique GRN number
   private async generateGRNNumber(): Promise<string> {
     let isUnique = false;
     let grnNumber = "";
@@ -772,11 +734,9 @@ class WarehouseService {
     while (!isUnique && attempts < maxAttempts) {
       attempts++;
 
-      // Generate 8-digit number with leading zeros
       const randomNum = Math.floor(10000000 + Math.random() * 90000000);
       grnNumber = `GRN${randomNum}`;
 
-      // Check if GRN number already exists
       const existingGRN = await GRNnumber.findOne({ grn_number: grnNumber });
       if (!existingGRN) {
         isUnique = true;
@@ -789,7 +749,6 @@ class WarehouseService {
 
     return grnNumber;
   }
-  // services/warehouse.service.ts - Add this method to your WarehouseService class
 
   async deletePurchaseOrder(id: string): Promise<void> {
     try {
@@ -802,13 +761,11 @@ class WarehouseService {
         throw new Error("Purchase order not found");
       }
 
-      // Check if GRN exists for this PO (prevent deletion if GRN exists)
       const existingGRN = await GRNnumber.findOne({ purchase_order: id });
       if (existingGRN) {
         throw new Error("Cannot delete purchase order - GRN already exists for this PO");
       }
 
-      // Check if PO status allows deletion (you might want to restrict deletion of approved POs)
       if (purchaseOrder.po_status === "approved") {
         throw new Error("Cannot delete approved purchase order");
       }
@@ -860,12 +817,10 @@ class WarehouseService {
     try {
       const query: any = {};
 
-      // QC Status filter
       if (filters?.qc_status) {
         query.qc_status = filters.qc_status;
       }
 
-      // Transporter name filter (case-insensitive)
       if (filters?.transporter_name) {
         query.transporter_name = {
           $regex: filters.transporter_name.trim(),
@@ -873,26 +828,22 @@ class WarehouseService {
         };
       }
 
-      // Date range filter
       if (filters?.startDate || filters?.endDate) {
         query.recieved_date = {};
         if (filters.startDate) {
           query.recieved_date.$gte = new Date(filters.startDate);
         }
         if (filters.endDate) {
-          // Set to end of day for end date
           const endDate = new Date(filters.endDate);
           endDate.setHours(23, 59, 59, 999);
           query.recieved_date.$lte = endDate;
         }
       }
 
-      // Vendor filter
       if (filters?.vendor && Types.ObjectId.isValid(filters.vendor)) {
         query.vendor = new Types.ObjectId(filters.vendor);
       }
 
-      // Purchase order filter
       if (filters?.purchase_order && Types.ObjectId.isValid(filters.purchase_order)) {
         query.purchase_order = new Types.ObjectId(filters.purchase_order);
       }
@@ -938,14 +889,12 @@ class WarehouseService {
         updateData.remarks = remarks;
       }
 
-      // Update line items if provided
       if (lineItems && lineItems.length > 0) {
         const grn = await GRNnumber.findById(grnId);
         if (!grn) {
           throw new Error("GRN not found");
         }
 
-        // Update each line item
         lineItems.forEach(updateItem => {
           const existingItem = grn.grn_line_items.find(item => item.line_no === updateItem.line_no);
         });
@@ -975,7 +924,6 @@ class WarehouseService {
     }
   }
 
-  // New method to update GRN line items
   async updateGRNLineItems(
     grnId: string,
     lineItems: Array<{
@@ -995,7 +943,6 @@ class WarehouseService {
         throw new Error("GRN not found");
       }
 
-      // Validate line items
       lineItems.forEach(item => {
         if (
           item.received_quantity < 0 ||
@@ -1012,7 +959,6 @@ class WarehouseService {
         }
       });
 
-      // Update line items
       lineItems.forEach(updateItem => {
         const existingItem = grn.grn_line_items.find(item => item.line_no === updateItem.line_no);
       });
@@ -1107,7 +1053,6 @@ class WarehouseService {
     }
   }
 
-  // ==================== SCREEN 3: OUTBOUND LOGISTICS ====================
   async createDispatch(data: DispatchData, createdBy: Types.ObjectId): Promise<IDispatchOrder> {
     await this.validateSkuStock(data.products);
 
@@ -1133,7 +1078,6 @@ class WarehouseService {
       createdBy,
     });
 
-    // Create Field Ops Task for the assigned agent
     if (data.assignedAgent) {
       await FieldOpsTask.create({
         taskType: "warehouse_pickup",
@@ -1210,7 +1154,6 @@ class WarehouseService {
       .populate("createdBy", "name email");
   }
 
-  // ==================== QC TEMPLATES ====================
   async createQCTemplate(data: QCTemplateData, createdBy: Types.ObjectId): Promise<IQCTemplate> {
     return await QCTemplate.create({
       title: data.title,
@@ -1246,7 +1189,6 @@ class WarehouseService {
     await QCTemplate.findByIdAndUpdate(templateId, { isActive: false });
   }
 
-  // ==================== RETURN MANAGEMENT ====================
   async createReturnOrder(data: ReturnOrderData, createdBy: Types.ObjectId): Promise<IReturnOrder> {
     const inventory = await Inventory.findOne({
       batchId: data.batchId,
@@ -1392,16 +1334,13 @@ class WarehouseService {
     return updated;
   }
 
-  // ==================== FIELD AGENT MANAGEMENT ====================
   async getFieldAgents(isActive?: boolean): Promise<any[]> {
-    // First, find the role with key "field_agent"
     const fieldAgentRole = await Role.findOne({ key: "field_agent" });
 
     if (!fieldAgentRole) {
       return [];
     }
 
-    // Build query to find users with this role
     const userQuery: any = {
       roles: { $in: [fieldAgentRole._id] },
     };
@@ -1415,7 +1354,6 @@ class WarehouseService {
       .select("name email phone status lastLogin createdAt")
       .sort({ name: 1 });
 
-    // For each user, get their FieldAgent record if it exists
     const usersWithRoutes = await Promise.all(
       users.map(async user => {
         const fieldAgentRecord = await FieldAgent.findOne({ userId: user._id })
@@ -1452,17 +1390,14 @@ class WarehouseService {
       assignedArea?: Types.ObjectId;
     }
   ): Promise<any> {
-    // Find or create FieldAgent record for this user
     let fieldAgent = await FieldAgent.findOne({ userId });
 
     if (!fieldAgent) {
-      // Get user details to populate name
       const user = await User.findById(userId).select("name email phone");
       if (!user) {
         throw new Error("User not found");
       }
 
-      // Create new FieldAgent record if it doesn't exist
       fieldAgent = await FieldAgent.create({
         userId,
         name: data.name || user.name,
@@ -1475,7 +1410,6 @@ class WarehouseService {
         createdBy: userId,
       });
     } else {
-      // Update existing record
       if (data.name !== undefined) {
         fieldAgent.name = data.name;
       }
@@ -1504,19 +1438,16 @@ class WarehouseService {
     },
     createdBy: Types.ObjectId
   ): Promise<any> {
-    // Check if FieldAgent record already exists for this user
     const existingAgent = await FieldAgent.findOne({ userId: data.userId });
     if (existingAgent) {
       throw new Error("Field agent record already exists for this user");
     }
 
-    // Get user details
     const user = await User.findById(data.userId).select("name email phone");
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Create FieldAgent record
     const fieldAgent = await FieldAgent.create({
       userId: data.userId,
       name: user.name,
@@ -1533,7 +1464,6 @@ class WarehouseService {
       .populate("assignedArea", "name");
   }
 
-  // ==================== INVENTORY DASHBOARD METHODS ====================
   async getInventoryDashboard(
     warehouseId: string,
     filters: InventoryDashboardFilters = {},
@@ -1975,7 +1905,6 @@ class WarehouseService {
     };
   }
 
-  // ==================== SCREEN 5: EXPENSE MANAGEMENT ====================
   async createExpense(
     data: {
       category: "staffing" | "supplies" | "equipment" | "transport";
@@ -2143,29 +2072,24 @@ class WarehouseService {
   }
 
   async uploadExpenseBill(expenseId: string, file: Express.Multer.File): Promise<IExpense> {
-    // Validate expense ID
     if (!Types.ObjectId.isValid(expenseId)) {
       throw new Error("Invalid expense ID");
     }
 
-    // Find expense
     const expense = await Expense.findById(expenseId);
     if (!expense) {
       throw new Error("Expense not found");
     }
 
-    // Upload to Cloudinary
     const { url } = await this.documentUploadService.uploadToCloudinary(
       file.buffer,
       file.originalname,
       `frovo/expenses/${expenseId}`
     );
 
-    // Update expense with bill URL
     expense.billUrl = url;
     await expense.save();
 
-    // Return populated expense
     return await Expense.findById(expenseId)
       .populate("vendor", "vendor_name vendor_email vendor_contact")
       .populate("warehouseId", "name code location")
@@ -2330,7 +2254,6 @@ class WarehouseService {
     ]);
   }
 
-  // ==================== SCREEN 6: REPORTS & ANALYTICS ====================
   async generateReport(type: string, filters: any): Promise<any> {
     switch (type) {
       case "inventory_summary":
@@ -2946,7 +2869,6 @@ class WarehouseService {
     };
   }
 
-  // ==================== PRIVATE HELPER METHODS ====================
   private getAgeFilter(ageRange: string): any {
     switch (ageRange) {
       case "0-30":
@@ -3097,7 +3019,6 @@ class WarehouseService {
     return "active";
   }
 
-  // ==================== WAREHOUSE MANAGEMENT ====================
   async createWarehouse(
     data: {
       name: string;
@@ -3111,7 +3032,6 @@ class WarehouseService {
   ) {
     const { Warehouse } = await import("../models/Warehouse.model");
 
-    // Check if warehouse code already exists
     const existingWarehouse = await Warehouse.findOne({ code: data.code });
     if (existingWarehouse) {
       throw new Error("Warehouse with this code already exists");
@@ -3147,10 +3067,8 @@ class WarehouseService {
     const limit = filters.limit || 10;
     const skip = (page - 1) * limit;
 
-    // Build query
     const query: any = {};
 
-    // Role-based filtering: Warehouse managers only see their warehouses
     const isWarehouseManager = userRoles.some(
       (role: any) => role.systemRole === "warehouse_manager"
     );
@@ -3159,7 +3077,6 @@ class WarehouseService {
       query.manager = userId;
     }
 
-    // Apply filters
     if (filters.search) {
       query.$or = [
         { name: { $regex: filters.search, $options: "i" } },
@@ -3176,7 +3093,6 @@ class WarehouseService {
       query.partner = { $regex: filters.partner, $options: "i" };
     }
 
-    // Sorting
     const sortBy = filters.sortBy || "createdAt";
     const sortOrder = filters.sortOrder === "asc" ? 1 : -1;
     const sort: any = { [sortBy]: sortOrder };
@@ -3217,7 +3133,6 @@ class WarehouseService {
       throw new Error("Warehouse not found");
     }
 
-    // Role-based access: Warehouse managers can only view their warehouses
     const isWarehouseManager = userRoles.some(
       (role: any) => role.systemRole === "warehouse_manager"
     );
@@ -3247,7 +3162,6 @@ class WarehouseService {
       throw new Error("Invalid warehouse ID");
     }
 
-    // Check if updating code and if it already exists
     if (updateData.code) {
       const existingWarehouse = await Warehouse.findOne({
         code: updateData.code,
@@ -3280,7 +3194,6 @@ class WarehouseService {
       throw new Error("Invalid warehouse ID");
     }
 
-    // Check if warehouse has active inventory
     const inventoryCount = await Inventory.countDocuments({
       warehouse: warehouseId,
       isArchived: false,
@@ -3301,9 +3214,7 @@ class WarehouseService {
     return { message: "Warehouse deleted successfully", warehouse };
   }
 
-  // Get warehouse assigned to a specific manager (for warehouse manager to know their warehouse)
   async getMyWarehouse(managerId: Types.ObjectId | string) {
-    // Convert to ObjectId if it's a string to ensure proper comparison
     const managerObjectId =
       typeof managerId === "string" ? new Types.ObjectId(managerId) : managerId;
 
@@ -3318,7 +3229,6 @@ class WarehouseService {
       .lean();
 
     if (!warehouse) {
-      // Debug: Check if warehouse exists with any status
       const anyWarehouse = await Warehouse.findOne({
         manager: managerObjectId,
       }).lean();

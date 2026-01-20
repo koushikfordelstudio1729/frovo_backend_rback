@@ -7,7 +7,6 @@ import { uploadMultiple } from "../middleware/upload.middleware";
 const router = express.Router();
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const MANAGEMENT = ["super_admin", "admin", "ops_manager", ""];
-// Category routes
 router.post(
   "/category",
   authenticate,
@@ -29,7 +28,6 @@ router.post(
   categoryController.uploadCategoryImage.bind(categoryController)
 );
 
-// Catalogue routes
 router.post(
   "/sku-catalogue",
   authenticate,
@@ -57,7 +55,6 @@ router.delete(
   catalogueController.deleteProductImage.bind(catalogueController)
 );
 
-// Dashboard routes
 router.get(
   "/dashboard",
   authenticate,
@@ -78,7 +75,6 @@ router.get(
   catalogueController.exportDashboardCSV.bind(catalogueController)
 );
 
-// Category Dashboard Routes
 router.get(
   "/categories/dashboard/stats",
   categoryController.getCategoryDashboardStats.bind(categoryController)
@@ -109,7 +105,6 @@ router.delete(
   authorize(MANAGEMENT),
   categoryController.deleteCategory.bind(categoryController)
 );
-// Catalogue Dashboard Routes
 router.get("/catalogues/:id", catalogueController.getCatalogueById.bind(catalogueController));
 router.put(
   "/catalogues/:id",
@@ -118,7 +113,6 @@ router.put(
   uploadMultiple,
   catalogueController.updateCatalogue.bind(catalogueController)
 );
-//router.patch('/catalogues/:id/status', authenticate, authorize(MANAGEMENT), catalogueController.updateCatalogueStatus.bind(catalogueController));
 router.delete(
   "/catalogues/:id",
   authorize(MANAGEMENT),

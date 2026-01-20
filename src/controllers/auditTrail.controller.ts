@@ -5,7 +5,6 @@ import { logger } from "../utils/logger.util";
 const auditTrailService = new AuditTrailService();
 
 export class AuditTrailController {
-  // Utility function to safely extract user
   private getLoggedInUser(req: Request): { _id: any; roles: any[]; email: string } {
     const user = (req as any).user;
 
@@ -20,15 +19,10 @@ export class AuditTrailController {
     };
   }
 
-  /**
-   * Get all audit trails - SUPER ADMIN ONLY
-   * Supports filtering by company, vendor, user, action, date range
-   */
   async getAuditTrails(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
 
-      // ✅ SUPER ADMIN ONLY - Strict access control
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -38,7 +32,7 @@ export class AuditTrailController {
 
       const filters = {
         user: req.query.user as string,
-        target_type: req.query.target_type as string, // 'vendor' or 'company'
+        target_type: req.query.target_type as string,
         target_vendor: req.query.target_vendor as string,
         target_company: req.query.target_company as string,
         action: req.query.action as string,
@@ -66,15 +60,11 @@ export class AuditTrailController {
     }
   }
 
-  /**
-   * Get audit trails for specific vendor - SUPER ADMIN ONLY
-   */
   async getVendorAuditTrails(req: Request, res: Response) {
     try {
       const { vendorId } = req.params;
       const { roles } = this.getLoggedInUser(req);
 
-      // ✅ SUPER ADMIN ONLY
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -101,15 +91,11 @@ export class AuditTrailController {
     }
   }
 
-  /**
-   * Get audit trails for specific company - SUPER ADMIN ONLY
-   */
   async getCompanyAuditTrails(req: Request, res: Response) {
     try {
       const { companyId } = req.params;
       const { roles } = this.getLoggedInUser(req);
 
-      // ✅ SUPER ADMIN ONLY
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -136,15 +122,11 @@ export class AuditTrailController {
     }
   }
 
-  /**
-   * Get user activity - Users can see their own, Super Admin can see anyone's
-   */
   async getUserActivity(req: Request, res: Response) {
     try {
       const { userId } = req.params;
       const { _id: currentUserId, roles } = this.getLoggedInUser(req);
 
-      // Users can only see their own activity unless they are Super Admin
       if (userId !== currentUserId.toString() && !roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -171,14 +153,10 @@ export class AuditTrailController {
     }
   }
 
-  /**
-   * Get audit statistics - SUPER ADMIN ONLY
-   */
   async getAuditStatistics(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
 
-      // ✅ SUPER ADMIN ONLY
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,
@@ -202,14 +180,10 @@ export class AuditTrailController {
     }
   }
 
-  /**
-   * Get audit summary - SUPER ADMIN ONLY
-   */
   async getAuditSummary(req: Request, res: Response) {
     try {
       const { roles } = this.getLoggedInUser(req);
 
-      // ✅ SUPER ADMIN ONLY
       if (!roles.some(role => role.key === "super_admin")) {
         return res.status(403).json({
           success: false,

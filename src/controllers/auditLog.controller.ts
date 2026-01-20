@@ -27,7 +27,6 @@ export const exportAuditLogs = asyncHandler(async (req: Request, res: Response) 
     const logs = await auditService.exportAuditLogs(filters as any);
 
     if (format === "csv") {
-      // Convert to CSV format
       const csvHeaders = [
         "Timestamp",
         "Actor",

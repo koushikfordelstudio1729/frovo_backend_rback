@@ -10,11 +10,10 @@ export const connectDB = async (): Promise<void> => {
       bufferCommands: false,
     };
 
-    const conn = await mongoose.connect(process.env["MONGODB_URI"]!, options);
+    const conn = await mongoose.connect(process.env["MONGODB_URI"], options);
 
     logger.info(`MongoDB connected | Host: ${conn.connection.host} | DB: ${conn.connection.name}`);
 
-    // Handle connection events
     mongoose.connection.on("error", err => {
       logger.error("MongoDB connection error:", err);
     });

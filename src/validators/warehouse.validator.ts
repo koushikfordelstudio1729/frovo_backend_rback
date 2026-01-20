@@ -1,9 +1,6 @@
-// validators/warehouse.validator.ts
 import { z } from "zod";
 
 const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format");
-// In your warehouse.validator.ts file, add these schemas:
-// validation/warehouse.schemas.ts
 export const createInventorySchema = z.object({
   body: z.object({
     sku: z.string().min(1, "SKU is required"),
@@ -17,9 +14,8 @@ export const createInventorySchema = z.object({
 });
 export const createPurchaseOrderSchema = z.object({
   body: z.object({
-    //po_number: z.string().min(1, 'Purchase Order Number is required'),
     vendor: z.string().min(1, "Vendor is required"),
-    warehouse: objectIdSchema.optional(), // Warehouse ID (optional - will be auto-set for warehouse managers)
+    warehouse: objectIdSchema.optional(),
     po_raised_date: z.string().datetime().optional(),
     po_status: z.enum(["draft", "approved", "pending"]).default("draft"),
     remarks: z.string().optional(),
@@ -39,25 +35,21 @@ export const createPurchaseOrderSchema = z.object({
         })
       )
       .optional()
-      .default([]), // Make sure this line exists
+      .default([]),
   }),
 });
-// validators/warehouse.validator.ts
-
-// validation/warehouse.schemas.ts - Update createGRNSchema
 
 export const createGRNSchema = z.object({
   body: z.object({
     delivery_challan: z.string().min(1, "Delivery challan number is required"),
     transporter_name: z.string().min(1, "Transporter name is required"),
     vehicle_number: z.string().min(1, "Vehicle number is required"),
-    received_date: z.string().datetime().optional(), // Fixed spelling: received_date
+    received_date: z.string().datetime().optional(),
     remarks: z.string().optional(),
-    scanned_challan: z.string().url("Valid URL required").optional(), // Optional - can be provided via file upload
+    scanned_challan: z.string().url("Valid URL required").optional(),
     qc_status: z.enum(["bad", "moderate", "excellent"], {
       required_error: "QC status is required",
     }),
-    // Add quantities field to validation - accept string or array
     quantities: z
       .union([
         z.string().transform((str, ctx) => {
@@ -83,7 +75,7 @@ export const createGRNSchema = z.object({
           })
         ),
       ])
-      .optional(), // Make it optional in validation
+      .optional(),
   }),
 });
 export const updateGRNStatusSchema = z.object({
@@ -108,7 +100,6 @@ export const createDispatchSchema = z.object({
   body: z.object({
     dispatchId: z.string().min(1, "Dispatch ID is required"),
 
-    // merged field
     destination: z.string().min(1, "Destination is required"),
 
     products: z
@@ -120,13 +111,10 @@ export const createDispatchSchema = z.object({
       )
       .min(1, "At least one product is required"),
 
-    assignedAgent: objectIdSchema, // Agent required
-
-    warehouse: objectIdSchema.optional(), // Optional because middleware may inject it
-
+    assignedAgent: objectIdSchema,
+    warehouse: objectIdSchema.optional(),
     notes: z.string().max(500, "Notes too long").optional(),
 
-    // status is optional because model defaults to "pending"
     status: z.enum(["pending", "assigned", "in_transit", "delivered", "cancelled"]).optional(),
   }),
 });
@@ -168,17 +156,14 @@ export const applyQCTemplateSchema = z.object({
   }),
 });
 
-// Update your createReturnOrderSchema
 export const createReturnOrderSchema = z.object({
   body: z.object({
     batchId: z.string().min(1, "Batch ID is required"),
     vendor: objectIdSchema,
-    warehouse: objectIdSchema.optional(), // Optional because middleware may inject it
+    warehouse: objectIdSchema.optional(),
     reason: z.string().min(1, "Reason is required"),
     status: z.enum(["pending", "approved", "returned", "rejected"]).optional().default("pending"),
     quantity: z.number().min(1, "Quantity must be at least 1").optional().default(1),
-    // Remove required fields: sku, productName, returnType
-    // They will be auto-populated
   }),
 });
 
@@ -271,17 +256,15 @@ export const updateExpensePaymentStatusSchema = z.object({
   }),
 });
 
-// Add dashboard query schema
 export const dashboardQuerySchema = z.object({
   query: z.object({
-    date: z.string().optional(), // For custom date like "22-10-2025"
+    date: z.string().optional(),
     category: z.string().optional(),
     partner: z.string().optional(),
     warehouseId: objectIdSchema.optional(),
   }),
 });
 
-// ==================== WAREHOUSE MANAGEMENT SCHEMAS ====================
 export const createWarehouseSchema = z.object({
   body: z.object({
     name: z

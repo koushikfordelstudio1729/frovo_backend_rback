@@ -7,10 +7,8 @@ import { uploadSingle } from "../middleware/upload.middleware";
 const router = Router();
 const vendorController = new VendorController();
 
-// ========== APPLY AUTHENTICATION TO ALL OTHER ROUTES ==========
 router.use(authenticate);
 
-// Route groups for better organization
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const VENDOR_MANAGEMENT = ["super_admin", "vendor_admin"];
 
@@ -23,7 +21,6 @@ const READ_ACCESS = [
   "warehouse_manager_full",
 ];
 
-// ========== COMPANY ROUTES ==========
 router.post("/companies", authorize(VENDOR_MANAGEMENT), VendorController.createCompany);
 router.get("/companies", authorize(READ_ACCESS), VendorController.getAllCompanies);
 router.get("/companies/search", authorize(READ_ACCESS), VendorController.searchCompanies);
@@ -37,7 +34,6 @@ router.get(
   VendorController.getCompanyWithVendorStats
 );
 
-// ========== DASHBOARD ROUTES ==========
 router.get(
   "/common-dashboard",
   authorize(VENDOR_MANAGEMENT),
@@ -50,7 +46,6 @@ router.get(
   vendorController.getSuperAdminVendorManagement.bind(vendorController)
 );
 
-// ========== SUPER ADMIN SPECIFIC ROUTES ==========
 router.get(
   "/super-admin/vendors",
   authorize(SUPER_ADMIN_ONLY),
@@ -67,7 +62,6 @@ router.get(
   vendorController.getPendingApprovals.bind(vendorController)
 );
 
-// ========== VENDOR VERIFICATION ROUTES ==========
 router.patch(
   "/:id/verify",
   authorize(VENDOR_MANAGEMENT),
@@ -89,7 +83,6 @@ router.put(
   vendorController.quickVerifyOrRejectVendor.bind(vendorController)
 );
 
-// ========== VENDOR CREATION ROUTES ==========
 router.post(
   "/create",
   authorize(VENDOR_MANAGEMENT),
@@ -101,7 +94,6 @@ router.post(
   vendorController.createBulkVendors.bind(vendorController)
 );
 
-// ========== GENERAL VENDOR MANAGEMENT ROUTES ==========
 router.get(
   "/profile/me",
   authorize(VENDOR_MANAGEMENT),
@@ -125,7 +117,6 @@ router.delete(
   vendorController.deleteVendor.bind(vendorController)
 );
 
-// ========== DOCUMENT MANAGEMENT ROUTES ==========
 router.post(
   "/:id/documents",
   authorize(VENDOR_MANAGEMENT),
@@ -148,7 +139,6 @@ router.delete(
   vendorController.deleteVendorDocument.bind(vendorController)
 );
 
-// ========== AUDIT TRAIL ROUTES ==========
 router.get(
   "/:id/audit-trail",
   authorize(READ_ACCESS),

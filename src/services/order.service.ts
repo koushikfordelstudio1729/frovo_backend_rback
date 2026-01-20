@@ -17,14 +17,12 @@ class OrderService {
       throw new Error("Invalid user ID");
     }
 
-    // Get user cart
     const cart = await Cart.findOne({ userId, isActive: true }).populate("items.product");
 
     if (!cart || (cart as any).isEmpty) {
       throw new Error("Cart is empty");
     }
 
-    // Validate cart items and check availability
     const validationResults = [];
     const orderItems = [];
 
@@ -56,7 +54,6 @@ class OrderService {
         continue;
       }
 
-      // Create order item
       orderItems.push({
         product: cartItem.product._id,
         productName: cartItem.productName,
@@ -79,19 +76,16 @@ class OrderService {
       throw new Error("No valid items in cart");
     }
 
-    // Calculate totals
     const subtotal = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const taxRate = 0.18; // 18% GST
+    const taxRate = 0.18;
     const tax = Math.round(subtotal * taxRate * 100) / 100;
     const totalAmount = subtotal + tax;
 
-    // Get delivery info from the first machine (assuming single machine orders for now)
     const firstMachine = await VendingMachine.findOne({ machineId: orderItems[0]?.machineId });
     if (!firstMachine) {
       throw new Error("Machine not found for delivery info");
     }
 
-    // Create order
     const order = new Order({
       userId,
       items: orderItems,
@@ -118,14 +112,13 @@ class OrderService {
           state: firstMachine.location.state,
           landmark: firstMachine.location.landmark,
         },
-        estimatedDispenseTime: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+        estimatedDispenseTime: new Date(Date.now() + 5 * 60 * 1000),
       },
       notes: orderData.notes,
     });
 
     await order.save();
 
-    // Reserve inventory (reduce quantities in vending machine)
     for (const item of orderItems) {
       const machine = await VendingMachine.findOne({ machineId: item.machineId });
       if (machine) {
@@ -142,7 +135,6 @@ class OrderService {
       }
     }
 
-    // Clear cart after successful order creation
     await (cart as any).clearCart();
 
     return order;
@@ -199,7 +191,6 @@ class OrderService {
 
     await (order as any).updateStatus(status, reason);
 
-    // If cancelling, restore inventory
     if (status === OrderStatus.CANCELLED) {
       await this.restoreInventory(order);
     }
@@ -215,14 +206,12 @@ class OrderService {
 
     await (order as any).updatePaymentStatus(paymentStatus, transactionId);
 
-    // If payment successful, confirm the order
     if (paymentStatus === PaymentStatus.COMPLETED) {
       if (order.orderStatus === OrderStatus.PENDING) {
         await (order as any).updateStatus(OrderStatus.CONFIRMED);
       }
     }
 
-    // If payment failed, cancel the order and restore inventory
     if (paymentStatus === PaymentStatus.FAILED) {
       await (order as any).updateStatus(OrderStatus.CANCELLED, "Payment failed");
       await this.restoreInventory(order);

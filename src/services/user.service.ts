@@ -40,13 +40,11 @@ export interface PaginatedUsers {
 
 class UserService {
   async createUser(userData: CreateUserData, createdBy: Types.ObjectId): Promise<IUser> {
-    // Check if user already exists
     const existingUser = await User.findOne({ email: userData.email });
     if (existingUser) {
       throw new Error("User with this email already exists");
     }
 
-    // Validate departments
     if (userData.departments && userData.departments.length > 0) {
       const departmentCount = await Department.countDocuments({
         _id: { $in: userData.departments },
@@ -56,7 +54,6 @@ class UserService {
       }
     }
 
-    // Validate roles
     if (userData.roles && userData.roles.length > 0) {
       const roleCount = await Role.countDocuments({
         _id: { $in: userData.roles },
@@ -72,7 +69,6 @@ class UserService {
       status: UserStatus.ACTIVE,
     });
 
-    // Send welcome email (if email is configured)
     const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
     if (emailConfigured) {
       try {
@@ -80,7 +76,6 @@ class UserService {
         logger.info(`📧 Welcome email sent successfully to ${userData.email}`);
       } catch (emailError) {
         logger.warn(`⚠️  Failed to send welcome email to ${userData.email}:`, emailError);
-        // Don't throw error - user creation should succeed even if email fails
       }
     } else {
       logger.info("📧 Email not configured, skipping welcome email");
@@ -108,7 +103,6 @@ class UserService {
       throw new Error("User not found");
     }
 
-    // Validate departments
     if (updateData.departments && updateData.departments.length > 0) {
       const departmentCount = await Department.countDocuments({
         _id: { $in: updateData.departments },
@@ -118,7 +112,6 @@ class UserService {
       }
     }
 
-    // Validate roles
     if (updateData.roles && updateData.roles.length > 0) {
       const roleCount = await Role.countDocuments({
         _id: { $in: updateData.roles },
@@ -157,14 +150,12 @@ class UserService {
       throw new Error("User not found");
     }
 
-    // Soft delete by setting status to inactive
     await User.findByIdAndUpdate(id, { status: UserStatus.INACTIVE });
   }
 
   async getUsers(query: UserQuery): Promise<PaginatedUsers> {
     const { page, limit, search, role, department, status, sortBy, sortOrder } = query;
 
-    // Build filter
     const filter: any = {};
 
     if (search) {
@@ -186,14 +177,11 @@ class UserService {
       filter.departments = { $in: [department] };
     }
 
-    // Build sort
     const sort: any = {};
     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    // Calculate skip
     const skip = (page - 1) * limit;
 
-    // Execute queries
     const [users, total] = await Promise.all([
       User.find(filter)
         .populate("roles", "name key systemRole")
@@ -217,7 +205,6 @@ class UserService {
   }
 
   async assignRoles(userId: string, roleIds: string[]): Promise<IUser> {
-    // Validate roles exist
     const roleCount = await Role.countDocuments({
       _id: { $in: roleIds },
     });

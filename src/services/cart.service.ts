@@ -19,7 +19,6 @@ class CartService {
     let cart = await Cart.findOne({ userId, isActive: true }).populate("items.product");
 
     if (!cart) {
-      // Create new cart if doesn't exist
       cart = new Cart({ userId, items: [] });
       await cart.save();
     }
@@ -36,13 +35,11 @@ class CartService {
       throw new Error("Invalid product ID");
     }
 
-    // Validate product exists
     const product = await Product.findById(cartData.productId);
     if (!product) {
       throw new Error("Product not found");
     }
 
-    // Validate machine and slot
     const machine = await VendingMachine.findOne({ machineId: cartData.machineId });
     if (!machine) {
       throw new Error("Vending machine not found");
@@ -61,13 +58,11 @@ class CartService {
       throw new Error(`Insufficient stock. Only ${slot.quantity} items available`);
     }
 
-    // Get or create cart
     let cart = await Cart.findOne({ userId, isActive: true });
     if (!cart) {
       cart = new Cart({ userId, items: [] });
     }
 
-    // Add item using the cart method
     await (cart as any).addItem({
       product: new Types.ObjectId(cartData.productId),
       productName: product.name,
@@ -78,7 +73,6 @@ class CartService {
       unitPrice: slot?.price || 0,
     });
 
-    // Return cart with populated products
     return await Cart.findById(cart?._id).populate("items.product");
   }
 
@@ -98,7 +92,6 @@ class CartService {
       return this.removeFromCart(userId, productId, machineId, slotNumber);
     }
 
-    // Validate stock availability
     const machine = await VendingMachine.findOne({ machineId });
     if (!machine) {
       throw new Error("Vending machine not found");
@@ -215,7 +208,6 @@ class CartService {
       };
     }
 
-    // Group items by machine for better organization
     const itemsByMachine = cart.items.reduce((acc: any, item: any) => {
       if (!acc[item.machineId]) {
         acc[item.machineId] = [];
@@ -224,7 +216,6 @@ class CartService {
       return acc;
     }, {});
 
-    // Calculate tax (assuming 18% GST for food items)
     const taxRate = 0.18;
     const subtotal = cart.totalAmount;
     const tax = Math.round(subtotal * taxRate * 100) / 100;

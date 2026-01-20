@@ -1,4 +1,3 @@
-// utils/responseHandlers.ts
 import { Response } from "express";
 
 export interface ApiResponse<T = any> {

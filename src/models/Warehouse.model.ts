@@ -1,4 +1,3 @@
-// models/Warehouse.model.ts
 import mongoose, { Document, Schema, Types } from "mongoose";
 export interface IWarehouse extends Document {
   _id: Types.ObjectId;
@@ -14,9 +13,6 @@ export interface IWarehouse extends Document {
   updatedAt: Date;
 }
 
-// models/Warehouse.model.ts
-
-// Update IGRNnumber interface to include vendor reference
 export interface IGRNnumber extends Document {
   _id: Types.ObjectId;
   delivery_challan: string;
@@ -27,9 +23,8 @@ export interface IGRNnumber extends Document {
   scanned_challan?: string;
   qc_status: "bad" | "moderate" | "excellent";
 
-  // Add these fields to link with purchase order and vendor
-  purchase_order: Types.ObjectId; // Reference to the PO
-  vendor: Types.ObjectId; // Reference to vendor
+  purchase_order: Types.ObjectId;
+  vendor: Types.ObjectId;
   vendor_details: {
     vendor_name: string;
     vendor_billing_name: string;
@@ -43,7 +38,6 @@ export interface IGRNnumber extends Document {
     vendor_id: string;
   };
 
-  // Add line items from PO
   grn_line_items: Array<{
     line_no: number;
     sku: string;
@@ -79,7 +73,6 @@ const grnNumberSchema = new Schema<IGRNnumber>(
       required: true,
     },
 
-    // Add references to PO and vendor
     purchase_order: {
       type: Schema.Types.ObjectId,
       ref: "RaisePurchaseOrder",
@@ -91,7 +84,6 @@ const grnNumberSchema = new Schema<IGRNnumber>(
       required: true,
     },
 
-    // Add vendor details
     vendor_details: {
       vendor_name: { type: String, required: true },
       vendor_billing_name: { type: String, required: true },
@@ -105,7 +97,6 @@ const grnNumberSchema = new Schema<IGRNnumber>(
       vendor_id: { type: String, required: true },
     },
 
-    // Add GRN line items
     grn_line_items: [
       {
         line_no: { type: Number, required: true },
@@ -137,14 +128,13 @@ const grnNumberSchema = new Schema<IGRNnumber>(
 export const GRNnumber = mongoose.model<IGRNnumber>("GRNnumber", grnNumberSchema);
 export interface IRaisePurchaseOrder extends Document {
   _id: Types.ObjectId;
-  po_number: string; // Changed from poNumber to po_number for consistency
+  po_number: string;
   vendor: Types.ObjectId;
-  warehouse: Types.ObjectId; // Added warehouse field
+  warehouse: Types.ObjectId;
   po_status: "draft" | "approved" | "pending";
   po_raised_date: Date;
   remarks?: string;
   po_line_items: Array<{
-    // Should be array here too
     line_no: number;
     sku: string;
     productName: string;
@@ -186,7 +176,7 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
   {
     po_number: {
       type: String,
-      required: false, // Will be generated automatically
+      required: false,
       unique: true,
       uppercase: true,
       trim: true,
@@ -224,9 +214,8 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
     warehouse: {
       type: Schema.Types.ObjectId,
       ref: "Warehouse",
-      required: true, // Required to ensure inventory is created properly
+      required: true,
     },
-    // Add vendor details subdocument
     vendor_details: {
       vendor_name: { type: String, required: true },
       vendor_billing_name: { type: String, required: true },
@@ -242,7 +231,7 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
     po_status: {
       type: String,
       enum: ["draft", "approved", "pending"],
-      default: "draft", // Allow both draft and pending as default,
+      default: "draft",
     },
     po_raised_date: {
       type: Date,
@@ -253,7 +242,6 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
       type: String,
     },
     createdBy: {
-      // Add this field to the schema
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -264,14 +252,11 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
   }
 );
 
-// Pre-save middleware to generate PO number ONLY if it doesn't exist
 raisePurchaseOrderSchema.pre("save", async function (next) {
-  // Only generate PO number if it's a new document and po_number is not provided
   if (this.isNew && !this.po_number) {
     this.po_number = await this.generatePONumber();
   }
 
-  // If someone tries to manually set po_number, ignore it and generate a new one
   if (this.isNew && this.po_number) {
     this.po_number = await this.generatePONumber();
   }
@@ -279,23 +264,18 @@ raisePurchaseOrderSchema.pre("save", async function (next) {
   next();
 });
 
-// Method to generate unique 7-digit PO number
 raisePurchaseOrderSchema.methods.generatePONumber = async function (): Promise<string> {
   const PO = mongoose.model<IRaisePurchaseOrder>("RaisePurchaseOrder");
 
   let isUnique = false;
   let poNumber = "";
   let attempts = 0;
-  const maxAttempts = 10; // Prevent infinite loop
-
+  const maxAttempts = 10;
   while (!isUnique && attempts < maxAttempts) {
     attempts++;
 
-    // Generate 7-digit number with leading zeros
     const randomNum = Math.floor(1000000 + Math.random() * 9000000);
-    poNumber = `PO${randomNum}`; // This will be PO + 7 digits
-
-    // Check if PO number already exists
+    poNumber = `PO${randomNum}`;
     const existingPO = await PO.findOne({ po_number: poNumber });
     if (!existingPO) {
       isUnique = true;
@@ -309,7 +289,6 @@ raisePurchaseOrderSchema.methods.generatePONumber = async function (): Promise<s
   return poNumber;
 };
 
-// Index for better performance (po_number already has unique: true in schema)
 raisePurchaseOrderSchema.index({ vendor: 1 });
 raisePurchaseOrderSchema.index({ po_status: 1 });
 raisePurchaseOrderSchema.index({ po_raised_date: -1 });
@@ -318,7 +297,6 @@ export interface IDispatchOrder extends Document {
   _id: Types.ObjectId;
   dispatchId: string;
 
-  // Combined field for vendor + destination + route info
   destination: string;
 
   products: {
@@ -343,9 +321,8 @@ export interface IDispatchOrder extends Document {
 export interface IQCTemplate extends Document {
   _id: Types.ObjectId;
 
-  title: string; // Template title
-  sku: string; // Product SKU
-
+  title: string;
+  sku: string;
   parameters: {
     name: string;
     value: string;
@@ -375,11 +352,11 @@ export interface IReturnOrder extends Document {
 
 export interface IFieldAgent extends Document {
   _id: Types.ObjectId;
-  userId?: Types.ObjectId; // Reference to User model for authentication
+  userId?: Types.ObjectId;
   name: string;
   email?: string;
   phone?: string;
-  assignedRoutes: string[]; // Text strings for route names
+  assignedRoutes: string[];
   assignedWarehouse?: Types.ObjectId;
   assignedArea?: Types.ObjectId;
   isActive: boolean;
@@ -387,7 +364,6 @@ export interface IFieldAgent extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-// In Warehouse.model.ts
 export interface IInventory extends Document {
   _id: Types.ObjectId;
   sku: string;
@@ -422,7 +398,7 @@ export interface IExpense extends Document {
   billUrl?: string;
 
   status: "approved" | "pending";
-  assignedAgent: Types.ObjectId; // ⬅ Added to support UI
+  assignedAgent: Types.ObjectId;
   warehouseId: Types.ObjectId;
 
   paymentStatus: "paid" | "unpaid" | "partially_paid";
@@ -435,7 +411,6 @@ export interface IExpense extends Document {
   updatedAt: Date;
 }
 
-// Schema definitions
 const warehouseSchema = new Schema<IWarehouse>(
   {
     name: { type: String, required: true },
@@ -454,7 +429,6 @@ const dispatchOrderSchema = new Schema(
   {
     dispatchId: { type: String, required: true, unique: true },
 
-    // merged field
     destination: { type: String, required: true },
 
     products: [
@@ -553,7 +527,7 @@ const fieldAgentSchema = new Schema<IFieldAgent>(
     name: { type: String, required: true },
     email: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
-    assignedRoutes: [{ type: String }], // Changed to String array
+    assignedRoutes: [{ type: String }],
     assignedWarehouse: { type: Schema.Types.ObjectId, ref: "Warehouse" },
     assignedArea: { type: Schema.Types.ObjectId, ref: "Area" },
     isActive: { type: Boolean, default: true },
@@ -562,7 +536,6 @@ const fieldAgentSchema = new Schema<IFieldAgent>(
   { timestamps: true }
 );
 
-// Update the inventory schema
 const inventorySchema = new Schema<IInventory>(
   {
     sku: { type: String, required: true },
@@ -591,7 +564,6 @@ const inventorySchema = new Schema<IInventory>(
   },
   { timestamps: true }
 );
-// Update the expense schema
 const expenseSchema = new Schema<IExpense>(
   {
     category: {
@@ -632,7 +604,6 @@ const expenseSchema = new Schema<IExpense>(
   { timestamps: true }
 );
 
-// Export models
 export const Warehouse = mongoose.model<IWarehouse>("Warehouse", warehouseSchema);
 export const RaisePurchaseOrder = mongoose.model<IRaisePurchaseOrder>(
   "RaisePurchaseOrder",

@@ -9,14 +9,11 @@ import { MODULES } from "../config/constants";
 
 const router = Router();
 
-// All routes require authentication and super admin privileges
 router.use(authenticate);
 router.use(requireSuperAdmin());
 
-// Get security configuration
 router.get("/config", securityController.getSecurityConfig);
 
-// Update security configuration
 router.put(
   "/config",
   validate({ body: updateSecurityConfigSchema.shape.body }),

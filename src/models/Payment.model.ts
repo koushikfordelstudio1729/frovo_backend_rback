@@ -179,7 +179,7 @@ const paymentSchema = new Schema<IPayment>(
     failedAt: Date,
     expiresAt: {
       type: Date,
-      default: () => new Date(Date.now() + 15 * 60 * 1000), // 15 minutes from now
+      default: () => new Date(Date.now() + 15 * 60 * 1000),
       index: true,
     },
     attempts: {
@@ -215,13 +215,11 @@ const paymentSchema = new Schema<IPayment>(
   }
 );
 
-// Indexes for efficient queries
 paymentSchema.index({ userId: 1, initiatedAt: -1 });
 paymentSchema.index({ status: 1, initiatedAt: -1 });
 paymentSchema.index({ paymentGateway: 1, status: 1 });
 paymentSchema.index({ orderId: 1, transactionType: 1 });
 
-// Generate payment ID
 paymentSchema.pre("save", function (next) {
   if (this.isNew && !this.paymentId) {
     const timestamp = Date.now().toString(36);
@@ -229,7 +227,6 @@ paymentSchema.pre("save", function (next) {
     this.paymentId = `PAY-${timestamp}-${random}`.toUpperCase();
   }
 
-  // Update refundable amount for successful payments
   if (
     this.status === TransactionStatus.SUCCESS &&
     this.transactionType === TransactionType.PAYMENT
@@ -240,12 +237,10 @@ paymentSchema.pre("save", function (next) {
   next();
 });
 
-// Virtual to check if payment is successful
 paymentSchema.virtual("isSuccessful").get(function () {
   return this.status === TransactionStatus.SUCCESS;
 });
 
-// Virtual to check if payment is failed
 paymentSchema.virtual("isFailed").get(function () {
   return [
     TransactionStatus.FAILED,
@@ -254,17 +249,14 @@ paymentSchema.virtual("isFailed").get(function () {
   ].includes(this.status);
 });
 
-// Virtual to check if payment is pending
 paymentSchema.virtual("isPending").get(function () {
   return [TransactionStatus.PENDING, TransactionStatus.PROCESSING].includes(this.status);
 });
 
-// Virtual to check if payment is expired
 paymentSchema.virtual("isExpired").get(function () {
   return new Date() > this.expiresAt;
 });
 
-// Virtual to check if refund is possible
 paymentSchema.virtual("canBeRefunded").get(function () {
   return (
     this.status === TransactionStatus.SUCCESS &&
@@ -273,7 +265,6 @@ paymentSchema.virtual("canBeRefunded").get(function () {
   );
 });
 
-// Method to mark payment as successful
 paymentSchema.methods["markAsSuccessful"] = function (gatewayResponse: Partial<IGatewayResponse>) {
   (this as any).status = TransactionStatus.SUCCESS;
   (this as any).completedAt = new Date();
@@ -282,7 +273,6 @@ paymentSchema.methods["markAsSuccessful"] = function (gatewayResponse: Partial<I
   return (this as any).save();
 };
 
-// Method to mark payment as failed
 paymentSchema.methods["markAsFailed"] = function (errorCode?: string, errorMessage?: string) {
   (this as any).status = TransactionStatus.FAILED;
   (this as any).failedAt = new Date();
@@ -291,7 +281,6 @@ paymentSchema.methods["markAsFailed"] = function (errorCode?: string, errorMessa
   return (this as any).save();
 };
 
-// Method to increment attempt count
 paymentSchema.methods["incrementAttempt"] = function () {
   (this as any).attempts += 1;
   (this as any).lastAttemptAt = new Date();
@@ -304,7 +293,6 @@ paymentSchema.methods["incrementAttempt"] = function () {
   return (this as any).save();
 };
 
-// Method to process refund
 paymentSchema.methods["processRefund"] = function (refundAmount: number, refundId: string) {
   if (!(this as any).canBeRefunded) {
     throw new Error("Payment cannot be refunded");
@@ -317,18 +305,15 @@ paymentSchema.methods["processRefund"] = function (refundAmount: number, refundI
   (this as any).refundedAmount += refundAmount;
   (this as any).refundableAmount -= refundAmount;
 
-  // Update gateway response with refund details
   (this as any).gatewayResponse.gatewayTransactionId = refundId;
 
   return (this as any).save();
 };
 
-// Static method to create payment
 paymentSchema.statics["createPayment"] = function (paymentData: Partial<IPayment>) {
   return new this(paymentData).save();
 };
 
-// Static method to find payment by order
 paymentSchema.statics["findByOrderId"] = function (orderId: string) {
   return this.findOne({ orderId, transactionType: TransactionType.PAYMENT });
 };

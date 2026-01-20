@@ -12,17 +12,14 @@ interface ValidationTargets {
 export const validate = (schemas: ValidationTargets) => {
   return asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Validate request body
       if (schemas.body) {
         req.body = schemas.body.parse(req.body);
       }
 
-      // Validate query parameters
       if (schemas.query) {
         req.query = schemas.query.parse(req.query);
       }
 
-      // Validate URL parameters
       if (schemas.params) {
         req.params = schemas.params.parse(req.params);
       }
@@ -44,7 +41,6 @@ export const validate = (schemas: ValidationTargets) => {
   });
 };
 
-// Common validation schemas
 export const commonSchemas = {
   objectId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format"),
 
@@ -71,7 +67,6 @@ export const commonSchemas = {
   }),
 };
 
-// Helper function to validate ObjectId
 export const validateObjectId = (field = "id") => {
   return validate({
     params: z.object({
@@ -80,21 +75,18 @@ export const validateObjectId = (field = "id") => {
   });
 };
 
-// Helper function to validate pagination
 export const validatePagination = () => {
   return validate({
     query: commonSchemas.pagination,
   });
 };
 
-// Helper function to validate search parameters
 export const validateSearch = () => {
   return validate({
     query: commonSchemas.search,
   });
 };
 
-// Helper function to validate date range
 export const validateDateRange = () => {
   return validate({
     query: commonSchemas.dateRange,

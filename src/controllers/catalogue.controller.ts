@@ -25,7 +25,6 @@ import { ImageUploadService } from "../services/catalogueFileUpload.service";
 import { logger } from "../utils/logger.util";
 const imageUploadService = new ImageUploadService();
 
-// Base controller class with common functionality
 export class BaseController {
   public static getLoggedInUser(req: Request): {
     _id: Types.ObjectId;
@@ -46,7 +45,6 @@ export class BaseController {
   }
 }
 
-// ==================== CATALOGUE CONTROLLER ====================
 export class CatalogueController extends BaseController {
   async createCatalogue(req: Request, res: Response): Promise<void> {
     const catalogueService = createCatalogueService(req);
@@ -55,7 +53,6 @@ export class CatalogueController extends BaseController {
       const { _id: userId, email: userEmail, roles } = CatalogueController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      // Handle file upload if present
       let productImages: any[] = [];
       const files = req.files as Express.Multer.File[];
 
@@ -87,14 +84,13 @@ export class CatalogueController extends BaseController {
             : [req.body.images].filter(Boolean);
       }
 
-      // Extract data from request
       const productData: CreateCatalogueDTO = {
         sku_id: req.body.sku_id,
         product_name: req.body.product_name,
         brand_name: req.body.brand_name,
         description: req.body.description,
-        category: req.body.category, // Category ID
-        sub_category: req.body.sub_category, // Sub-category ID
+        category: req.body.category,
+        sub_category: req.body.sub_category,
         manufacturer_name: req.body.manufacturer_name,
         manufacturer_address: req.body.manufacturer_address,
         shell_life: req.body.shell_life,
@@ -110,7 +106,6 @@ export class CatalogueController extends BaseController {
         status: req.body.status || "active",
       };
 
-      // Validate input data
       const validation = catalogueService.validateCatalogueData(productData);
       if (!validation.isValid) {
         res.status(400).json({
@@ -121,10 +116,8 @@ export class CatalogueController extends BaseController {
         return;
       }
 
-      // Create product
       const product = await catalogueService.createCatalogue(productData);
 
-      // Format response to be consistent with other endpoints
       const catalogueResponse = {
         id: product._id,
         sku_id: product.sku_id,
@@ -213,7 +206,6 @@ export class CatalogueController extends BaseController {
         return;
       }
 
-      // Format response to be consistent with other endpoints
       const catalogueResponse = {
         id: product._id,
         sku_id: product.sku_id,
@@ -262,7 +254,6 @@ export class CatalogueController extends BaseController {
       const { id } = req.params;
       const user = CatalogueController.getLoggedInUser(req);
 
-      // Handle file upload if present
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {
         const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || "10");
@@ -287,10 +278,8 @@ export class CatalogueController extends BaseController {
         req.body.product_images = productImages;
       }
 
-      // Prepare update data
       const updateData: UpdateCatalogueDTO = { ...req.body };
 
-      // Convert numeric fields
       if (req.body.expiry_alert_threshold !== undefined) {
         updateData.expiry_alert_threshold = Number(req.body.expiry_alert_threshold);
       }
@@ -301,10 +290,8 @@ export class CatalogueController extends BaseController {
         updateData.final_price = Number(req.body.final_price);
       }
 
-      // Update product
       const updatedProduct = await catalogueService.updateCatalogue(id, updateData);
 
-      // Format response to be consistent with other endpoints
       const catalogueResponse = {
         id: updatedProduct._id,
         sku_id: updatedProduct.sku_id,
@@ -439,7 +426,6 @@ export class CatalogueController extends BaseController {
   }
 
   async getAllCatalogues(req: Request, res: Response): Promise<void> {
-    // Reuse getDashboard logic with different response message
     try {
       const filters: DashboardFilterDTO = this.buildCatalogueFilters(req);
       const cataloguesData = await catalogueService.getDashboardData(filters);
@@ -458,7 +444,6 @@ export class CatalogueController extends BaseController {
     }
   }
 
-  // Helper method to build catalogue filters from request
   private buildCatalogueFilters(req: Request): DashboardFilterDTO {
     const filters: DashboardFilterDTO = {
       category: req.query.category as string,
@@ -552,7 +537,6 @@ export class CatalogueController extends BaseController {
     }
   }
 
-  // Payload-based status update (Recommended approach)
   async updateCatalogueStatus(req: Request, res: Response): Promise<void> {
     const catalogueService = createCatalogueService(req);
 
@@ -572,7 +556,6 @@ export class CatalogueController extends BaseController {
       const updateData: UpdateCatalogueDTO = { status };
       const updatedCatalogue = await catalogueService.updateCatalogue(id, updateData);
 
-      // Format response to be consistent with other endpoints
       const catalogueResponse = {
         id: updatedCatalogue._id,
         sku_id: updatedCatalogue.sku_id,
@@ -633,7 +616,7 @@ export class CatalogueController extends BaseController {
         status: req.query.status as "active" | "inactive",
         search: req.query.search as string,
         page: 1,
-        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "10000"), // Get all records for export
+        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "10000"),
         sort_by: (req.query.sort_by as "product_name" | "base_price" | "createdAt") || "createdAt",
         sort_order: (req.query.sort_order as "asc" | "desc") || "desc",
       };
@@ -662,10 +645,9 @@ export class CatalogueController extends BaseController {
 
   async exportAllCataloguesCSV(req: Request, res: Response): Promise<void> {
     try {
-      // Use getDashboardData with a large limit to get all catalogues
       const filters: DashboardFilterDTO = {
         page: 1,
-        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"), // Get all records for export
+        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"),
       };
       const dashboardData = await catalogueService.getDashboardData(filters);
       const csv = this.convertAllCataloguesToCSV(dashboardData.products);
@@ -681,8 +663,6 @@ export class CatalogueController extends BaseController {
       });
     }
   }
-
-  // ==================== HELPER METHODS ====================
 
   private convertToCSV(products: any[]): string {
     const headers = [
@@ -767,7 +747,6 @@ export class CatalogueController extends BaseController {
   }
 }
 
-// ==================== CATEGORY CONTROLLER ====================
 export class CategoryController extends BaseController {
   async createCategory(req: Request, res: Response): Promise<void> {
     const categoryService = createCategoryService(req);
@@ -775,14 +754,12 @@ export class CategoryController extends BaseController {
     try {
       const user = CategoryController.getLoggedInUser(req);
 
-      // Handle multiple file uploads
       let categoryImagesData: any[] = [];
       const files = req.files as Express.Multer.File[];
 
       if (files && files.length > 0) {
         const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
 
-        // Upload all images to Cloudinary
         const uploadPromises = files.map(file =>
           imageUploadService
             .uploadToCloudinary(file.buffer, file.originalname, folder)
@@ -796,18 +773,15 @@ export class CategoryController extends BaseController {
         logger.info(`Uploaded ${categoryImagesData.length} category images`);
       }
 
-      // Extract data from request
       const categoryData: CreateCategoryDTO = {
         category_name: req.body.category_name,
         description: req.body.description,
-        category_image: categoryImagesData, // Changed to array
+        category_image: categoryImagesData,
         category_status: req.body.category_status || "active",
       };
 
-      // Create category
       const category = await categoryService.createCategory(categoryData);
 
-      // Format response to be consistent with other endpoints
       const categoryResponse = {
         id: category._id,
         category_name: category.category_name,
@@ -871,13 +845,10 @@ export class CategoryController extends BaseController {
         return;
       }
 
-      // Get all sub-categories for this category
       const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
 
-      // Get product count for this category
       const productCount = await categoryService.getProductCountByCategory(id);
 
-      // Format the response
       const categoryResponse = {
         id: category._id,
         category_name: category.category_name,
@@ -892,7 +863,7 @@ export class CategoryController extends BaseController {
           description: subCat.description,
           sub_category_status: subCat.sub_category_status,
           sub_category_image: subCat.sub_category_image,
-          product_count: 0, // You might want to add a method to get product count per sub-category
+          product_count: 0,
           createdAt: subCat.createdAt,
           updatedAt: subCat.updatedAt,
         })),
@@ -952,12 +923,10 @@ export class CategoryController extends BaseController {
       const { id } = req.params;
       const user = CategoryController.getLoggedInUser(req);
 
-      // Handle file upload if present (for updating images)
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {
         const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
 
-        // Upload all new images to Cloudinary
         const uploadPromises = files.map(file =>
           imageUploadService
             .uploadToCloudinary(file.buffer, file.originalname, folder)
@@ -968,11 +937,9 @@ export class CategoryController extends BaseController {
 
         const newCategoryImages = await Promise.all(uploadPromises);
 
-        // If replacing all images, set the new images
         if (req.body.replace_images === "true") {
           req.body.category_images = newCategoryImages;
         } else {
-          // If adding to existing images, we need to get current images first
           const currentCategory = await categoryService.getCategoryById(id);
           if (currentCategory) {
             const currentImages = (currentCategory as any).category_images || [];
@@ -983,16 +950,13 @@ export class CategoryController extends BaseController {
         logger.info(`Uploaded ${newCategoryImages.length} new category images`);
       }
 
-      // Update category
       const updateData: UpdateCategoryDTO = { ...req.body };
       const updatedCategory = await categoryService.updateCategory(id, updateData);
 
-      // Get sub-categories count and product count for consistent response
       const subCategoryService = createSubCategoryService(req);
       const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
       const productCount = await categoryService.getProductCountByCategory(id);
 
-      // Format response to be consistent with other endpoints
       const categoryResponse = {
         id: updatedCategory._id,
         category_name: updatedCategory.category_name,
@@ -1061,12 +1025,10 @@ export class CategoryController extends BaseController {
       const updateData: UpdateCategoryDTO = { category_status: status };
       const updatedCategory = await categoryService.updateCategory(id, updateData);
 
-      // Get sub-categories and product count for consistent response
       const subCategoryService = createSubCategoryService(req);
       const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
       const productCount = await categoryService.getProductCountByCategory(id);
 
-      // Format response to be consistent with other endpoints
       const categoryResponse = {
         id: updatedCategory._id,
         category_name: updatedCategory.category_name,
@@ -1218,7 +1180,6 @@ export class CategoryController extends BaseController {
     try {
       const { id } = req.params;
 
-      // Get the specific category
       const category = await categoryService.getCategoryById(id);
 
       if (!category) {
@@ -1229,10 +1190,8 @@ export class CategoryController extends BaseController {
         return;
       }
 
-      // Get all sub-categories for this category
       const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
 
-      // Get product counts for category and sub-categories
       const categoryProductCount = await categoryService.getProductCountByCategory(id);
 
       const subCategoryIds = subCategories.map(subCat => subCat._id.toString());
@@ -1241,7 +1200,6 @@ export class CategoryController extends BaseController {
           ? await subCategoryService.getProductCountsForSubCategories(subCategoryIds)
           : new Map<string, number>();
 
-      // Format data for CSV
       const categoryData = {
         category: {
           id: category._id.toString(),
@@ -1265,10 +1223,8 @@ export class CategoryController extends BaseController {
         })),
       };
 
-      // Generate CSV
       const csv = this.convertCategoryWithSubCategoriesToCSV(categoryData);
 
-      // Set headers for CSV download
       const fileName = `category-${category.category_name.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
 
       res.setHeader("Content-Type", "text/csv");
@@ -1291,7 +1247,6 @@ export class CategoryController extends BaseController {
   private convertCategoryWithSubCategoriesToCSV(data: any): string {
     const { category, sub_categories } = data;
 
-    // Category section header
     const categoryHeaders = ["CATEGORY DETAILS", "", "", "", "", "", "", "", ""];
 
     const categoryDataHeaders = [
@@ -1306,7 +1261,6 @@ export class CategoryController extends BaseController {
       "Updated Date",
     ];
 
-    // Handle category image
     let categoryImage = "";
     if (typeof category.category_image === "object" && category.category_image !== null) {
       categoryImage = category.category_image.file_url || "";
@@ -1326,10 +1280,8 @@ export class CategoryController extends BaseController {
       category.updatedAt ? new Date(category.updatedAt).toISOString().split("T")[0] : "",
     ];
 
-    // Blank row separator
     const blankRow = ["", "", "", "", "", "", "", "", ""];
 
-    // Sub-categories section header
     const subCategorySectionHeader = ["SUB-CATEGORIES LIST", "", "", "", "", "", "", "", ""];
 
     const subCategoryHeaders = [
@@ -1344,7 +1296,6 @@ export class CategoryController extends BaseController {
       "Updated Date",
     ];
 
-    // Sub-category rows
     const subCategoryRows = sub_categories.map((subCat: any) => {
       let subCategoryImage = "";
       if (typeof subCat.sub_category_image === "object" && subCat.sub_category_image !== null) {
@@ -1366,7 +1317,6 @@ export class CategoryController extends BaseController {
       ];
     });
 
-    // Combine all sections
     const csvContent = [
       categoryHeaders.join(","),
       categoryDataHeaders.join(","),
@@ -1387,10 +1337,9 @@ export class CategoryController extends BaseController {
     const categoryService = createCategoryService(req);
 
     try {
-      // Use getAllCategoriesWithFilters with a large limit to get all categories
       const filters: CategoryFilterDTO = {
         page: 1,
-        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"), // Get all records for export
+        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"),
       };
       const result = await categoryService.getAllCategoriesWithFilters(filters);
       const csv = this.convertAllCategoriesToCSV(result.categories);
@@ -1421,7 +1370,6 @@ export class CategoryController extends BaseController {
     ];
 
     const rows = categories.map(category => {
-      // Handle multiple images
       let imageUrls = "";
       if (Array.isArray(category.category_images)) {
         imageUrls = category.category_images
@@ -1432,7 +1380,6 @@ export class CategoryController extends BaseController {
         typeof category.category_images === "object" &&
         category.category_images !== null
       ) {
-        // Backward compatibility for single image
         imageUrls = category.category_images.file_url || "";
       } else if (typeof category.category_images === "string") {
         imageUrls = category.category_images;
@@ -1455,7 +1402,6 @@ export class CategoryController extends BaseController {
   }
 }
 
-// ==================== SUB-CATEGORY CONTROLLER ====================
 export class SubCategoryController extends BaseController {
   async createSubCategory(req: Request, res: Response): Promise<void> {
     const subCategoryService = createSubCategoryService(req);
@@ -1463,14 +1409,12 @@ export class SubCategoryController extends BaseController {
     try {
       const user = SubCategoryController.getLoggedInUser(req);
 
-      // Handle multiple file uploads
       let subCategoryImagesData: any[] = [];
       const files = req.files as Express.Multer.File[];
 
       if (files && files.length > 0) {
         const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || "frovo/subcategory_images";
 
-        // Upload all images to Cloudinary
         const uploadPromises = files.map(file =>
           imageUploadService
             .uploadToCloudinary(file.buffer, file.originalname, folder)
@@ -1484,23 +1428,19 @@ export class SubCategoryController extends BaseController {
         logger.info(`Uploaded ${subCategoryImagesData.length} sub-category images`);
       }
 
-      // Extract data from request
       const subCategoryData: CreateSubCategoryDTO = {
         sub_category_name: req.body.sub_category_name,
         description: req.body.description,
         category_id: req.body.category_id,
-        sub_category_image: subCategoryImagesData, // Array of images
+        sub_category_image: subCategoryImagesData,
         sub_category_status: req.body.sub_category_status || "active",
       };
 
-      // Create sub-category
       const subCategory = await subCategoryService.createSubCategory(subCategoryData);
 
-      // Get parent category name for consistent response
       const categoryService = createCategoryService(req);
       const parentCategory = await categoryService.getCategoryById(req.body.category_id);
 
-      // Format response to be consistent with other endpoints
       const subCategoryResponse = {
         id: subCategory._id,
         sub_category_name: subCategory.sub_category_name,
@@ -1565,15 +1505,12 @@ export class SubCategoryController extends BaseController {
         return;
       }
 
-      // category_id is populated with category_name from service
       const categoryData = subCategory.category_id;
       const categoryId = categoryData?._id?.toString() || categoryData?.toString() || "";
       const categoryName = categoryData?.category_name || "";
 
-      // Get product count for this sub-category
       const productCount = await subCategoryService.getProductCountBySubCategory(id);
 
-      // Format response to be consistent
       const subCategoryResponse = {
         id: subCategory._id,
         sub_category_name: subCategory.sub_category_name,
@@ -1610,7 +1547,6 @@ export class SubCategoryController extends BaseController {
     try {
       const { categoryId } = req.params;
 
-      // Get parent category for name
       const parentCategory = await categoryService.getCategoryById(categoryId);
       if (!parentCategory) {
         res.status(404).json({
@@ -1622,7 +1558,6 @@ export class SubCategoryController extends BaseController {
 
       const subCategories = await subCategoryService.getSubCategoriesByCategory(categoryId);
 
-      // Format response with category_name and product_count for each sub-category
       const formattedSubCategories = await Promise.all(
         subCategories.map(async (subCat: any) => {
           const productCount = await subCategoryService.getProductCountBySubCategory(
@@ -1700,12 +1635,10 @@ export class SubCategoryController extends BaseController {
       const { id } = req.params;
       const user = SubCategoryController.getLoggedInUser(req);
 
-      // Handle file upload if present (for updating images)
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {
         const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || "frovo/subcategory_images";
 
-        // Upload all new images to Cloudinary
         const uploadPromises = files.map(file =>
           imageUploadService
             .uploadToCloudinary(file.buffer, file.originalname, folder)
@@ -1716,11 +1649,9 @@ export class SubCategoryController extends BaseController {
 
         const newSubCategoryImages = await Promise.all(uploadPromises);
 
-        // If replacing all images, set the new images
         if (req.body.replace_images === "true") {
           req.body.sub_category_image = newSubCategoryImages;
         } else {
-          // If adding to existing images, we need to get current images first
           const currentSubCategory = await subCategoryService.getSubCategoryById(id);
           if (currentSubCategory) {
             const currentImages = (currentSubCategory as any).sub_category_image || [];
@@ -1731,22 +1662,18 @@ export class SubCategoryController extends BaseController {
         logger.info(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
       }
 
-      // Update sub-category
       const updateData: UpdateSubCategoryDTO = { ...req.body };
       const updatedSubCategory = (await subCategoryService.updateSubCategory(
         id,
         updateData
       )) as any;
 
-      // category_id is populated with category_name from service
       const categoryData = updatedSubCategory.category_id;
       const categoryId = categoryData?._id?.toString() || categoryData?.toString() || "";
       const categoryName = categoryData?.category_name || "";
 
-      // Get product count
       const productCount = await subCategoryService.getProductCountBySubCategory(id);
 
-      // Format response to be consistent with other endpoints
       const subCategoryResponse = {
         id: updatedSubCategory._id,
         sub_category_name: updatedSubCategory.sub_category_name,
@@ -1810,15 +1737,12 @@ export class SubCategoryController extends BaseController {
         updateData
       )) as any;
 
-      // category_id is populated with category_name from service
       const categoryData = updatedSubCategory.category_id;
       const categoryId = categoryData?._id?.toString() || categoryData?.toString() || "";
       const categoryName = categoryData?.category_name || "";
 
-      // Get product count
       const productCount = await subCategoryService.getProductCountBySubCategory(id);
 
-      // Format response to be consistent with other endpoints
       const subCategoryResponse = {
         id: updatedSubCategory._id,
         sub_category_name: updatedSubCategory.sub_category_name,
@@ -1944,7 +1868,7 @@ export class SubCategoryController extends BaseController {
         category_id: req.query.category_id as string,
         sub_category_name: req.query.sub_category_name as string,
         page: 1,
-        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"), // Get all records for export
+        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"),
       };
 
       const result = await subCategoryService.getAllSubCategoriesWithFilters(filters);
@@ -1962,7 +1886,6 @@ export class SubCategoryController extends BaseController {
     }
   }
 
-  // In SubCategoryController
   private convertAllSubCategoriesToCSV(subCategories: any[]): string {
     const headers = [
       "Sub-Category ID",
@@ -1978,7 +1901,6 @@ export class SubCategoryController extends BaseController {
     ];
 
     const rows = subCategories.map(subCategory => {
-      // Handle multiple images
       let subCategoryImageUrls = "";
       if (Array.isArray(subCategory.sub_category_image)) {
         subCategoryImageUrls = subCategory.sub_category_image
@@ -1989,7 +1911,6 @@ export class SubCategoryController extends BaseController {
         typeof subCategory.sub_category_image === "object" &&
         subCategory.sub_category_image !== null
       ) {
-        // Backward compatibility for single image
         subCategoryImageUrls = subCategory.sub_category_image.file_url || "";
       } else if (typeof subCategory.sub_category_image === "string") {
         subCategoryImageUrls = subCategory.sub_category_image;
@@ -2013,7 +1934,6 @@ export class SubCategoryController extends BaseController {
   }
 }
 
-// Export controller instances
 export const catalogueController = new CatalogueController();
 export const categoryController = new CategoryController();
 export const subCategoryController = new SubCategoryController();

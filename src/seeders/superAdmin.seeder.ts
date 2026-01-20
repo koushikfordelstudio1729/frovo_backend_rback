@@ -1,4 +1,3 @@
-// seeders/superAdmin.seeder.ts
 import { User, UserStatus, SystemRole } from "../models";
 import { logger } from "../utils/logger.util";
 import { emailService } from "../services/email.service";
@@ -9,10 +8,8 @@ export const seedSuperAdmin = async (
   roleMap: { [key: string]: Types.ObjectId }
 ): Promise<{ superAdminId: Types.ObjectId; vendorAdminId: Types.ObjectId }> => {
   try {
-    // Check if any user already exists
     const existingUserCount = await User.countDocuments();
     if (existingUserCount > 0) {
-      // Find existing super admin
       const existingSuperAdmin = await User.findOne({
         roles: { $in: [roleMap[SystemRole.SUPER_ADMIN]] },
       });
@@ -27,7 +24,6 @@ export const seedSuperAdmin = async (
         };
       }
 
-      // If users exist but not both roles, create the missing ones
       const result: any = {};
 
       if (!existingSuperAdmin) {
@@ -45,10 +41,8 @@ export const seedSuperAdmin = async (
       return result;
     }
 
-    // Create Super Admin first
     const superAdminId = await createSuperAdmin(departmentMap, roleMap);
 
-    // Create Vendor Admin using Super Admin as creator
     const vendorAdminId = await createVendorAdmin(superAdminId, departmentMap, roleMap);
 
     return {
@@ -61,7 +55,6 @@ export const seedSuperAdmin = async (
   }
 };
 
-// Helper function to create Super Admin
 const createSuperAdmin = async (
   departmentMap: { [key: string]: Types.ObjectId },
   roleMap: { [key: string]: Types.ObjectId }
@@ -77,13 +70,11 @@ const createSuperAdmin = async (
     throw new Error("Super Admin role or System Admin department not found");
   }
 
-  // Check if Super Admin already exists
   const existingSuperAdmin = await User.findOne({ email });
   if (existingSuperAdmin) {
     return existingSuperAdmin._id;
   }
 
-  // Create Super Admin user
   const superAdmin = await User.create({
     name,
     email,
@@ -94,23 +85,20 @@ const createSuperAdmin = async (
     createdBy: new Types.ObjectId(),
   });
 
-  // Update createdBy to point to the super admin itself
   await User.findByIdAndUpdate(superAdmin._id, { createdBy: superAdmin._id });
 
-  // Send welcome email if configured
   const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
   if (emailConfigured) {
     try {
       await emailService.sendWelcomeEmail(email, name, password);
-    } catch {
-      // Email sending failed, continue silently
+    } catch (_) {
+      void 0;
     }
   }
 
   return superAdmin._id;
 };
 
-// Helper function to ensure Vendor Admin role exists
 const ensureVendorAdminRole = async (
   departmentMap: { [key: string]: Types.ObjectId },
   createdBy: Types.ObjectId
@@ -118,7 +106,6 @@ const ensureVendorAdminRole = async (
   const { Role, RoleType, RoleStatus, ScopeLevel, SystemRole, UIAccess } =
     await import("../models");
 
-  // Check if Vendor Admin role exists
   let vendorAdminRole = await Role.findOne({ systemRole: SystemRole.VENDOR_ADMIN });
 
   if (!vendorAdminRole) {
@@ -155,7 +142,6 @@ const ensureVendorAdminRole = async (
   return vendorAdminRole._id;
 };
 
-// Helper function to create Vendor Admin
 const createVendorAdmin = async (
   createdBy: Types.ObjectId,
   departmentMap: { [key: string]: Types.ObjectId },
@@ -165,7 +151,6 @@ const createVendorAdmin = async (
   const password = process.env["VENDOR_ADMIN_PASSWORD"] || "VendorAdmin@123";
   const name = process.env["VENDOR_ADMIN_NAME"] || "Vendor Administrator";
 
-  // Use the fallback function to ensure Vendor Admin role exists
   const vendorAdminRoleId = await ensureVendorAdminRole(departmentMap, createdBy);
   const operationsDeptId = departmentMap["Operations"];
 
@@ -173,13 +158,11 @@ const createVendorAdmin = async (
     throw new Error("Operations department not found");
   }
 
-  // Check if Vendor Admin user already exists with this email
   const existingVendorAdmin = await User.findOne({ email });
   if (existingVendorAdmin) {
     return existingVendorAdmin._id;
   }
 
-  // Create Vendor Admin user
   const vendorAdmin = await User.create({
     name,
     email,
@@ -190,20 +173,18 @@ const createVendorAdmin = async (
     createdBy: createdBy,
   });
 
-  // Send welcome email if configured
   const emailConfigured = process.env["EMAIL_USER"] && process.env["EMAIL_PASS"];
   if (emailConfigured) {
     try {
       await emailService.sendWelcomeEmail(email, name, password);
-    } catch {
-      // Email sending failed, continue silently
+    } catch (_) {
+      void 0;
     }
   }
 
   return vendorAdmin._id;
 };
 
-// For standalone execution
 if (require.main === module) {
   import("../config/database").then(({ connectDB }) => {
     import("./departments.seeder").then(({ seedDepartments }) => {

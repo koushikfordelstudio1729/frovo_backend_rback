@@ -1,41 +1,32 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-// Audit Trail Interface
 export interface IHistoryCatalogue extends Document {
-  // Operation Details
   operation: "create" | "update" | "delete" | "view";
   entity_type: "category" | "sub_category" | "catalogue";
   entity_id: mongoose.Types.ObjectId;
-  entity_name: string; // Category name or Product name for easy reference
-
-  // User Details
+  entity_name: string;
   user_id: mongoose.Types.ObjectId;
   user_email: string;
   user_role: string;
 
-  // Request Details
   ip_address: string;
   user_agent: string;
   request_method: string;
   request_path: string;
 
-  // Change Details (for updates)
   changes?: {
     field: string;
     old_value: any;
     new_value: any;
   }[];
 
-  // Before and After State (for updates and deletes)
   before_state?: any;
   after_state?: any;
 
-  // Additional Context
   description: string;
   status: "success" | "failed";
   error_message?: string;
 
-  // Metadata
   timestamp: Date;
   session_id?: string;
 
@@ -43,10 +34,8 @@ export interface IHistoryCatalogue extends Document {
   updatedAt: Date;
 }
 
-// Audit Trail Schema
 const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
   {
-    // Operation Details
     operation: {
       type: String,
       enum: ["create", "update", "delete", "view"],
@@ -70,7 +59,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       index: true,
     },
 
-    // User Details
     user_id: {
       type: Schema.Types.ObjectId,
       required: true,
@@ -87,7 +75,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       index: true,
     },
 
-    // Request Details
     ip_address: {
       type: String,
       required: true,
@@ -105,7 +92,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       required: true,
     },
 
-    // Change Details
     changes: [
       {
         field: String,
@@ -114,7 +100,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       },
     ],
 
-    // State Snapshots
     before_state: {
       type: Schema.Types.Mixed,
     },
@@ -122,7 +107,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       type: Schema.Types.Mixed,
     },
 
-    // Additional Context
     description: {
       type: String,
       required: true,
@@ -138,7 +122,6 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
       type: String,
     },
 
-    // Metadata
     timestamp: {
       type: Date,
       default: Date.now,
@@ -155,13 +138,11 @@ const HistoryCatalogueSchema = new Schema<IHistoryCatalogue>(
   }
 );
 
-// Indexes for efficient querying
 HistoryCatalogueSchema.index({ entity_type: 1, entity_id: 1 });
 HistoryCatalogueSchema.index({ user_id: 1, timestamp: -1 });
 HistoryCatalogueSchema.index({ operation: 1, entity_type: 1 });
 HistoryCatalogueSchema.index({ timestamp: -1 });
 HistoryCatalogueSchema.index({ user_email: 1, timestamp: -1 });
-// Create and export model
 export const HistoryCatalogue = mongoose.model<IHistoryCatalogue>(
   "HistoryCatalogue",
   HistoryCatalogueSchema

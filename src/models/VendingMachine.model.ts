@@ -16,12 +16,12 @@ export interface IProductSlot {
   product: Types.ObjectId;
   quantity: number;
   maxCapacity: number;
-  price: number; // Price can be different from product's base price
+  price: number;
 }
 
 export interface IVendingMachine extends Document {
   _id: Types.ObjectId;
-  machineId: string; // Unique machine identifier
+  machineId: string;
   name: string;
   location: ILocation;
   status: "Active" | "Inactive" | "Maintenance" | "Out of Service";
@@ -36,8 +36,8 @@ export interface IVendingMachine extends Document {
     closeTime: string;
     isAlwaysOpen: boolean;
   };
-  temperature?: number; // For refrigerated machines
-  capacity: number; // Total number of slots
+  temperature?: number;
+  capacity: number;
   revenue?: number;
   totalSales?: number;
   isOnline: boolean;
@@ -219,29 +219,24 @@ const vendingMachineSchema = new Schema<IVendingMachine>(
   }
 );
 
-// Indexes (machineId already has unique: true in schema)
 vendingMachineSchema.index({ status: 1 });
 vendingMachineSchema.index({ "location.city": 1 });
 vendingMachineSchema.index({ "location.state": 1 });
 vendingMachineSchema.index({ isOnline: 1 });
 vendingMachineSchema.index({ createdAt: -1 });
 
-// Virtual for id
 vendingMachineSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-// Virtual for available products count
 vendingMachineSchema.virtual("availableProducts").get(function () {
   return (this.productSlots || []).filter(slot => slot.quantity > 0).length;
 });
 
-// Virtual for total products in stock
 vendingMachineSchema.virtual("totalStock").get(function () {
   return (this.productSlots || []).reduce((total, slot) => total + slot.quantity, 0);
 });
 
-// Ensure virtual fields are serialized
 vendingMachineSchema.set("toJSON", {
   virtuals: true,
   transform: function (_doc, ret) {

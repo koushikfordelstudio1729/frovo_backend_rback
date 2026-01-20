@@ -1,14 +1,3 @@
-/**
- * Cloudinary Storage Provider
- *
- * Implementation of IStorageProvider for Cloudinary.
- *
- * Required environment variables:
- * - CLOUDINARY_CLOUD_NAME
- * - CLOUDINARY_API_KEY
- * - CLOUDINARY_API_SECRET
- */
-
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 import path from "path";
 import {
@@ -23,10 +12,6 @@ export class CloudinaryProvider implements IStorageProvider {
   readonly providerName = "cloudinary";
   private isInitialized = false;
 
-  /**
-   * Get config lazily from environment variables
-   * This ensures env vars are read when needed, not at class instantiation
-   */
   private getConfig() {
     return {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
@@ -133,16 +118,13 @@ export class CloudinaryProvider implements IStorageProvider {
     try {
       logger.info(`Deleting from Cloudinary: ${publicId}`);
 
-      // Try deleting as image first (most common)
       let result = await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 
-      // If not found as image, try as raw (for PDFs, docs, etc.)
       if (result.result === "not found") {
         logger.info(`Not found as image, trying as raw: ${publicId}`);
         result = await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
       }
 
-      // If still not found, try as video
       if (result.result === "not found") {
         logger.info(`Not found as raw, trying as video: ${publicId}`);
         result = await cloudinary.uploader.destroy(publicId, { resource_type: "video" });

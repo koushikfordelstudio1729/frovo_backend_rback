@@ -7,15 +7,12 @@ import { MESSAGES } from "../config/constants";
 
 export const authenticate = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    // Get token from Authorization header or cookies
     const authHeader = req.headers.authorization;
     let token: string | undefined;
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      // Get token from Authorization header
-      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      token = authHeader.substring(7);
     } else {
-      // Get token from cookies
       token = req.cookies?.["accessToken"];
     }
 
@@ -24,25 +21,19 @@ export const authenticate = asyncHandler(
     }
 
     try {
-      // Verify token
       const decoded = verifyAccessToken(token);
 
-      // Find user by ID and populate roles and departments
-      const user = await User.findById(decoded.id).populate("roles").populate("departments"); // Don't include password or refreshTokens for auth
-
+      const user = await User.findById(decoded.id).populate("roles").populate("departments");
       if (!user) {
         return sendUnauthorized(res, MESSAGES.USER_NOT_FOUND);
       }
 
-      // Check if user is active
       if (user.status !== UserStatus.ACTIVE) {
         return sendForbidden(res, "Account is inactive or suspended");
       }
 
-      // Attach user to request object
       (req as any).user = user;
 
-      // Capture client IP and User Agent for audit logging
       (req as any).clientIp =
         req.ip || req.socket.remoteAddress || (req.headers["x-forwarded-for"] as string);
       (req as any).userAgent = req.headers["user-agent"];
@@ -62,7 +53,6 @@ export const authenticate = asyncHandler(
   }
 );
 
-// Optional authentication - doesn't fail if no token
 export const optionalAuth = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -88,14 +78,13 @@ export const optionalAuth = asyncHandler(
           req.ip || req.socket.remoteAddress || (req.headers["x-forwarded-for"] as string);
         (req as any).userAgent = req.headers["user-agent"];
       }
-    } catch (error) {
-      // Ignore token errors for optional auth
+    } catch (_) {
+      void 0;
     }
 
     return next();
   }
 );
-// Add this permission checking function
 export const checkPermission = (user: any, requiredPermission: string): boolean => {
   if (!user || !user.roles) {
     return false;
@@ -103,19 +92,15 @@ export const checkPermission = (user: any, requiredPermission: string): boolean 
 
   const userRoles = user.roles || [];
 
-  // Check if user has the required permission in any of their roles
   return userRoles.some((role: any) => {
-    // Super admin has all permissions
     if (role.permissions?.includes("*:*")) {
       return true;
     }
 
-    // Check for exact permission match
     if (role.permissions?.includes(requiredPermission)) {
       return true;
     }
 
-    // Check for module wildcard (e.g., 'vendors:*')
     const [module] = requiredPermission.split(":");
     if (role.permissions?.includes(`${module}:*`)) {
       return true;
@@ -125,7 +110,6 @@ export const checkPermission = (user: any, requiredPermission: string): boolean 
   });
 };
 
-// Add this middleware for route-level permission checking
 export const requirePermission = (requiredPermission: string) => {
   return asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
