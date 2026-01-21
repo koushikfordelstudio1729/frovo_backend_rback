@@ -922,6 +922,14 @@ export class SubCategoryService {
         throw new Error("Sub-category not found");
       }
 
+      // Prevent activating sub-category if parent category is inactive
+      if (updateData.sub_category_status === "active") {
+        const parentCategory = await CategoryModel.findById(existingSubCategory.category_id);
+        if (parentCategory && parentCategory.category_status === "inactive") {
+          throw new Error("Cannot activate sub-category because parent category is inactive");
+        }
+      }
+
       if (
         updateData.sub_category_name &&
         updateData.sub_category_name !== existingSubCategory.sub_category_name
