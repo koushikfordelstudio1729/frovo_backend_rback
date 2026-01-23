@@ -1395,18 +1395,18 @@ export class CategoryController extends BaseController {
 
     const rows = categories.map(category => {
       let imageUrls = "";
-      if (Array.isArray(category.category_images)) {
-        imageUrls = category.category_images
+      if (Array.isArray(category.category_image)) {
+        imageUrls = category.category_image
           .map((img: any) => img.file_url || "")
           .filter((url: string) => url)
           .join("; ");
       } else if (
-        typeof category.category_images === "object" &&
-        category.category_images !== null
+        typeof category.category_image === "object" &&
+        category.category_image !== null
       ) {
-        imageUrls = category.category_images.file_url || "";
-      } else if (typeof category.category_images === "string") {
-        imageUrls = category.category_images;
+        imageUrls = category.category_image.file_url || "";
+      } else if (typeof category.category_image === "string") {
+        imageUrls = category.category_image;
       }
 
       return [
