@@ -235,5 +235,10 @@ router.get(
   authorize(MANAGEMENT),
   catalogueController.exportAllCataloguesCSV.bind(catalogueController)
 );
-
+router.get(
+  "/export/sku/:id",
+  authenticate,
+  authorize(MANAGEMENT),
+  catalogueController.exportSKUByIdCSV.bind(catalogueController)
+);
 export default router;
