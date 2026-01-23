@@ -668,25 +668,134 @@ export class CatalogueController extends BaseController {
   }
 
   async exportAllCataloguesCSV(req: Request, res: Response): Promise<void> {
-    try {
-      const filters: DashboardFilterDTO = {
-        page: 1,
-        limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"),
-      };
-      const dashboardData = await catalogueService.getDashboardData(filters);
-      const csv = this.convertAllCataloguesToCSV(dashboardData.products);
+  try {
+    const filters: DashboardFilterDTO = {
+      page: 1,
+      limit: parseInt(process.env.EXPORT_MAX_RECORDS || "100000"),
+    };
+    const dashboardData = await catalogueService.getDashboardData(filters);
+    const csv = this.convertAllCataloguesToCSV(dashboardData.products);
 
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=all-catalogues.csv");
-      res.status(200).send(csv);
-    } catch (error: any) {
-      logger.error("Error exporting all catalogues CSV:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to export catalogues",
-      });
-    }
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=all-catalogues.csv");
+    res.status(200).send(csv);
+  } catch (error: any) {
+    logger.error("Error exporting all catalogues CSV:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export catalogues",
+    });
   }
+}
+
+private convertAllCataloguesToCSV(products: any[]): string {
+  const csvLines: string[] = [];
+  
+  // Header
+  csvLines.push(`"COMPLETE CATALOGUE EXPORT"`);
+  csvLines.push(`"Export Date: ${new Date().toISOString().split('T')[0]}"`);
+  csvLines.push(`"Export Time: ${new Date().toISOString().split('T')[1].split('.')[0]}"`);
+  csvLines.push(`"Total Products: ${products.length}"`);
+  csvLines.push("");
+  
+  // Process each product
+  products.forEach((product, index) => {
+    // Product Header
+    csvLines.push(`"PRODUCT ${index + 1}: ${product.product_name || 'Unnamed Product'}"`);
+    csvLines.push("");
+    
+    // Basic Information
+    csvLines.push("FIELD,VALUE");
+    csvLines.push(`SKU ID - ${product.sku_id || ""}`);
+    csvLines.push(`Product Name - "${(product.product_name || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Brand Name - "${(product.brand_name || "").replace(/"/g, '""')}"`);
+    
+    // Category and Sub-category
+    const categoryName = typeof product.category === 'object' 
+      ? product.category.category_name 
+      : product.category;
+    const subCategoryName = typeof product.sub_category === 'object'
+      ? product.sub_category.sub_category_name
+      : product.sub_category;
+    
+    csvLines.push(`Category - "${(categoryName || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Sub Category -"${(subCategoryName || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Description - "${(product.description || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Manufacturer Name - "${(product.manufacturer_name || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Manufacturer Address - "${(product.manufacturer_address || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Shell Life - ${product.shell_life || ""}`);
+    csvLines.push(`Expiry Alert Threshold - ${product.expiry_alert_threshold || 0} days`);
+    csvLines.push(`Tags Label - ${product.tages_label || ""}`);
+    csvLines.push(`Unit Size - ${product.unit_size || ""}`);
+    csvLines.push(`Base Price - ${product.base_price || 0}`);
+    csvLines.push(`Final Price - ${product.final_price || 0}`);
+    csvLines.push(`Barcode - ${product.barcode || ""}`);
+    csvLines.push(`Nutrition Information - "${(product.nutrition_information || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Ingredients - "${(product.ingredients || "").replace(/"/g, '""')}"`);
+    csvLines.push(`Status - ${product.status || "active"}`);
+    csvLines.push(`Created Date - ${product.createdAt ? new Date(product.createdAt).toISOString().split("T")[0] : ""}`);
+    csvLines.push(`Updated Date - ${product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[0] : ""}`);
+    
+    // Images Section
+    csvLines.push("");
+    csvLines.push("IMAGES");
+    
+    if (Array.isArray(product.product_images) && product.product_images.length > 0) {
+      csvLines.push(`Total Images - ${product.product_images.length}`);
+      product.product_images.forEach((img: any, imgIndex: number) => {
+        const url = img.file_url || img.url || img.image_url || img || "";
+        if (url) {
+          csvLines.push(`Image ${imgIndex + 1} - ${url}`);
+        }
+      });
+    } else if (product.product_images && typeof product.product_images === "object") {
+      const url = product.product_images.file_url || product.product_images.url || "";
+      if (url) {
+        csvLines.push(`Total Images,1 - `);
+        csvLines.push(`Image 1 - ${url}`);
+      }
+    } else if (typeof product.product_images === "string" && product.product_images) {
+      csvLines.push(`Total Images,1 - `);
+      csvLines.push(`Image 1 - ${product.product_images}`);
+    } else {
+      csvLines.push(`Total Images,0`);
+      csvLines.push(`No images available`);
+    }
+    
+    // Separator between products
+    csvLines.push("");
+    csvLines.push("---"); // Separator line
+    csvLines.push("");
+  });
+  
+  // Global Summary
+  csvLines.push(`"GLOBAL SUMMARY"`);
+  csvLines.push("");
+  
+  const totalImages = products.reduce((sum, product) => {
+    if (Array.isArray(product.product_images)) return sum + product.product_images.length;
+    return sum + (product.product_images ? 1 : 0);
+  }, 0);
+  
+  const activeProducts = products.filter(p => p.status === "active").length;
+  const inactiveProducts = products.filter(p => p.status === "inactive").length;
+  
+  csvLines.push(`Total Products - ${products.length}`);
+  csvLines.push(`Active Products - ${activeProducts}`);
+  csvLines.push(`Inactive Products - ${inactiveProducts}`);
+  csvLines.push(`Total Images - {totalImages}`);
+  csvLines.push(`Average Images per Product - ${products.length > 0 ? (totalImages / products.length).toFixed(2) : 0}`);
+  csvLines.push(`Products with Images - ${products.filter(p => {
+    if (Array.isArray(p.product_images)) return p.product_images.length > 0;
+    return !!p.product_images;
+  }).length}`);
+  csvLines.push(`Products without Images - ${products.filter(p => {
+    if (Array.isArray(p.product_images)) return p.product_images.length === 0;
+    return !p.product_images;
+  }).length}`);
+  
+  return csvLines.join("\n");
+}
 
   private convertToCSV(products: any[]): string {
     const headers = [
@@ -718,57 +827,6 @@ export class CatalogueController extends BaseController {
     return [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
   }
 
-  private convertAllCataloguesToCSV(products: any[]): string {
-    const headers = [
-      "SKU ID",
-      "Product Name",
-      "Brand Name",
-      "Category",
-      "Sub Category",
-      "Description",
-      "Manufacturer Name",
-      "Manufacturer Address",
-      "Shell Life",
-      "Expiry Alert Threshold (days)",
-      "Tags Label",
-      "Unit Size",
-      "Base Price",
-      "Final Price",
-      "Barcode",
-      "Nutrition Information",
-      "Ingredients",
-      "Status",
-      "Created Date",
-      "Updated Date",
-    ];
-
-    const rows = products.map(product => {
-      return [
-        product.sku_id || "",
-        `"${(product.product_name || "").replace(/"/g, '""')}"`,
-        `"${(product.brand_name || "").replace(/"/g, '""')}"`,
-        product.category || "",
-        product.sub_category || "",
-        `"${(product.description || "").replace(/"/g, '""')}"`,
-        `"${(product.manufacturer_name || "").replace(/"/g, '""')}"`,
-        `"${(product.manufacturer_address || "").replace(/"/g, '""')}"`,
-        product.shell_life || "",
-        product.expiry_alert_threshold || 0,
-        product.tages_label || "",
-        product.unit_size || "",
-        product.base_price || 0,
-        product.final_price || 0,
-        product.barcode || "",
-        `"${(product.nutrition_information || "").replace(/"/g, '""')}"`,
-        `"${(product.ingredients || "").replace(/"/g, '""')}"`,
-        product.status || "active",
-        product.createdAt ? new Date(product.createdAt).toISOString().split("T")[0] : "",
-        product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[0] : "",
-      ];
-    });
-
-    return [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
-  }
 }
 
 export class CategoryController extends BaseController {
