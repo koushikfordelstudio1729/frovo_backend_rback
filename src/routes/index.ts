@@ -17,6 +17,7 @@ import areaRouteRoutes from "./arearoute.route";
 import catalogueRoute from "./catalogue.routes";
 import historyCatalogueRoutes from "./historyCatalogue.routes";
 import fieldOpsRoutes from "./fieldops.routes";
+import priceOverrideRoutes from "./priceOverride.routes";
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.use("/area-route", areaRouteRoutes);
 router.use("/catalogue", catalogueRoute);
 router.use("/history-catalogue", historyCatalogueRoutes);
 router.use("/field-ops", fieldOpsRoutes);
+router.use("/price-override", priceOverrideRoutes);
 router.use("/", productRoutes);
 
 export default router;

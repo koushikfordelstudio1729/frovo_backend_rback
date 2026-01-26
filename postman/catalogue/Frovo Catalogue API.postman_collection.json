@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "56a24444-650e-4e27-a8af-e63b137a9302",
     "name": "Frovo Catalogue API",
-    "description": "Complete API collection for Frovo Catalogue Management System\n\n**Modules:**\n- Category Management\n- Sub-Category Management\n- SKU Catalogue Management\n- Dashboard & Reporting\n- Image Upload\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
+    "description": "Complete API collection for Frovo Catalogue Management System\n\n**Modules:**\n- Category Management\n- Sub-Category Management\n- SKU Catalogue Management\n- Dashboard & Reporting\n- Image Upload\n- Price Override Management\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1032,6 +1032,360 @@
         }
       ],
       "description": "Dashboard & Reporting APIs"
+    },
+    {
+      "name": "Price Override",
+      "item": [
+        {
+          "name": "Create Price Override",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data._id) {",
+                  "        pm.environment.set('price_override_id', response.data._id);",
+                  "        console.log('Price Override created:', response.data._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sku_id\": \"{{catalogue_id}}\",\n    \"state\": \"Karnataka\",\n    \"district\": \"Bangalore\",\n    \"area_id\": \"{{area_id}}\",\n    \"machine_id\": \"VM001\",\n    \"override_price\": 50,\n    \"start_date\": \"2026-01-01\",\n    \"end_date\": \"2026-12-31\",\n    \"reason\": \"High demand area - premium pricing\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/price-override",
+              "host": ["{{base_url}}"],
+              "path": ["price-override"]
+            },
+            "description": "Create a new price override for a SKU\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Priority Levels:**\n- Machine (5) - Most specific\n- Location (4) - Campus/Tower/Floor\n- Area (3)\n- District (2)\n- State (1) - Least specific\n\n**Note:** Original catalogue price is NOT modified. Override is stored separately."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Price Overrides",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["price-override"],
+              "query": [
+                {
+                  "key": "sku_id",
+                  "value": "{{catalogue_id}}",
+                  "description": "Filter by SKU ID",
+                  "disabled": true
+                },
+                {
+                  "key": "sku_code",
+                  "value": "SKU-001",
+                  "description": "Filter by SKU code",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "Karnataka",
+                  "description": "Filter by state",
+                  "disabled": true
+                },
+                {
+                  "key": "district",
+                  "value": "Bangalore",
+                  "description": "Filter by district",
+                  "disabled": true
+                },
+                {
+                  "key": "area_id",
+                  "value": "{{area_id}}",
+                  "description": "Filter by area ID",
+                  "disabled": true
+                },
+                {
+                  "key": "machine_id",
+                  "value": "VM001",
+                  "description": "Filter by machine ID",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status: active, inactive, expired",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date_from",
+                  "value": "2026-01-01",
+                  "description": "Filter overrides starting from date",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date_to",
+                  "value": "2026-12-31",
+                  "description": "Filter overrides starting until date",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (default: 10)"
+                }
+              ]
+            },
+            "description": "Get all price overrides with pagination and filtering\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Price Override by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/{{price_override_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "{{price_override_id}}"]
+            },
+            "description": "Get a specific price override by ID\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Overrides by SKU",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/sku/{{catalogue_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "sku", "{{catalogue_id}}"]
+            },
+            "description": "Get all price overrides for a specific SKU\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Effective Price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/effective-price/{{catalogue_id}}?machine_id=VM001&state=Karnataka",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "effective-price", "{{catalogue_id}}"],
+              "query": [
+                {
+                  "key": "machine_id",
+                  "value": "VM001",
+                  "description": "Machine ID (highest priority)"
+                },
+                {
+                  "key": "area_id",
+                  "value": "{{area_id}}",
+                  "description": "Area ID",
+                  "disabled": true
+                },
+                {
+                  "key": "district",
+                  "value": "Bangalore",
+                  "description": "District name",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "Karnataka",
+                  "description": "State name"
+                }
+              ]
+            },
+            "description": "Get the effective price for a SKU at a specific location/machine\n\n**Returns:**\n- base_price: Original catalogue price\n- effective_price: Price after override (if any)\n- is_overridden: Whether an override is applied\n- override_details: Override info if applicable\n\n**Priority:** Machine > Location > Area > District > State"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Price Override",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"override_price\": 55,\n    \"end_date\": \"2027-06-30\",\n    \"reason\": \"Updated pricing for extended period\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/price-override/{{price_override_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "{{price_override_id}}"]
+            },
+            "description": "Update a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Updateable fields:**\n- override_price\n- start_date\n- end_date\n- reason\n- status\n- state, district, area_id, location, machine_id"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Price Override Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/price-override/{{price_override_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "{{price_override_id}}", "status"]
+            },
+            "description": "Activate or deactivate a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Payload:** { \"status\": \"active\" } or { \"status\": \"inactive\" }"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Price Override",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/{{price_override_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "{{price_override_id}}"]
+            },
+            "description": "Delete a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Note:** This permanently removes the override. History is preserved."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Price Override History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/history?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "history"],
+              "query": [
+                {
+                  "key": "price_override_id",
+                  "value": "{{price_override_id}}",
+                  "description": "Filter by price override ID",
+                  "disabled": true
+                },
+                {
+                  "key": "sku_id",
+                  "value": "{{catalogue_id}}",
+                  "description": "Filter by SKU ID",
+                  "disabled": true
+                },
+                {
+                  "key": "action",
+                  "value": "CREATE",
+                  "description": "Filter by action: CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, EXPIRE",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "Filter by user who performed action",
+                  "disabled": true
+                },
+                {
+                  "key": "from_date",
+                  "value": "2026-01-01",
+                  "description": "Filter from date",
+                  "disabled": true
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-12-31",
+                  "description": "Filter to date",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (default: 20)"
+                }
+              ]
+            },
+            "description": "Get audit history of all price override changes\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Tracks:**\n- Who made the change\n- What was changed (before/after values)\n- When it was changed\n- IP address and user agent"
+          },
+          "response": []
+        },
+        {
+          "name": "Get History by Override ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/{{price_override_id}}/history?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "{{price_override_id}}", "history"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get audit history for a specific price override\n\n**Required Role:** super_admin, admin, ops_manager"
+          },
+          "response": []
+        },
+        {
+          "name": "Expire Overrides (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/price-override/expire",
+              "host": ["{{base_url}}"],
+              "path": ["price-override", "expire"]
+            },
+            "description": "Manually trigger expiry check for overrides past their end date\n\n**Required Role:** super_admin only\n\n**Note:** This is typically run by a cron job, but can be triggered manually."
+          },
+          "response": []
+        }
+      ],
+      "description": "Price Override Management APIs\n\n**Features:**\n- Override prices at State/District/Area/Location/Machine level\n- Time-bound overrides with start and end dates\n- Priority system (most specific wins)\n- Full audit history\n- Original catalogue price is never modified\n\n**Access Roles:** super_admin, admin, ops_manager"
     }
   ],
   "auth": {
