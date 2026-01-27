@@ -113,7 +113,7 @@ const AreaRouteSchema: Schema = new Schema(
 
 export interface IHistoryArea extends Document {
   area_id: Types.ObjectId;
-  action: "CREATE" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "ADD_SUB_LOCATION";
+  action: "CREATE" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "ADD_SUB_LOCATION" | "REMOVE_MACHINE";
   old_data?: Partial<ICreateArea>;
   new_data?: Partial<ICreateArea>;
   changes?: Record<string, { old: any; new: any }>;
@@ -136,7 +136,7 @@ const HistoryAreaSchema: Schema = new Schema(
     },
     action: {
       type: String,
-      enum: ["CREATE", "UPDATE", "DELETE", "STATUS_CHANGE", "ADD_SUB_LOCATION"],
+      enum: ["CREATE", "UPDATE", "DELETE", "STATUS_CHANGE", "ADD_SUB_LOCATION", "REMOVE_MACHINE"],
       required: true,
     },
     old_data: {

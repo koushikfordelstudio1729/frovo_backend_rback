@@ -16,7 +16,11 @@ router.get(
   authorize(SUPER_ADMIN_ONLY),
   AreaController.exportAreaAuditLogs
 );
-
+router.delete(
+  "/area/:id/machine/:machineName",
+  authorize(MANAGEMENT),
+  AreaController.removeMachineFromArea
+);
 router.get(
   "/area/audit/recent-activities",
   authorize(SUPER_ADMIN_ONLY),

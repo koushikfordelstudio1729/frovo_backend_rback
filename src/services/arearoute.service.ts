@@ -7,6 +7,7 @@ import {
 } from "../models/AreaRoute.model";
 
 import { logger } from "../utils/logger.util";
+
 export interface DashboardFilterParams {
   status?: "active" | "inactive" | "all";
   address?: string;
@@ -940,5 +941,76 @@ export class AreaService {
       logger.error("Error fetching recent activities:", error);
       throw error;
     }
+  }
+  static async removeMachineFromArea(
+    areaId: string,
+    machineName: string,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
+    this.validateObjectId(areaId);
+
+    if (!machineName || machineName.trim() === "") {
+      throw new Error("Machine name is required");
+    }
+
+    const existingArea = await AreaRouteModel.findById(areaId);
+    if (!existingArea) {
+      return null;
+    }
+
+    // Check if the machine exists in any sub-location
+    const machineExists = existingArea.sub_locations?.some(subloc =>
+      subloc.select_machine.includes(machineName)
+    );
+
+    if (!machineExists) {
+      throw new Error(`Machine "${machineName}" not found in any sub-location of this area`);
+    }
+
+    // Remove the machine from all sub-locations
+    const oldSubLocations = JSON.parse(JSON.stringify(existingArea.sub_locations || []));
+
+    const updatedSubLocations = existingArea.sub_locations?.map(subloc => ({
+      ...(subloc as any).toObject ? (subloc as any).toObject() : subloc,
+      select_machine: subloc.select_machine.filter(machine => machine !== machineName)
+    })).filter(subloc => subloc.select_machine.length > 0); // Remove empty sub-locations
+
+    if (updatedSubLocations.length === 0) {
+      throw new Error("Cannot remove all machines. Area must have at least one machine in sub-locations");
+    }
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      areaId,
+      {
+        $set: {
+          sub_locations: updatedSubLocations
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (updatedArea) {
+      const changes = {
+        sub_locations: {
+          old: oldSubLocations,
+          new: updatedArea.sub_locations
+        },
+        removed_machine: {
+          old: machineName,
+          new: null
+        }
+      };
+
+      await this.createAuditLog(
+        areaId,
+        "REMOVE_MACHINE",
+        { sub_locations: oldSubLocations },
+        { sub_locations: updatedArea.sub_locations },
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedArea;
   }
 }

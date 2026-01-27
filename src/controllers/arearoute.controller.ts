@@ -1017,4 +1017,57 @@ export class AreaController {
       return "Error generating CSV data";
     }
   }
+ static async removeMachineFromArea(req: Request, res: Response): Promise<void> {
+  try {
+    const { id, machineName } = req.params;
+
+    if (!machineName || machineName.trim() === "") {
+      res.status(400).json({
+        success: false,
+        message: "Machine name is required in route parameter",
+      });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid area ID",
+      });
+      return;
+    }
+
+    const auditParams = AreaController.getAuditParams(req);
+    const updatedArea = await AreaService.removeMachineFromArea(id, machineName, auditParams);
+
+    if (!updatedArea) {
+      res.status(404).json({
+        success: false,
+        message: "Area not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Machine "${machineName}" removed successfully from area`,
+      data: updatedArea,
+    });
+  } catch (error) {
+    logger.error("Error removing machine from area:", error);
+
+    const statusCode = error.message.includes("not found")
+      ? 404
+      : error.message.includes("Cannot remove all machines")
+      ? 400
+      : error.message.includes("Invalid MongoDB ObjectId")
+      ? 400
+      : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+}
 }
