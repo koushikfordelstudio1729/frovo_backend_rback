@@ -34,12 +34,13 @@ const SubLocationSchema: Schema = new Schema(
     },
     select_machine: {
       type: [String],
-      required: true,
+      default: [], // Change from required to default empty array
       validate: {
         validator: function (v: string[]) {
-          return v.length > 0;
+          // Allow empty arrays - we'll validate at the area level
+          return Array.isArray(v);
         },
-        message: "At least one machine must be selected",
+        message: "select_machine must be an array",
       },
     },
   },
@@ -97,14 +98,24 @@ const AreaRouteSchema: Schema = new Schema(
     address: {
       type: String,
     },
-    sub_locations: {
+   sub_locations: {
       type: [SubLocationSchema],
       required: true,
       validate: {
         validator: function (v: any[]) {
-          return v.length > 0;
+          // Check if we have at least one sub-location
+          if (v.length === 0) {
+            return false;
+          }
+          
+          // Check if at least one sub-location has machines
+          const hasMachines = v.some(subloc => 
+            subloc.select_machine && subloc.select_machine.length > 0
+          );
+          
+          return hasMachines;
         },
-        message: "At least one sub-location must be provided",
+        message: "Area must have at least one sub-location with machines",
       },
     },
   },

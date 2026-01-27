@@ -967,16 +967,25 @@ export class AreaService {
       throw new Error(`Machine "${machineName}" not found in any sub-location of this area`);
     }
 
-    // Remove the machine from all sub-locations
+    // Create a deep copy of old sub-locations
     const oldSubLocations = JSON.parse(JSON.stringify(existingArea.sub_locations || []));
 
-    const updatedSubLocations = existingArea.sub_locations?.map(subloc => ({
-      ...(subloc as any).toObject ? (subloc as any).toObject() : subloc,
-      select_machine: subloc.select_machine.filter(machine => machine !== machineName)
-    })).filter(subloc => subloc.select_machine.length > 0); // Remove empty sub-locations
+    // Remove the machine from all sub-locations but keep empty sub-locations
+    const updatedSubLocations = existingArea.sub_locations?.map(subloc => {
+      const sublocObj = (subloc as any).toObject ? (subloc as any).toObject() : subloc;
+      return {
+        ...sublocObj,
+        select_machine: subloc.select_machine.filter(machine => machine !== machineName)
+      };
+    });
 
-    if (updatedSubLocations.length === 0) {
-      throw new Error("Cannot remove all machines. Area must have at least one machine in sub-locations");
+    // Check if at least one sub-location still has machines
+    const hasMachinesRemaining = updatedSubLocations?.some(subloc =>
+      subloc.select_machine.length > 0
+    );
+
+    if (!hasMachinesRemaining) {
+      throw new Error("Cannot remove the last machine from all sub-locations. At least one machine must remain in the area");
     }
 
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
@@ -990,15 +999,31 @@ export class AreaService {
     );
 
     if (updatedArea) {
-      const changes = {
-        sub_locations: {
-          old: oldSubLocations,
-          new: updatedArea.sub_locations
-        },
-        removed_machine: {
-          old: machineName,
-          new: null
+      // Find which sub-locations were affected
+      const affectedSubLocations = updatedSubLocations?.map((subloc, index) => {
+        const oldMachineCount = oldSubLocations[index]?.select_machine?.length || 0;
+        const newMachineCount = subloc.select_machine.length;
+
+        if (oldMachineCount !== newMachineCount) {
+          return {
+            campus: subloc.campus,
+            tower: subloc.tower,
+            floor: subloc.floor,
+            removed: true
+          };
         }
+        return null;
+      }).filter(Boolean);
+
+      const oldMachineCount = oldSubLocations.reduce((sum, subloc) =>
+        sum + (subloc.select_machine?.length || 0), 0);
+      const newMachineCount = updatedArea.sub_locations?.reduce((sum, subloc) =>
+        sum + (subloc.select_machine?.length || 0), 0) || 0;
+
+      const changes = {
+        removed_machine: { old: machineName, new: null },
+        affected_sub_locations: { old: [], new: affectedSubLocations },
+        machine_count: { old: oldMachineCount, new: newMachineCount }
       };
 
       await this.createAuditLog(
