@@ -2,7 +2,7 @@ import express from "express";
 import { AreaController } from "../controllers/arearoute.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
-
+import { uploadAreaFiles } from "../middleware/upload.middleware";
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const MANAGEMENT = ["super_admin", "ops_manager", ""];
 
@@ -32,7 +32,7 @@ router.get(
   AreaController.exportRecentAuditActivities
 );
 
-router.post("/area", authorize(MANAGEMENT), AreaController.createAreaRoute);
+router.post("/area",uploadAreaFiles, authorize(MANAGEMENT), AreaController.createAreaRoute);
 
 router.get("/area", authorize(MANAGEMENT), AreaController.getAllAreaRoutes);
 

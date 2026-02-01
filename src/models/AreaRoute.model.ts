@@ -14,9 +14,53 @@ export interface ICreateArea extends Document {
     campus: string;
     tower: string;
     floor: string;
-    select_machine: string[];
+    select_machine: {
+      machine_id: string;
+      status: "installed" | "not_installed";
+      machine_image: IMachineImageData[];
+    };
   }[];
 }
+
+export interface IMachineImageData {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+
+const machineImageSchema = new Schema<IMachineImageData>(
+  {
+    image_name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    file_url: {
+      type: String,
+      required: true,
+    },
+    cloudinary_public_id: {
+      type: String,
+      required: true,
+    },
+    file_size: {
+      type: Number,
+      required: true,
+    },
+    mime_type: {
+      type: String,
+      required: true,
+    },
+    uploaded_at: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false } // Changed from true to false since these are embedded
+);
 
 const SubLocationSchema: Schema = new Schema(
   {
@@ -33,45 +77,65 @@ const SubLocationSchema: Schema = new Schema(
       required: true,
     },
     select_machine: {
-      type: [String],
-      default: [], // Change from required to default empty array
-      validate: {
-        validator: function (v: string[]) {
-          // Allow empty arrays - we'll validate at the area level
-          return Array.isArray(v);
+      type: {
+        machine_id: {
+          type: String,
+          required: true,
         },
-        message: "select_machine must be an array",
+        status: {
+          type: String,
+          enum: ["installed", "not_installed"],
+          required: true,
+        },
+        machine_image: {
+          type: [machineImageSchema],
+          default: [],
+        },
       },
+      required: false, // Made optional if some sub-locations don't have machines
     },
   },
   { _id: false }
 );
+
 const AreaRouteSchema: Schema = new Schema(
   {
     area_name: {
       type: String,
       required: true,
+      trim: true,
     },
     state: {
       type: String,
       required: true,
+      trim: true,
     },
     district: {
       type: String,
       required: true,
+      trim: true,
     },
     pincode: {
       type: String,
       required: true,
+      trim: true,
+      validate: {
+        validator: function (v: string) {
+          return /^\d{6}$/.test(v); // Validates 6-digit pincode
+        },
+        message: "Pincode must be 6 digits",
+      },
     },
     area_description: {
       type: String,
       required: true,
+      trim: true,
     },
     status: {
       type: String,
       enum: ["active", "inactive"],
       required: true,
+      default: "active",
     },
     latitude: {
       type: Number,
@@ -97,8 +161,9 @@ const AreaRouteSchema: Schema = new Schema(
     },
     address: {
       type: String,
+      trim: true,
     },
-   sub_locations: {
+    sub_locations: {
       type: [SubLocationSchema],
       required: true,
       validate: {
@@ -108,19 +173,27 @@ const AreaRouteSchema: Schema = new Schema(
             return false;
           }
           
-          // Check if at least one sub-location has machines
+          // Check if at least one sub-location has select_machine
           const hasMachines = v.some(subloc => 
-            subloc.select_machine && subloc.select_machine.length > 0
+            subloc && subloc.select_machine && subloc.select_machine.machine_id
           );
           
           return hasMachines;
         },
-        message: "Area must have at least one sub-location with machines",
+        message: "Area must have at least one sub-location with a machine",
       },
     },
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    collection: "areaRoutes" // Added explicit collection name
+  }
 );
+
+// Add indexes for better query performance
+AreaRouteSchema.index({ area_name: 1, state: 1, district: 1 }, { unique: false });
+AreaRouteSchema.index({ status: 1 });
+AreaRouteSchema.index({ pincode: 1 });
 
 export interface IHistoryArea extends Document {
   area_id: Types.ObjectId;
@@ -163,12 +236,21 @@ const HistoryAreaSchema: Schema = new Schema(
       default: null,
     },
     performed_by: {
-      user_id: { type: String, required: true },
-      email: { type: String, required: true },
-      name: { type: String },
+      type: {
+        user_id: { type: String, required: true },
+        email: { type: String, required: true },
+        name: { type: String },
+      },
+      required: true,
     },
-    ip_address: { type: String },
-    user_agent: { type: String },
+    ip_address: { 
+      type: String,
+      trim: true,
+    },
+    user_agent: { 
+      type: String,
+      trim: true,
+    },
     timestamp: {
       type: Date,
       default: Date.now,

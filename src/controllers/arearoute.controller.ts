@@ -8,8 +8,11 @@ import {
   DashboardFilterParams,
   AuditLogParams,
 } from "../services/arearoute.service";
+import { ImageUploadService } from "../services/areaFileUpload.service";
+import { IMachineImageData } from "../models/AreaRoute.model";
 
 import { logger } from "../utils/logger.util";
+
 export class AreaController {
   private static getAuditParams(req: Request): AuditLogParams {
     const user = (req as any).user || {};
@@ -22,6 +25,7 @@ export class AreaController {
     };
   }
 
+  // AUDIT LOG METHODS
   static async getAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -384,53 +388,221 @@ export class AreaController {
     }
   }
 
-  static async createAreaRoute(req: Request, res: Response): Promise<void> {
+static async createAreaRoute(req: Request, res: Response): Promise<void> {
+  try {
+    let areaData: CreateAreaDto;
+    const files = req.files as Express.Multer.File[] | undefined;
+
+    // Log raw body for debugging
+    logger.info("Raw request body:", JSON.stringify(req.body, null, 2));
+
+    // Parse request data
     try {
-      const areaData: CreateAreaDto = req.body;
-
-      const requiredFields = [
-        "area_name",
-        "state",
-        "district",
-        "pincode",
-        "area_description",
-        "status",
-        "sub_locations",
-      ];
-      const missingFields = requiredFields.filter(field => !areaData[field as keyof CreateAreaDto]);
-
-      if (missingFields.length > 0) {
-        res.status(400).json({
-          success: false,
-          message: `Missing required fields: ${missingFields.join(", ")}`,
-        });
-        return;
+      // OPTION 1: Form-data with JSON in 'data' field
+      if (req.body.data) {
+        areaData = JSON.parse(req.body.data);
       }
+      // OPTION 2: sub_locations as JSON string
+      else if (req.body.sub_locations && typeof req.body.sub_locations === 'string') {
+        // Try to parse sub_locations
+        let parsedSubLocations;
+        try {
+          parsedSubLocations = JSON.parse(req.body.sub_locations);
+        } catch (parseError) {
+          logger.error("Failed to parse sub_locations JSON:", parseError);
+          res.status(400).json({
+            success: false,
+            message: "Invalid JSON format for sub_locations",
+            details: parseError.message,
+            received: req.body.sub_locations
+          });
+          return;
+        }
 
-      const auditParams = AreaController.getAuditParams(req);
-      const newArea = await AreaService.createArea(areaData, auditParams);
-
-      res.status(201).json({
-        success: true,
-        message: "Area route created successfully",
-        data: newArea,
-      });
-    } catch (error) {
-      logger.error("Error creating area route:", error);
-
-      const statusCode = error.message.includes("already exists")
-        ? 409
-        : error.message.includes("Validation")
-          ? 400
-          : 500;
-
-      res.status(statusCode).json({
+        areaData = {
+          area_name: req.body.area_name,
+          state: req.body.state,
+          district: req.body.district,
+          pincode: req.body.pincode,
+          area_description: req.body.area_description,
+          status: req.body.status || 'active',
+          sub_locations: parsedSubLocations,
+          latitude: req.body.latitude ? parseFloat(req.body.latitude) : undefined,
+          longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
+          address: req.body.address,
+        };
+      }
+      // OPTION 3: Flat form-data keys
+      else if (req.body.area_name) {
+        areaData = AreaController.parseFlatFormData(req.body);
+      }
+      // OPTION 4: JSON request body
+      else {
+        areaData = req.body;
+      }
+    } catch (parseError) {
+      logger.error("Error parsing request data:", parseError);
+      res.status(400).json({
         success: false,
-        message: error.message || "Internal server error",
+        message: "Failed to parse request data",
+        details: parseError.message,
       });
+      return;
     }
-  }
 
+    // Log parsed data
+    logger.info("Parsed area data:", JSON.stringify(areaData, null, 2));
+
+    // Validate required fields
+    const requiredFields = [
+      "area_name",
+      "state",
+      "district",
+      "pincode",
+      "area_description",
+      "status",
+      "sub_locations",
+    ];
+
+    const missingFields = requiredFields.filter(field => {
+      const value = areaData[field as keyof CreateAreaDto];
+      if (field === 'sub_locations') {
+        return !value || !Array.isArray(value) || value.length === 0;
+      }
+      return !value;
+    });
+
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(", ")}`,
+        details: {
+          received: Object.keys(areaData),
+          missing: missingFields,
+        },
+      });
+      return;
+    }
+
+    // Validate sub_locations structure
+    if (!Array.isArray(areaData.sub_locations) || areaData.sub_locations.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "sub_locations must be a non-empty array",
+        received: areaData.sub_locations,
+      });
+      return;
+    }
+
+    // Process file uploads if any
+    if (files && files.length > 0) {
+      const uploadService = new ImageUploadService();
+      const processedFiles = await uploadService.uploadMultipleFiles(
+        files,
+        "areaMachine_images",
+        "areaMachine"
+      );
+
+      // Attach files to the first sub-location's machine
+      if (areaData.sub_locations[0]) {
+        if (!areaData.sub_locations[0].select_machine) {
+          areaData.sub_locations[0].select_machine = {
+            machine_id: '',
+            status: 'not_installed',
+            machine_image: []
+          };
+        }
+
+        if (!areaData.sub_locations[0].select_machine.machine_image) {
+          areaData.sub_locations[0].select_machine.machine_image = [];
+        }
+
+        areaData.sub_locations[0].select_machine.machine_image.push(...processedFiles);
+      }
+    }
+
+    const auditParams = AreaController.getAuditParams(req);
+    const newArea = await AreaService.createArea(areaData, auditParams);
+
+    res.status(201).json({
+      success: true,
+      message: "Area route created successfully",
+      data: newArea,
+    });
+  } catch (error) {
+    logger.error("Error creating area route:", error);
+
+    const statusCode = error.message.includes("already exists")
+      ? 409
+      : error.message.includes("Validation")
+        ? 400
+        : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
+  }
+}
+private static parseFlatFormData(body: any): CreateAreaDto {
+  try {
+    // Check if sub_locations is already provided as JSON string
+    let sub_locations = [];
+    
+    if (body.sub_locations) {
+      // Case 1: sub_locations provided as JSON string or array
+      if (typeof body.sub_locations === 'string') {
+        sub_locations = JSON.parse(body.sub_locations);
+      } else if (Array.isArray(body.sub_locations)) {
+        sub_locations = body.sub_locations;
+      }
+    } else if (body['sub_locations.campus']) {
+      // Case 2: Flat form-data keys (build from individual fields)
+      const subLocation: any = {
+        campus: body['sub_locations.campus'],
+        tower: body['sub_locations.tower'],
+        floor: body['sub_locations.floor'],
+        select_machine: {
+          machine_id: body['sub_locations.select_machines.machine_id'],
+          status: body['sub_locations.select_machines.status'] || 'not_installed',
+        }
+      };
+
+      // Only add if all required fields are present
+      if (subLocation.campus && subLocation.tower && subLocation.floor && subLocation.select_machine.machine_id) {
+        sub_locations = [subLocation];
+      }
+    }
+
+    // Build the CreateAreaDto object
+    const areaData: CreateAreaDto = {
+      area_name: body.area_name,
+      state: body.state,
+      district: body.district,
+      pincode: body.pincode,
+      area_description: body.area_description,
+      status: body.status || 'active',
+      sub_locations: sub_locations,
+    };
+
+    // Add optional fields if they exist
+    if (body.latitude) {
+      areaData.latitude = parseFloat(body.latitude);
+    }
+    if (body.longitude) {
+      areaData.longitude = parseFloat(body.longitude);
+    }
+    if (body.address) {
+      areaData.address = body.address;
+    }
+
+    return areaData;
+  } catch (error) {
+    logger.error("Error parsing flat form data:", error);
+    throw new Error("Failed to parse form data. Ensure sub_locations is valid JSON or individual fields are correctly named.");
+  }
+}
   static async getAllAreaRoutes(req: Request, res: Response): Promise<void> {
     try {
       const queryParams: AreaQueryParams = {
@@ -490,10 +662,46 @@ export class AreaController {
     }
   }
 
+  // UPDATE AREA WITH FILE UPLOAD SUPPORT
   static async updateAreaRoute(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const updateData: UpdateAreaDto = req.body;
+
+      let updateData: UpdateAreaDto;
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      if (req.body.data) {
+        // Form-data with files
+        updateData = JSON.parse(req.body.data);
+      } else {
+        // JSON request without files
+        updateData = req.body;
+      }
+
+      // Process file uploads if any
+      if (files && files.length > 0) {
+        const uploadService = new ImageUploadService();
+        const processedFiles = await uploadService.uploadMultipleFiles(
+          files,
+          "areaMachine_images",
+          "areaMachine"
+        );
+
+        // Attach file data to appropriate sub-locations
+        await AreaController.attachFilesToSubLocations(
+          updateData,
+          processedFiles,
+          req.body.fileMap
+        );
+      }
+
+      // Handle image deletions
+      if (req.body.deletedImages) {
+        const deletedImages = JSON.parse(req.body.deletedImages);
+        if (Array.isArray(deletedImages) && deletedImages.length > 0) {
+          await AreaController.deleteMachineImages(deletedImages);
+        }
+      }
 
       const auditParams = AreaController.getAuditParams(req);
       const updatedAreaRoute = await AreaService.updateArea(id, updateData, auditParams);
@@ -527,10 +735,21 @@ export class AreaController {
     }
   }
 
+  // ADD SUB-LOCATION WITH FILE UPLOAD SUPPORT
   static async addSubLocation(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { sub_location } = req.body;
+
+      let sub_location: any;
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      if (req.body.sub_location) {
+        if (typeof req.body.sub_location === 'string') {
+          sub_location = JSON.parse(req.body.sub_location);
+        } else {
+          sub_location = req.body.sub_location;
+        }
+      }
 
       if (!sub_location || !sub_location.campus || !sub_location.tower || !sub_location.floor) {
         res.status(400).json({
@@ -540,12 +759,30 @@ export class AreaController {
         return;
       }
 
-      if (!Array.isArray(sub_location.select_machine) || sub_location.select_machine.length === 0) {
+      if (!sub_location.select_machine || !sub_location.select_machine.machine_id) {
         res.status(400).json({
           success: false,
-          message: "At least one machine must be selected",
+          message: "Machine details are required",
         });
         return;
+      }
+
+      // Process file uploads if any
+      if (files && files.length > 0) {
+        const uploadService = new ImageUploadService();
+        const processedFiles = await uploadService.uploadMultipleFiles(
+          files,
+          "areaMachine_images",
+          "areaMachine"
+        );
+
+        // Initialize machine_image array if not exists
+        if (!sub_location.select_machine.machine_image) {
+          sub_location.select_machine.machine_image = [];
+        }
+
+        // Add uploaded files to machine images
+        sub_location.select_machine.machine_image.push(...processedFiles);
       }
 
       const auditParams = AreaController.getAuditParams(req);
@@ -576,6 +813,105 @@ export class AreaController {
             : 500;
 
       res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // UPLOAD MACHINE IMAGES TO EXISTING SUB-LOCATION
+  static async uploadMachineImages(req: Request, res: Response): Promise<void> {
+    try {
+      const { areaId, subLocationIndex, machineIndex } = req.params;
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "No files uploaded",
+        });
+        return;
+      }
+
+      const uploadService = new ImageUploadService();
+      const processedFiles = await uploadService.uploadMultipleFiles(
+        files,
+        "areaMachine_images",
+        "areaMachine"
+      );
+
+      const auditParams = AreaController.getAuditParams(req);
+      const updatedArea = await AreaService.addMachineImages(
+        areaId,
+        parseInt(subLocationIndex),
+        parseInt(machineIndex),
+        processedFiles,
+        auditParams
+      );
+
+      if (!updatedArea) {
+        res.status(404).json({
+          success: false,
+          message: "Area or sub-location not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Machine images uploaded successfully",
+        data: {
+          images: processedFiles,
+          updatedArea,
+        },
+      });
+    } catch (error) {
+      logger.error("Error uploading machine images:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // REMOVE MACHINE IMAGE
+  static async removeMachineImage(req: Request, res: Response): Promise<void> {
+    try {
+      const { areaId, subLocationIndex, machineIndex, imageIndex } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(areaId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid area ID",
+        });
+        return;
+      }
+
+      const auditParams = AreaController.getAuditParams(req);
+      const updatedArea = await AreaService.removeMachineImage(
+        areaId,
+        parseInt(subLocationIndex),
+        parseInt(machineIndex),
+        parseInt(imageIndex),
+        auditParams
+      );
+
+      if (!updatedArea) {
+        res.status(404).json({
+          success: false,
+          message: "Area, machine, or image not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Machine image removed successfully",
+        data: updatedArea,
+      });
+    } catch (error) {
+      logger.error("Error removing machine image:", error);
+      res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
       });
@@ -889,6 +1225,107 @@ export class AreaController {
     }
   }
 
+  static async removeMachineFromArea(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, machineId } = req.params;
+
+      if (!machineId || machineId.trim() === "") {
+        res.status(400).json({
+          success: false,
+          message: "Machine ID is required in route parameter",
+        });
+        return;
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid area ID",
+        });
+        return;
+      }
+
+      const auditParams = AreaController.getAuditParams(req);
+      const updatedArea = await AreaService.removeMachineFromArea(id, machineId, auditParams);
+
+      if (!updatedArea) {
+        res.status(404).json({
+          success: false,
+          message: "Area not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Machine "${machineId}" removed successfully from area`,
+        data: updatedArea,
+      });
+    } catch (error) {
+      logger.error("Error removing machine from area:", error);
+
+      const statusCode = error.message.includes("not found")
+        ? 404
+        : error.message.includes("Cannot remove all machines")
+          ? 400
+          : error.message.includes("Invalid MongoDB ObjectId")
+            ? 400
+            : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // HELPER METHODS
+  private static async attachFilesToSubLocations(
+    areaData: any,
+    processedFiles: IMachineImageData[],
+    fileMap?: string
+  ): Promise<void> {
+    if (!processedFiles.length || !fileMap) return;
+
+    try {
+      const fileMapping = JSON.parse(fileMap);
+
+      processedFiles.forEach((file, index) => {
+        const mapping = fileMapping[index];
+        if (mapping && areaData.sub_locations && areaData.sub_locations[mapping.subLocationIndex]) {
+          const subLocation = areaData.sub_locations[mapping.subLocationIndex];
+
+          // Ensure select_machine exists
+          if (!subLocation.select_machine) {
+            subLocation.select_machine = {};
+          }
+
+          // Ensure machine_image array exists
+          if (!subLocation.select_machine.machine_image) {
+            subLocation.select_machine.machine_image = [];
+          }
+
+          // Add the file to machine images
+          subLocation.select_machine.machine_image.push(file);
+        }
+      });
+    } catch (error) {
+      logger.error("Error attaching files to sub-locations:", error);
+      throw new Error("Failed to process file attachments");
+    }
+  }
+
+  private static async deleteMachineImages(publicIds: string[]): Promise<void> {
+    try {
+      const uploadService = new ImageUploadService();
+      await uploadService.deleteMultipleFiles(publicIds);
+    } catch (error) {
+      logger.error("Error deleting machine images:", error);
+      throw new Error("Failed to delete machine images");
+    }
+  }
+
+  
   private static convertToCSV(data: any[]): string {
     if (data.length === 0) return "";
 
@@ -980,11 +1417,10 @@ export class AreaController {
 
         const subLocationsCount = areaDoc.sub_locations?.length || 0;
 
-        const totalMachines =
-          areaDoc.sub_locations?.reduce(
-            (sum: number, subLoc: any) => sum + (subLoc.select_machine?.length || 0),
-            0
-          ) || 0;
+        // Calculate total machines based on new structure
+        const totalMachines = areaDoc.sub_locations?.filter(
+          (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
+        ).length || 0;
 
         const uniqueCampuses = [
           ...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || []),
@@ -1017,57 +1453,4 @@ export class AreaController {
       return "Error generating CSV data";
     }
   }
- static async removeMachineFromArea(req: Request, res: Response): Promise<void> {
-  try {
-    const { id, machineName } = req.params;
-
-    if (!machineName || machineName.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Machine name is required in route parameter",
-      });
-      return;
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid area ID",
-      });
-      return;
-    }
-
-    const auditParams = AreaController.getAuditParams(req);
-    const updatedArea = await AreaService.removeMachineFromArea(id, machineName, auditParams);
-
-    if (!updatedArea) {
-      res.status(404).json({
-        success: false,
-        message: "Area not found",
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `Machine "${machineName}" removed successfully from area`,
-      data: updatedArea,
-    });
-  } catch (error) {
-    logger.error("Error removing machine from area:", error);
-
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("Cannot remove all machines")
-      ? 400
-      : error.message.includes("Invalid MongoDB ObjectId")
-      ? 400
-      : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || "Internal server error",
-    });
-  }
-}
 }

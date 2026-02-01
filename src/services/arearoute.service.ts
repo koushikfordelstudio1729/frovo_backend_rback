@@ -4,9 +4,11 @@ import {
   ICreateArea,
   HistoryAreaModel,
   IHistoryArea,
+  IMachineImageData,
 } from "../models/AreaRoute.model";
 
 import { logger } from "../utils/logger.util";
+import { ImageUploadService } from "./areaFileUpload.service";
 
 export interface DashboardFilterParams {
   status?: "active" | "inactive" | "all";
@@ -63,7 +65,11 @@ export interface CreateAreaDto {
     campus: string;
     tower: string;
     floor: string;
-    select_machine: string[];
+    select_machine: {
+      machine_id: string;
+      status: "installed" | "not_installed";
+      machine_image?: IMachineImageData[];
+    };
   }[];
 }
 
@@ -81,7 +87,11 @@ export interface UpdateAreaDto {
     campus?: string;
     tower?: string;
     floor?: string;
-    select_machine?: string[];
+    select_machine?: {
+      machine_id?: string;
+      status?: "installed" | "not_installed";
+      machine_image?: IMachineImageData[];
+    };
   }[];
 }
 
@@ -220,39 +230,39 @@ export class AreaService {
       .populate("area_id", "area_name state district");
   }
 
+  // CREATE AREA WITH NEW STRUCTURE
   static async createArea(
     areaData: CreateAreaDto,
     auditParams?: AuditLogParams
   ): Promise<ICreateArea> {
     try {
-      const existingAreas = await AreaRouteModel.find({
+      // Check for duplicate area names
+      const existingArea = await AreaRouteModel.findOne({
         area_name: areaData.area_name,
       });
 
-      if (Array.isArray(areaData.sub_locations)) {
-        for (const newSubLoc of areaData.sub_locations) {
-          for (const existingArea of existingAreas) {
-            const existingSubLocs = existingArea.sub_locations || [];
-            const duplicateExists = existingSubLocs.some(
-              (existingLoc: any) =>
-                existingLoc.campus === newSubLoc.campus &&
-                existingLoc.tower === newSubLoc.tower &&
-                existingLoc.floor === newSubLoc.floor
-            );
-
-            if (duplicateExists) {
-              throw new Error(
-                `Sub-location with campus "${newSubLoc.campus}", tower "${newSubLoc.tower}", floor "${newSubLoc.floor}" already exists for area "${areaData.area_name}"`
-              );
-            }
-          }
-        }
+      if (existingArea) {
+        throw new Error(`Area with name "${areaData.area_name}" already exists`);
       }
 
+      // Validate sub-locations with new structure
       this.validateSubLocation(areaData.sub_locations);
 
+      // Check for duplicate sub-locations within the same area
+      this.checkDuplicateSubLocations(areaData.sub_locations);
+
+      // Validate coordinates if provided
       if (areaData.latitude !== undefined || areaData.longitude !== undefined) {
         this.validateCoordinates(areaData.latitude, areaData.longitude);
+      }
+
+      // Validate machine images if any
+      if (areaData.sub_locations) {
+        for (const subLoc of areaData.sub_locations) {
+          if (subLoc.select_machine?.machine_image) {
+            await this.validateAndProcessMachineImages(subLoc.select_machine.machine_image);
+          }
+        }
       }
 
       const newArea = new AreaRouteModel(areaData);
@@ -320,6 +330,7 @@ export class AreaService {
     };
   }
 
+  // UPDATE AREA WITH NEW STRUCTURE
   static async updateArea(
     id: string,
     updateData: UpdateAreaDto,
@@ -332,7 +343,8 @@ export class AreaService {
       throw new Error("Area not found");
     }
 
-    if (updateData.area_name) {
+    // Check for duplicate area name if changing
+    if (updateData.area_name && updateData.area_name !== existingArea.area_name) {
       const duplicateArea = await AreaRouteModel.findOne({
         area_name: updateData.area_name,
         _id: { $ne: id },
@@ -343,10 +355,22 @@ export class AreaService {
       }
     }
 
+    // Validate sub-locations if provided
     if (updateData.sub_locations) {
       this.validateSubLocation(updateData.sub_locations as any);
+
+      // Check for duplicates
+      this.checkDuplicateSubLocations(updateData.sub_locations as any);
+
+      // Validate machine images
+      for (const subLoc of (updateData.sub_locations as any)) {
+        if (subLoc.select_machine?.machine_image) {
+          await this.validateAndProcessMachineImages(subLoc.select_machine.machine_image);
+        }
+      }
     }
 
+    // Validate coordinates if provided
     if (updateData.latitude !== undefined || updateData.longitude !== undefined) {
       this.validateCoordinates(updateData.latitude, updateData.longitude);
     }
@@ -377,6 +401,9 @@ export class AreaService {
     if (!existingArea) {
       return null;
     }
+
+    // Delete machine images from cloud storage before deleting area
+    await this.deleteAllMachineImagesFromArea(existingArea);
 
     const deletedArea = await AreaRouteModel.findByIdAndDelete(id);
 
@@ -473,31 +500,37 @@ export class AreaService {
     }
   }
 
-  private static validateSubLocation(subLocation: any): void {
-    if (Array.isArray(subLocation)) {
-      if (subLocation.length === 0) {
-        throw new Error("At least one sub-location must be provided");
+  // UPDATED VALIDATE SUB-LOCATION METHOD
+  private static validateSubLocation(subLocations: any): void {
+    if (!Array.isArray(subLocations) || subLocations.length === 0) {
+      throw new Error("At least one sub-location must be provided");
+    }
+
+    for (const subLoc of subLocations) {
+      // Validate required fields
+      if (!subLoc.campus || !subLoc.tower || !subLoc.floor) {
+        throw new Error("Campus, tower, and floor are required in each sub-location");
       }
 
-      for (const loc of subLocation) {
-        if (!loc.campus || !loc.tower || !loc.floor) {
-          throw new Error("Campus, tower, and floor are required in each sub-location");
-        }
-
-        if (!Array.isArray(loc.select_machine) || loc.select_machine.length === 0) {
-          throw new Error("At least one machine must be selected in each sub-location");
-        }
-      }
-    } else if (typeof subLocation === "object" && subLocation !== null) {
-      if (!subLocation.campus || !subLocation.tower || !subLocation.floor) {
-        throw new Error("Campus, tower, and floor are required in sub-location");
+      // Validate select_machine structure
+      if (!subLoc.select_machine) {
+        throw new Error("Machine details are required in each sub-location");
       }
 
-      if (!Array.isArray(subLocation.select_machine) || subLocation.select_machine.length === 0) {
-        throw new Error("At least one machine must be selected in sub-location");
+      // Validate machine_id
+      if (!subLoc.select_machine.machine_id || typeof subLoc.select_machine.machine_id !== 'string') {
+        throw new Error("Valid machine_id is required");
       }
-    } else {
-      throw new Error("Invalid sub-location format");
+
+      // Validate machine status
+      if (!subLoc.select_machine.status || !['installed', 'not_installed'].includes(subLoc.select_machine.status)) {
+        throw new Error("Valid machine status (installed/not_installed) is required");
+      }
+
+      // Validate machine_image if present
+      if (subLoc.select_machine.machine_image && !Array.isArray(subLoc.select_machine.machine_image)) {
+        throw new Error("Machine images must be an array");
+      }
     }
   }
 
@@ -530,6 +563,7 @@ export class AreaService {
         { district: { $regex: params.search, $options: "i" } },
         { pincode: { $regex: params.search, $options: "i" } },
         { area_description: { $regex: params.search, $options: "i" } },
+        { "sub_locations.select_machine.machine_id": { $regex: params.search, $options: "i" } },
       ];
     }
 
@@ -566,8 +600,8 @@ export class AreaService {
       AreaRouteModel.distinct("state") as Promise<string[]>,
       AreaRouteModel.distinct("district") as Promise<string[]>,
       AreaRouteModel.distinct("sub_locations.campus") as Promise<string[]>,
-      AreaRouteModel.distinct("sub_location.tower") as Promise<string[]>,
-      AreaRouteModel.distinct("sub_location.floor") as Promise<string[]>,
+      AreaRouteModel.distinct("sub_locations.tower") as Promise<string[]>,
+      AreaRouteModel.distinct("sub_locations.floor") as Promise<string[]>,
     ]);
 
     return {
@@ -579,27 +613,38 @@ export class AreaService {
     };
   }
 
+  // UPDATED ADD SUB-LOCATION METHOD
   static async addSubLocation(
     areaId: string,
     newSubLocation: {
       campus: string;
       tower: string;
       floor: string;
-      select_machine: string[];
+      select_machine: {
+        machine_id: string;
+        status: "installed" | "not_installed";
+        machine_image?: IMachineImageData[];
+      };
     },
     auditParams?: AuditLogParams
   ): Promise<ICreateArea | null> {
     this.validateObjectId(areaId);
 
-    this.validateSubLocation(newSubLocation);
+    // Validate the new sub-location
+    if (!newSubLocation.campus || !newSubLocation.tower || !newSubLocation.floor) {
+      throw new Error("Campus, tower, and floor are required");
+    }
+
+    if (!newSubLocation.select_machine || !newSubLocation.select_machine.machine_id) {
+      throw new Error("Machine details are required");
+    }
 
     const existingArea = await AreaRouteModel.findById(areaId);
     if (!existingArea) {
       return null;
     }
 
-    const oldSubLocations = [...(existingArea.sub_locations || [])];
-
+    // Check for duplicates
     const duplicateExists = existingArea.sub_locations?.some(
       subLoc =>
         subLoc.campus === newSubLocation.campus &&
@@ -612,6 +657,13 @@ export class AreaService {
         "This sub-location (campus, tower, floor combination) already exists for this area"
       );
     }
+
+    // Validate machine images if any
+    if (newSubLocation.select_machine.machine_image) {
+      await this.validateAndProcessMachineImages(newSubLocation.select_machine.machine_image);
+    }
+
+    const oldSubLocations = [...(existingArea.sub_locations || [])];
 
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
@@ -629,6 +681,12 @@ export class AreaService {
         sub_locations: {
           old: oldSubLocations.length,
           new: newSubLocations.length,
+          added: {
+            campus: newSubLocation.campus,
+            tower: newSubLocation.tower,
+            floor: newSubLocation.floor,
+            machine_id: newSubLocation.select_machine.machine_id
+          }
         },
       };
 
@@ -749,6 +807,7 @@ export class AreaService {
         { "sub_locations.campus": { $regex: params.search, $options: "i" } },
         { "sub_locations.tower": { $regex: params.search, $options: "i" } },
         { "sub_locations.floor": { $regex: params.search, $options: "i" } },
+        { "sub_locations.select_machine.machine_id": { $regex: params.search, $options: "i" } },
       ];
     }
 
@@ -848,8 +907,9 @@ export class AreaService {
       address: area.address,
       status: area.status,
       sub_locations_count: area.sub_locations?.length || 0,
-      total_machines:
-        area.sub_locations?.reduce((sum, sub) => sum + (sub.select_machine?.length || 0), 0) || 0,
+      total_machines: area.sub_locations?.filter(
+        (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
+      ).length || 0,
       campuses: [...new Set(area.sub_locations?.map(s => s.campus) || [])].join(", "),
     }));
 
@@ -881,11 +941,9 @@ export class AreaService {
       const areaDoc = area.toObject ? area.toObject() : area;
 
       const subLocationsCount = areaDoc.sub_locations?.length || 0;
-      const totalMachines =
-        areaDoc.sub_locations?.reduce(
-          (sum: number, subLoc: any) => sum + (subLoc.select_machine?.length || 0),
-          0
-        ) || 0;
+      const totalMachines = areaDoc.sub_locations?.filter(
+        (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
+      ).length || 0;
 
       const uniqueCampuses = [
         ...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || []),
@@ -942,15 +1000,157 @@ export class AreaService {
       throw error;
     }
   }
-  static async removeMachineFromArea(
+
+  // NEW METHOD FOR ADDING MACHINE IMAGES
+  static async addMachineImages(
     areaId: string,
-    machineName: string,
+    subLocationIndex: number,
+    machineIndex: number,
+    images: IMachineImageData[],
     auditParams?: AuditLogParams
   ): Promise<ICreateArea | null> {
     this.validateObjectId(areaId);
 
-    if (!machineName || machineName.trim() === "") {
-      throw new Error("Machine name is required");
+    const existingArea = await AreaRouteModel.findById(areaId);
+    if (!existingArea) {
+      return null;
+    }
+
+    if (!existingArea.sub_locations || existingArea.sub_locations.length <= subLocationIndex) {
+      throw new Error("Sub-location not found");
+    }
+
+    const subLocation = existingArea.sub_locations[subLocationIndex];
+    if (!subLocation.select_machine) {
+      throw new Error("Machine not found in sub-location");
+    }
+
+    const oldImages = [...(subLocation.select_machine.machine_image || [])];
+
+    // Validate new images
+    await this.validateAndProcessMachineImages(images);
+
+    // Add new images
+    const updatePath = `sub_locations.${subLocationIndex}.select_machine.machine_image`;
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      areaId,
+      {
+        $push: { [updatePath]: { $each: images } }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (updatedArea) {
+      const newSubLocation = updatedArea.sub_locations[subLocationIndex];
+      const changes = {
+        machine_images: {
+          old: oldImages.length,
+          new: newSubLocation.select_machine.machine_image.length,
+          added: images.map(img => img.image_name)
+        }
+      };
+
+      await this.createAuditLog(
+        areaId,
+        "UPDATE",
+        null,
+        null,
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedArea;
+  }
+
+  // NEW METHOD FOR REMOVING MACHINE IMAGE
+  static async removeMachineImage(
+    areaId: string,
+    subLocationIndex: number,
+    machineIndex: number,
+    imageIndex: number,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
+    this.validateObjectId(areaId);
+
+    const existingArea = await AreaRouteModel.findById(areaId);
+    if (!existingArea) {
+      return null;
+    }
+
+    if (!existingArea.sub_locations || existingArea.sub_locations.length <= subLocationIndex) {
+      throw new Error("Sub-location not found");
+    }
+
+    const subLocation = existingArea.sub_locations[subLocationIndex];
+    if (!subLocation.select_machine || !subLocation.select_machine.machine_image) {
+      throw new Error("No machine images found");
+    }
+
+    if (subLocation.select_machine.machine_image.length <= imageIndex) {
+      throw new Error("Image not found");
+    }
+
+    const imageToRemove = subLocation.select_machine.machine_image[imageIndex];
+    const oldImages = [...subLocation.select_machine.machine_image];
+
+    // Remove the image from the array
+    const updatePath = `sub_locations.${subLocationIndex}.select_machine.machine_image`;
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      areaId,
+      {
+        $pull: { [updatePath]: { cloudinary_public_id: imageToRemove.cloudinary_public_id } }
+      },
+      { new: true }
+    );
+
+    if (updatedArea) {
+      // Delete from cloud storage
+      const uploadService = new ImageUploadService();
+      try {
+        await uploadService.deleteFromCloudinary(imageToRemove.cloudinary_public_id);
+      } catch (error) {
+        logger.error("Failed to delete image from cloud storage:", error);
+        // Continue even if cloud storage deletion fails
+      }
+
+      const newSubLocation = updatedArea.sub_locations[subLocationIndex];
+      const changes = {
+        removed_image: {
+          old: imageToRemove.image_name,
+          new: null
+        },
+        remaining_images: {
+          old: oldImages.length,
+          new: newSubLocation.select_machine.machine_image.length
+        }
+      };
+
+      await this.createAuditLog(
+        areaId,
+        "UPDATE",
+        null,
+        null,
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedArea;
+  }
+
+  // UPDATED REMOVE MACHINE METHOD
+  static async removeMachineFromArea(
+    areaId: string,
+    machineId: string,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
+    this.validateObjectId(areaId);
+
+    if (!machineId || machineId.trim() === "") {
+      throw new Error("Machine ID is required");
     }
 
     const existingArea = await AreaRouteModel.findById(areaId);
@@ -958,71 +1158,73 @@ export class AreaService {
       return null;
     }
 
-    // Check if the machine exists in any sub-location
-    const machineExists = existingArea.sub_locations?.some(subloc =>
-      subloc.select_machine.includes(machineName)
+    // Check if the machine exists
+    const machineExists = existingArea.sub_locations?.some(
+      subloc => subloc.select_machine?.machine_id === machineId
     );
 
     if (!machineExists) {
-      throw new Error(`Machine "${machineName}" not found in any sub-location of this area`);
+      throw new Error(`Machine with ID "${machineId}" not found in any sub-location of this area`);
     }
 
     // Create a deep copy of old sub-locations
     const oldSubLocations = JSON.parse(JSON.stringify(existingArea.sub_locations || []));
 
-    // Remove the machine from all sub-locations but keep empty sub-locations
+    // Remove the machine from sub-locations where it exists
     const updatedSubLocations = existingArea.sub_locations?.map(subloc => {
-      const sublocObj = (subloc as any).toObject ? (subloc as any).toObject() : subloc;
-      return {
-        ...sublocObj,
-        select_machine: subloc.select_machine.filter(machine => machine !== machineName)
-      };
+      const sublocObj = (subloc as any).toObject ? (subloc as any).toObject() : { ...subloc };
+
+      if (subloc.select_machine?.machine_id === machineId) {
+        // Remove machine images from cloud storage
+        if (subloc.select_machine.machine_image && subloc.select_machine.machine_image.length > 0) {
+          const uploadService = new ImageUploadService();
+          subloc.select_machine.machine_image.forEach(async (image: IMachineImageData) => {
+            try {
+              await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
+            } catch (error) {
+              logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
+            }
+          });
+        }
+
+        // Return sub-location without the machine
+        return {
+          ...sublocObj,
+          select_machine: undefined
+        };
+      }
+
+      return sublocObj;
     });
 
-    // Check if at least one sub-location still has machines
-    const hasMachinesRemaining = updatedSubLocations?.some(subloc =>
-      subloc.select_machine.length > 0
+    // Filter out sub-locations that still have machines
+    const filteredSubLocations = updatedSubLocations?.filter(
+      subloc => subloc.select_machine !== undefined
     );
 
-    if (!hasMachinesRemaining) {
-      throw new Error("Cannot remove the last machine from all sub-locations. At least one machine must remain in the area");
+    // Check if we removed all machines
+    if (!filteredSubLocations || filteredSubLocations.length === 0) {
+      throw new Error("Cannot remove all machines from area. At least one machine must remain.");
     }
 
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
       {
         $set: {
-          sub_locations: updatedSubLocations
+          sub_locations: filteredSubLocations
         }
       },
       { new: true, runValidators: true }
     );
 
     if (updatedArea) {
-      // Find which sub-locations were affected
-      const affectedSubLocations = updatedSubLocations?.map((subloc, index) => {
-        const oldMachineCount = oldSubLocations[index]?.select_machine?.length || 0;
-        const newMachineCount = subloc.select_machine.length;
-
-        if (oldMachineCount !== newMachineCount) {
-          return {
-            campus: subloc.campus,
-            tower: subloc.tower,
-            floor: subloc.floor,
-            removed: true
-          };
-        }
-        return null;
-      }).filter(Boolean);
-
-      const oldMachineCount = oldSubLocations.reduce((sum, subloc) =>
-        sum + (subloc.select_machine?.length || 0), 0);
-      const newMachineCount = updatedArea.sub_locations?.reduce((sum, subloc) =>
-        sum + (subloc.select_machine?.length || 0), 0) || 0;
+      const oldMachineCount = oldSubLocations.filter(
+        subloc => subloc.select_machine !== undefined
+      ).length;
+      const newMachineCount = updatedArea.sub_locations?.length || 0;
 
       const changes = {
-        removed_machine: { old: machineName, new: null },
-        affected_sub_locations: { old: [], new: affectedSubLocations },
+        removed_machine_id: { old: machineId, new: null },
         machine_count: { old: oldMachineCount, new: newMachineCount }
       };
 
@@ -1037,5 +1239,58 @@ export class AreaService {
     }
 
     return updatedArea;
+  }
+
+  // NEW HELPER METHOD FOR VALIDATING MACHINE IMAGES
+  private static async validateAndProcessMachineImages(images: IMachineImageData[]): Promise<void> {
+    if (!Array.isArray(images)) {
+      throw new Error("Machine images must be an array");
+    }
+
+    for (const image of images) {
+      if (!image.image_name || !image.file_url || !image.cloudinary_public_id) {
+        throw new Error("Each machine image must have image_name, file_url, and cloudinary_public_id");
+      }
+
+      if (!image.file_size || image.file_size <= 0) {
+        throw new Error("Valid file size is required for machine images");
+      }
+
+      if (!image.mime_type || !['image/jpeg', 'image/png', 'image/jpg', 'image/gif'].includes(image.mime_type)) {
+        throw new Error("Only JPEG, PNG, JPG, and GIF images are allowed");
+      }
+    }
+  }
+
+  // NEW HELPER METHOD FOR CHECKING DUPLICATE SUB-LOCATIONS
+  private static checkDuplicateSubLocations(subLocations: any[]): void {
+    const seen = new Set();
+
+    for (const subLoc of subLocations) {
+      const key = `${subLoc.campus}-${subLoc.tower}-${subLoc.floor}`;
+
+      if (seen.has(key)) {
+        throw new Error(`Duplicate sub-location found: ${key}`);
+      }
+
+      seen.add(key);
+    }
+  }
+
+  // NEW HELPER METHOD FOR DELETING ALL MACHINE IMAGES FROM AREA
+  private static async deleteAllMachineImagesFromArea(area: ICreateArea): Promise<void> {
+    const uploadService = new ImageUploadService();
+
+    for (const subLoc of area.sub_locations || []) {
+      if (subLoc.select_machine?.machine_image) {
+        for (const image of subLoc.select_machine.machine_image) {
+          try {
+            await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
+          } catch (error) {
+            logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
+          }
+        }
+      }
+    }
   }
 }

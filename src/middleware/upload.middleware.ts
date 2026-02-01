@@ -22,7 +22,6 @@ const fileFilter = (
   ];
 
   const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
-
   const mimetype = allowedMimeTypes.includes(file.mimetype);
 
   if (extname && mimetype) {
@@ -47,3 +46,13 @@ export const uploadMultiple = upload.array("documents", 5);
 export const uploadPOImages = upload.any();
 
 export const uploadGRN = upload.fields([{ name: "document", maxCount: 1 }]);
+
+// ✅ ADD THIS NEW EXPORT FOR AREA ROUTES
+export const uploadAreaFiles = upload.any(); // Accepts any field name
+
+// ✅ OR if you want to be specific about field names:
+// export const uploadAreaFiles = upload.fields([
+//   { name: "files", maxCount: 10 },
+//   { name: "machine_image", maxCount: 10 },
+//   { name: "sub_locations.select_machines.machine_image", maxCount: 10 },
+// ]);
