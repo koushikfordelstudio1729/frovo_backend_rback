@@ -17,7 +17,7 @@ router.get(
   AreaController.exportAreaAuditLogs
 );
 router.delete(
-  "/area/:id/machine/:machineName",
+  "/area/:id/machine/:machineId",
   authorize(MANAGEMENT),
   AreaController.removeMachineFromArea
 );

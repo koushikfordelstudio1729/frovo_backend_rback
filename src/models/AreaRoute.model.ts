@@ -79,13 +79,11 @@ const SubLocationSchema: Schema = new Schema(
     select_machine: {
       type: {
         machine_id: {
-          type: String,
-          required: true,
+          type: String
         },
         status: {
           type: String,
-          enum: ["installed", "not_installed"],
-          required: true,
+          enum: ["installed", "not_installed"]
         },
         machine_image: {
           type: [machineImageSchema],
@@ -173,20 +171,17 @@ const AreaRouteSchema: Schema = new Schema(
             return false;
           }
           
-          // Check if at least one sub-location has select_machine
-          const hasMachines = v.some(subloc => 
-            subloc && subloc.select_machine && subloc.select_machine.machine_id
-          );
-          
-          return hasMachines;
+          // Remove this validation to allow empty machines
+          // Area can exist with sub-locations that have no machines
+          return true;
         },
-        message: "Area must have at least one sub-location with a machine",
+        message: "Area must have at least one sub-location",
       },
     },
   },
   { 
     timestamps: true,
-    collection: "areaRoutes" // Added explicit collection name
+    collection: "areaRoutes"
   }
 );
 

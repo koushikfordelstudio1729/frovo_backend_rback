@@ -1141,7 +1141,6 @@ export class AreaService {
     return updatedArea;
   }
 
-  // UPDATED REMOVE MACHINE METHOD
   static async removeMachineFromArea(
     areaId: string,
     machineId: string,
@@ -1187,60 +1186,66 @@ export class AreaService {
           });
         }
 
-        // Return sub-location without the machine
-        return {
-          ...sublocObj,
-          select_machine: undefined
-        };
+        // Return sub-location WITHOUT the machine (empty sub-location remains)
+        const { select_machine, ...rest } = sublocObj;
+        return rest;
       }
 
       return sublocObj;
     });
 
-    // Filter out sub-locations that still have machines
-    const filteredSubLocations = updatedSubLocations?.filter(
-      subloc => subloc.select_machine !== undefined
-    );
-
-    // Check if we removed all machines
-    if (!filteredSubLocations || filteredSubLocations.length === 0) {
-      throw new Error("Cannot remove all machines from area. At least one machine must remain.");
-    }
-
+    // Updated area can have empty sub-locations (without machines)
+    // This is allowed - area will still exist
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
       {
         $set: {
-          sub_locations: filteredSubLocations
+          sub_locations: updatedSubLocations
         }
       },
       { new: true, runValidators: true }
     );
 
     if (updatedArea) {
+      // Calculate machine counts before and after
       const oldMachineCount = oldSubLocations.filter(
-        subloc => subloc.select_machine !== undefined
+        subloc => subloc.select_machine && subloc.select_machine.machine_id
       ).length;
-      const newMachineCount = updatedArea.sub_locations?.length || 0;
+
+      const newMachineCount = updatedArea.sub_locations?.filter(
+        (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
+      ).length || 0;
 
       const changes = {
         removed_machine_id: { old: machineId, new: null },
-        machine_count: { old: oldMachineCount, new: newMachineCount }
+        machine_count: { old: oldMachineCount, new: newMachineCount },
+        sub_locations_count: {
+          old: oldSubLocations.length,
+          new: updatedArea.sub_locations?.length || 0
+        }
       };
 
       await this.createAuditLog(
         areaId,
         "REMOVE_MACHINE",
-        { sub_locations: oldSubLocations },
-        { sub_locations: updatedArea.sub_locations },
+        {
+          sub_locations: oldSubLocations
+        },
+        {
+          sub_locations: updatedArea.sub_locations
+        },
         changes,
         auditParams
       );
+
+      // Add a warning note if all machines were removed
+      if (newMachineCount === 0) {
+        logger.warn(`All machines removed from area ${areaId}. Area now has ${updatedArea.sub_locations?.length || 0} empty sub-locations.`);
+      }
     }
 
     return updatedArea;
   }
-
   // NEW HELPER METHOD FOR VALIDATING MACHINE IMAGES
   private static async validateAndProcessMachineImages(images: IMachineImageData[]): Promise<void> {
     if (!Array.isArray(images)) {

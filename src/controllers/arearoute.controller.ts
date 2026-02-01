@@ -14,6 +14,7 @@ import { IMachineImageData } from "../models/AreaRoute.model";
 import { logger } from "../utils/logger.util";
 
 export class AreaController {
+
   private static getAuditParams(req: Request): AuditLogParams {
     const user = (req as any).user || {};
     return {
@@ -42,10 +43,71 @@ export class AreaController {
 
       const result = await AreaService.getAuditLogs(id, page, limit);
 
+      // Enrich logs with image information
+      const enrichedLogs = result.logs.map(log => {
+        const logObj = log.toObject ? log.toObject() : log;
+
+        // Extract image information from changes
+        let imageChanges = [];
+        if (logObj.changes) {
+          Object.keys(logObj.changes).forEach(key => {
+            if (key.includes('machine_image') || key.includes('image')) {
+              const change = logObj.changes[key];
+              if (change.old && Array.isArray(change.old)) {
+                change.old.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    imageChanges.push({
+                      type: 'removed',
+                      image_name: img.image_name,
+                      file_url: img.file_url,
+                      cloudinary_public_id: img.cloudinary_public_id,
+                      action: logObj.action
+                    });
+                  }
+                });
+              }
+              if (change.new && Array.isArray(change.new)) {
+                change.new.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    imageChanges.push({
+                      type: 'added',
+                      image_name: img.image_name,
+                      file_url: img.file_url,
+                      cloudinary_public_id: img.cloudinary_public_id,
+                      action: logObj.action
+                    });
+                  }
+                });
+              }
+            }
+          });
+        }
+
+        // Extract machine information
+        let machineChanges = [];
+        if (logObj.changes) {
+          if (logObj.changes.removed_machine_id) {
+            machineChanges.push({
+              type: 'removed',
+              machine_id: logObj.changes.removed_machine_id.old,
+              action: logObj.action
+            });
+          }
+        }
+
+        return {
+          ...logObj,
+          image_changes: imageChanges.length > 0 ? imageChanges : undefined,
+          machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
+          total_image_changes: imageChanges.length,
+          total_machine_changes: machineChanges.length
+        };
+      });
+
       res.status(200).json({
         success: true,
         data: {
-          logs: result.logs,
+          logs: enrichedLogs,
           pagination: result.pagination,
         },
       });
@@ -63,9 +125,80 @@ export class AreaController {
       const limit = parseInt(req.query.limit as string) || 10;
       const activities = await AreaService.getRecentActivities(limit, {});
 
+      // Enrich activities with image and machine information
+      const enrichedActivities = activities.map(activity => {
+        let imageChanges = [];
+        let machineChanges = [];
+        let imageSummary = "";
+        let machineSummary = "";
+
+        // Check for image-related changes
+        if (activity.changes) {
+          Object.keys(activity.changes).forEach(key => {
+            if (key.includes('machine_image') || key.includes('image')) {
+              const change = activity.changes[key];
+              const oldImages = Array.isArray(change.old) ? change.old : [];
+              const newImages = Array.isArray(change.new) ? change.new : [];
+
+              oldImages.forEach((img: any) => {
+                if (img && img.file_url) {
+                  imageChanges.push({
+                    type: 'removed',
+                    image_name: img.image_name,
+                    file_url: img.file_url
+                  });
+                }
+              });
+
+              newImages.forEach((img: any) => {
+                if (img && img.file_url) {
+                  imageChanges.push({
+                    type: 'added',
+                    image_name: img.image_name,
+                    file_url: img.file_url
+                  });
+                }
+              });
+
+              imageSummary = `Images: ${oldImages.length} removed, ${newImages.length} added`;
+            }
+
+            // Check for machine changes
+            if (key.includes('machine')) {
+              const change = activity.changes[key];
+              if (change.old) {
+                machineChanges.push({
+                  type: 'changed',
+                  field: key,
+                  old_value: change.old,
+                  new_value: change.new
+                });
+              }
+            }
+          });
+        }
+
+        // Check for removed machine
+        if (activity.changes?.removed_machine_id) {
+          machineChanges.push({
+            type: 'removed',
+            machine_id: activity.changes.removed_machine_id.old
+          });
+          machineSummary = `Machine ${activity.changes.removed_machine_id.old} removed`;
+        }
+
+        return {
+          ...activity,
+          image_changes: imageChanges.length > 0 ? imageChanges : undefined,
+          machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
+          image_summary: imageSummary || undefined,
+          machine_summary: machineSummary || undefined
+        };
+      });
+
       res.status(200).json({
         success: true,
-        data: activities,
+        data: enrichedActivities,
       });
     } catch (error) {
       logger.error("Error fetching recent activities:", error);
@@ -119,16 +252,132 @@ export class AreaController {
         res.setHeader("Content-Disposition", `attachment; filename="${filename}.csv"`);
         res.status(200).send(csv);
       } else if (format === "json") {
+        // Get all current machine and image information from the area
+        const currentMachines: any[] = [];
+        const currentImages: any[] = [];
+
+        area.sub_locations?.forEach((subloc: any, subIdx: number) => {
+          if (subloc.select_machine && subloc.select_machine.machine_id) {
+            currentMachines.push({
+              sub_location_index: subIdx,
+              campus: subloc.campus,
+              tower: subloc.tower,
+              floor: subloc.floor,
+              machine_id: subloc.select_machine.machine_id,
+              machine_status: subloc.select_machine.status,
+              total_images: subloc.select_machine.machine_image?.length || 0
+            });
+
+            if (subloc.select_machine.machine_image) {
+              subloc.select_machine.machine_image.forEach((img: any, imgIdx: number) => {
+                if (img.file_url) {
+                  currentImages.push({
+                    sub_location_index: subIdx,
+                    machine_id: subloc.select_machine.machine_id,
+                    image_index: imgIdx,
+                    image_name: img.image_name,
+                    file_url: img.file_url,
+                    cloudinary_public_id: img.cloudinary_public_id,
+                    file_size: img.file_size,
+                    mime_type: img.mime_type,
+                    uploaded_at: img.uploaded_at
+                  });
+                }
+              });
+            }
+          }
+        });
+
         const exportData = {
           area: {
             id: area._id,
             name: area.area_name,
             state: area.state,
             district: area.district,
+            pincode: area.pincode,
+            status: area.status,
+            address: area.address,
+            total_sub_locations: area.sub_locations?.length || 0,
+            total_machines: currentMachines.length,
+            total_images: currentImages.length,
+            current_machines: currentMachines,
+            current_images: currentImages
           },
-          audit_logs: logs.map(log => (log.toObject ? log.toObject() : log)),
+          audit_logs: logs.map(log => {
+            const logObj = log.toObject ? log.toObject() : log;
+
+            // Extract image URLs and machine changes from log data
+            const imageChanges: any[] = [];
+            const machineChanges: any[] = [];
+
+            if (logObj.changes) {
+              Object.keys(logObj.changes).forEach(key => {
+                if (key.includes('machine_image')) {
+                  const change = logObj.changes[key];
+                  if (change.old && Array.isArray(change.old)) {
+                    change.old.forEach((img: any) => {
+                      if (img && img.file_url) {
+                        imageChanges.push({
+                          action: 'removed',
+                          ...img
+                        });
+                      }
+                    });
+                  }
+                  if (change.new && Array.isArray(change.new)) {
+                    change.new.forEach((img: any) => {
+                      if (img && img.file_url) {
+                        imageChanges.push({
+                          action: 'added',
+                          ...img
+                        });
+                      }
+                    });
+                  }
+                }
+
+                if (key.includes('machine_id') || key.includes('machine')) {
+                  machineChanges.push({
+                    field: key,
+                    old: logObj.changes[key].old,
+                    new: logObj.changes[key].new
+                  });
+                }
+              });
+            }
+
+            return {
+              ...logObj,
+              image_changes: imageChanges.length > 0 ? imageChanges : undefined,
+              machine_changes: machineChanges.length > 0 ? machineChanges : undefined
+            };
+          }),
           export_date: new Date().toISOString(),
           total_logs: logs.length,
+          summary: {
+            total_image_changes: logs.reduce((sum, log) => {
+              const logObj = log.toObject ? log.toObject() : log;
+              if (logObj.changes) {
+                Object.keys(logObj.changes).forEach(key => {
+                  if (key.includes('machine_image')) {
+                    const change = logObj.changes[key];
+                    if (change.old && Array.isArray(change.old)) sum += change.old.length;
+                    if (change.new && Array.isArray(change.new)) sum += change.new.length;
+                  }
+                });
+              }
+              return sum;
+            }, 0),
+            total_machine_changes: logs.reduce((sum, log) => {
+              const logObj = log.toObject ? log.toObject() : log;
+              if (logObj.changes) {
+                Object.keys(logObj.changes).forEach(key => {
+                  if (key.includes('machine')) sum++;
+                });
+              }
+              return sum;
+            }, 0)
+          }
         };
 
         res.setHeader("Content-Type", "application/json");
@@ -187,13 +436,106 @@ export class AreaController {
         res.status(200).send(csv);
       } else if (format === "json") {
         const exportData = {
-          activities: activities,
+          activities: activities.map(activity => {
+            // Extract image and machine information
+            let imageChanges: any[] = [];
+            let machineChanges: any[] = [];
+
+            if (activity.changes) {
+              Object.keys(activity.changes).forEach(key => {
+                if (key.includes('machine_image') || key.includes('image')) {
+                  const change = activity.changes[key];
+                  if (change.old && Array.isArray(change.old)) {
+                    change.old.forEach((img: any) => {
+                      if (img && img.file_url) {
+                        imageChanges.push({
+                          type: 'removed',
+                          image_name: img.image_name,
+                          file_url: img.file_url,
+                          cloudinary_id: img.cloudinary_public_id,
+                          file_size: img.file_size,
+                          mime_type: img.mime_type
+                        });
+                      }
+                    });
+                  }
+                  if (change.new && Array.isArray(change.new)) {
+                    change.new.forEach((img: any) => {
+                      if (img && img.file_url) {
+                        imageChanges.push({
+                          type: 'added',
+                          image_name: img.image_name,
+                          file_url: img.file_url,
+                          cloudinary_id: img.cloudinary_public_id,
+                          file_size: img.file_size,
+                          mime_type: img.mime_type
+                        });
+                      }
+                    });
+                  }
+                }
+
+                // Machine changes
+                if (key.includes('machine_id') || key.includes('machine_status')) {
+                  machineChanges.push({
+                    field: key,
+                    old_value: activity.changes[key].old,
+                    new_value: activity.changes[key].new
+                  });
+                }
+              });
+            }
+
+            return {
+              id: activity.id,
+              action: activity.action,
+              area_id: activity.area_id,
+              area_name: activity.area_name,
+              area_state: activity.area_state,
+              area_district: activity.area_district,
+              performed_by: activity.performed_by,
+              ip_address: activity.ip_address,
+              user_agent: activity.user_agent,
+              timestamp: activity.timestamp,
+              changes: activity.changes,
+              image_changes: imageChanges.length > 0 ? imageChanges : undefined,
+              machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
+              total_image_changes: imageChanges.length,
+              total_machine_changes: machineChanges.length
+            };
+          }),
           export_date: new Date().toISOString(),
           total_activities: activities.length,
           date_range: {
             start: startDate || "all",
             end: endDate || "all",
           },
+          summary: {
+            total_image_changes: activities.reduce((sum, activity) => {
+              if (activity.changes) {
+                Object.keys(activity.changes).forEach(key => {
+                  if (key.includes('machine_image')) {
+                    const change = activity.changes[key];
+                    if (change.old && Array.isArray(change.old)) sum += change.old.length;
+                    if (change.new && Array.isArray(change.new)) sum += change.new.length;
+                  }
+                });
+              }
+              return sum;
+            }, 0),
+            total_machine_changes: activities.reduce((sum, activity) => {
+              if (activity.changes) {
+                Object.keys(activity.changes).forEach(key => {
+                  if (key.includes('machine')) sum++;
+                });
+              }
+              return sum;
+            }, 0),
+            actions_breakdown: activities.reduce((acc: any, activity) => {
+              acc[activity.action] = (acc[activity.action] || 0) + 1;
+              return acc;
+            }, {})
+          }
         };
 
         res.setHeader("Content-Type", "application/json");
@@ -234,6 +576,12 @@ export class AreaController {
         "IP Address",
         "Changes Summary",
         "Field Changes",
+        "Image Changes Count",
+        "Added Images",
+        "Removed Images",
+        "Image URLs",
+        "Machine Changes",
+        "Machine IDs Affected"
       ];
 
       let csv = "\ufeff";
@@ -244,6 +592,12 @@ export class AreaController {
 
         let changesSummary = "";
         let fieldChanges = "";
+        let addedImages: string[] = [];
+        let removedImages: string[] = [];
+        let imageUrls: string[] = [];
+        let imageChangesCount = 0;
+        let machineChanges = "";
+        let machineIdsAffected: string[] = [];
 
         if (logDoc.changes) {
           const changedFields = Object.keys(logDoc.changes);
@@ -253,12 +607,69 @@ export class AreaController {
               field => `${field}: "${logDoc.changes[field].old}" → "${logDoc.changes[field].new}"`
             )
             .join("; ");
+
+          // Extract image changes
+          Object.keys(logDoc.changes).forEach(key => {
+            if (key.includes('machine_image') || key.includes('image')) {
+              const change = logDoc.changes[key];
+
+              if (change.old && Array.isArray(change.old)) {
+                change.old.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    removedImages.push(img.image_name || "Unnamed");
+                    imageUrls.push(img.file_url);
+                    imageChangesCount++;
+                  }
+                });
+              }
+
+              if (change.new && Array.isArray(change.new)) {
+                change.new.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    addedImages.push(img.image_name || "Unnamed");
+                    imageUrls.push(img.file_url);
+                    imageChangesCount++;
+                  }
+                });
+              }
+            }
+
+            // Extract machine changes
+            if (key.includes('machine_id') || key.includes('machine_status')) {
+              const change = logDoc.changes[key];
+              machineChanges += `${key}: ${change.old} → ${change.new}; `;
+              if (key === 'removed_machine_id' && change.old) {
+                machineIdsAffected.push(change.old);
+              }
+            }
+          });
         } else if (logDoc.action === "CREATE") {
           changesSummary = "New area created";
+          // Extract images from new_data if CREATE action
+          if (logDoc.new_data && logDoc.new_data.sub_locations) {
+            logDoc.new_data.sub_locations?.forEach((subloc: any) => {
+              if (subloc.select_machine?.machine_image) {
+                subloc.select_machine.machine_image.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    addedImages.push(img.image_name || "Unnamed");
+                    imageUrls.push(img.file_url);
+                    imageChangesCount++;
+                  }
+                });
+              }
+            });
+          }
         } else if (logDoc.action === "DELETE") {
           changesSummary = "Area deleted";
         } else if (logDoc.action === "ADD_SUB_LOCATION") {
           changesSummary = "Sub-location added";
+        } else if (logDoc.action === "REMOVE_MACHINE") {
+          changesSummary = "Machine removed";
+          if (logDoc.changes?.removed_machine_id) {
+            changesSummary = `Machine ${logDoc.changes.removed_machine_id.old} removed`;
+            machineIdsAffected.push(logDoc.changes.removed_machine_id.old);
+            machineChanges = `Machine ${logDoc.changes.removed_machine_id.old} removed`;
+          }
         }
 
         const row = [
@@ -272,25 +683,63 @@ export class AreaController {
           logDoc.ip_address || "Unknown",
           `"${changesSummary.replace(/"/g, '""')}"`,
           `"${fieldChanges.replace(/"/g, '""')}"`,
+          imageChangesCount,
+          `"${addedImages.join("; ").replace(/"/g, '""')}"`,
+          `"${removedImages.join("; ").replace(/"/g, '""')}"`,
+          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
+          `"${machineChanges.replace(/"/g, '""')}"`,
+          `"${machineIdsAffected.join("; ").replace(/"/g, '""')}"`
         ];
 
         csv += row.join(",") + "\n";
       });
 
+      // Add current area machine and image information
       csv += "\n\n";
-      csv += "Summary\n";
+      csv += "Current Area Status\n";
       csv += "Area Name," + `"${area.area_name}"` + "\n";
-      csv += "State," + `"${area.state}"` + "\n";
-      csv += "District," + `"${area.district}"` + "\n";
+      csv += "Status," + `"${area.status}"` + "\n";
+
+      // Extract all current machines and images from area
+      const currentMachines: any[] = [];
+      const currentImages: any[] = [];
+
+      area.sub_locations?.forEach((subloc: any, idx: number) => {
+        if (subloc.select_machine && subloc.select_machine.machine_id) {
+          csv += `\nSub-location ${idx + 1}\n`;
+          csv += `Campus,` + `"${subloc.campus}"` + "\n";
+          csv += `Tower,` + `"${subloc.tower}"` + "\n";
+          csv += `Floor,` + `"${subloc.floor}"` + "\n";
+          csv += `Machine ID,` + `"${subloc.select_machine.machine_id}"` + "\n";
+          csv += `Machine Status,` + `"${subloc.select_machine.status}"` + "\n";
+
+          currentMachines.push({
+            machine_id: subloc.select_machine.machine_id,
+            status: subloc.select_machine.status
+          });
+
+          if (subloc.select_machine.machine_image && subloc.select_machine.machine_image.length > 0) {
+            csv += `Total Images,${subloc.select_machine.machine_image.length}\n`;
+            subloc.select_machine.machine_image.forEach((img: any, imgIdx: number) => {
+              if (img.file_url) {
+                csv += `Image ${imgIdx + 1} Name,` + `"${img.image_name || 'Unnamed'}"` + "\n";
+                csv += `Image ${imgIdx + 1} URL,` + `"${img.file_url}"` + "\n";
+                currentImages.push(img.file_url);
+              }
+            });
+          } else {
+            csv += `Total Images,0\n`;
+          }
+        }
+      });
+
+      csv += "\nSummary\n";
+      csv += "Total Sub-locations," + (area.sub_locations?.length || 0) + "\n";
+      csv += "Total Current Machines," + currentMachines.length + "\n";
+      csv += "Total Current Images," + currentImages.length + "\n";
       csv += "Total Audit Logs," + logs.length + "\n";
-      csv +=
-        "First Log," +
-        (logs[logs.length - 1]?.timestamp
-          ? new Date(logs[logs.length - 1].timestamp).toISOString()
-          : "") +
-        "\n";
-      csv +=
-        "Last Log," + (logs[0]?.timestamp ? new Date(logs[0].timestamp).toISOString() : "") + "\n";
+      csv += "First Log," + (logs[logs.length - 1]?.timestamp ? new Date(logs[logs.length - 1].timestamp).toISOString() : "") + "\n";
+      csv += "Last Log," + (logs[0]?.timestamp ? new Date(logs[0].timestamp).toISOString() : "") + "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
 
       return csv;
@@ -318,6 +767,10 @@ export class AreaController {
         "Timestamp",
         "IP Address",
         "Changes Summary",
+        "Image Changes",
+        "Image URLs",
+        "Machine Changes",
+        "Machine IDs Affected"
       ];
 
       let csv = "\ufeff";
@@ -327,19 +780,74 @@ export class AreaController {
         const activityDoc = activity.toObject ? activity.toObject() : activity;
 
         let changesSummary = "";
+        let imageChanges = "";
+        let imageUrls: string[] = [];
+        let machineChanges = "";
+        let machineIdsAffected: string[] = [];
 
         if (activityDoc.changes) {
           const changedFields = Object.keys(activityDoc.changes);
           changesSummary = `${changedFields.length} field(s) changed`;
+
+          // Check for status change
           if (activityDoc.changes.status) {
             changesSummary = `Status changed: ${activityDoc.changes.status.old} → ${activityDoc.changes.status.new}`;
           }
+
+          // Check for image changes
+          Object.keys(activityDoc.changes).forEach(key => {
+            if (key.includes('machine_image') || key.includes('image')) {
+              const change = activityDoc.changes[key];
+              let added = 0;
+              let removed = 0;
+
+              if (change.old && Array.isArray(change.old)) {
+                removed = change.old.filter((img: any) => img && img.file_url).length;
+                change.old.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    imageUrls.push(img.file_url);
+                  }
+                });
+              }
+
+              if (change.new && Array.isArray(change.new)) {
+                added = change.new.filter((img: any) => img && img.file_url).length;
+                change.new.forEach((img: any) => {
+                  if (img && img.file_url) {
+                    imageUrls.push(img.file_url);
+                  }
+                });
+              }
+
+              imageChanges = `Images: ${added} added, ${removed} removed`;
+            }
+
+            // Check for machine changes
+            if (key.includes('machine_id')) {
+              const change = activityDoc.changes[key];
+              machineChanges += `${key}: ${change.old} → ${change.new}; `;
+              if (key === 'removed_machine_id' && change.old) {
+                machineIdsAffected.push(change.old);
+              }
+            }
+            if (key.includes('machine_status')) {
+              const change = activityDoc.changes[key];
+              machineChanges += `Status: ${change.old} → ${change.new}; `;
+            }
+          });
         } else if (activityDoc.action === "CREATE") {
           changesSummary = "New area created";
         } else if (activityDoc.action === "DELETE") {
           changesSummary = "Area deleted";
         } else if (activityDoc.action === "ADD_SUB_LOCATION") {
           changesSummary = "Sub-location added";
+        } else if (activityDoc.action === "REMOVE_MACHINE") {
+          changesSummary = "Machine removed";
+          if (activityDoc.changes?.removed_machine_id) {
+            changesSummary = `Machine ${activityDoc.changes.removed_machine_id.old} removed`;
+            machineIdsAffected.push(activityDoc.changes.removed_machine_id.old);
+            machineChanges = `Machine ${activityDoc.changes.removed_machine_id.old} removed`;
+          }
         }
 
         const row = [
@@ -354,6 +862,10 @@ export class AreaController {
           activityDoc.timestamp ? new Date(activityDoc.timestamp).toISOString() : "",
           activityDoc.ip_address || "Unknown",
           `"${changesSummary.replace(/"/g, '""')}"`,
+          `"${imageChanges.replace(/"/g, '""')}"`,
+          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
+          `"${machineChanges.replace(/"/g, '""')}"`,
+          `"${machineIdsAffected.join("; ").replace(/"/g, '""')}"`
         ];
 
         csv += row.join(",") + "\n";
@@ -362,20 +874,33 @@ export class AreaController {
       csv += "\n\n";
       csv += "Summary\n";
       csv += "Total Activities," + activities.length + "\n";
-      csv +=
-        "Date Range," +
-        new Date(activities[activities.length - 1]?.timestamp).toISOString() +
-        " to " +
-        new Date(activities[0]?.timestamp).toISOString() +
-        "\n";
-      csv += "Export Date," + new Date().toISOString() + "\n";
-      csv += "Actions Breakdown\n";
 
+      // Calculate totals
+      let totalImageChanges = 0;
+      let totalMachineChanges = 0;
       const actionCounts: Record<string, number> = {};
+
       activities.forEach(activity => {
         const action = activity.action || "UNKNOWN";
         actionCounts[action] = (actionCounts[action] || 0) + 1;
+
+        if (activity.changes) {
+          Object.keys(activity.changes).forEach(key => {
+            if (key.includes('machine_image')) {
+              const change = activity.changes[key];
+              if (change.old && Array.isArray(change.old)) totalImageChanges += change.old.length;
+              if (change.new && Array.isArray(change.new)) totalImageChanges += change.new.length;
+            }
+            if (key.includes('machine')) totalMachineChanges++;
+          });
+        }
       });
+
+      csv += "Total Image Changes," + totalImageChanges + "\n";
+      csv += "Total Machine Changes," + totalMachineChanges + "\n";
+      csv += "Date Range," + new Date(activities[activities.length - 1]?.timestamp).toISOString() + " to " + new Date(activities[0]?.timestamp).toISOString() + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+      csv += "Actions Breakdown\n";
 
       Object.entries(actionCounts).forEach(([action, count]) => {
         csv += `${action},${count}\n`;
@@ -388,221 +913,936 @@ export class AreaController {
     }
   }
 
-static async createAreaRoute(req: Request, res: Response): Promise<void> {
-  try {
-    let areaData: CreateAreaDto;
-    const files = req.files as Express.Multer.File[] | undefined;
+  // UPDATED EXPORT METHODS
 
-    // Log raw body for debugging
-    logger.info("Raw request body:", JSON.stringify(req.body, null, 2));
-
-    // Parse request data
+  static async exportAreas(req: Request, res: Response): Promise<void> {
     try {
-      // OPTION 1: Form-data with JSON in 'data' field
-      if (req.body.data) {
-        areaData = JSON.parse(req.body.data);
-      }
-      // OPTION 2: sub_locations as JSON string
-      else if (req.body.sub_locations && typeof req.body.sub_locations === 'string') {
-        // Try to parse sub_locations
-        let parsedSubLocations;
-        try {
-          parsedSubLocations = JSON.parse(req.body.sub_locations);
-        } catch (parseError) {
-          logger.error("Failed to parse sub_locations JSON:", parseError);
-          res.status(400).json({
-            success: false,
-            message: "Invalid JSON format for sub_locations",
-            details: parseError.message,
-            received: req.body.sub_locations
+      const queryParams: AreaQueryParams = {
+        page: 1,
+        limit: 10000,
+        status: req.query.status as "active" | "inactive",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        search: req.query.search as string,
+      };
+
+      const result = await AreaService.getAllAreas(queryParams);
+      const format = req.query.format || "json";
+
+      if (format === "csv") {
+        const csv = AreaController.convertAreasToCSV(result.data);
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", "attachment; filename=areas-export.csv");
+        res.status(200).send(csv);
+      } else if (format === "json") {
+        const enrichedData = result.data.map(area => {
+          const areaObj = area.toObject ? area.toObject() : area;
+
+          // Extract machine and image information
+          const machines: any[] = [];
+          const images: any[] = [];
+          let totalImages = 0;
+
+          areaObj.sub_locations?.forEach((subloc: any, idx: number) => {
+            if (subloc.select_machine && subloc.select_machine.machine_id) {
+              const machineInfo = {
+                sub_location_index: idx,
+                campus: subloc.campus,
+                tower: subloc.tower,
+                floor: subloc.floor,
+                machine_id: subloc.select_machine.machine_id,
+                machine_status: subloc.select_machine.status,
+                images: subloc.select_machine.machine_image?.map((img: any) => ({
+                  image_name: img.image_name,
+                  file_url: img.file_url,
+                  cloudinary_public_id: img.cloudinary_public_id,
+                  uploaded_at: img.uploaded_at
+                })) || []
+              };
+              machines.push(machineInfo);
+              totalImages += machineInfo.images.length;
+            }
           });
-          return;
-        }
 
-        areaData = {
-          area_name: req.body.area_name,
-          state: req.body.state,
-          district: req.body.district,
-          pincode: req.body.pincode,
-          area_description: req.body.area_description,
-          status: req.body.status || 'active',
-          sub_locations: parsedSubLocations,
-          latitude: req.body.latitude ? parseFloat(req.body.latitude) : undefined,
-          longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
-          address: req.body.address,
-        };
-      }
-      // OPTION 3: Flat form-data keys
-      else if (req.body.area_name) {
-        areaData = AreaController.parseFlatFormData(req.body);
-      }
-      // OPTION 4: JSON request body
-      else {
-        areaData = req.body;
-      }
-    } catch (parseError) {
-      logger.error("Error parsing request data:", parseError);
-      res.status(400).json({
-        success: false,
-        message: "Failed to parse request data",
-        details: parseError.message,
-      });
-      return;
-    }
-
-    // Log parsed data
-    logger.info("Parsed area data:", JSON.stringify(areaData, null, 2));
-
-    // Validate required fields
-    const requiredFields = [
-      "area_name",
-      "state",
-      "district",
-      "pincode",
-      "area_description",
-      "status",
-      "sub_locations",
-    ];
-
-    const missingFields = requiredFields.filter(field => {
-      const value = areaData[field as keyof CreateAreaDto];
-      if (field === 'sub_locations') {
-        return !value || !Array.isArray(value) || value.length === 0;
-      }
-      return !value;
-    });
-
-    if (missingFields.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-        details: {
-          received: Object.keys(areaData),
-          missing: missingFields,
-        },
-      });
-      return;
-    }
-
-    // Validate sub_locations structure
-    if (!Array.isArray(areaData.sub_locations) || areaData.sub_locations.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: "sub_locations must be a non-empty array",
-        received: areaData.sub_locations,
-      });
-      return;
-    }
-
-    // Process file uploads if any
-    if (files && files.length > 0) {
-      const uploadService = new ImageUploadService();
-      const processedFiles = await uploadService.uploadMultipleFiles(
-        files,
-        "areaMachine_images",
-        "areaMachine"
-      );
-
-      // Attach files to the first sub-location's machine
-      if (areaData.sub_locations[0]) {
-        if (!areaData.sub_locations[0].select_machine) {
-          areaData.sub_locations[0].select_machine = {
-            machine_id: '',
-            status: 'not_installed',
-            machine_image: []
+          return {
+            ...areaObj,
+            summary: {
+              total_sub_locations: areaObj.sub_locations?.length || 0,
+              total_machines: machines.length,
+              total_images: totalImages,
+              machines: machines
+            }
           };
-        }
+        });
 
-        if (!areaData.sub_locations[0].select_machine.machine_image) {
-          areaData.sub_locations[0].select_machine.machine_image = [];
-        }
-
-        areaData.sub_locations[0].select_machine.machine_image.push(...processedFiles);
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", "attachment; filename=areas-export.json");
+        res.status(200).json({
+          success: true,
+          data: enrichedData,
+          export_date: new Date().toISOString(),
+          total_areas: result.data.length
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
       }
+    } catch (error) {
+      logger.error("Error exporting areas:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
     }
-
-    const auditParams = AreaController.getAuditParams(req);
-    const newArea = await AreaService.createArea(areaData, auditParams);
-
-    res.status(201).json({
-      success: true,
-      message: "Area route created successfully",
-      data: newArea,
-    });
-  } catch (error) {
-    logger.error("Error creating area route:", error);
-
-    const statusCode = error.message.includes("already exists")
-      ? 409
-      : error.message.includes("Validation")
-        ? 400
-        : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
   }
-}
-private static parseFlatFormData(body: any): CreateAreaDto {
-  try {
-    // Check if sub_locations is already provided as JSON string
-    let sub_locations = [];
-    
-    if (body.sub_locations) {
-      // Case 1: sub_locations provided as JSON string or array
-      if (typeof body.sub_locations === 'string') {
-        sub_locations = JSON.parse(body.sub_locations);
-      } else if (Array.isArray(body.sub_locations)) {
-        sub_locations = body.sub_locations;
+
+  static async exportDashboardData(req: Request, res: Response): Promise<void> {
+    try {
+      const params: DashboardFilterParams = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        limit: 10000,
+      };
+
+      const tableData = await AreaService.getDashboardTableData(params);
+      const format = req.query.format || "csv";
+
+      if (format === "csv") {
+        const csv = AreaController.convertDashboardToCSV(tableData.data);
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.csv");
+        res.status(200).send(csv);
+      } else if (format === "json") {
+        const enrichedData = tableData.data.map(item => {
+          // Get full area data for additional details
+          return {
+            ...item,
+            export_date: new Date().toISOString()
+          };
+        });
+
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.json");
+        res.status(200).json({
+          success: true,
+          data: enrichedData,
+          total: tableData.total,
+          export_date: new Date().toISOString(),
+          filter_params: params
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
       }
-    } else if (body['sub_locations.campus']) {
-      // Case 2: Flat form-data keys (build from individual fields)
-      const subLocation: any = {
-        campus: body['sub_locations.campus'],
-        tower: body['sub_locations.tower'],
-        floor: body['sub_locations.floor'],
-        select_machine: {
-          machine_id: body['sub_locations.select_machines.machine_id'],
-          status: body['sub_locations.select_machines.status'] || 'not_installed',
+    } catch (error) {
+      logger.error("Error exporting dashboard data:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  static async exportAreasByIds(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const format = (req.query.format as string) || "csv";
+
+      const areaIds = id
+        .split(",")
+        .map(id => id.trim())
+        .filter(id => id);
+
+      if (!areaIds || areaIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "Please provide area IDs in the URL parameter",
+        });
+        return;
+      }
+
+      const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid area IDs: ${invalidIds.join(", ")}`,
+          invalidIds,
+        });
+        return;
+      }
+
+      const areas = await AreaService.getAreasByIds(areaIds);
+
+      if (areas.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "No areas found with the provided IDs",
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+      if (format === "csv") {
+        const filename = `areas-export-${timestamp}.csv`;
+        const csv = AreaController.generateDetailedCSV(areas);
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.status(200).send(csv);
+      } else if (format === "json") {
+        const filename = `areas-export-${timestamp}.json`;
+        const enrichedAreas = areas.map(area => {
+          const areaObj = area.toObject ? area.toObject() : area;
+
+          // Extract detailed information
+          const subLocations = areaObj.sub_locations?.map((subloc: any, idx: number) => {
+            const machineInfo = subloc.select_machine ? {
+              machine_id: subloc.select_machine.machine_id,
+              status: subloc.select_machine.status,
+              images: subloc.select_machine.machine_image?.map((img: any, imgIdx: number) => ({
+                image_index: imgIdx,
+                image_name: img.image_name,
+                file_url: img.file_url,
+                cloudinary_public_id: img.cloudinary_public_id,
+                file_size: img.file_size,
+                mime_type: img.mime_type,
+                uploaded_at: img.uploaded_at
+              })) || []
+            } : null;
+
+            return {
+              index: idx,
+              campus: subloc.campus,
+              tower: subloc.tower,
+              floor: subloc.floor,
+              machine: machineInfo,
+              has_machine: !!subloc.select_machine,
+              total_images: machineInfo?.images.length || 0
+            };
+          });
+
+          return {
+            ...areaObj,
+            detailed_info: {
+              total_sub_locations: areaObj.sub_locations?.length || 0,
+              total_machines: areaObj.sub_locations?.filter((sl: any) => sl.select_machine).length || 0,
+              total_images: areaObj.sub_locations?.reduce((sum: number, sl: any) =>
+                sum + (sl.select_machine?.machine_image?.length || 0), 0) || 0,
+              sub_locations: subLocations,
+              machine_ids: areaObj.sub_locations
+                ?.filter((sl: any) => sl.select_machine?.machine_id)
+                .map((sl: any) => sl.select_machine.machine_id) || [],
+              image_urls: areaObj.sub_locations?.reduce((urls: string[], sl: any) => {
+                if (sl.select_machine?.machine_image) {
+                  sl.select_machine.machine_image.forEach((img: any) => {
+                    if (img.file_url) urls.push(img.file_url);
+                  });
+                }
+                return urls;
+              }, []) || []
+            }
+          };
+        });
+
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.status(200).json({
+          success: true,
+          data: enrichedAreas,
+          export_date: new Date().toISOString(),
+          total_areas: areas.length,
+          area_ids: areaIds
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
+      }
+    } catch (error) {
+      logger.error("Error exporting areas by IDs:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // UPDATED DASHBOARD METHODS
+
+  static async getDashboardData(req: Request, res: Response): Promise<void> {
+    try {
+      const params: DashboardFilterParams = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        sortBy: (req.query.sortBy as string) || "area_name",
+        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
+      };
+
+      const dashboardData = await AreaService.getDashboardData(params);
+
+      // Enrich dashboard data with machine and image information
+      const enrichedAreas = dashboardData.areas.map(area => {
+        const areaObj = area.toObject ? area.toObject() : area;
+
+        // Calculate detailed statistics
+        let totalMachines = 0;
+        let totalImages = 0;
+        const machineIds: string[] = [];
+        const imageUrls: string[] = [];
+
+        areaObj.sub_locations?.forEach((subloc: any) => {
+          if (subloc.select_machine && subloc.select_machine.machine_id) {
+            totalMachines++;
+            machineIds.push(subloc.select_machine.machine_id);
+
+            if (subloc.select_machine.machine_image) {
+              totalImages += subloc.select_machine.machine_image.length;
+              subloc.select_machine.machine_image.forEach((img: any) => {
+                if (img.file_url) {
+                  imageUrls.push(img.file_url);
+                }
+              });
+            }
+          }
+        });
+
+        return {
+          ...areaObj,
+          summary: {
+            total_machines: totalMachines,
+            total_images: totalImages,
+            machine_ids: machineIds,
+            sample_image_url: imageUrls.length > 0 ? imageUrls[0] : null
+          }
+        };
+      });
+
+      // Enrich statistics with image and machine counts
+      const enrichedStatistics = {
+        ...dashboardData.statistics,
+        total_images: enrichedAreas.reduce((sum, area) => sum + (area.summary?.total_images || 0), 0),
+        machines_by_status: {
+          installed: enrichedAreas.reduce((sum, area) => {
+            return sum + (area.sub_locations?.filter((sl: any) =>
+              sl.select_machine?.status === 'installed').length || 0);
+          }, 0),
+          not_installed: enrichedAreas.reduce((sum, area) => {
+            return sum + (area.sub_locations?.filter((sl: any) =>
+              sl.select_machine?.status === 'not_installed').length || 0);
+          }, 0)
         }
       };
 
-      // Only add if all required fields are present
-      if (subLocation.campus && subLocation.tower && subLocation.floor && subLocation.select_machine.machine_id) {
-        sub_locations = [subLocation];
-      }
+      res.status(200).json({
+        success: true,
+        data: {
+          ...dashboardData,
+          areas: enrichedAreas,
+          statistics: enrichedStatistics
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching dashboard data:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
     }
-
-    // Build the CreateAreaDto object
-    const areaData: CreateAreaDto = {
-      area_name: body.area_name,
-      state: body.state,
-      district: body.district,
-      pincode: body.pincode,
-      area_description: body.area_description,
-      status: body.status || 'active',
-      sub_locations: sub_locations,
-    };
-
-    // Add optional fields if they exist
-    if (body.latitude) {
-      areaData.latitude = parseFloat(body.latitude);
-    }
-    if (body.longitude) {
-      areaData.longitude = parseFloat(body.longitude);
-    }
-    if (body.address) {
-      areaData.address = body.address;
-    }
-
-    return areaData;
-  } catch (error) {
-    logger.error("Error parsing flat form data:", error);
-    throw new Error("Failed to parse form data. Ensure sub_locations is valid JSON or individual fields are correctly named.");
   }
-}
+
+  static async getDashboardTable(req: Request, res: Response): Promise<void> {
+    try {
+      const params: DashboardFilterParams = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        sortBy: (req.query.sortBy as string) || "area_name",
+        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
+      };
+
+      const tableData = await AreaService.getDashboardTableData(params);
+
+      // Enrich table data with machine and image information
+      const enrichedData = await Promise.all(tableData.data.map(async (item) => {
+        const area = await AreaService.getAreaById(item.id);
+        if (!area) return item;
+
+        const areaObj = area.toObject ? area.toObject() : area;
+
+        // Calculate detailed machine and image information
+        let totalMachines = 0;
+        let totalImages = 0;
+        const machineIds: string[] = [];
+        const imageUrls: string[] = [];
+
+        areaObj.sub_locations?.forEach((subloc: any) => {
+          if (subloc.select_machine && subloc.select_machine.machine_id) {
+            totalMachines++;
+            machineIds.push(subloc.select_machine.machine_id);
+
+            if (subloc.select_machine.machine_image) {
+              totalImages += subloc.select_machine.machine_image.length;
+              subloc.select_machine.machine_image.forEach((img: any) => {
+                if (img.file_url) {
+                  imageUrls.push(img.file_url);
+                }
+              });
+            }
+          }
+        });
+
+        return {
+          ...item,
+          total_machines: totalMachines,
+          total_images: totalImages,
+          machine_ids: machineIds,
+          image_urls: imageUrls,
+          sample_image_url: imageUrls.length > 0 ? imageUrls[0] : null,
+          has_images: totalImages > 0
+        };
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: enrichedData,
+        pagination: {
+          currentPage: params.page || 1,
+          totalItems: tableData.total,
+          totalPages: Math.ceil(tableData.total / (params.limit || 10)),
+          itemsPerPage: params.limit || 10,
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching dashboard table:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // NEW HELPER METHODS FOR CSV GENERATION
+
+  private static convertAreasToCSV(areas: any[]): string {
+    if (!areas || areas.length === 0) {
+      return "No areas available for export";
+    }
+
+    try {
+      const headers = [
+        "ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Total Sub-locations",
+        "Total Machines",
+        "Machine IDs",
+        "Total Images",
+        "Image URLs",
+        "Created At",
+        "Updated At"
+      ];
+
+      let csv = "\ufeff";
+      csv += headers.join(",") + "\n";
+
+      areas.forEach(area => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+
+        // Calculate machine and image information
+        let totalMachines = 0;
+        let totalImages = 0;
+        const machineIds: string[] = [];
+        const imageUrls: string[] = [];
+
+        areaDoc.sub_locations?.forEach((subloc: any) => {
+          if (subloc.select_machine && subloc.select_machine.machine_id) {
+            totalMachines++;
+            machineIds.push(subloc.select_machine.machine_id);
+
+            if (subloc.select_machine.machine_image) {
+              totalImages += subloc.select_machine.machine_image.length;
+              subloc.select_machine.machine_image.forEach((img: any) => {
+                if (img.file_url) {
+                  imageUrls.push(img.file_url);
+                }
+              });
+            }
+          }
+        });
+
+        const row = [
+          areaDoc._id?.toString() || "",
+          `"${(areaDoc.area_name || "").replace(/"/g, '""')}"`,
+          `"${(areaDoc.state || "").replace(/"/g, '""')}"`,
+          `"${(areaDoc.district || "").replace(/"/g, '""')}"`,
+          areaDoc.pincode || "",
+          areaDoc.status || "",
+          `"${(areaDoc.address || "").replace(/"/g, '""')}"`,
+          areaDoc.sub_locations?.length || 0,
+          totalMachines,
+          `"${machineIds.join("; ").replace(/"/g, '""')}"`,
+          totalImages,
+          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
+          areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : "",
+          areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : ""
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Total Areas," + areas.length + "\n";
+      csv += "Total Sub-locations," + areas.reduce((sum, area) =>
+        sum + (area.sub_locations?.length || 0), 0) + "\n";
+      csv += "Total Machines," + areas.reduce((sum, area) => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
+          sl.select_machine && sl.select_machine.machine_id).length || 0);
+      }, 0) + "\n";
+      csv += "Total Images," + areas.reduce((sum, area) => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+        return sum + (areaDoc.sub_locations?.reduce((imgSum: number, sl: any) =>
+          imgSum + (sl.select_machine?.machine_image?.length || 0), 0) || 0);
+      }, 0) + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting areas to CSV:", error);
+      return "Error generating areas CSV";
+    }
+  }
+
+  private static convertDashboardToCSV(data: any[]): string {
+    if (!data || data.length === 0) {
+      return "No dashboard data available for export";
+    }
+
+    try {
+      const headers = [
+        "ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Address",
+        "Status",
+        "Sub-locations Count",
+        "Total Machines",
+        "Total Images",
+        "Machine IDs",
+        "Campuses",
+        "Created At",
+        "Updated At"
+      ];
+
+      let csv = "\ufeff";
+      csv += headers.join(",") + "\n";
+
+      data.forEach(item => {
+        const row = [
+          item.id,
+          `"${item.area_name?.replace(/"/g, '""') || ""}"`,
+          `"${item.state?.replace(/"/g, '""') || ""}"`,
+          `"${item.district?.replace(/"/g, '""') || ""}"`,
+          item.pincode || "",
+          `"${(item.address || "").replace(/"/g, '""')}"`,
+          item.status || "",
+          item.sub_locations_count || 0,
+          item.total_machines || 0,
+          item.total_images || 0,
+          `"${(item.machine_ids?.join("; ") || "").replace(/"/g, '""')}"`,
+          `"${(item.campuses || "").replace(/"/g, '""')}"`,
+          item.created_at ? new Date(item.created_at).toISOString() : "",
+          item.updated_at ? new Date(item.updated_at).toISOString() : ""
+        ];
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Dashboard Export Summary\n";
+      csv += "Total Areas," + data.length + "\n";
+      csv += "Total Sub-locations," + data.reduce((sum, item) => sum + (item.sub_locations_count || 0), 0) + "\n";
+      csv += "Total Machines," + data.reduce((sum, item) => sum + (item.total_machines || 0), 0) + "\n";
+      csv += "Total Images," + data.reduce((sum, item) => sum + (item.total_images || 0), 0) + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting dashboard to CSV:", error);
+      return "Error generating dashboard CSV";
+    }
+  }
+
+  private static generateDetailedCSV(areas: any[]): string {
+    if (!areas || areas.length === 0) {
+      return "No data available for export";
+    }
+
+    try {
+      let csv = "\ufeff";
+
+      // Main area information
+      const headers = [
+        "Area ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Description",
+        "Latitude",
+        "Longitude",
+        "Total Sub-locations",
+        "Total Machines",
+        "Total Images",
+        "Created At",
+        "Updated At"
+      ];
+
+      csv += headers.join(",") + "\n";
+
+      areas.forEach(area => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+
+        // Calculate totals
+        let totalMachines = 0;
+        let totalImages = 0;
+
+        areaDoc.sub_locations?.forEach((subloc: any) => {
+          if (subloc.select_machine && subloc.select_machine.machine_id) {
+            totalMachines++;
+            if (subloc.select_machine.machine_image) {
+              totalImages += subloc.select_machine.machine_image.length;
+            }
+          }
+        });
+
+        const row = [
+          areaDoc._id?.toString() || "",
+          `"${(areaDoc.area_name || "").replace(/"/g, '""')}"`,
+          `"${(areaDoc.state || "").replace(/"/g, '""')}"`,
+          `"${(areaDoc.district || "").replace(/"/g, '""')}"`,
+          areaDoc.pincode || "",
+          areaDoc.status || "",
+          `"${(areaDoc.address || "").replace(/"/g, '""')}"`,
+          `"${(areaDoc.area_description || "").replace(/"/g, '""')}"`,
+          areaDoc.latitude || "",
+          areaDoc.longitude || "",
+          areaDoc.sub_locations?.length || 0,
+          totalMachines,
+          totalImages,
+          areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : "",
+          areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : ""
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add detailed sub-location information
+      csv += "\n\n";
+      csv += "Sub-location Details\n";
+      csv += "Area Name,Sub-location Index,Campus,Tower,Floor,Machine ID,Machine Status,Total Images,Image URLs\n";
+
+      areas.forEach(area => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+
+        areaDoc.sub_locations?.forEach((subloc: any, idx: number) => {
+          const machineId = subloc.select_machine?.machine_id || "No Machine";
+          const machineStatus = subloc.select_machine?.status || "N/A";
+          const totalImages = subloc.select_machine?.machine_image?.length || 0;
+          const imageUrls = subloc.select_machine?.machine_image
+            ?.map((img: any) => img.file_url)
+            .filter(Boolean)
+            .join("; ") || "";
+
+          const row = [
+            `"${areaDoc.area_name?.replace(/"/g, '""') || ""}"`,
+            idx + 1,
+            `"${(subloc.campus || "").replace(/"/g, '""')}"`,
+            `"${(subloc.tower || "").replace(/"/g, '""')}"`,
+            `"${(subloc.floor || "").replace(/"/g, '""')}"`,
+            `"${machineId.replace(/"/g, '""')}"`,
+            `"${machineStatus.replace(/"/g, '""')}"`,
+            totalImages,
+            `"${imageUrls.replace(/"/g, '""')}"`
+          ];
+
+          csv += row.join(",") + "\n";
+        });
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Total Areas Exported," + areas.length + "\n";
+      csv += "Total Sub-locations," + areas.reduce((sum, area) =>
+        sum + (area.sub_locations?.length || 0), 0) + "\n";
+      csv += "Total Machines," + areas.reduce((sum, area) => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
+          sl.select_machine && sl.select_machine.machine_id).length || 0);
+      }, 0) + "\n";
+      csv += "Total Images," + areas.reduce((sum, area) => {
+        const areaDoc = area.toObject ? area.toObject() : area;
+        return sum + (areaDoc.sub_locations?.reduce((imgSum: number, sl: any) =>
+          imgSum + (sl.select_machine?.machine_image?.length || 0), 0) || 0);
+      }, 0) + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error generating detailed CSV:", error);
+      return "Error generating detailed CSV data";
+    }
+  }
+
+  static async createAreaRoute(req: Request, res: Response): Promise<void> {
+    try {
+      let areaData: CreateAreaDto;
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      // Log raw body for debugging
+      logger.info("Raw request body:", JSON.stringify(req.body, null, 2));
+
+      // Parse request data
+      try {
+        // OPTION 1: Form-data with JSON in 'data' field
+        if (req.body.data) {
+          areaData = JSON.parse(req.body.data);
+        }
+        // OPTION 2: sub_locations as JSON string
+        else if (req.body.sub_locations && typeof req.body.sub_locations === 'string') {
+          // Try to parse sub_locations
+          let parsedSubLocations;
+          try {
+            parsedSubLocations = JSON.parse(req.body.sub_locations);
+          } catch (parseError) {
+            logger.error("Failed to parse sub_locations JSON:", parseError);
+            res.status(400).json({
+              success: false,
+              message: "Invalid JSON format for sub_locations",
+              details: parseError.message,
+              received: req.body.sub_locations
+            });
+            return;
+          }
+
+          areaData = {
+            area_name: req.body.area_name,
+            state: req.body.state,
+            district: req.body.district,
+            pincode: req.body.pincode,
+            area_description: req.body.area_description,
+            status: req.body.status || 'active',
+            sub_locations: parsedSubLocations,
+            latitude: req.body.latitude ? parseFloat(req.body.latitude) : undefined,
+            longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
+            address: req.body.address,
+          };
+        }
+        // OPTION 3: Flat form-data keys
+        else if (req.body.area_name) {
+          areaData = AreaController.parseFlatFormData(req.body);
+        }
+        // OPTION 4: JSON request body
+        else {
+          areaData = req.body;
+        }
+      } catch (parseError) {
+        logger.error("Error parsing request data:", parseError);
+        res.status(400).json({
+          success: false,
+          message: "Failed to parse request data",
+          details: parseError.message,
+        });
+        return;
+      }
+
+      // Log parsed data
+      logger.info("Parsed area data:", JSON.stringify(areaData, null, 2));
+
+      // Validate required fields
+      const requiredFields = [
+        "area_name",
+        "state",
+        "district",
+        "pincode",
+        "area_description",
+        "status",
+        "sub_locations",
+      ];
+
+      const missingFields = requiredFields.filter(field => {
+        const value = areaData[field as keyof CreateAreaDto];
+        if (field === 'sub_locations') {
+          return !value || !Array.isArray(value) || value.length === 0;
+        }
+        return !value;
+      });
+
+      if (missingFields.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Missing required fields: ${missingFields.join(", ")}`,
+          details: {
+            received: Object.keys(areaData),
+            missing: missingFields,
+          },
+        });
+        return;
+      }
+
+      // Validate sub_locations structure
+      if (!Array.isArray(areaData.sub_locations) || areaData.sub_locations.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "sub_locations must be a non-empty array",
+          received: areaData.sub_locations,
+        });
+        return;
+      }
+
+      // Process file uploads if any
+      if (files && files.length > 0) {
+        const uploadService = new ImageUploadService();
+        const processedFiles = await uploadService.uploadMultipleFiles(
+          files,
+          "areaMachine_images",
+          "areaMachine"
+        );
+
+        // Attach files to the first sub-location's machine
+        if (areaData.sub_locations[0]) {
+          if (!areaData.sub_locations[0].select_machine) {
+            areaData.sub_locations[0].select_machine = {
+              machine_id: '',
+              status: 'not_installed',
+              machine_image: []
+            };
+          }
+
+          if (!areaData.sub_locations[0].select_machine.machine_image) {
+            areaData.sub_locations[0].select_machine.machine_image = [];
+          }
+
+          areaData.sub_locations[0].select_machine.machine_image.push(...processedFiles);
+        }
+      }
+
+      const auditParams = AreaController.getAuditParams(req);
+      const newArea = await AreaService.createArea(areaData, auditParams);
+
+      res.status(201).json({
+        success: true,
+        message: "Area route created successfully",
+        data: newArea,
+      });
+    } catch (error) {
+      logger.error("Error creating area route:", error);
+
+      const statusCode = error.message.includes("already exists")
+        ? 409
+        : error.message.includes("Validation")
+          ? 400
+          : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
+    }
+  }
+  private static parseFlatFormData(body: any): CreateAreaDto {
+    try {
+      // Check if sub_locations is already provided as JSON string
+      let sub_locations = [];
+
+      if (body.sub_locations) {
+        // Case 1: sub_locations provided as JSON string or array
+        if (typeof body.sub_locations === 'string') {
+          sub_locations = JSON.parse(body.sub_locations);
+        } else if (Array.isArray(body.sub_locations)) {
+          sub_locations = body.sub_locations;
+        }
+      } else if (body['sub_locations.campus']) {
+        // Case 2: Flat form-data keys (build from individual fields)
+        const subLocation: any = {
+          campus: body['sub_locations.campus'],
+          tower: body['sub_locations.tower'],
+          floor: body['sub_locations.floor'],
+          select_machine: {
+            machine_id: body['sub_locations.select_machines.machine_id'],
+            status: body['sub_locations.select_machines.status'] || 'not_installed',
+          }
+        };
+
+        // Only add if all required fields are present
+        if (subLocation.campus && subLocation.tower && subLocation.floor && subLocation.select_machine.machine_id) {
+          sub_locations = [subLocation];
+        }
+      }
+
+      // Build the CreateAreaDto object
+      const areaData: CreateAreaDto = {
+        area_name: body.area_name,
+        state: body.state,
+        district: body.district,
+        pincode: body.pincode,
+        area_description: body.area_description,
+        status: body.status || 'active',
+        sub_locations: sub_locations,
+      };
+
+      // Add optional fields if they exist
+      if (body.latitude) {
+        areaData.latitude = parseFloat(body.latitude);
+      }
+      if (body.longitude) {
+        areaData.longitude = parseFloat(body.longitude);
+      }
+      if (body.address) {
+        areaData.address = body.address;
+      }
+
+      return areaData;
+    } catch (error) {
+      logger.error("Error parsing flat form data:", error);
+      throw new Error("Failed to parse form data. Ensure sub_locations is valid JSON or individual fields are correctly named.");
+    }
+  }
   static async getAllAreaRoutes(req: Request, res: Response): Promise<void> {
     try {
       const queryParams: AreaQueryParams = {
@@ -1023,211 +2263,11 @@ private static parseFlatFormData(body: any): CreateAreaDto {
     }
   }
 
-  static async exportAreas(req: Request, res: Response): Promise<void> {
-    try {
-      const queryParams: AreaQueryParams = {
-        page: 1,
-        limit: 10000,
-        status: req.query.status as "active" | "inactive",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        search: req.query.search as string,
-      };
-
-      const result = await AreaService.getAllAreas(queryParams);
-      const format = req.query.format || "json";
-
-      if (format === "csv") {
-        const csv = AreaController.convertToCSV(result.data);
-        res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=areas.csv");
-        res.status(200).send(csv);
-      } else {
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", "attachment; filename=areas.json");
-        res.status(200).json({
-          success: true,
-          data: result.data,
-        });
-      }
-    } catch (error) {
-      logger.error("Error exporting areas:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async getDashboardData(req: Request, res: Response): Promise<void> {
-    try {
-      const params: DashboardFilterParams = {
-        status: (req.query.status as "active" | "inactive" | "all") || "all",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
-        search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sortBy: (req.query.sortBy as string) || "area_name",
-        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
-      };
-
-      const dashboardData = await AreaService.getDashboardData(params);
-
-      res.status(200).json({
-        success: true,
-        data: dashboardData,
-      });
-    } catch (error) {
-      logger.error("Error fetching dashboard data:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async getDashboardTable(req: Request, res: Response): Promise<void> {
-    try {
-      const params: DashboardFilterParams = {
-        status: (req.query.status as "active" | "inactive" | "all") || "all",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
-        search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sortBy: (req.query.sortBy as string) || "area_name",
-        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
-      };
-
-      const tableData = await AreaService.getDashboardTableData(params);
-
-      res.status(200).json({
-        success: true,
-        data: tableData.data,
-        pagination: {
-          currentPage: params.page || 1,
-          totalItems: tableData.total,
-          totalPages: Math.ceil(tableData.total / (params.limit || 10)),
-          itemsPerPage: params.limit || 10,
-        },
-      });
-    } catch (error) {
-      logger.error("Error fetching dashboard table:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async exportDashboardData(req: Request, res: Response): Promise<void> {
-    try {
-      const params: DashboardFilterParams = {
-        status: (req.query.status as "active" | "inactive" | "all") || "all",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
-        search: req.query.search as string,
-        limit: 10000,
-      };
-
-      const tableData = await AreaService.getDashboardTableData(params);
-      const format = req.query.format || "csv";
-
-      if (format === "csv") {
-        const csv = AreaController.convertTableToCSV(tableData.data);
-        res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.csv");
-        res.status(200).send(csv);
-      } else if (format === "json") {
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.json");
-        res.status(200).json({
-          success: true,
-          data: tableData.data,
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: 'Unsupported format. Use "csv" or "json"',
-        });
-      }
-    } catch (error) {
-      logger.error("Error exporting dashboard data:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async exportAreasByIds(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const format = (req.query.format as string) || "csv";
-
-      const areaIds = id
-        .split(",")
-        .map(id => id.trim())
-        .filter(id => id);
-
-      if (!areaIds || areaIds.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "Please provide area IDs in the URL parameter",
-        });
-        return;
-      }
-
-      const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-      if (invalidIds.length > 0) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid area IDs: ${invalidIds.join(", ")}`,
-          invalidIds,
-        });
-        return;
-      }
-
-      const areas = await AreaService.getAreasByIds(areaIds);
-
-      if (areas.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: "No areas found with the provided IDs",
-        });
-        return;
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `areas-export-${timestamp}.csv`;
-
-      const csv = AreaController.generateCSV(areas);
-
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.status(200).send(csv);
-    } catch (error) {
-      logger.error("Error exporting areas by IDs:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
 
   static async removeMachineFromArea(req: Request, res: Response): Promise<void> {
+    const { id, machineId } = req.params;
+
     try {
-      const { id, machineId } = req.params;
 
       if (!machineId || machineId.trim() === "") {
         res.status(400).json({
@@ -1256,29 +2296,47 @@ private static parseFlatFormData(body: any): CreateAreaDto {
         return;
       }
 
-      res.status(200).json({
+      // Calculate remaining machines
+      const remainingMachines = updatedArea.sub_locations?.filter(
+        (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
+      ).length || 0;
+
+      const response = {
         success: true,
         message: `Machine "${machineId}" removed successfully from area`,
         data: updatedArea,
-      });
+        summary: {
+          removed_machine_id: machineId,
+          remaining_machines: remainingMachines,
+          total_sub_locations: updatedArea.sub_locations?.length || 0,
+          has_machines: remainingMachines > 0,
+          warning: remainingMachines === 0 ?
+            "Warning: All machines have been removed from this area. The area will still exist with empty sub-locations." :
+            undefined
+        }
+      };
+
+      res.status(200).json(response);
     } catch (error) {
       logger.error("Error removing machine from area:", error);
 
       const statusCode = error.message.includes("not found")
         ? 404
-        : error.message.includes("Cannot remove all machines")
+        : error.message.includes("Invalid MongoDB ObjectId")
           ? 400
-          : error.message.includes("Invalid MongoDB ObjectId")
-            ? 400
-            : 500;
+          : 500;
 
       res.status(statusCode).json({
         success: false,
         message: error.message || "Internal server error",
+        error_details: process.env.NODE_ENV === 'development' ? {
+          stack: error.stack,
+          area_id: id,
+          machine_id: machineId
+        } : undefined
       });
     }
   }
-
   // HELPER METHODS
   private static async attachFilesToSubLocations(
     areaData: any,
@@ -1325,132 +2383,5 @@ private static parseFlatFormData(body: any): CreateAreaDto {
     }
   }
 
-  
-  private static convertToCSV(data: any[]): string {
-    if (data.length === 0) return "";
 
-    const headers = Object.keys(data[0].toObject ? data[0].toObject() : data[0]);
-    const csvRows = [];
-
-    csvRows.push(headers.join(","));
-
-    for (const item of data) {
-      const row = headers.map(header => {
-        const value = item[header];
-        if (typeof value === "object") {
-          return JSON.stringify(value).replace(/"/g, '""');
-        }
-        return `"${String(value).replace(/"/g, '""')}"`;
-      });
-      csvRows.push(row.join(","));
-    }
-
-    return csvRows.join("\n");
-  }
-
-  private static convertTableToCSV(data: any[]): string {
-    if (data.length === 0) return "";
-
-    const headers = [
-      "ID",
-      "Area Name",
-      "State",
-      "District",
-      "Pincode",
-      "Status",
-      "Sub-locations Count",
-      "Total Machines",
-      "Campuses",
-      "Last Updated",
-      "Created At",
-    ];
-
-    const csvRows = [];
-
-    csvRows.push(headers.join(","));
-
-    for (const item of data) {
-      const row = [
-        item.id,
-        `"${item.area_name?.replace(/"/g, '""') || ""}"`,
-        `"${item.state?.replace(/"/g, '""') || ""}"`,
-        `"${item.district?.replace(/"/g, '""') || ""}"`,
-        item.pincode || "",
-        item.status || "",
-        item.sub_locations_count || 0,
-        item.total_machines || 0,
-        `"${item.campuses?.replace(/"/g, '""') || ""}"`,
-        item.last_updated ? new Date(item.last_updated).toISOString() : "",
-        item.created_at ? new Date(item.created_at).toISOString() : "",
-      ];
-      csvRows.push(row.join(","));
-    }
-
-    return csvRows.join("\n");
-  }
-
-  private static generateCSV(areas: any[]): string {
-    if (!areas || areas.length === 0) {
-      return "No data available for export";
-    }
-
-    try {
-      const headers = [
-        "ID",
-        "Area Name",
-        "State",
-        "District",
-        "Pincode",
-        "Status",
-        "Sub-locations Count",
-        "Total Machines",
-        "Campuses",
-        "Last Updated",
-        "Created At",
-      ];
-
-      let csv = "\ufeff";
-      csv += headers.join(",") + "\n";
-
-      areas.forEach(area => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-
-        const subLocationsCount = areaDoc.sub_locations?.length || 0;
-
-        // Calculate total machines based on new structure
-        const totalMachines = areaDoc.sub_locations?.filter(
-          (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
-        ).length || 0;
-
-        const uniqueCampuses = [
-          ...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || []),
-        ];
-        const campuses = uniqueCampuses.join(", ");
-
-        const lastUpdated = areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : "";
-        const createdAt = areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : "";
-
-        const row = [
-          areaDoc._id?.toString() || "",
-          `"${(areaDoc.area_name || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.state || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.district || "").replace(/"/g, '""')}"`,
-          areaDoc.pincode || "",
-          areaDoc.status || "",
-          subLocationsCount,
-          totalMachines,
-          `"${campuses.replace(/"/g, '""')}"`,
-          lastUpdated,
-          createdAt,
-        ];
-
-        csv += row.join(",") + "\n";
-      });
-
-      return csv;
-    } catch (error) {
-      logger.error("Error generating CSV:", error);
-      return "Error generating CSV data";
-    }
-  }
 }
