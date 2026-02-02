@@ -16,7 +16,8 @@ export interface ICreateArea extends Document {
     floor: string;
     select_machine: {
       machine_id: string;
-      status: "installed" | "not_installed";
+      installed_status: "installed" | "not_installed";
+      status: "active" | "inactive";
       machine_image: IMachineImageData[];
     };
   }[];
@@ -81,9 +82,13 @@ const SubLocationSchema: Schema = new Schema(
         machine_id: {
           type: String
         },
-        status: {
+        installed_status: {
           type: String,
           enum: ["installed", "not_installed"]
+        },
+        status: {
+          type: String,
+          enum: ["active", "inactive"]
         },
         machine_image: {
           type: [machineImageSchema],
@@ -170,7 +175,7 @@ const AreaRouteSchema: Schema = new Schema(
           if (v.length === 0) {
             return false;
           }
-          
+
           // Remove this validation to allow empty machines
           // Area can exist with sub-locations that have no machines
           return true;
@@ -179,7 +184,7 @@ const AreaRouteSchema: Schema = new Schema(
       },
     },
   },
-  { 
+  {
     timestamps: true,
     collection: "areaRoutes"
   }
@@ -238,11 +243,11 @@ const HistoryAreaSchema: Schema = new Schema(
       },
       required: true,
     },
-    ip_address: { 
+    ip_address: {
       type: String,
       trim: true,
     },
-    user_agent: { 
+    user_agent: {
       type: String,
       trim: true,
     },
