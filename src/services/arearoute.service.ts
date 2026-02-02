@@ -1526,4 +1526,103 @@ export class AreaService {
 
     return updatedArea;
   }
+  /**
+ * Toggle machine installed_status between installed and not_installed
+ */
+  static async toggleMachineInstalledStatus(
+    areaId: string,
+    machineId: string,
+    auditParams?: AuditLogParams
+  ): Promise<ICreateArea | null> {
+    this.validateObjectId(areaId);
+
+    if (!machineId || machineId.trim() === "") {
+      throw new Error("Machine ID is required");
+    }
+
+    const existingArea = await AreaRouteModel.findById(areaId);
+    if (!existingArea) {
+      throw new Error("Area not found");
+    }
+
+    // Find the sub-location containing the machine
+    const subLocationIndex = existingArea.sub_locations?.findIndex(
+      subloc => subloc.select_machine?.machine_id === machineId
+    );
+
+    if (subLocationIndex === undefined || subLocationIndex === -1) {
+      throw new Error(`Machine with ID "${machineId}" not found in this area`);
+    }
+
+    const subLocation = existingArea.sub_locations[subLocationIndex];
+    const currentInstalledStatus = subLocation.select_machine?.installed_status;
+
+    if (!currentInstalledStatus) {
+      throw new Error(`Machine "${machineId}" does not have an installed_status field`);
+    }
+
+    // Toggle between installed and not_installed
+    const newInstalledStatus = currentInstalledStatus === 'installed' ? 'not_installed' : 'installed';
+    const updatePath = `sub_locations.${subLocationIndex}.select_machine.installed_status`;
+
+    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+      areaId,
+      {
+        $set: { [updatePath]: newInstalledStatus }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (updatedArea) {
+      const changes = {
+        'machine_installed_status': {
+          old: {
+            machine_id: machineId,
+            installed_status: currentInstalledStatus,
+            action: 'TOGGLE_INSTALLED_STATUS'
+          },
+          new: {
+            machine_id: machineId,
+            installed_status: newInstalledStatus,
+            action: 'TOGGLE_INSTALLED_STATUS'
+          }
+        }
+      };
+
+      await this.createAuditLog(
+        areaId,
+        "UPDATE",
+        {
+          sub_locations: existingArea.sub_locations?.map(sl => ({
+            campus: sl.campus,
+            tower: sl.tower,
+            floor: sl.floor,
+            select_machine: {
+              machine_id: sl.select_machine?.machine_id || '',
+              installed_status: sl.select_machine?.installed_status || 'not_installed',
+              status: sl.select_machine?.status || 'inactive',
+              machine_image: sl.select_machine?.machine_image || []
+            }
+          }))
+        },
+        {
+          sub_locations: updatedArea.sub_locations?.map(sl => ({
+            campus: sl.campus,
+            tower: sl.tower,
+            floor: sl.floor,
+            select_machine: {
+              machine_id: sl.select_machine?.machine_id || '',
+              installed_status: sl.select_machine?.installed_status || 'not_installed',
+              status: sl.select_machine?.status || 'inactive',
+              machine_image: sl.select_machine?.machine_image || []
+            }
+          }))
+        },
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedArea;
+  }
 }

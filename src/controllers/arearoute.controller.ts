@@ -2809,4 +2809,120 @@ static async toggleMachineStatus(req: Request, res: Response): Promise<void> {
     });
   }
 }
+/**
+ * Toggle machine installed_status (installed ↔ not_installed)
+ * Changes between 'installed' and 'not_installed' for a specific machine
+ * No request body needed - just hit the API
+ */
+static async toggleMachineInstalledStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { areaId, machineId } = req.params;
+    
+    // Validate area ID
+    if (!mongoose.Types.ObjectId.isValid(areaId)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid area ID format",
+      });
+      return;
+    }
+
+    // Validate machine ID
+    if (!machineId || machineId.trim() === "") {
+      res.status(400).json({
+        success: false,
+        message: "Machine ID is required",
+      });
+      return;
+    }
+
+    // Get audit parameters
+    const auditParams = AreaController.getAuditParams(req);
+
+    // Call service to toggle machine installed_status
+    const updatedArea = await AreaService.toggleMachineInstalledStatus(
+      areaId,
+      machineId,
+      auditParams
+    );
+
+    if (!updatedArea) {
+      res.status(404).json({
+        success: false,
+        message: "Area or machine not found",
+      });
+      return;
+    }
+
+    // Find the specific machine that was toggled
+    const toggledMachine = updatedArea.sub_locations?.find(
+      subloc => subloc.select_machine?.machine_id === machineId
+    )?.select_machine;
+
+    if (!toggledMachine) {
+      res.status(404).json({
+        success: false,
+        message: "Machine not found after update",
+      });
+      return;
+    }
+
+    // Count installed/not_installed machines
+    const installedMachines = updatedArea.sub_locations?.filter(
+      sl => sl.select_machine?.installed_status === 'installed'
+    ).length || 0;
+    
+    const notInstalledMachines = updatedArea.sub_locations?.filter(
+      sl => sl.select_machine?.installed_status === 'not_installed'
+    ).length || 0;
+
+    res.status(200).json({
+      success: true,
+      message: `Machine "${machineId}" installed_status toggled from ${toggledMachine.installed_status === 'installed' ? 'not_installed' : 'installed'} to ${toggledMachine.installed_status}`,
+      data: {
+        area_id: areaId,
+        area_name: updatedArea.area_name,
+        machine_id: machineId,
+        new_installed_status: toggledMachine.installed_status,
+        previous_installed_status: toggledMachine.installed_status === 'installed' ? 'not_installed' : 'installed',
+        machine_status: toggledMachine.status, // Keep the regular status unchanged
+        location: {
+          campus: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.campus,
+          tower: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.tower,
+          floor: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.floor
+        },
+        summary: {
+          total_machines: installedMachines + notInstalledMachines,
+          installed_machines: installedMachines,
+          not_installed_machines: notInstalledMachines
+        },
+        timestamp: new Date().toISOString()
+      },
+    });
+  } catch (error) {
+    logger.error("Error toggling machine installed_status:", error);
+
+    const statusCode = error.message.includes("not found")
+      ? 404
+      : error.message.includes("Invalid")
+        ? 400
+        : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error_details: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        area_id: req.params.areaId,
+        machine_id: req.params.machineId
+      } : undefined,
+    });
+  }
+}
 }
