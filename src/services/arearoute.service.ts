@@ -938,14 +938,14 @@ export class AreaService {
       area.sub_locations?.forEach(subLoc => {
         if (subLoc.select_machine && subLoc.select_machine.machine_id) {
           totalMachines++;
-          
+
           // Count by installed_status
           if (subLoc.select_machine.installed_status === 'installed') {
             installedMachines++;
           } else if (subLoc.select_machine.installed_status === 'not_installed') {
             notInstalledMachines++;
           }
-          
+
           // Count by status
           if (subLoc.select_machine.status === 'active') {
             activeMachines++;
@@ -994,12 +994,12 @@ export class AreaService {
 
     const tableData = areas.map(area => {
       const areaObj = area.toObject ? area.toObject() : area;
-      
+
       // Calculate machine statistics for new schema
       let totalMachines = 0;
       let installedMachines = 0;
       let notInstalledMachines = 0;
-      
+
       areaObj.sub_locations?.forEach((subLoc: any) => {
         if (subLoc.select_machine && subLoc.select_machine.machine_id) {
           totalMachines++;
@@ -1428,102 +1428,18 @@ export class AreaService {
       }
     }
   }
-
-  // NEW METHOD TO GET MACHINE STATUS BREAKDOWN BY AREA
-  static async getMachineStatusBreakdown(areaId: string): Promise<{
-    totalMachines: number;
-    installedMachines: number;
-    notInstalledMachines: number;
-    activeMachines: number;
-    inactiveMachines: number;
-    machines: Array<{
-      machine_id: string;
-      installed_status: string;
-      status: string;
-      campus: string;
-      tower: string;
-      floor: string;
-      image_count: number;
-    }>;
-  }> {
-    this.validateObjectId(areaId);
-
-    const area = await AreaRouteModel.findById(areaId);
-    if (!area) {
-      throw new Error("Area not found");
-    }
-
-    let totalMachines = 0;
-    let installedMachines = 0;
-    let notInstalledMachines = 0;
-    let activeMachines = 0;
-    let inactiveMachines = 0;
-    const machines: any[] = [];
-
-    area.sub_locations?.forEach(subLoc => {
-      if (subLoc.select_machine && subLoc.select_machine.machine_id) {
-        totalMachines++;
-        
-        // Count by installed_status
-        if (subLoc.select_machine.installed_status === 'installed') {
-          installedMachines++;
-        } else if (subLoc.select_machine.installed_status === 'not_installed') {
-          notInstalledMachines++;
-        }
-        
-        // Count by status
-        if (subLoc.select_machine.status === 'active') {
-          activeMachines++;
-        } else if (subLoc.select_machine.status === 'inactive') {
-          inactiveMachines++;
-        }
-
-        machines.push({
-          machine_id: subLoc.select_machine.machine_id,
-          installed_status: subLoc.select_machine.installed_status,
-          status: subLoc.select_machine.status,
-          campus: subLoc.campus,
-          tower: subLoc.tower,
-          floor: subLoc.floor,
-          image_count: subLoc.select_machine.machine_image?.length || 0
-        });
-      }
-    });
-
-    return {
-      totalMachines,
-      installedMachines,
-      notInstalledMachines,
-      activeMachines,
-      inactiveMachines,
-      machines
-    };
-  }
-
-  // NEW METHOD TO UPDATE MACHINE STATUS
-  static async updateMachineStatus(
+  /**
+  * Simple toggle machine status between active and inactive
+  */
+  static async toggleMachineStatus(
     areaId: string,
     machineId: string,
-    installedStatus?: "installed" | "not_installed",
-    machineStatus?: "active" | "inactive",
     auditParams?: AuditLogParams
   ): Promise<ICreateArea | null> {
     this.validateObjectId(areaId);
 
     if (!machineId || machineId.trim() === "") {
       throw new Error("Machine ID is required");
-    }
-
-    if (!installedStatus && !machineStatus) {
-      throw new Error("At least one status (installed_status or status) must be provided");
-    }
-
-    if (installedStatus && !['installed', 'not_installed'].includes(installedStatus)) {
-      throw new Error("Invalid installed_status. Must be 'installed' or 'not_installed'");
-    }
-
-    if (machineStatus && !['active', 'inactive'].includes(machineStatus)) {
-      throw new Error("Invalid status. Must be 'active' or 'inactive'");
     }
 
     const existingArea = await AreaRouteModel.findById(areaId);
@@ -1540,50 +1456,69 @@ export class AreaService {
       throw new Error(`Machine with ID "${machineId}" not found in this area`);
     }
 
-    const oldSubLocation = existingArea.sub_locations[subLocationIndex];
-    const oldMachineData = oldSubLocation.select_machine;
+    const subLocation = existingArea.sub_locations[subLocationIndex];
+    const currentStatus = subLocation.select_machine?.status;
 
-    if (!oldMachineData) {
-      throw new Error(`Machine data not found for machine ID "${machineId}"`);
+    if (!currentStatus) {
+      throw new Error(`Machine "${machineId}" does not have a status field`);
     }
 
-    // Prepare update object
-    const update: any = {};
-    const changes: Record<string, { old: any; new: any }> = {};
-
-    if (installedStatus && installedStatus !== oldMachineData.installed_status) {
-      update[`sub_locations.${subLocationIndex}.select_machine.installed_status`] = installedStatus;
-      changes['select_machine.installed_status'] = {
-        old: oldMachineData.installed_status,
-        new: installedStatus
-      };
-    }
-
-    if (machineStatus && machineStatus !== oldMachineData.status) {
-      update[`sub_locations.${subLocationIndex}.select_machine.status`] = machineStatus;
-      changes['select_machine.status'] = {
-        old: oldMachineData.status,
-        new: machineStatus
-      };
-    }
-
-    // If no changes, return current area
-    if (Object.keys(update).length === 0) {
-      return existingArea;
-    }
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const updatePath = `sub_locations.${subLocationIndex}.select_machine.status`;
 
     const updatedArea = await AreaRouteModel.findByIdAndUpdate(
       areaId,
-      { $set: update },
+      {
+        $set: { [updatePath]: newStatus }
+      },
       { new: true, runValidators: true }
     );
 
-    if (updatedArea && Object.keys(changes).length > 0) {
+    if (updatedArea) {
+      const changes = {
+        'machine_status': {
+          old: {
+            machine_id: machineId,
+            status: currentStatus,
+            action: 'TOGGLE'
+          },
+          new: {
+            machine_id: machineId,
+            status: newStatus,
+            action: 'TOGGLE'
+          }
+        }
+      };
+
       await this.createAuditLog(
         areaId,
-        "UPDATE",
-        null,
-        null,
+        "STATUS_CHANGE",
+        {
+          sub_locations: existingArea.sub_locations?.map(sl => ({
+            campus: sl.campus,
+            tower: sl.tower,
+            floor: sl.floor,
+            select_machine: {
+              machine_id: sl.select_machine?.machine_id || '',
+              installed_status: sl.select_machine?.installed_status || 'not_installed',
+              status: sl.select_machine?.status || 'inactive',
+              machine_image: sl.select_machine?.machine_image || []
+            }
+          }))
+        },
+        {
+          sub_locations: updatedArea.sub_locations?.map(sl => ({
+            campus: sl.campus,
+            tower: sl.tower,
+            floor: sl.floor,
+            select_machine: {
+              machine_id: sl.select_machine?.machine_id || '',
+              installed_status: sl.select_machine?.installed_status || 'not_installed',
+              status: sl.select_machine?.status || 'inactive',
+              machine_image: sl.select_machine?.machine_image || []
+            }
+          }))
+        },
         changes,
         auditParams
       );

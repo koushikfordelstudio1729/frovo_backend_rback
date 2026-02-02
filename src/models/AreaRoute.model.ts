@@ -21,6 +21,8 @@ export interface ICreateArea extends Document {
       machine_image: IMachineImageData[];
     };
   }[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface IMachineImageData {

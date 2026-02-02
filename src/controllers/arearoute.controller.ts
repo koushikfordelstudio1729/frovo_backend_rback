@@ -2695,7 +2695,118 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       });
     }
   }
+/**
+ * Simple toggle machine status (active ↔ inactive)
+ * No request body needed - just hit the API
+ */
+static async toggleMachineStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { id, machineId } = req.params;
+    
+    // Validate area ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid area ID format",
+      });
+      return;
+    }
 
+    // Validate machine ID
+    if (!machineId || machineId.trim() === "") {
+      res.status(400).json({
+        success: false,
+        message: "Machine ID is required",
+      });
+      return;
+    }
 
+    // Get audit parameters
+    const auditParams = AreaController.getAuditParams(req);
 
+    // Call service to toggle machine status
+    const updatedArea = await AreaService.toggleMachineStatus(
+      id,
+      machineId,
+      auditParams
+    );
+
+    if (!updatedArea) {
+      res.status(404).json({
+        success: false,
+        message: "Area or machine not found",
+      });
+      return;
+    }
+
+    // Find the specific machine that was toggled
+    const toggledMachine = updatedArea.sub_locations?.find(
+      subloc => subloc.select_machine?.machine_id === machineId
+    )?.select_machine;
+
+    if (!toggledMachine) {
+      res.status(404).json({
+        success: false,
+        message: "Machine not found after update",
+      });
+      return;
+    }
+
+    // Count active/inactive machines
+    const activeMachines = updatedArea.sub_locations?.filter(
+      sl => sl.select_machine?.status === 'active'
+    ).length || 0;
+    
+    const inactiveMachines = updatedArea.sub_locations?.filter(
+      sl => sl.select_machine?.status === 'inactive'
+    ).length || 0;
+
+    res.status(200).json({
+      success: true,
+      message: `Machine "${machineId}" status toggled from ${toggledMachine.status === 'active' ? 'inactive' : 'active'} to ${toggledMachine.status}`,
+      data: {
+        area_id: id,
+        area_name: updatedArea.area_name,
+        machine_id: machineId,
+        new_status: toggledMachine.status,
+        previous_status: toggledMachine.status === 'active' ? 'inactive' : 'active',
+        location: {
+          campus: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.campus,
+          tower: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.tower,
+          floor: updatedArea.sub_locations?.find(
+            sl => sl.select_machine?.machine_id === machineId
+          )?.floor
+        },
+        summary: {
+          total_machines: activeMachines + inactiveMachines,
+          active_machines: activeMachines,
+          inactive_machines: inactiveMachines
+        },
+        timestamp: new Date().toISOString()
+      },
+    });
+  } catch (error) {
+    logger.error("Error toggling machine status:", error);
+
+    const statusCode = error.message.includes("not found")
+      ? 404
+      : error.message.includes("Invalid")
+        ? 400
+        : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error_details: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        area_id: req.params.id,
+        machine_id: req.params.machineId
+      } : undefined,
+    });
+  }
+}
 }
