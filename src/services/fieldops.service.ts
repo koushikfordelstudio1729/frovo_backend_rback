@@ -6,8 +6,8 @@ import { HandoverSummary } from "../models/HandoverSummary.model";
 import { MaintenanceIssue } from "../models/MaintenanceIssue.model";
 import { FieldAgent, DispatchOrder, Warehouse } from "../models/Warehouse.model";
 import { VendingMachine } from "../models/VendingMachine.model";
-import { AreaRouteModel } from "../models/AreaRoute.model";
 import { User } from "../models";
+import { LocationModel } from "../models/AreaRoute.model";
 
 export class FieldOpsService {
   async getDashboard(userId: string) {
@@ -331,7 +331,7 @@ export class FieldOpsService {
       throw new Error("Agent not found");
     }
 
-    const routes = await AreaRouteModel.find({
+    const routes = await LocationModel.find({
       _id: { $in: agent.assignedRoutes },
     }).lean();
 
@@ -360,7 +360,7 @@ export class FieldOpsService {
       throw new Error("Invalid route ID");
     }
 
-    const route: any = await AreaRouteModel.findById(routeId).lean();
+    const route: any = await LocationModel.findById(routeId).lean();
     if (!route) {
       throw new Error("Route not found");
     }
@@ -447,7 +447,7 @@ export class FieldOpsService {
     }
 
     const agent = await FieldAgent.findById(agentId).lean();
-    const routes = await AreaRouteModel.find({
+    const routes = await LocationModel.find({
       _id: { $in: agent?.assignedRoutes || [] },
       selected_machine: machine.machineId,
     });

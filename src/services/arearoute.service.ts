@@ -1,14 +1,11 @@
 import mongoose, { Types } from "mongoose";
-import {
-  AreaRouteModel,
-  ICreateArea,
-  HistoryAreaModel,
-  IHistoryArea,
-  IMachineImageData,
-} from "../models/AreaRoute.model";
-
 import { logger } from "../utils/logger.util";
 import { ImageUploadService } from "./areaFileUpload.service";
+import { IMachineImageData } from "../models/AreaRoute.model";
+
+// Import the new models
+import { LocationModel, SubLocationModel, MachineDetailsModel, HistoryAreaModel, ILocation, ISubLocation, IMachineDetails, IHistoryArea } from "../models/AreaRoute.model"
+
 
 export interface DashboardFilterParams {
   status?: "active" | "inactive" | "all";
@@ -26,11 +23,11 @@ export interface DashboardFilterParams {
 }
 
 export interface DashboardData {
-  areas: ICreateArea[];
+  locations: ILocation[];
   statistics: {
-    totalAreas: number;
-    activeAreas: number;
-    inactiveAreas: number;
+    totalLocations: number;
+    activeLocations: number;
+    inactiveLocations: number;
     totalMachines: number;
     installedMachines: number;
     notInstalledMachines: number;
@@ -56,7 +53,7 @@ export interface DashboardData {
   };
 }
 
-export interface CreateAreaDto {
+export interface CreateLocationDto {
   area_name: string;
   state: string;
   district: string;
@@ -66,20 +63,16 @@ export interface CreateAreaDto {
   latitude?: number;
   longitude?: number;
   address?: string;
-  sub_locations: {
-    campus: string;
-    tower: string;
-    floor: string;
-    select_machine: {
-      machine_id: string;
-      installed_status: "installed" | "not_installed";
-      status: "active" | "inactive";
-      machine_image?: IMachineImageData[];
-    };
-  }[];
 }
 
-export interface UpdateAreaDto {
+export interface CreateSubLocationDto {
+  campus: string;
+  tower: string;
+  floor: string;
+  select_machine: string[]; // Array of machine names
+}
+
+export interface UpdateLocationDto {
   area_name?: string;
   state?: string;
   district?: string;
@@ -89,20 +82,15 @@ export interface UpdateAreaDto {
   latitude?: number;
   longitude?: number;
   address?: string;
-  sub_locations?: {
-    campus?: string;
-    tower?: string;
-    floor?: string;
-    select_machine?: {
-      machine_id?: string;
-      installed_status?: "installed" | "not_installed";
-      status?: "active" | "inactive";
-      machine_image?: IMachineImageData[];
-    };
-  }[];
 }
 
-export interface AreaQueryParams {
+export interface UpdateMachineDetailsDto {
+  installed_status?: "installed" | "not_installed";
+  status?: "active" | "inactive";
+  machine_image?: IMachineImageData[];
+}
+
+export interface LocationQueryParams {
   page?: number;
   limit?: number;
   status?: "active" | "inactive";
@@ -113,8 +101,8 @@ export interface AreaQueryParams {
   sortOrder?: "asc" | "desc";
 }
 
-export interface AreaPaginationResult {
-  data: ICreateArea[];
+export interface LocationPaginationResult {
+  data: ILocation[];
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -124,7 +112,7 @@ export interface AreaPaginationResult {
 }
 
 export interface BulkUpdateStatusDto {
-  areaIds: string[];
+  locationIds: string[];
   status: "active" | "inactive";
 }
 
@@ -143,16 +131,16 @@ export interface AuditLogParams {
 
 export class AreaService {
   private static async createAuditLog(
-    areaId: string,
+    location_id: Types.ObjectId,
     action: IHistoryArea["action"],
-    oldData: Partial<ICreateArea> | null,
-    newData: Partial<ICreateArea> | null,
+    oldData: Partial<ILocation> | null,
+    newData: Partial<ILocation> | null,
     changes?: Record<string, { old: any; new: any }>,
     auditParams?: AuditLogParams
   ): Promise<void> {
     try {
       const auditLog = new HistoryAreaModel({
-        area_id: new Types.ObjectId(areaId),
+        location_id,
         action,
         old_data: oldData,
         new_data: newData,
@@ -175,7 +163,6 @@ export class AreaService {
 
   private static findChanges(oldObj: any, newObj: any): Record<string, { old: any; new: any }> {
     const changes: Record<string, { old: any; new: any }> = {};
-
     const allKeys = new Set([...Object.keys(oldObj || {}), ...Object.keys(newObj || {})]);
 
     for (const key of allKeys) {
@@ -191,7 +178,7 @@ export class AreaService {
   }
 
   static async getAuditLogs(
-    areaId: string,
+    locationId: string,
     page: number = 1,
     limit: number = 10
   ): Promise<{
@@ -203,18 +190,18 @@ export class AreaService {
       itemsPerPage: number;
     };
   }> {
-    this.validateObjectId(areaId);
+    this.validateObjectId(locationId);
 
     const pageNum = Math.max(1, page);
     const limitNum = Math.max(1, Math.min(limit, 50));
     const skip = (pageNum - 1) * limitNum;
 
     const [logs, totalItems] = await Promise.all([
-      HistoryAreaModel.find({ area_id: new Types.ObjectId(areaId) })
+      HistoryAreaModel.find({ location_id: new Types.ObjectId(locationId) })
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limitNum),
-      HistoryAreaModel.countDocuments({ area_id: new Types.ObjectId(areaId) }),
+      HistoryAreaModel.countDocuments({ location_id: new Types.ObjectId(locationId) }),
     ]);
 
     const totalPages = Math.ceil(totalItems / limitNum);
@@ -230,61 +217,39 @@ export class AreaService {
     };
   }
 
-  static async getAuditSummary(limit: number = 10): Promise<IHistoryArea[]> {
-    return await HistoryAreaModel.find()
-      .sort({ timestamp: -1 })
-      .limit(limit)
-      .populate("area_id", "area_name state district");
-  }
-
-  // CREATE AREA WITH NEW STRUCTURE
-  static async createArea(
-    areaData: CreateAreaDto,
+  // CREATE LOCATION
+  static async createLocation(
+    locationData: CreateLocationDto,
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea> {
+  ): Promise<ILocation> {
     try {
       // Check for duplicate area names
-      const existingArea = await AreaRouteModel.findOne({
-        area_name: areaData.area_name,
+      const existingLocation = await LocationModel.findOne({
+        area_name: locationData.area_name,
       });
 
-      if (existingArea) {
-        throw new Error(`Area with name "${areaData.area_name}" already exists`);
+      if (existingLocation) {
+        throw new Error(`Location with name "${locationData.area_name}" already exists`);
       }
-
-      // Validate sub-locations with new structure
-      this.validateSubLocation(areaData.sub_locations);
-
-      // Check for duplicate sub-locations within the same area
-      this.checkDuplicateSubLocations(areaData.sub_locations);
 
       // Validate coordinates if provided
-      if (areaData.latitude !== undefined || areaData.longitude !== undefined) {
-        this.validateCoordinates(areaData.latitude, areaData.longitude);
+      if (locationData.latitude !== undefined || locationData.longitude !== undefined) {
+        this.validateCoordinates(locationData.latitude, locationData.longitude);
       }
 
-      // Validate machine images if any
-      if (areaData.sub_locations) {
-        for (const subLoc of areaData.sub_locations) {
-          if (subLoc.select_machine && subLoc.select_machine.machine_image) {
-            await this.validateAndProcessMachineImages(subLoc.select_machine.machine_image);
-          }
-        }
-      }
-
-      const newArea = new AreaRouteModel(areaData);
-      const savedArea = await newArea.save();
+      const newLocation = new LocationModel(locationData);
+      const savedLocation = await newLocation.save();
 
       await this.createAuditLog(
-        savedArea._id.toString(),
+        savedLocation._id,
         "CREATE",
         null,
-        savedArea.toObject(),
+        savedLocation.toObject(),
         undefined,
         auditParams
       );
 
-      return savedArea;
+      return savedLocation;
     } catch (error) {
       if (error instanceof mongoose.Error.ValidationError) {
         const errorMessages = Object.values(error.errors).map(err => err.message);
@@ -294,12 +259,135 @@ export class AreaService {
     }
   }
 
-  static async getAreaById(id: string): Promise<ICreateArea | null> {
-    this.validateObjectId(id);
-    return await AreaRouteModel.findById(id);
+  // CREATE SUB-LOCATION
+  static async createSubLocation(
+    locationId: string,
+    subLocationData: CreateSubLocationDto,
+    auditParams?: AuditLogParams
+  ): Promise<{ subLocation: ISubLocation; machines: IMachineDetails[] }> {
+    this.validateObjectId(locationId);
+
+    // Check if location exists
+    const location = await LocationModel.findById(locationId);
+    if (!location) {
+      throw new Error("Location not found");
+    }
+
+    // Validate required fields
+    if (!subLocationData.campus || !subLocationData.tower || !subLocationData.floor) {
+      throw new Error("Campus, tower, and floor are required");
+    }
+
+    // Validate select_machine array
+    if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
+      throw new Error("At least one machine must be selected");
+    }
+
+    // Create sub-location
+    const newSubLocation = new SubLocationModel({
+      ...subLocationData,
+      location_id: locationId,
+    });
+    await newSubLocation.save();
+
+    // Create MachineDetails for each selected machine
+    const machinePromises = subLocationData.select_machine.map(async (machineName: string) => {
+      const machineDetail = new MachineDetailsModel({
+        machine_name: machineName,
+        sub_location_id: newSubLocation._id,
+        installed_status: "not_installed",
+        status: "active",
+        machine_image: [],
+      });
+      return await machineDetail.save();
+    });
+
+    const machines = await Promise.all(machinePromises);
+
+    // Create audit log
+    await this.createAuditLog(
+      new Types.ObjectId(locationId),
+      "ADD_SUB_LOCATION",
+      null,
+      null,
+      {
+        sub_location_added: {
+          old: null,
+          new: {
+            campus: newSubLocation.campus,
+            tower: newSubLocation.tower,
+            floor: newSubLocation.floor,
+            machines_count: subLocationData.select_machine.length,
+            machines: subLocationData.select_machine,
+          }
+        }
+      },
+      auditParams
+    );
+
+    return { subLocation: newSubLocation, machines };
   }
 
-  static async getAllAreas(queryParams: AreaQueryParams): Promise<AreaPaginationResult> {
+  static async getLocationById(id: string): Promise<ILocation | null> {
+    this.validateObjectId(id);
+    return await LocationModel.findById(id);
+  }
+
+  // GET LOCATION WITH SUB-LOCATIONS AND MACHINES
+  static async getLocationDetails(id: string): Promise<any | null> {
+    this.validateObjectId(id);
+
+    const location = await LocationModel.findById(id);
+    if (!location) {
+      return null;
+    }
+
+    // Get sub-locations
+    const subLocations = await SubLocationModel.find({ location_id: id });
+
+    // Get machine details for each sub-location
+    const subLocationsWithMachines = await Promise.all(
+      subLocations.map(async (subLoc) => {
+        const machines = await MachineDetailsModel.find({
+          sub_location_id: subLoc._id
+        });
+        return {
+          ...subLoc.toObject(),
+          machines,
+        };
+      })
+    );
+
+    // Calculate summary
+    const totalMachines = subLocationsWithMachines.reduce(
+      (sum, subLoc) => sum + subLoc.machines.length, 0
+    );
+    const installedMachines = subLocationsWithMachines.reduce(
+      (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+        m.installed_status === 'installed'
+      ).length, 0
+    );
+    const activeMachines = subLocationsWithMachines.reduce(
+      (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+        m.status === 'active'
+      ).length, 0
+    );
+
+    return {
+      ...location.toObject(),
+      sub_locations: subLocationsWithMachines,
+      summary: {
+        total_sub_locations: subLocationsWithMachines.length,
+        total_machines: totalMachines,
+        installed_machines: installedMachines,
+        not_installed_machines: totalMachines - installedMachines,
+        active_machines: activeMachines,
+        inactive_machines: totalMachines - activeMachines,
+      },
+    };
+  }
+
+  static async getAllLocations(queryParams: LocationQueryParams): Promise<LocationPaginationResult> {
     const {
       page = 1,
       limit = 10,
@@ -320,8 +408,8 @@ export class AreaService {
     const sort = this.buildSort(sortBy, sortOrder);
 
     const [data, totalItems] = await Promise.all([
-      AreaRouteModel.find(filter).sort(sort).skip(skip).limit(limitNum),
-      AreaRouteModel.countDocuments(filter),
+      LocationModel.find(filter).sort(sort).skip(skip).limit(limitNum),
+      LocationModel.countDocuments(filter),
     ]);
 
     const totalPages = Math.ceil(totalItems / limitNum);
@@ -337,43 +425,28 @@ export class AreaService {
     };
   }
 
-  // UPDATE AREA WITH NEW STRUCTURE
-  static async updateArea(
+  // UPDATE LOCATION
+  static async updateLocation(
     id: string,
-    updateData: UpdateAreaDto,
+    updateData: UpdateLocationDto,
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
+  ): Promise<ILocation | null> {
     this.validateObjectId(id);
 
-    const existingArea = await AreaRouteModel.findById(id);
-    if (!existingArea) {
-      throw new Error("Area not found");
+    const existingLocation = await LocationModel.findById(id);
+    if (!existingLocation) {
+      throw new Error("Location not found");
     }
 
     // Check for duplicate area name if changing
-    if (updateData.area_name && updateData.area_name !== existingArea.area_name) {
-      const duplicateArea = await AreaRouteModel.findOne({
+    if (updateData.area_name && updateData.area_name !== existingLocation.area_name) {
+      const duplicateLocation = await LocationModel.findOne({
         area_name: updateData.area_name,
         _id: { $ne: id },
       });
 
-      if (duplicateArea) {
-        throw new Error("Area with this name already exists");
-      }
-    }
-
-    // Validate sub-locations if provided
-    if (updateData.sub_locations) {
-      this.validateSubLocation(updateData.sub_locations as any);
-
-      // Check for duplicates
-      this.checkDuplicateSubLocations(updateData.sub_locations as any);
-
-      // Validate machine images
-      for (const subLoc of (updateData.sub_locations as any)) {
-        if (subLoc.select_machine?.machine_image) {
-          await this.validateAndProcessMachineImages(subLoc.select_machine.machine_image);
-        }
+      if (duplicateLocation) {
+        throw new Error("Location with this name already exists");
       }
     }
 
@@ -382,167 +455,153 @@ export class AreaService {
       this.validateCoordinates(updateData.latitude, updateData.longitude);
     }
 
-    const oldData = existingArea.toObject();
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+    const oldData = existingLocation.toObject();
+    const updatedLocation = await LocationModel.findByIdAndUpdate(
       id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    if (updatedArea) {
-      const newData = updatedArea.toObject();
+    if (updatedLocation) {
+      const newData = updatedLocation.toObject();
       const changes = this.findChanges(oldData, newData);
 
       if (Object.keys(changes).length > 0) {
-        await this.createAuditLog(id, "UPDATE", oldData, newData, changes, auditParams);
+        await this.createAuditLog(
+          updatedLocation._id,
+          "UPDATE",
+          oldData,
+          newData,
+          changes,
+          auditParams
+        );
       }
     }
 
-    return updatedArea;
+    return updatedLocation;
   }
 
-  static async deleteArea(id: string, auditParams?: AuditLogParams): Promise<ICreateArea | null> {
+  // DELETE LOCATION (cascading delete)
+  static async deleteLocation(id: string, auditParams?: AuditLogParams): Promise<ILocation | null> {
     this.validateObjectId(id);
 
-    const existingArea = await AreaRouteModel.findById(id);
-    if (!existingArea) {
+    const existingLocation = await LocationModel.findById(id);
+    if (!existingLocation) {
       return null;
     }
 
-    // Delete machine images from cloud storage before deleting area
-    await this.deleteAllMachineImagesFromArea(existingArea);
+    // Get all sub-locations for this location
+    const subLocations = await SubLocationModel.find({ location_id: id });
 
-    const deletedArea = await AreaRouteModel.findByIdAndDelete(id);
+    // Get all machine details for these sub-locations
+    const machineDetailsIds: Types.ObjectId[] = [];
+    for (const subLoc of subLocations) {
+      const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+      machineDetailsIds.push(...machines.map(m => m._id));
+    }
 
-    if (deletedArea) {
+    // Delete machine images from cloud storage
+    await this.deleteMachineImagesFromMachines(machineDetailsIds);
+
+    // Delete machine details
+    await MachineDetailsModel.deleteMany({ _id: { $in: machineDetailsIds } });
+
+    // Delete sub-locations
+    await SubLocationModel.deleteMany({ location_id: id });
+
+    // Delete location
+    const deletedLocation = await LocationModel.findByIdAndDelete(id);
+
+    if (deletedLocation) {
       await this.createAuditLog(
-        id,
+        new Types.ObjectId(id),
         "DELETE",
-        existingArea.toObject(),
+        existingLocation.toObject(),
         null,
         undefined,
         auditParams
       );
     }
 
-    return deletedArea;
+    return deletedLocation;
   }
 
-  static async getAreasByStatus(status: "active" | "inactive"): Promise<ICreateArea[]> {
+  static async getLocationsByStatus(status: "active" | "inactive"): Promise<ILocation[]> {
     if (!["active", "inactive"].includes(status)) {
       throw new Error("Invalid status value");
     }
 
-    return await AreaRouteModel.find({ status });
+    return await LocationModel.find({ status });
   }
 
-  static async updateAreaStatus(
+  static async updateLocationStatus(
     id: string,
     status: "active" | "inactive",
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
+  ): Promise<ILocation | null> {
     this.validateObjectId(id);
 
     if (!["active", "inactive"].includes(status)) {
       throw new Error("Invalid status value");
     }
 
-    const existingArea = await AreaRouteModel.findById(id);
-    if (!existingArea) {
+    const existingLocation = await LocationModel.findById(id);
+    if (!existingLocation) {
       return null;
     }
 
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
+    const updatedLocation = await LocationModel.findByIdAndUpdate(
       id,
       { $set: { status } },
       { new: true }
     );
 
-    if (updatedArea && existingArea.status !== status) {
+    if (updatedLocation && existingLocation.status !== status) {
       const changes = {
-        status: { old: existingArea.status, new: status },
+        status: { old: existingLocation.status, new: status },
       };
 
       await this.createAuditLog(
-        id,
+        updatedLocation._id,
         "STATUS_CHANGE",
-        { status: existingArea.status },
+        { status: existingLocation.status },
         { status },
         changes,
         auditParams
       );
     }
 
-    return updatedArea;
+    return updatedLocation;
   }
 
-  static async checkAreaExists(areaName: string, excludeId?: string): Promise<boolean> {
-    const filter: any = { area_name: areaName };
+  static async checkLocationExists(locationName: string, excludeId?: string): Promise<boolean> {
+    const filter: any = { area_name: locationName };
     if (excludeId) {
       filter._id = { $ne: excludeId };
     }
 
-    const count = await AreaRouteModel.countDocuments(filter);
+    const count = await LocationModel.countDocuments(filter);
     return count > 0;
   }
 
-  static async toggleAreaStatus(
+  static async toggleLocationStatus(
     id: string,
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
+  ): Promise<ILocation | null> {
     this.validateObjectId(id);
 
-    const area = await this.getAreaById(id);
-    if (!area) {
-      throw new Error("Area not found");
+    const location = await this.getLocationById(id);
+    if (!location) {
+      throw new Error("Location not found");
     }
 
-    const newStatus = area.status === "active" ? "inactive" : "active";
-    return await this.updateAreaStatus(id, newStatus, auditParams);
+    const newStatus = location.status === "active" ? "inactive" : "active";
+    return await this.updateLocationStatus(id, newStatus, auditParams);
   }
 
   private static validateObjectId(id: string): void {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Invalid MongoDB ObjectId");
-    }
-  }
-
-  // UPDATED VALIDATE SUB-LOCATION METHOD FOR NEW SCHEMA
-  private static validateSubLocation(subLocations: any): void {
-    if (!Array.isArray(subLocations) || subLocations.length === 0) {
-      throw new Error("At least one sub-location must be provided");
-    }
-
-    for (const subLoc of subLocations) {
-      // Validate required fields
-      if (!subLoc.campus || !subLoc.tower || !subLoc.floor) {
-        throw new Error("Campus, tower, and floor are required in each sub-location");
-      }
-
-      // Validate select_machine structure
-      if (!subLoc.select_machine) {
-        throw new Error("Machine details are required in each sub-location");
-      }
-
-      // Validate machine_id
-      if (!subLoc.select_machine.machine_id || typeof subLoc.select_machine.machine_id !== 'string') {
-        throw new Error("Valid machine_id is required");
-      }
-
-      // Validate installed_status for new schema
-      if (!subLoc.select_machine.installed_status || !['installed', 'not_installed'].includes(subLoc.select_machine.installed_status)) {
-        throw new Error("Valid installed_status (installed/not_installed) is required");
-      }
-
-      // Validate status for new schema
-      if (!subLoc.select_machine.status || !['active', 'inactive'].includes(subLoc.select_machine.status)) {
-        throw new Error("Valid status (active/inactive) is required");
-      }
-
-      // Validate machine_image if present
-      if (subLoc.select_machine.machine_image && !Array.isArray(subLoc.select_machine.machine_image)) {
-        throw new Error("Machine images must be an array");
-      }
     }
   }
 
@@ -575,9 +634,6 @@ export class AreaService {
         { district: { $regex: params.search, $options: "i" } },
         { pincode: { $regex: params.search, $options: "i" } },
         { area_description: { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.machine_id": { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.installed_status": { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.status": { $regex: params.search, $options: "i" } },
       ];
     }
 
@@ -609,15 +665,13 @@ export class AreaService {
     campuses: string[];
     towers: string[];
     floors: string[];
-    installedStatuses: string[];
-    machineStatuses: string[];
   }> {
     const [states, districts, campuses, towers, floors] = await Promise.all([
-      AreaRouteModel.distinct("state") as Promise<string[]>,
-      AreaRouteModel.distinct("district") as Promise<string[]>,
-      AreaRouteModel.distinct("sub_locations.campus") as Promise<string[]>,
-      AreaRouteModel.distinct("sub_locations.tower") as Promise<string[]>,
-      AreaRouteModel.distinct("sub_locations.floor") as Promise<string[]>,
+      LocationModel.distinct("state") as Promise<string[]>,
+      LocationModel.distinct("district") as Promise<string[]>,
+      SubLocationModel.distinct("campus") as Promise<string[]>,
+      SubLocationModel.distinct("tower") as Promise<string[]>,
+      SubLocationModel.distinct("floor") as Promise<string[]>,
     ]);
 
     return {
@@ -626,114 +680,478 @@ export class AreaService {
       campuses: campuses.filter(Boolean).sort(),
       towers: towers.filter(Boolean).sort(),
       floors: floors.filter(Boolean).sort(),
-      installedStatuses: ['installed', 'not_installed'],
-      machineStatuses: ['active', 'inactive']
     };
   }
 
-  // UPDATED ADD SUB-LOCATION METHOD FOR NEW SCHEMA
-  static async addSubLocation(
-    areaId: string,
-    newSubLocation: {
-      campus: string;
-      tower: string;
-      floor: string;
-      select_machine: {
-        machine_id: string;
-        installed_status: "installed" | "not_installed";
-        status: "active" | "inactive";
-        machine_image?: IMachineImageData[];
-      };
-    },
+  // ADD MACHINE IMAGES TO MACHINE DETAILS
+  static async addMachineImages(
+    machineDetailsId: string,
+    images: IMachineImageData[],
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
+  ): Promise<IMachineDetails | null> {
+    this.validateObjectId(machineDetailsId);
 
-    // Validate the new sub-location
-    if (!newSubLocation.campus || !newSubLocation.tower || !newSubLocation.floor) {
-      throw new Error("Campus, tower, and floor are required");
-    }
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
 
-    if (!newSubLocation.select_machine || !newSubLocation.select_machine.machine_id) {
-      throw new Error("Machine details are required");
-    }
-
-    // Validate installed_status
-    if (!newSubLocation.select_machine.installed_status || !['installed', 'not_installed'].includes(newSubLocation.select_machine.installed_status)) {
-      throw new Error("Valid installed_status (installed/not_installed) is required");
-    }
-
-    // Validate status
-    if (!newSubLocation.select_machine.status || !['active', 'inactive'].includes(newSubLocation.select_machine.status)) {
-      throw new Error("Valid status (active/inactive) is required");
-    }
-
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
+    if (!machineDetails) {
       return null;
     }
 
-    // Check for duplicates
-    const duplicateExists = existingArea.sub_locations?.some(
-      subLoc =>
-        subLoc.campus === newSubLocation.campus &&
-        subLoc.tower === newSubLocation.tower &&
-        subLoc.floor === newSubLocation.floor
-    );
+    // Validate images
+    await this.validateAndProcessMachineImages(images);
 
-    if (duplicateExists) {
-      throw new Error(
-        "This sub-location (campus, tower, floor combination) already exists for this area"
-      );
-    }
+    const oldImages = [...machineDetails.machine_image];
 
-    // Validate machine images if any
-    if (newSubLocation.select_machine.machine_image) {
-      await this.validateAndProcessMachineImages(newSubLocation.select_machine.machine_image);
-    }
+    // Add new images
+    machineDetails.machine_image.push(...images);
+    const updatedMachine = await machineDetails.save();
 
-    const oldSubLocations = [...(existingArea.sub_locations || [])];
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(machineDetails.sub_location_id);
+    const locationId = subLocation?.location_id;
 
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $push: {
-          sub_locations: newSubLocation,
-        },
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (updatedArea) {
-      const newSubLocations = [...(updatedArea.sub_locations || [])];
+    if (locationId) {
       const changes = {
-        sub_locations: {
-          old: oldSubLocations.length,
-          new: newSubLocations.length,
-          added: {
-            campus: newSubLocation.campus,
-            tower: newSubLocation.tower,
-            floor: newSubLocation.floor,
-            machine_id: newSubLocation.select_machine.machine_id,
-            installed_status: newSubLocation.select_machine.installed_status,
-            status: newSubLocation.select_machine.status
-          }
-        },
+        machine_images: {
+          old: oldImages.length,
+          new: updatedMachine.machine_image.length,
+          added: images.map(img => img.image_name)
+        }
       };
 
       await this.createAuditLog(
-        areaId,
-        "ADD_SUB_LOCATION",
-        { sub_locations: oldSubLocations },
-        { sub_locations: newSubLocations },
+        locationId,
+        "UPDATE",
+        null,
+        null,
         changes,
         auditParams
       );
     }
 
-    return updatedArea;
+    return updatedMachine;
   }
 
+  // REMOVE MACHINE IMAGE
+  static async removeMachineImage(
+    machineDetailsId: string,
+    imageIndex: number,
+    auditParams?: AuditLogParams
+  ): Promise<IMachineDetails | null> {
+    this.validateObjectId(machineDetailsId);
+
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+    if (!machineDetails) {
+      return null;
+    }
+
+    if (machineDetails.machine_image.length <= imageIndex) {
+      throw new Error("Image not found");
+    }
+
+    const imageToRemove = machineDetails.machine_image[imageIndex];
+    const oldImages = [...machineDetails.machine_image];
+
+    // Remove the image
+    machineDetails.machine_image.splice(imageIndex, 1);
+    const updatedMachine = await machineDetails.save();
+
+    // Delete from cloud storage
+    const uploadService = new ImageUploadService();
+    try {
+      await uploadService.deleteFromCloudinary(imageToRemove.cloudinary_public_id);
+    } catch (error) {
+      logger.error("Failed to delete image from cloud storage:", error);
+    }
+
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(machineDetails.sub_location_id);
+    const locationId = subLocation?.location_id;
+
+    if (locationId) {
+      const changes = {
+        removed_image: {
+          old: imageToRemove.image_name,
+          new: null
+        },
+        remaining_images: {
+          old: oldImages.length,
+          new: updatedMachine.machine_image.length
+        }
+      };
+
+      await this.createAuditLog(
+        locationId,
+        "UPDATE",
+        null,
+        null,
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedMachine;
+  }
+  // UPDATE SUB-LOCATION
+  static async updateSubLocation(
+    subLocationId: string,
+    updateData: {
+      campus?: string;
+      tower?: string;
+      floor?: string;
+      select_machine?: string[];
+    },
+    auditParams?: AuditLogParams
+  ): Promise<{ subLocation: ISubLocation; addedMachines: string[]; removedMachines: string[] } | null> {
+    this.validateObjectId(subLocationId);
+
+    const existingSubLocation = await SubLocationModel.findById(subLocationId);
+    if (!existingSubLocation) {
+      throw new Error("Sub-location not found");
+    }
+
+    const oldData = { ...existingSubLocation.toObject() };
+    const oldMachines = [...(existingSubLocation.select_machine || [])];
+
+    // Validate if select_machine is being updated
+    if (updateData.select_machine && !Array.isArray(updateData.select_machine)) {
+      throw new Error("select_machine must be an array");
+    }
+
+    // Update sub-location
+    const updatedSubLocation = await SubLocationModel.findByIdAndUpdate(
+      subLocationId,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedSubLocation) {
+      throw new Error("Failed to update sub-location");
+    }
+
+    const newMachines = [...(updatedSubLocation.select_machine || [])];
+
+    // Calculate added and removed machines
+    const addedMachines = newMachines.filter(machine => !oldMachines.includes(machine));
+    const removedMachines = oldMachines.filter(machine => !newMachines.includes(machine));
+
+    // If machines were added, create MachineDetails for them
+    if (addedMachines.length > 0) {
+      const machinePromises = addedMachines.map(async (machineName: string) => {
+        const machineDetail = new MachineDetailsModel({
+          machine_name: machineName,
+          sub_location_id: subLocationId,
+          installed_status: "not_installed",
+          status: "active",
+          machine_image: [],
+        });
+        return await machineDetail.save();
+      });
+      await Promise.all(machinePromises);
+    }
+
+    // If machines were removed, delete their MachineDetails
+    if (removedMachines.length > 0) {
+      await MachineDetailsModel.deleteMany({
+        sub_location_id: subLocationId,
+        machine_name: { $in: removedMachines }
+      });
+    }
+
+    // Create audit log if there are changes
+    const changes: Record<string, { old: any; new: any }> = {};
+
+    if (updateData.campus && updateData.campus !== oldData.campus) {
+      changes["campus"] = { old: oldData.campus, new: updateData.campus };
+    }
+
+    if (updateData.tower && updateData.tower !== oldData.tower) {
+      changes["tower"] = { old: oldData.tower, new: updateData.tower };
+    }
+
+    if (updateData.floor && updateData.floor !== oldData.floor) {
+      changes["floor"] = { old: oldData.floor, new: updateData.floor };
+    }
+
+    if (updateData.select_machine) {
+      changes["select_machine"] = {
+        old: oldMachines,
+        new: newMachines
+      };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      const locationId = updatedSubLocation.location_id;
+      await this.createAuditLog(
+        locationId,
+        "UPDATE",
+        null,
+        null,
+        changes,
+        auditParams
+      );
+    }
+
+    return {
+      subLocation: updatedSubLocation,
+      addedMachines,
+      removedMachines
+    };
+  }
+
+  // EXPORT SUB-LOCATIONS BY LOCATION ID
+  static async exportSubLocationsByLocationId(
+    locationId: string,
+    format: string = "csv"
+  ): Promise<{ data: any; filename: string; contentType: string }> {
+    this.validateObjectId(locationId);
+
+    const location = await LocationModel.findById(locationId);
+    if (!location) {
+      throw new Error("Location not found");
+    }
+
+    const subLocations = await SubLocationModel.find({ location_id: locationId });
+
+    if (subLocations.length === 0) {
+      throw new Error("No sub-locations found for this location");
+    }
+
+    // Get machine details for each sub-location
+    const enrichedSubLocations = await Promise.all(
+      subLocations.map(async (subLoc) => {
+        const machines = await MachineDetailsModel.find({
+          sub_location_id: subLoc._id
+        });
+
+        return {
+          ...subLoc.toObject(),
+          machines: machines.map(m => ({
+            id: m._id,
+            name: m.machine_name,
+            installed_status: m.installed_status,
+            status: m.status,
+            images_count: m.machine_image.length,
+            images: m.machine_image.map(img => ({
+              name: img.image_name,
+              url: img.file_url,
+              uploaded_at: img.uploaded_at
+            }))
+          }))
+        };
+      })
+    );
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const locationName = location.area_name.replace(/[^a-zA-Z0-9]/g, "_");
+    const filename = `sublocations-${locationName}-${timestamp}`;
+
+    if (format === "csv") {
+      const csv = this.convertSubLocationsToCSV(enrichedSubLocations, location);
+      return {
+        data: csv,
+        filename: `${filename}.csv`,
+        contentType: "text/csv"
+      };
+    } else if (format === "json") {
+      return {
+        data: {
+          location: {
+            id: location._id,
+            name: location.area_name,
+            state: location.state,
+            district: location.district
+          },
+          sub_locations: enrichedSubLocations,
+          total: enrichedSubLocations.length,
+          export_date: new Date().toISOString()
+        },
+        filename: `${filename}.json`,
+        contentType: "application/json"
+      };
+    } else {
+      throw new Error('Unsupported format. Use "csv" or "json"');
+    }
+  }
+
+  // GET AUDIT LOGS BY SUB-LOCATION ID
+  static async getAuditLogsBySubLocationId(
+    subLocationId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    logs: IHistoryArea[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+    };
+  }> {
+    this.validateObjectId(subLocationId);
+
+    // Get sub-location to find its location
+    const subLocation = await SubLocationModel.findById(subLocationId);
+    if (!subLocation) {
+      throw new Error("Sub-location not found");
+    }
+
+    const locationId = subLocation.location_id;
+
+    // Get all audit logs for the location
+    const allLogs = await HistoryAreaModel.find({ location_id: locationId })
+      .sort({ timestamp: -1 });
+
+    // Filter logs that mention this sub-location
+    const filteredLogs = allLogs.filter(log => {
+      // Check if sub-location is mentioned in changes
+      if (log.changes) {
+        const changesStr = JSON.stringify(log.changes).toLowerCase();
+        const subLocStr = JSON.stringify({
+          campus: subLocation.campus,
+          tower: subLocation.tower,
+          floor: subLocation.floor
+        }).toLowerCase();
+        return changesStr.includes(subLocStr);
+      }
+
+      // Check if sub-location is mentioned in old_data or new_data
+      if (log.old_data) {
+        const oldDataStr = JSON.stringify(log.old_data).toLowerCase();
+        if (oldDataStr.includes(subLocation.campus.toLowerCase()) ||
+          oldDataStr.includes(subLocation.tower.toLowerCase()) ||
+          oldDataStr.includes(subLocation.floor.toLowerCase())) {
+          return true;
+        }
+      }
+
+      if (log.new_data) {
+        const newDataStr = JSON.stringify(log.new_data).toLowerCase();
+        if (newDataStr.includes(subLocation.campus.toLowerCase()) ||
+          newDataStr.includes(subLocation.tower.toLowerCase()) ||
+          newDataStr.includes(subLocation.floor.toLowerCase())) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    // Apply pagination
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.max(1, Math.min(limit, 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const paginatedLogs = filteredLogs.slice(skip, skip + limitNum);
+    const totalItems = filteredLogs.length;
+    const totalPages = Math.ceil(totalItems / limitNum);
+
+    return {
+      logs: paginatedLogs,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems,
+        itemsPerPage: limitNum,
+      },
+    };
+  }
+
+  // HELPER: Convert sub-locations to CSV
+  private static convertSubLocationsToCSV(subLocations: any[], location: ILocation): string {
+    if (!subLocations || subLocations.length === 0) {
+      return "No sub-locations available for export";
+    }
+
+    try {
+      const headers = [
+        "Sub-location ID",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Total Machines",
+        "Installed Machines",
+        "Not Installed Machines",
+        "Active Machines",
+        "Inactive Machines",
+        "Machine Names",
+        "Created At",
+        "Updated At"
+      ];
+
+      let csv = "\ufeff";
+      csv += headers.join(",") + "\n";
+
+      subLocations.forEach(subLoc => {
+        const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
+
+        const installedMachines = subLocObj.machines?.filter((m: any) =>
+          m.installed_status === 'installed'
+        ).length || 0;
+
+        const notInstalledMachines = subLocObj.machines?.filter((m: any) =>
+          m.installed_status === 'not_installed'
+        ).length || 0;
+
+        const activeMachines = subLocObj.machines?.filter((m: any) =>
+          m.status === 'active'
+        ).length || 0;
+
+        const inactiveMachines = subLocObj.machines?.filter((m: any) =>
+          m.status === 'inactive'
+        ).length || 0;
+
+        const machineNames = subLocObj.machines?.map((m: any) => m.name).join("; ") || "";
+
+        const row = [
+          subLocObj._id?.toString() || "",
+          `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
+          `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
+          `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
+          subLocObj.machines?.length || 0,
+          installedMachines,
+          notInstalledMachines,
+          activeMachines,
+          inactiveMachines,
+          `"${machineNames.replace(/"/g, '""')}"`,
+          subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
+          subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Location," + `"${location.area_name}"` + "\n";
+      csv += "State," + `"${location.state}"` + "\n";
+      csv += "District," + `"${location.district}"` + "\n";
+      csv += "Total Sub-locations," + subLocations.length + "\n";
+      csv += "Total Machines," + subLocations.reduce((sum, subLoc) =>
+        sum + (subLoc.machines?.length || 0), 0) + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting sub-locations to CSV:", error);
+      return "Error generating sub-locations CSV";
+    }
+  }
+  // GET DASHBOARD DATA
   static async getDashboardData(params: DashboardFilterParams): Promise<DashboardData> {
     const {
       status = "all",
@@ -755,9 +1173,6 @@ export class AreaService {
       state,
       district,
       address,
-      campus,
-      tower,
-      floor,
       search,
     });
 
@@ -767,17 +1182,36 @@ export class AreaService {
 
     const sort = this.buildSort(sortBy, sortOrder);
 
-    const [areas, totalItems, statistics, filterOptions] = await Promise.all([
-      AreaRouteModel.find(filter).sort(sort).skip(skip).limit(limitNum),
-      AreaRouteModel.countDocuments(filter),
+    const [locations, totalItems, statistics, filterOptions] = await Promise.all([
+      LocationModel.find(filter).sort(sort).skip(skip).limit(limitNum),
+      LocationModel.countDocuments(filter),
       this.getDashboardStatistics(),
       this.getFilterOptions(),
     ]);
 
+    // Filter by campus, tower, floor if provided
+    let filteredLocations = locations;
+    if (campus || tower || floor) {
+      filteredLocations = await Promise.all(
+        locations.map(async (location) => {
+          const subLocationFilter: any = { location_id: location._id };
+          if (campus) subLocationFilter.campus = { $regex: campus, $options: "i" };
+          if (tower) subLocationFilter.tower = { $regex: tower, $options: "i" };
+          if (floor) subLocationFilter.floor = { $regex: floor, $options: "i" };
+
+          const subLocations = await SubLocationModel.find(subLocationFilter);
+          if (subLocations.length === 0) return null;
+
+          return location;
+        })
+      );
+      filteredLocations = filteredLocations.filter(loc => loc !== null);
+    }
+
     const totalPages = Math.ceil(totalItems / limitNum);
 
     return {
-      areas,
+      locations: filteredLocations,
       statistics,
       filterOptions,
       pagination: {
@@ -794,9 +1228,6 @@ export class AreaService {
     address?: string;
     state?: string;
     district?: string;
-    campus?: string;
-    tower?: string;
-    floor?: string;
     search?: string;
   }): any {
     const filter: any = {};
@@ -817,16 +1248,6 @@ export class AreaService {
       filter.district = { $regex: params.district, $options: "i" };
     }
 
-    if (params.campus || params.tower || params.floor) {
-      filter["sub_locations"] = {
-        $elemMatch: {
-          ...(params.campus && { campus: { $regex: params.campus, $options: "i" } }),
-          ...(params.tower && { tower: { $regex: params.tower, $options: "i" } }),
-          ...(params.floor && { floor: { $regex: params.floor, $options: "i" } }),
-        },
-      };
-    }
-
     if (params.search) {
       filter.$or = [
         { area_name: { $regex: params.search, $options: "i" } },
@@ -835,23 +1256,16 @@ export class AreaService {
         { pincode: { $regex: params.search, $options: "i" } },
         { area_description: { $regex: params.search, $options: "i" } },
         { address: { $regex: params.search, $options: "i" } },
-        { "sub_locations.campus": { $regex: params.search, $options: "i" } },
-        { "sub_locations.tower": { $regex: params.search, $options: "i" } },
-        { "sub_locations.floor": { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.machine_id": { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.installed_status": { $regex: params.search, $options: "i" } },
-        { "sub_locations.select_machine.status": { $regex: params.search, $options: "i" } },
       ];
     }
 
     return filter;
   }
 
-  // UPDATED DASHBOARD STATISTICS FOR NEW SCHEMA
   private static async getDashboardStatistics(): Promise<{
-    totalAreas: number;
-    activeAreas: number;
-    inactiveAreas: number;
+    totalLocations: number;
+    activeLocations: number;
+    inactiveLocations: number;
     totalMachines: number;
     installedMachines: number;
     notInstalledMachines: number;
@@ -863,22 +1277,21 @@ export class AreaService {
     areasByCampus: Record<string, number>;
   }> {
     const [
-      totalAreas,
-      activeAreas,
-      inactiveAreas,
+      totalLocations,
+      activeLocations,
+      inactiveLocations,
       stateAggregation,
       districtAggregation,
       campusAggregation,
       machineStats
     ] = await Promise.all([
-      AreaRouteModel.countDocuments(),
-      AreaRouteModel.countDocuments({ status: "active" }),
-      AreaRouteModel.countDocuments({ status: "inactive" }),
-      AreaRouteModel.aggregate([{ $group: { _id: "$state", count: { $sum: 1 } } }]),
-      AreaRouteModel.aggregate([{ $group: { _id: "$district", count: { $sum: 1 } } }]),
-      AreaRouteModel.aggregate([
-        { $unwind: "$sub_locations" },
-        { $group: { _id: "$sub_locations.campus", count: { $sum: 1 } } },
+      LocationModel.countDocuments(),
+      LocationModel.countDocuments({ status: "active" }),
+      LocationModel.countDocuments({ status: "inactive" }),
+      LocationModel.aggregate([{ $group: { _id: "$state", count: { $sum: 1 } } }]),
+      LocationModel.aggregate([{ $group: { _id: "$district", count: { $sum: 1 } } }]),
+      SubLocationModel.aggregate([
+        { $group: { _id: "$campus", count: { $sum: 1 } } },
       ]),
       this.getMachineStatistics()
     ]);
@@ -900,9 +1313,9 @@ export class AreaService {
     });
 
     return {
-      totalAreas,
-      activeAreas,
-      inactiveAreas,
+      totalLocations,
+      activeLocations,
+      inactiveLocations,
       totalMachines: machineStats.totalMachines,
       installedMachines: machineStats.installedMachines,
       notInstalledMachines: machineStats.notInstalledMachines,
@@ -911,14 +1324,14 @@ export class AreaService {
       areasByState,
       areasByDistrict,
       areasByStatus: {
-        active: activeAreas,
-        inactive: inactiveAreas,
+        active: activeLocations,
+        inactive: inactiveLocations,
       },
       areasByCampus,
     };
   }
 
-  // NEW METHOD FOR MACHINE STATISTICS
+  // GET MACHINE STATISTICS
   private static async getMachineStatistics(): Promise<{
     totalMachines: number;
     installedMachines: number;
@@ -926,7 +1339,7 @@ export class AreaService {
     activeMachines: number;
     inactiveMachines: number;
   }> {
-    const areas = await AreaRouteModel.find().select('sub_locations');
+    const allMachineDetails = await MachineDetailsModel.find();
 
     let totalMachines = 0;
     let installedMachines = 0;
@@ -934,26 +1347,20 @@ export class AreaService {
     let activeMachines = 0;
     let inactiveMachines = 0;
 
-    areas.forEach(area => {
-      area.sub_locations?.forEach(subLoc => {
-        if (subLoc.select_machine && subLoc.select_machine.machine_id) {
-          totalMachines++;
+    allMachineDetails.forEach(machine => {
+      totalMachines++;
 
-          // Count by installed_status
-          if (subLoc.select_machine.installed_status === 'installed') {
-            installedMachines++;
-          } else if (subLoc.select_machine.installed_status === 'not_installed') {
-            notInstalledMachines++;
-          }
+      if (machine.installed_status === 'installed') {
+        installedMachines++;
+      } else if (machine.installed_status === 'not_installed') {
+        notInstalledMachines++;
+      }
 
-          // Count by status
-          if (subLoc.select_machine.status === 'active') {
-            activeMachines++;
-          } else if (subLoc.select_machine.status === 'inactive') {
-            inactiveMachines++;
-          }
-        }
-      });
+      if (machine.status === 'active') {
+        activeMachines++;
+      } else if (machine.status === 'inactive') {
+        inactiveMachines++;
+      }
     });
 
     return {
@@ -965,7 +1372,7 @@ export class AreaService {
     };
   }
 
-  // UPDATED DASHBOARD TABLE DATA FOR NEW SCHEMA
+  // GET DASHBOARD TABLE DATA
   static async getDashboardTableData(params: DashboardFilterParams): Promise<{
     data: any[];
     total: number;
@@ -975,9 +1382,6 @@ export class AreaService {
       address: params.address,
       state: params.state,
       district: params.district,
-      campus: params.campus,
-      tower: params.tower,
-      floor: params.floor,
       search: params.search,
     });
 
@@ -987,45 +1391,45 @@ export class AreaService {
 
     const sort = this.buildSort(params.sortBy || "area_name", params.sortOrder || "asc");
 
-    const [areas, total] = await Promise.all([
-      AreaRouteModel.find(filter).sort(sort).skip(skip).limit(limit),
-      AreaRouteModel.countDocuments(filter),
+    const [locations, total] = await Promise.all([
+      LocationModel.find(filter).sort(sort).skip(skip).limit(limit),
+      LocationModel.countDocuments(filter),
     ]);
 
-    const tableData = areas.map(area => {
-      const areaObj = area.toObject ? area.toObject() : area;
+    const tableData = await Promise.all(
+      locations.map(async (location) => {
+        // Get sub-locations and machines for this location
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
 
-      // Calculate machine statistics for new schema
-      let totalMachines = 0;
-      let installedMachines = 0;
-      let notInstalledMachines = 0;
+        let totalMachines = 0;
+        let installedMachines = 0;
+        let notInstalledMachines = 0;
 
-      areaObj.sub_locations?.forEach((subLoc: any) => {
-        if (subLoc.select_machine && subLoc.select_machine.machine_id) {
-          totalMachines++;
-          if (subLoc.select_machine.installed_status === 'installed') {
-            installedMachines++;
-          } else if (subLoc.select_machine.installed_status === 'not_installed') {
-            notInstalledMachines++;
-          }
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
         }
-      });
 
-      return {
-        id: areaObj._id,
-        area_name: areaObj.area_name,
-        state: areaObj.state,
-        district: areaObj.district,
-        pincode: areaObj.pincode,
-        address: areaObj.address,
-        status: areaObj.status,
-        sub_locations_count: areaObj.sub_locations?.length || 0,
-        total_machines: totalMachines,
-        installed_machines: installedMachines,
-        not_installed_machines: notInstalledMachines,
-        campuses: [...new Set(areaObj.sub_locations?.map((s: any) => s.campus) || [])].join(", "),
-      };
-    });
+        const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
+
+        return {
+          id: location._id,
+          area_name: location.area_name,
+          state: location.state,
+          district: location.district,
+          pincode: location.pincode,
+          address: location.address,
+          status: location.status,
+          sub_locations_count: subLocations.length,
+          total_machines: totalMachines,
+          installed_machines: installedMachines,
+          not_installed_machines: notInstalledMachines,
+          campuses: uniqueCampuses.join(", "),
+        };
+      })
+    );
 
     return {
       data: tableData,
@@ -1033,65 +1437,60 @@ export class AreaService {
     };
   }
 
-  static async getAreasByIds(areaIds: string[]): Promise<ICreateArea[]> {
-    const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+  static async getLocationsByIds(locationIds: string[]): Promise<ILocation[]> {
+    const invalidIds = locationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
     if (invalidIds.length > 0) {
-      throw new Error(`Invalid area IDs: ${invalidIds.join(", ")}`);
+      throw new Error(`Invalid location IDs: ${invalidIds.join(", ")}`);
     }
 
-    return await AreaRouteModel.find({
-      _id: { $in: areaIds },
+    return await LocationModel.find({
+      _id: { $in: locationIds },
     })
       .sort({ area_name: 1 })
       .select(
-        "area_name state district pincode status latitude longitude address area_description sub_locations createdAt updatedAt"
+        "area_name state district pincode status latitude longitude address area_description createdAt updatedAt"
       );
   }
 
-  // UPDATED SUMMARIZED AREAS FOR NEW SCHEMA
-  static async getSummarizedAreasByIds(areaIds: string[]): Promise<any[]> {
-    const areas = await this.getAreasByIds(areaIds);
+  // GET SUMMARIZED LOCATIONS
+  static async getSummarizedLocationsByIds(locationIds: string[]): Promise<any[]> {
+    const locations = await this.getLocationsByIds(locationIds);
 
-    return areas.map(area => {
-      const areaDoc = area.toObject ? area.toObject() : area;
+    return await Promise.all(
+      locations.map(async (location) => {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
 
-      const subLocationsCount = areaDoc.sub_locations?.length || 0;
-      let totalMachines = 0;
-      let installedMachines = 0;
-      let notInstalledMachines = 0;
+        let totalMachines = 0;
+        let installedMachines = 0;
+        let notInstalledMachines = 0;
 
-      areaDoc.sub_locations?.forEach((subLoc: any) => {
-        if (subLoc.select_machine && subLoc.select_machine.machine_id) {
-          totalMachines++;
-          if (subLoc.select_machine.installed_status === 'installed') {
-            installedMachines++;
-          } else if (subLoc.select_machine.installed_status === 'not_installed') {
-            notInstalledMachines++;
-          }
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
         }
-      });
 
-      const uniqueCampuses = [
-        ...new Set(areaDoc.sub_locations?.map((sl: any) => sl.campus).filter(Boolean) || []),
-      ];
+        const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
 
-      return {
-        id: areaDoc._id,
-        area_name: areaDoc.area_name,
-        state: areaDoc.state,
-        district: areaDoc.district,
-        pincode: areaDoc.pincode,
-        status: areaDoc.status,
-        address: areaDoc.address,
-        sub_locations_count: subLocationsCount,
-        total_machines: totalMachines,
-        installed_machines: installedMachines,
-        not_installed_machines: notInstalledMachines,
-        campuses: uniqueCampuses,
-        created_at: areaDoc.createdAt,
-        updated_at: areaDoc.updatedAt,
-      };
-    });
+        return {
+          id: location._id,
+          area_name: location.area_name,
+          state: location.state,
+          district: location.district,
+          pincode: location.pincode,
+          status: location.status,
+          address: location.address,
+          sub_locations_count: subLocations.length,
+          total_machines: totalMachines,
+          installed_machines: installedMachines,
+          not_installed_machines: notInstalledMachines,
+          campuses: uniqueCampuses,
+          created_at: location.createdAt,
+          updated_at: location.updatedAt,
+        };
+      })
+    );
   }
 
   static async getRecentActivities(limit: number = 10, filter?: any): Promise<any[]> {
@@ -1105,16 +1504,16 @@ export class AreaService {
       const activities = await query
         .sort({ timestamp: -1 })
         .limit(limit)
-        .populate("area_id", "area_name state district")
+        .populate("location_id", "area_name state district")
         .lean();
 
       return activities.map(activity => ({
         id: activity._id,
         action: activity.action,
-        area_id: activity.area_id?._id,
-        area_name: (activity.area_id as any)?.area_name || "Deleted Area",
-        area_state: (activity.area_id as any)?.state,
-        area_district: (activity.area_id as any)?.district,
+        location_id: activity.location_id?._id,
+        area_name: (activity.location_id as any)?.area_name || "Deleted Area",
+        area_state: (activity.location_id as any)?.state,
+        area_district: (activity.location_id as any)?.district,
         performed_by: activity.performed_by,
         ip_address: activity.ip_address,
         user_agent: activity.user_agent,
@@ -1129,251 +1528,145 @@ export class AreaService {
     }
   }
 
-  // UPDATED METHOD FOR ADDING MACHINE IMAGES
-  static async addMachineImages(
-    areaId: string,
-    subLocationIndex: number,
-    machineIndex: number,
-    images: IMachineImageData[],
+  // UPDATE MACHINE DETAILS
+  static async updateMachineDetails(
+    machineDetailsId: string,
+    updateData: UpdateMachineDetailsDto,
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
+  ): Promise<IMachineDetails | null> {
+    this.validateObjectId(machineDetailsId);
 
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
-      return null;
+    // Validate update data
+    if (updateData.installed_status && !["installed", "not_installed"].includes(updateData.installed_status)) {
+      throw new Error("installed_status must be either 'installed' or 'not_installed'");
     }
 
-    if (!existingArea.sub_locations || existingArea.sub_locations.length <= subLocationIndex) {
-      throw new Error("Sub-location not found");
+    if (updateData.status && !["active", "inactive"].includes(updateData.status)) {
+      throw new Error("status must be either 'active' or 'inactive'");
     }
 
-    const subLocation = existingArea.sub_locations[subLocationIndex];
-    if (!subLocation.select_machine) {
-      throw new Error("Machine not found in sub-location");
-    }
-
-    const oldImages = [...(subLocation.select_machine.machine_image || [])];
-
-    // Validate new images
-    await this.validateAndProcessMachineImages(images);
-
-    // Add new images
-    const updatePath = `sub_locations.${subLocationIndex}.select_machine.machine_image`;
-
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $push: { [updatePath]: { $each: images } }
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (updatedArea) {
-      const newSubLocation = updatedArea.sub_locations[subLocationIndex];
-      const changes = {
-        machine_images: {
-          old: oldImages.length,
-          new: newSubLocation.select_machine.machine_image.length,
-          added: images.map(img => img.image_name)
+    const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
         }
-      };
+      });
 
-      await this.createAuditLog(
-        areaId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
-    }
-
-    return updatedArea;
-  }
-
-  // UPDATED METHOD FOR REMOVING MACHINE IMAGE
-  static async removeMachineImage(
-    areaId: string,
-    subLocationIndex: number,
-    machineIndex: number,
-    imageIndex: number,
-    auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
-
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
+    if (!currentMachine) {
       return null;
     }
 
-    if (!existingArea.sub_locations || existingArea.sub_locations.length <= subLocationIndex) {
-      throw new Error("Sub-location not found");
-    }
+    const oldData = { ...currentMachine.toObject() };
 
-    const subLocation = existingArea.sub_locations[subLocationIndex];
-    if (!subLocation.select_machine || !subLocation.select_machine.machine_image) {
-      throw new Error("No machine images found");
-    }
-
-    if (subLocation.select_machine.machine_image.length <= imageIndex) {
-      throw new Error("Image not found");
-    }
-
-    const imageToRemove = subLocation.select_machine.machine_image[imageIndex];
-    const oldImages = [...subLocation.select_machine.machine_image];
-
-    // Remove the image from the array
-    const updatePath = `sub_locations.${subLocationIndex}.select_machine.machine_image`;
-
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $pull: { [updatePath]: { cloudinary_public_id: imageToRemove.cloudinary_public_id } }
-      },
+    // Update machine details
+    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+      machineDetailsId,
+      updateData,
       { new: true }
-    );
-
-    if (updatedArea) {
-      // Delete from cloud storage
-      const uploadService = new ImageUploadService();
-      try {
-        await uploadService.deleteFromCloudinary(imageToRemove.cloudinary_public_id);
-      } catch (error) {
-        logger.error("Failed to delete image from cloud storage:", error);
-        // Continue even if cloud storage deletion fails
+    ).populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
       }
-
-      const newSubLocation = updatedArea.sub_locations[subLocationIndex];
-      const changes = {
-        removed_image: {
-          old: imageToRemove.image_name,
-          new: null
-        },
-        remaining_images: {
-          old: oldImages.length,
-          new: newSubLocation.select_machine.machine_image.length
-        }
-      };
-
-      await this.createAuditLog(
-        areaId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
-    }
-
-    return updatedArea;
-  }
-
-  // UPDATED METHOD FOR REMOVING MACHINE FROM AREA
-  static async removeMachineFromArea(
-    areaId: string,
-    machineId: string,
-    auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
-
-    if (!machineId || machineId.trim() === "") {
-      throw new Error("Machine ID is required");
-    }
-
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
-      return null;
-    }
-
-    // Check if the machine exists
-    const machineExists = existingArea.sub_locations?.some(
-      subloc => subloc.select_machine?.machine_id === machineId
-    );
-
-    if (!machineExists) {
-      throw new Error(`Machine with ID "${machineId}" not found in any sub-location of this area`);
-    }
-
-    // Create a deep copy of old sub-locations
-    const oldSubLocations = JSON.parse(JSON.stringify(existingArea.sub_locations || []));
-
-    // Remove the machine from sub-locations where it exists
-    const updatedSubLocations = existingArea.sub_locations?.map(subloc => {
-      const sublocObj = (subloc as any).toObject ? (subloc as any).toObject() : { ...subloc };
-
-      if (subloc.select_machine?.machine_id === machineId) {
-        // Remove machine images from cloud storage
-        if (subloc.select_machine.machine_image && subloc.select_machine.machine_image.length > 0) {
-          const uploadService = new ImageUploadService();
-          subloc.select_machine.machine_image.forEach(async (image: IMachineImageData) => {
-            try {
-              await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
-            } catch (error) {
-              logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
-            }
-          });
-        }
-
-        // Return sub-location WITHOUT the machine (empty sub-location remains)
-        const { select_machine, ...rest } = sublocObj;
-        return rest;
-      }
-
-      return sublocObj;
     });
 
-    // Updated area can have empty sub-locations (without machines)
-    // This is allowed - area will still exist
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $set: {
-          sub_locations: updatedSubLocations
-        }
-      },
-      { new: true, runValidators: true }
-    );
+    if (!updatedMachine) {
+      throw new Error("Failed to update machine details");
+    }
 
-    if (updatedArea) {
-      // Calculate machine counts before and after
-      const oldMachineCount = oldSubLocations.filter(
-        subloc => subloc.select_machine && subloc.select_machine.machine_id
-      ).length;
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+    const locationId = subLocation?.location_id;
 
-      const newMachineCount = updatedArea.sub_locations?.filter(
-        (subLoc: any) => subLoc.select_machine && subLoc.select_machine.machine_id
-      ).length || 0;
+    // Create changes object for audit log
+    const changes: Record<string, { old: any; new: any }> = {};
 
-      const changes = {
-        removed_machine_id: { old: machineId, new: null },
-        machine_count: { old: oldMachineCount, new: newMachineCount },
-        sub_locations_count: {
-          old: oldSubLocations.length,
-          new: updatedArea.sub_locations?.length || 0
-        }
+    if (updateData.installed_status && updateData.installed_status !== oldData.installed_status) {
+      changes["machine.installed_status"] = {
+        old: oldData.installed_status,
+        new: updateData.installed_status,
       };
+    }
 
+    if (updateData.status && updateData.status !== oldData.status) {
+      changes["machine.status"] = {
+        old: oldData.status,
+        new: updateData.status,
+      };
+    }
+
+    // Create audit log if there are changes
+    if (Object.keys(changes).length > 0 && locationId) {
       await this.createAuditLog(
-        areaId,
-        "REMOVE_MACHINE",
-        {
-          sub_locations: oldSubLocations
-        },
-        {
-          sub_locations: updatedArea.sub_locations
-        },
+        locationId,
+        "UPDATE",
+        null,
+        null,
         changes,
         auditParams
       );
+    }
 
-      // Add a warning note if all machines were removed
-      if (newMachineCount === 0) {
-        logger.warn(`All machines removed from area ${areaId}. Area now has ${updatedArea.sub_locations?.length || 0} empty sub-locations.`);
+    return updatedMachine;
+  }
+
+  // DELETE MACHINE (remove from sub-location)
+  static async deleteMachine(
+    machineDetailsId: string,
+    auditParams?: AuditLogParams
+  ): Promise<void> {
+    this.validateObjectId(machineDetailsId);
+
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+    if (!machineDetails) {
+      throw new Error("Machine not found");
+    }
+
+    const locationId = (machineDetails.sub_location_id as any)?.location_id?._id;
+    const machineName = machineDetails.machine_name;
+
+    // Delete machine images from cloud storage
+    if (machineDetails.machine_image && machineDetails.machine_image.length > 0) {
+      const uploadService = new ImageUploadService();
+      for (const image of machineDetails.machine_image) {
+        try {
+          await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
+        } catch (error) {
+          logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
+        }
       }
     }
 
-    return updatedArea;
+    // Delete machine details
+    await MachineDetailsModel.findByIdAndDelete(machineDetailsId);
+
+    // Create audit log
+    if (locationId) {
+      await this.createAuditLog(
+        locationId,
+        "REMOVE_MACHINE",
+        null,
+        null,
+        {
+          removed_machine: {
+            old: {
+              machine_name: machineName,
+              machine_id: machineDetailsId,
+            },
+            new: null,
+          },
+        },
+        auditParams
+      );
+    }
   }
 
   // NEW HELPER METHOD FOR VALIDATING MACHINE IMAGES
@@ -1397,28 +1690,14 @@ export class AreaService {
     }
   }
 
-  // NEW HELPER METHOD FOR CHECKING DUPLICATE SUB-LOCATIONS
-  private static checkDuplicateSubLocations(subLocations: any[]): void {
-    const seen = new Set();
-
-    for (const subLoc of subLocations) {
-      const key = `${subLoc.campus}-${subLoc.tower}-${subLoc.floor}`;
-
-      if (seen.has(key)) {
-        throw new Error(`Duplicate sub-location found: ${key}`);
-      }
-
-      seen.add(key);
-    }
-  }
-
-  // NEW HELPER METHOD FOR DELETING ALL MACHINE IMAGES FROM AREA
-  private static async deleteAllMachineImagesFromArea(area: ICreateArea): Promise<void> {
+  // NEW HELPER METHOD FOR DELETING MACHINE IMAGES
+  private static async deleteMachineImagesFromMachines(machineDetailsIds: Types.ObjectId[]): Promise<void> {
     const uploadService = new ImageUploadService();
+    const machines = await MachineDetailsModel.find({ _id: { $in: machineDetailsIds } });
 
-    for (const subLoc of area.sub_locations || []) {
-      if (subLoc.select_machine?.machine_image) {
-        for (const image of subLoc.select_machine.machine_image) {
+    for (const machine of machines) {
+      if (machine.machine_image && machine.machine_image.length > 0) {
+        for (const image of machine.machine_image) {
           try {
             await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
           } catch (error) {
@@ -1428,201 +1707,196 @@ export class AreaService {
       }
     }
   }
-  /**
-  * Simple toggle machine status between active and inactive
-  */
+
+  // TOGGLE MACHINE STATUS (active ↔ inactive)
   static async toggleMachineStatus(
-    areaId: string,
-    machineId: string,
+    machineDetailsId: string,
     auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
+  ): Promise<IMachineDetails | null> {
+    this.validateObjectId(machineDetailsId);
 
-    if (!machineId || machineId.trim() === "") {
-      throw new Error("Machine ID is required");
-    }
-
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
-      throw new Error("Area not found");
-    }
-
-    // Find the sub-location containing the machine
-    const subLocationIndex = existingArea.sub_locations?.findIndex(
-      subloc => subloc.select_machine?.machine_id === machineId
-    );
-
-    if (subLocationIndex === undefined || subLocationIndex === -1) {
-      throw new Error(`Machine with ID "${machineId}" not found in this area`);
-    }
-
-    const subLocation = existingArea.sub_locations[subLocationIndex];
-    const currentStatus = subLocation.select_machine?.status;
-
-    if (!currentStatus) {
-      throw new Error(`Machine "${machineId}" does not have a status field`);
-    }
-
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    const updatePath = `sub_locations.${subLocationIndex}.select_machine.status`;
-
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $set: { [updatePath]: newStatus }
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (updatedArea) {
-      const changes = {
-        'machine_status': {
-          old: {
-            machine_id: machineId,
-            status: currentStatus,
-            action: 'TOGGLE'
-          },
-          new: {
-            machine_id: machineId,
-            status: newStatus,
-            action: 'TOGGLE'
-          }
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
         }
+      });
+
+    if (!machineDetails) {
+      throw new Error("Machine not found");
+    }
+
+    const oldStatus = machineDetails.status;
+    const newStatus = oldStatus === "active" ? "inactive" : "active";
+
+    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+      machineDetailsId,
+      { status: newStatus },
+      { new: true }
+    ).populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
+      }
+    });
+
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(updatedMachine?.sub_location_id);
+    const locationId = subLocation?.location_id;
+
+    if (locationId) {
+      const changes = {
+        "machine.status": {
+          old: oldStatus,
+          new: newStatus,
+        },
       };
 
       await this.createAuditLog(
-        areaId,
-        "STATUS_CHANGE",
-        {
-          sub_locations: existingArea.sub_locations?.map(sl => ({
-            campus: sl.campus,
-            tower: sl.tower,
-            floor: sl.floor,
-            select_machine: {
-              machine_id: sl.select_machine?.machine_id || '',
-              installed_status: sl.select_machine?.installed_status || 'not_installed',
-              status: sl.select_machine?.status || 'inactive',
-              machine_image: sl.select_machine?.machine_image || []
-            }
-          }))
-        },
-        {
-          sub_locations: updatedArea.sub_locations?.map(sl => ({
-            campus: sl.campus,
-            tower: sl.tower,
-            floor: sl.floor,
-            select_machine: {
-              machine_id: sl.select_machine?.machine_id || '',
-              installed_status: sl.select_machine?.installed_status || 'not_installed',
-              status: sl.select_machine?.status || 'inactive',
-              machine_image: sl.select_machine?.machine_image || []
-            }
-          }))
-        },
-        changes,
-        auditParams
-      );
-    }
-
-    return updatedArea;
-  }
-  /**
- * Toggle machine installed_status between installed and not_installed
- */
-  static async toggleMachineInstalledStatus(
-    areaId: string,
-    machineId: string,
-    auditParams?: AuditLogParams
-  ): Promise<ICreateArea | null> {
-    this.validateObjectId(areaId);
-
-    if (!machineId || machineId.trim() === "") {
-      throw new Error("Machine ID is required");
-    }
-
-    const existingArea = await AreaRouteModel.findById(areaId);
-    if (!existingArea) {
-      throw new Error("Area not found");
-    }
-
-    // Find the sub-location containing the machine
-    const subLocationIndex = existingArea.sub_locations?.findIndex(
-      subloc => subloc.select_machine?.machine_id === machineId
-    );
-
-    if (subLocationIndex === undefined || subLocationIndex === -1) {
-      throw new Error(`Machine with ID "${machineId}" not found in this area`);
-    }
-
-    const subLocation = existingArea.sub_locations[subLocationIndex];
-    const currentInstalledStatus = subLocation.select_machine?.installed_status;
-
-    if (!currentInstalledStatus) {
-      throw new Error(`Machine "${machineId}" does not have an installed_status field`);
-    }
-
-    // Toggle between installed and not_installed
-    const newInstalledStatus = currentInstalledStatus === 'installed' ? 'not_installed' : 'installed';
-    const updatePath = `sub_locations.${subLocationIndex}.select_machine.installed_status`;
-
-    const updatedArea = await AreaRouteModel.findByIdAndUpdate(
-      areaId,
-      {
-        $set: { [updatePath]: newInstalledStatus }
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (updatedArea) {
-      const changes = {
-        'machine_installed_status': {
-          old: {
-            machine_id: machineId,
-            installed_status: currentInstalledStatus,
-            action: 'TOGGLE_INSTALLED_STATUS'
-          },
-          new: {
-            machine_id: machineId,
-            installed_status: newInstalledStatus,
-            action: 'TOGGLE_INSTALLED_STATUS'
-          }
-        }
-      };
-
-      await this.createAuditLog(
-        areaId,
+        locationId,
         "UPDATE",
-        {
-          sub_locations: existingArea.sub_locations?.map(sl => ({
-            campus: sl.campus,
-            tower: sl.tower,
-            floor: sl.floor,
-            select_machine: {
-              machine_id: sl.select_machine?.machine_id || '',
-              installed_status: sl.select_machine?.installed_status || 'not_installed',
-              status: sl.select_machine?.status || 'inactive',
-              machine_image: sl.select_machine?.machine_image || []
-            }
-          }))
-        },
-        {
-          sub_locations: updatedArea.sub_locations?.map(sl => ({
-            campus: sl.campus,
-            tower: sl.tower,
-            floor: sl.floor,
-            select_machine: {
-              machine_id: sl.select_machine?.machine_id || '',
-              installed_status: sl.select_machine?.installed_status || 'not_installed',
-              status: sl.select_machine?.status || 'inactive',
-              machine_image: sl.select_machine?.machine_image || []
-            }
-          }))
-        },
+        null,
+        null,
         changes,
         auditParams
       );
     }
 
-    return updatedArea;
+    return updatedMachine;
+  }
+
+  // TOGGLE MACHINE INSTALLED STATUS (installed ↔ not_installed)
+  static async toggleMachineInstalledStatus(
+    machineDetailsId: string,
+    auditParams?: AuditLogParams
+  ): Promise<IMachineDetails | null> {
+    this.validateObjectId(machineDetailsId);
+
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+    if (!machineDetails) {
+      throw new Error("Machine not found");
+    }
+
+    const oldInstalledStatus = machineDetails.installed_status;
+    const newInstalledStatus = oldInstalledStatus === "installed" ? "not_installed" : "installed";
+
+    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+      machineDetailsId,
+      { installed_status: newInstalledStatus },
+      { new: true }
+    ).populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
+      }
+    });
+
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(updatedMachine?.sub_location_id);
+    const locationId = subLocation?.location_id;
+
+    if (locationId) {
+      const changes = {
+        "machine.installed_status": {
+          old: oldInstalledStatus,
+          new: newInstalledStatus,
+        },
+      };
+
+      await this.createAuditLog(
+        locationId,
+        "UPDATE",
+        null,
+        null,
+        changes,
+        auditParams
+      );
+    }
+
+    return updatedMachine;
+  }
+
+  // DELETE SUB-LOCATION (cascading delete)
+  static async deleteSubLocation(
+    subLocationId: string,
+    auditParams?: AuditLogParams
+  ): Promise<void> {
+    this.validateObjectId(subLocationId);
+
+    const subLocation = await SubLocationModel.findById(subLocationId);
+    if (!subLocation) {
+      throw new Error("Sub-location not found");
+    }
+
+    const locationId = subLocation.location_id;
+
+    // Get all machine details for this sub-location
+    const machines = await MachineDetailsModel.find({ sub_location_id: subLocationId });
+    const machineIds = machines.map(m => m._id);
+
+    // Delete machine images from cloud storage
+    await this.deleteMachineImagesFromMachines(machineIds);
+
+    // Delete machine details
+    await MachineDetailsModel.deleteMany({ _id: { $in: machineIds } });
+
+    // Delete sub-location
+    await SubLocationModel.findByIdAndDelete(subLocationId);
+
+    // Create audit log
+    if (locationId) {
+      await this.createAuditLog(
+        locationId,
+        "REMOVE_MACHINE",
+        null,
+        null,
+        {
+          removed_sub_location: {
+            old: {
+              campus: subLocation.campus,
+              tower: subLocation.tower,
+              floor: subLocation.floor,
+              machines_count: machines.length,
+            },
+            new: null,
+          },
+        },
+        auditParams
+      );
+    }
+  }
+
+  // GET ALL SUB-LOCATIONS FOR A LOCATION
+  static async getSubLocationsByLocationId(locationId: string): Promise<ISubLocation[]> {
+    this.validateObjectId(locationId);
+    return await SubLocationModel.find({ location_id: locationId });
+  }
+
+  // GET MACHINE DETAILS FOR A SUB-LOCATION
+  static async getMachineDetailsBySubLocationId(subLocationId: string): Promise<IMachineDetails[]> {
+    this.validateObjectId(subLocationId);
+    return await MachineDetailsModel.find({ sub_location_id: subLocationId });
+  }
+
+  // SEARCH MACHINES
+  static async searchMachines(searchTerm: string): Promise<IMachineDetails[]> {
+    return await MachineDetailsModel.find({
+      $or: [
+        { machine_name: { $regex: searchTerm, $options: "i" } },
+      ]
+    }).populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
+      }
+    });
   }
 }

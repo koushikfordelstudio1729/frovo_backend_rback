@@ -7,7 +7,7 @@ import {
   IPriceOverrideHistory,
 } from "../models/PriceOverride.model";
 import { CatalogueModel } from "../models/Catalogue.model";
-import { AreaRouteModel } from "../models/AreaRoute.model";
+import { LocationModel } from "../models/AreaRoute.model";
 import { logger } from "../utils/logger.util";
 
 // DTOs
@@ -188,7 +188,7 @@ export class PriceOverrideService {
         if (!mongoose.Types.ObjectId.isValid(data.area_id)) {
           throw new Error("Invalid Area ID format");
         }
-        const area = await AreaRouteModel.findById(data.area_id);
+        const area = await LocationModel.findById(data.area_id);
         if (!area) {
           throw new Error("Area not found");
         }

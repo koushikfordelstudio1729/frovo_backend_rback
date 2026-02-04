@@ -1,17 +1,14 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { AreaService } from "../services/arearoute.service";
 import {
-  CreateAreaDto,
-  UpdateAreaDto,
-  AreaQueryParams,
-  DashboardFilterParams,
+  AreaService,
   AuditLogParams,
 } from "../services/arearoute.service";
 import { ImageUploadService } from "../services/areaFileUpload.service";
-import { IMachineImageData } from "../models/AreaRoute.model";
-
 import { logger } from "../utils/logger.util";
+
+// Import the new models
+import { LocationModel, SubLocationModel, MachineDetailsModel, HistoryAreaModel, IMachineImageData } from "../models/AreaRoute.model"
 
 export class AreaController {
 
@@ -26,112 +23,929 @@ export class AreaController {
     };
   }
 
-  // AUDIT LOG METHODS
-  static async getAuditLogs(req: Request, res: Response): Promise<void> {
+  // CORRECTED createLocation method
+  static async createLocation(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
+      let locationData: any;
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      // Parse request data
+      try {
+        if (req.body.data) {
+          locationData = JSON.parse(req.body.data);
+        } else {
+          locationData = req.body;
+        }
+      } catch (parseError) {
+        logger.error("Error parsing request data:", parseError);
         res.status(400).json({
           success: false,
-          message: "Invalid area ID",
+          message: "Failed to parse request data",
+          details: parseError.message,
         });
         return;
       }
 
-      const result = await AreaService.getAuditLogs(id, page, limit);
+      // Validate required fields for Location
+      const requiredFields = [
+        "area_name",
+        "state",
+        "district",
+        "pincode",
+        "area_description",
+        "status",
+      ];
 
-      // Enrich logs with image information
-      const enrichedLogs = result.logs.map(log => {
-        const logObj = log.toObject ? log.toObject() : log;
+      const missingFields = requiredFields.filter(field => !locationData[field]);
+      if (missingFields.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Missing required fields: ${missingFields.join(", ")}`,
+        });
+        return;
+      }
 
-        // Extract image information from changes
-        let imageChanges = [];
-        if (logObj.changes) {
-          Object.keys(logObj.changes).forEach(key => {
-            if (key.includes('machine_image') || key.includes('image')) {
-              const change = logObj.changes[key];
-              if (change.old && Array.isArray(change.old)) {
-                change.old.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    imageChanges.push({
-                      type: 'removed',
-                      image_name: img.image_name,
-                      file_url: img.file_url,
-                      cloudinary_public_id: img.cloudinary_public_id,
-                      action: logObj.action
-                    });
-                  }
-                });
-              }
-              if (change.new && Array.isArray(change.new)) {
-                change.new.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    imageChanges.push({
-                      type: 'added',
-                      image_name: img.image_name,
-                      file_url: img.file_url,
-                      cloudinary_public_id: img.cloudinary_public_id,
-                      action: logObj.action
-                    });
-                  }
-                });
-              }
-            }
-          });
+      // Create location
+      const newLocation = new LocationModel(locationData);
+      await newLocation.save();
+
+      // Create audit log - Use AreaController.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: newLocation._id,
+        action: "CREATE",
+        new_data: newLocation.toObject(),
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Location created successfully",
+        data: newLocation,
+      });
+    } catch (error) {
+      logger.error("Error creating location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // Also fix the addSubLocation method:
+  static async addSubLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      let subLocationData: any;
+
+      // Parse sub-location data
+      if (req.body.data) {
+        subLocationData = JSON.parse(req.body.data);
+      } else {
+        subLocationData = req.body;
+      }
+
+      // Validate required fields for SubLocation
+      const requiredFields = ["campus", "tower", "floor", "select_machine"];
+      const missingFields = requiredFields.filter(field => !subLocationData[field]);
+
+      if (missingFields.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Missing required fields: ${missingFields.join(", ")}`,
+        });
+        return;
+      }
+
+      // Validate select_machine is an array
+      if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "select_machine must be a non-empty array",
+        });
+        return;
+      }
+
+      // Check if location exists
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Create sub-location
+      const newSubLocation = new SubLocationModel({
+        ...subLocationData,
+        location_id: locationId,
+      });
+      await newSubLocation.save();
+
+      // Create MachineDetails for each selected machine
+      const machineDetailsPromises = subLocationData.select_machine.map(async (machineName: string) => {
+        const machineDetail = new MachineDetailsModel({
+          machine_name: machineName,
+          sub_location_id: newSubLocation._id,
+          installed_status: "not_installed",
+          status: "active",
+          machine_image: [],
+        });
+        return await machineDetail.save();
+      });
+
+      await Promise.all(machineDetailsPromises);
+
+      // Create audit log - Fixed
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: new mongoose.Types.ObjectId(locationId),
+        action: "ADD_SUB_LOCATION",
+        new_data: {
+          sub_location: newSubLocation.toObject(),
+          added_machines: subLocationData.select_machine,
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Sub-location added successfully",
+        data: {
+          subLocation: newSubLocation,
+          machines_added: subLocationData.select_machine,
+        },
+      });
+    } catch (error) {
+      logger.error("Error adding sub-location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // UPDATE THE HELPER METHOD - Make it static
+  private static async createAuditLog(data: {
+    location_id: mongoose.Types.ObjectId;
+    action: "CREATE" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "ADD_SUB_LOCATION" | "REMOVE_MACHINE";
+    old_data?: any;
+    new_data?: any;
+    changes?: Record<string, { old: any; new: any }>;
+    performed_by: {
+      user_id: string;
+      email: string;
+      name?: string;
+    };
+    ip_address?: string;
+    user_agent?: string;
+    timestamp: Date;
+  }): Promise<void> {
+    try {
+      const auditLog = new HistoryAreaModel({
+        location_id: data.location_id,
+        action: data.action,
+        old_data: data.old_data,
+        new_data: data.new_data,
+        changes: data.changes || null,
+        performed_by: data.performed_by,
+        ip_address: data.ip_address,
+        user_agent: data.user_agent,
+        timestamp: data.timestamp || new Date(),
+      });
+      await auditLog.save();
+    } catch (error) {
+      logger.error("Error creating audit log:", error);
+    }
+  }
+
+  // UPDATE MACHINE DETAILS (status, installed_status, machine_image)
+  static async updateMachineDetails(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineDetailsId } = req.params;
+      const updateData = req.body;
+      const files = req.files as Express.Multer.File[] | undefined;
+
+      console.log("=== DEBUG: updateMachineDetails called ===");
+      console.log("Machine Details ID:", machineDetailsId);
+      console.log("Update Data:", JSON.stringify(updateData, null, 2));
+      console.log("Files received:", files ? files.length : 0);
+
+      // Validate update data
+      if (updateData.installed_status && !["installed", "not_installed"].includes(updateData.installed_status)) {
+        res.status(400).json({
+          success: false,
+          message: "installed_status must be either 'installed' or 'not_installed'",
+        });
+        return;
+      }
+
+      if (updateData.status && !["active", "inactive"].includes(updateData.status)) {
+        res.status(400).json({
+          success: false,
+          message: "status must be either 'active' or 'inactive'",
+        });
+        return;
+      }
+
+      // Get current machine details
+      const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
+          }
+        });
+
+      if (!currentMachine) {
+        res.status(404).json({
+          success: false,
+          message: "Machine details not found",
+        });
+        return;
+      }
+
+      const oldData = { ...currentMachine.toObject() };
+      let processedFiles: IMachineImageData[] = [];
+      let changes: Record<string, { old: any; new: any }> = {};
+
+      // Process file uploads if any
+      if (files && files.length > 0) {
+        console.log("Processing file uploads...");
+
+        const uploadService = new ImageUploadService();
+        processedFiles = await uploadService.uploadMultipleFiles(
+          files,
+          "machine_images",
+          "areaMachine"
+        );
+
+        console.log("Files processed:", processedFiles.length);
+
+        // Add uploaded files to machine images
+        if (!updateData.machine_image || !Array.isArray(updateData.machine_image)) {
+          updateData.machine_image = [];
         }
 
-        // Extract machine information
-        let machineChanges = [];
-        if (logObj.changes) {
-          // Check for installed_status changes
-          if (logObj.changes['select_machine.installed_status']) {
-            const change = logObj.changes['select_machine.installed_status'];
-            machineChanges.push({
-              type: 'installed_status_changed',
-              old_status: change.old,
-              new_status: change.new,
-              action: logObj.action
-            });
-          }
+        // Add new files to existing images
+        updateData.machine_image = [...(currentMachine.machine_image || []), ...processedFiles];
 
-          // Check for machine status changes
-          if (logObj.changes['select_machine.status']) {
-            const change = logObj.changes['select_machine.status'];
-            machineChanges.push({
-              type: 'status_changed',
-              old_status: change.old,
-              new_status: change.new,
-              action: logObj.action
-            });
-          }
-
-          // Check for removed machine
-          if (logObj.changes.removed_machine_id) {
-            machineChanges.push({
-              type: 'removed',
-              machine_id: logObj.changes.removed_machine_id.old,
-              action: logObj.action
-            });
-          }
-        }
-
-        return {
-          ...logObj,
-          image_changes: imageChanges.length > 0 ? imageChanges : undefined,
-          machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
-          total_image_changes: imageChanges.length,
-          total_machine_changes: machineChanges.length
+        // Record image changes
+        changes["machine_image"] = {
+          old: oldData.machine_image?.length || 0,
+          new: updateData.machine_image.length
         };
+      }
+
+      // Handle machine_image if provided in request body (for reordering or removing images)
+      if (updateData.machine_image && Array.isArray(updateData.machine_image)) {
+        console.log("Machine image array provided in request");
+        // The array will be replaced with what's provided
+      }
+
+      // Update machine details
+      const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+        machineDetailsId,
+        updateData,
+        { new: true }
+      ).populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+      if (!updatedMachine) {
+        res.status(404).json({
+          success: false,
+          message: "Failed to update machine details",
+        });
+        return;
+      }
+
+      // Get location ID for audit log
+      const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+      const locationId = subLocation?.location_id;
+
+      // Add other changes to audit log
+      if (updateData.installed_status && updateData.installed_status !== oldData.installed_status) {
+        changes["machine.installed_status"] = {
+          old: oldData.installed_status,
+          new: updateData.installed_status,
+        };
+      }
+
+      if (updateData.status && updateData.status !== oldData.status) {
+        changes["machine.status"] = {
+          old: oldData.status,
+          new: updateData.status,
+        };
+      }
+
+      // Create audit log if there are changes
+      if (Object.keys(changes).length > 0) {
+        const auditParams = AreaController.getAuditParams(req);
+        await AreaController.createAuditLog({
+          location_id: locationId,
+          action: "UPDATE",
+          changes: changes,
+          new_data: processedFiles.length > 0 ? {
+            added_images: processedFiles.map(f => f.image_name)
+          } : undefined,
+          performed_by: {
+            user_id: auditParams.userId,
+            email: auditParams.userEmail,
+            name: auditParams.userName,
+          },
+          ip_address: auditParams.ipAddress,
+          user_agent: auditParams.userAgent,
+          timestamp: new Date(),
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Machine details updated successfully" +
+          (processedFiles.length > 0 ? ` with ${processedFiles.length} new image(s)` : ""),
+        data: updatedMachine,
+        changes: processedFiles.length > 0 ? {
+          images_added: processedFiles.length,
+          image_names: processedFiles.map(f => f.image_name)
+        } : undefined,
+      });
+    } catch (error) {
+      logger.error("Error updating machine details:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET ALL LOCATIONS WITH SUB-LOCATIONS AND MACHINES
+  static async getAllLocations(req: Request, res: Response): Promise<void> {
+    try {
+      const queryParams: any = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        status: req.query.status as string,
+        state: req.query.state as string,
+        district: req.query.district as string,
+        search: req.query.search as string,
+      };
+
+      // Build query
+      const query: any = {};
+      if (queryParams.status && queryParams.status !== 'all') {
+        query.status = queryParams.status;
+      }
+      if (queryParams.state) {
+        query.state = new RegExp(queryParams.state, 'i');
+      }
+      if (queryParams.district) {
+        query.district = new RegExp(queryParams.district, 'i');
+      }
+      if (queryParams.search) {
+        query.$or = [
+          { area_name: new RegExp(queryParams.search, 'i') },
+          { state: new RegExp(queryParams.search, 'i') },
+          { district: new RegExp(queryParams.search, 'i') },
+        ];
+      }
+
+      // Get locations with pagination
+      const skip = (queryParams.page - 1) * queryParams.limit;
+      const [locations, total] = await Promise.all([
+        LocationModel.find(query)
+          .skip(skip)
+          .limit(queryParams.limit)
+          .sort({ createdAt: -1 }),
+        LocationModel.countDocuments(query),
+      ]);
+
+      // Get sub-locations and machines for each location
+      const enrichedLocations = await Promise.all(
+        locations.map(async (location) => {
+          const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+          // Get machine details for each sub-location
+          const subLocationsWithMachines = await Promise.all(
+            subLocations.map(async (subLoc) => {
+              const machineDetails = await MachineDetailsModel.find({
+                sub_location_id: subLoc._id
+              });
+              return {
+                ...subLoc.toObject(),
+                machines: machineDetails,
+              };
+            })
+          );
+
+          // Calculate summary
+          const totalMachines = subLocationsWithMachines.reduce(
+            (sum, subLoc) => sum + subLoc.machines.length, 0
+          );
+          const installedMachines = subLocationsWithMachines.reduce(
+            (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+              m.installed_status === 'installed'
+            ).length, 0
+          );
+          const activeMachines = subLocationsWithMachines.reduce(
+            (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+              m.status === 'active'
+            ).length, 0
+          );
+
+          return {
+            ...location.toObject(),
+            sub_locations: subLocationsWithMachines,
+            summary: {
+              total_sub_locations: subLocationsWithMachines.length,
+              total_machines: totalMachines,
+              installed_machines: installedMachines,
+              not_installed_machines: totalMachines - installedMachines,
+              active_machines: activeMachines,
+              inactive_machines: totalMachines - activeMachines,
+            },
+          };
+        })
+      );
+
+      res.status(200).json({
+        success: true,
+        data: enrichedLocations,
+        pagination: {
+          currentPage: queryParams.page,
+          totalItems: total,
+          totalPages: Math.ceil(total / queryParams.limit),
+          itemsPerPage: queryParams.limit,
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching locations:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET SINGLE LOCATION WITH FULL DETAILS
+  static async getLocationById(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Get sub-locations
+      const subLocations = await SubLocationModel.find({ location_id: locationId });
+
+      // Get machine details for each sub-location
+      const subLocationsWithMachines = await Promise.all(
+        subLocations.map(async (subLoc) => {
+          const machineDetails = await MachineDetailsModel.find({
+            sub_location_id: subLoc._id
+          });
+          return {
+            ...subLoc.toObject(),
+            machines: machineDetails,
+          };
+        })
+      );
+
+      // Calculate summary
+      const totalMachines = subLocationsWithMachines.reduce(
+        (sum, subLoc) => sum + subLoc.machines.length, 0
+      );
+      const installedMachines = subLocationsWithMachines.reduce(
+        (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+          m.installed_status === 'installed'
+        ).length, 0
+      );
+      const activeMachines = subLocationsWithMachines.reduce(
+        (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
+          m.status === 'active'
+        ).length, 0
+      );
+
+      const enrichedLocation = {
+        ...location.toObject(),
+        sub_locations: subLocationsWithMachines,
+        summary: {
+          total_sub_locations: subLocationsWithMachines.length,
+          total_machines: totalMachines,
+          installed_machines: installedMachines,
+          not_installed_machines: totalMachines - installedMachines,
+          active_machines: activeMachines,
+          inactive_machines: totalMachines - activeMachines,
+        },
+      };
+
+      res.status(200).json({
+        success: true,
+        data: enrichedLocation,
+      });
+    } catch (error) {
+      logger.error("Error fetching location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // UPDATE LOCATION - CORRECTED
+  static async updateLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      const updateData = req.body;
+
+      // Validate location ID
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID format",
+        });
+        return;
+      }
+
+      // Get current location
+      const currentLocation = await LocationModel.findById(locationId);
+      if (!currentLocation) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      const oldData = { ...currentLocation.toObject() };
+
+      // Update location
+      const updatedLocation = await LocationModel.findByIdAndUpdate(
+        locationId,
+        updateData,
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedLocation) {
+        res.status(404).json({
+          success: false,
+          message: "Failed to update location",
+        });
+        return;
+      }
+
+      // Create changes object for audit log
+      const changes: Record<string, { old: any; new: any }> = {};
+      Object.keys(updateData).forEach(key => {
+        if (JSON.stringify(oldData[key]) !== JSON.stringify(updateData[key])) {
+          changes[key] = {
+            old: oldData[key],
+            new: updateData[key],
+          };
+        }
+      });
+
+      // Create audit log if there are changes
+      if (Object.keys(changes).length > 0) {
+        const auditParams = AreaController.getAuditParams(req);
+
+        // FIXED: Use AreaController.createAuditLog instead of this.createAuditLog
+        await AreaController.createAuditLog({
+          location_id: new mongoose.Types.ObjectId(locationId),
+          action: "UPDATE",
+          changes: changes,
+          performed_by: {
+            user_id: auditParams.userId,
+            email: auditParams.userEmail,
+            name: auditParams.userName,
+          },
+          ip_address: auditParams.ipAddress,
+          user_agent: auditParams.userAgent,
+          timestamp: new Date(),
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Location updated successfully",
+        data: updatedLocation,
+      });
+    } catch (error) {
+      logger.error("Error updating location:", error);
+
+      // Handle validation errors
+      if (error instanceof mongoose.Error.ValidationError) {
+        const errorMessages = Object.values(error.errors).map(err => err.message);
+        res.status(400).json({
+          success: false,
+          message: `Validation failed: ${errorMessages.join(", ")}`,
+        });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // DELETE LOCATION (cascading delete) - CORRECTED
+  static async deleteLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+
+      // Validate location ID
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID",
+        });
+        return;
+      }
+
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Get all sub-locations for this location
+      const subLocations = await SubLocationModel.find({ location_id: locationId });
+
+      // Get all machine details for these sub-locations
+      const machineDetailsIds: mongoose.Types.ObjectId[] = [];
+      for (const subLoc of subLocations) {
+        const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+        machineDetailsIds.push(...machines.map(m => m._id));
+      }
+
+      // Delete machine details
+      await MachineDetailsModel.deleteMany({ _id: { $in: machineDetailsIds } });
+
+      // Delete sub-locations
+      await SubLocationModel.deleteMany({ location_id: locationId });
+
+      // Delete location
+      await LocationModel.findByIdAndDelete(locationId);
+
+      // Create audit log - FIXED
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: new mongoose.Types.ObjectId(locationId),
+        action: "DELETE",
+        old_data: location.toObject(),
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
       });
 
       res.status(200).json({
         success: true,
+        message: "Location and all associated data deleted successfully",
+      });
+    } catch (error) {
+      logger.error("Error deleting location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // TOGGLE LOCATION STATUS - CORRECTED
+  static async toggleLocationStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+
+      // Validate location ID
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID format",
+        });
+        return;
+      }
+
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      const oldStatus = location.status;
+      const newStatus = oldStatus === "active" ? "inactive" : "active";
+
+      const updatedLocation = await LocationModel.findByIdAndUpdate(
+        locationId,
+        { status: newStatus },
+        { new: true }
+      );
+
+      if (!updatedLocation) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to update location status",
+        });
+        return;
+      }
+
+      // Create audit log - FIXED: Use AreaController.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: new mongoose.Types.ObjectId(locationId),
+        action: "STATUS_CHANGE",
+        changes: {
+          status: {
+            old: oldStatus,
+            new: newStatus,
+          },
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Location status changed from ${oldStatus} to ${newStatus}`,
+        data: updatedLocation,
+      });
+    } catch (error) {
+      logger.error("Error toggling location status:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // REMOVE MACHINE FROM SUB-LOCATION - CORRECTED
+  static async removeMachine(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineDetailsId } = req.params;
+
+      // Validate machine details ID
+      if (!mongoose.Types.ObjectId.isValid(machineDetailsId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid machine details ID",
+        });
+        return;
+      }
+
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
+          }
+        });
+
+      if (!machineDetails) {
+        res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+        return;
+      }
+
+      const subLocation = await SubLocationModel.findById(machineDetails.sub_location_id);
+      const locationId = subLocation?.location_id;
+      const machineName = machineDetails.machine_name;
+
+      // Delete machine images from cloud storage if any
+      if (machineDetails.machine_image && machineDetails.machine_image.length > 0) {
+        const uploadService = new ImageUploadService();
+        for (const image of machineDetails.machine_image) {
+          try {
+            await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
+          } catch (error) {
+            logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
+          }
+        }
+      }
+
+      // Delete machine details
+      await MachineDetailsModel.findByIdAndDelete(machineDetailsId);
+
+      // Create audit log - FIXED: Use AreaController.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: locationId,
+        action: "REMOVE_MACHINE",
+        changes: {
+          removed_machine: {
+            old: {
+              machine_name: machineName,
+              machine_id: machineDetailsId,
+              images_count: machineDetails.machine_image.length,
+            },
+            new: null,
+          },
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Machine "${machineName}" removed successfully`,
         data: {
-          logs: enrichedLogs,
-          pagination: result.pagination,
+          machine_id: machineDetailsId,
+          machine_name: machineName,
+          images_deleted: machineDetails.machine_image.length,
+          sub_location: subLocation ? {
+            campus: subLocation.campus,
+            tower: subLocation.tower,
+            floor: subLocation.floor,
+          } : null,
+        },
+      });
+    } catch (error) {
+      logger.error("Error removing machine:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET AUDIT LOGS FOR LOCATION
+  static async getAuditLogs(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID",
+        });
+        return;
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [logs, total] = await Promise.all([
+        HistoryAreaModel.find({ location_id: locationId })
+          .sort({ timestamp: -1 })
+          .skip(skip)
+          .limit(limit),
+        HistoryAreaModel.countDocuments({ location_id: locationId }),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          logs: logs,
+          pagination: {
+            currentPage: page,
+            totalItems: total,
+            totalPages: Math.ceil(total / limit),
+            itemsPerPage: limit,
+          },
         },
       });
     } catch (error) {
@@ -143,92 +957,22 @@ export class AreaController {
     }
   }
 
+  // GET RECENT ACTIVITIES
   static async getRecentActivities(req: Request, res: Response): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
-      const activities = await AreaService.getRecentActivities(limit, {});
 
-      // Enrich activities with image and machine information
-      const enrichedActivities = activities.map(activity => {
-        let imageChanges = [];
-        let machineChanges = [];
-        let imageSummary = "";
-        let machineSummary = "";
-
-        // Check for image-related changes
-        if (activity.changes) {
-          Object.keys(activity.changes).forEach(key => {
-            if (key.includes('machine_image') || key.includes('image')) {
-              const change = activity.changes[key];
-              const oldImages = Array.isArray(change.old) ? change.old : [];
-              const newImages = Array.isArray(change.new) ? change.new : [];
-
-              oldImages.forEach((img: any) => {
-                if (img && img.file_url) {
-                  imageChanges.push({
-                    type: 'removed',
-                    image_name: img.image_name,
-                    file_url: img.file_url
-                  });
-                }
-              });
-
-              newImages.forEach((img: any) => {
-                if (img && img.file_url) {
-                  imageChanges.push({
-                    type: 'added',
-                    image_name: img.image_name,
-                    file_url: img.file_url
-                  });
-                }
-              });
-
-              imageSummary = `Images: ${oldImages.length} removed, ${newImages.length} added`;
-            }
-
-            // Check for machine changes - UPDATED FOR NEW SCHEMA
-            if (key.includes('select_machine.installed_status')) {
-              const change = activity.changes[key];
-              machineChanges.push({
-                type: 'installed_status_changed',
-                field: 'installed_status',
-                old_value: change.old,
-                new_value: change.new
-              });
-            }
-            if (key.includes('select_machine.status')) {
-              const change = activity.changes[key];
-              machineChanges.push({
-                type: 'status_changed',
-                field: 'status',
-                old_value: change.old,
-                new_value: change.new
-              });
-            }
-          });
-        }
-
-        // Check for removed machine
-        if (activity.changes?.removed_machine_id) {
-          machineChanges.push({
-            type: 'removed',
-            machine_id: activity.changes.removed_machine_id.old
-          });
-          machineSummary = `Machine ${activity.changes.removed_machine_id.old} removed`;
-        }
-
-        return {
-          ...activity,
-          image_changes: imageChanges.length > 0 ? imageChanges : undefined,
-          machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
-          image_summary: imageSummary || undefined,
-          machine_summary: machineSummary || undefined
-        };
-      });
+      const activities = await HistoryAreaModel.find()
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .populate({
+          path: 'location_id',
+          select: 'area_name state district',
+        });
 
       res.status(200).json({
-        success: true,
-        data: enrichedActivities,
+        success: false,
+        data: activities,
       });
     } catch (error) {
       logger.error("Error fetching recent activities:", error);
@@ -238,676 +982,79 @@ export class AreaController {
       });
     }
   }
-static async createAreaRoute(req: Request, res: Response): Promise<void> {
-  try {
-    let areaData: CreateAreaDto;
-    const files = req.files as Express.Multer.File[] | undefined;
 
-    // Log raw body for debugging
-    logger.info("Raw request body:", JSON.stringify(req.body, null, 2));
-
-    // Parse request data
-    try {
-      // OPTION 1: Form-data with JSON in 'data' field
-      if (req.body.data) {
-        areaData = JSON.parse(req.body.data);
-      }
-      // OPTION 2: sub_locations as JSON string
-      else if (req.body.sub_locations && typeof req.body.sub_locations === 'string') {
-        // Try to parse sub_locations
-        let parsedSubLocations;
-        try {
-          parsedSubLocations = JSON.parse(req.body.sub_locations);
-        } catch (parseError) {
-          logger.error("Failed to parse sub_locations JSON:", parseError);
-          res.status(400).json({
-            success: false,
-            message: "Invalid JSON format for sub_locations",
-            details: parseError.message,
-            received: req.body.sub_locations
-          });
-          return;
-        }
-
-        areaData = {
-          area_name: req.body.area_name,
-          state: req.body.state,
-          district: req.body.district,
-          pincode: req.body.pincode,
-          area_description: req.body.area_description,
-          status: req.body.status || 'active',
-          sub_locations: parsedSubLocations,
-          latitude: req.body.latitude ? parseFloat(req.body.latitude) : undefined,
-          longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
-          address: req.body.address,
-        };
-      }
-      // OPTION 3: Flat form-data keys
-      else if (req.body.area_name) {
-        areaData = AreaController.parseFlatFormData(req.body);
-      }
-      // OPTION 4: JSON request body
-      else {
-        areaData = req.body;
-      }
-    } catch (parseError) {
-      logger.error("Error parsing request data:", parseError);
-      res.status(400).json({
-        success: false,
-        message: "Failed to parse request data",
-        details: parseError.message,
-      });
-      return;
-    }
-
-    // Log parsed data
-    logger.info("Parsed area data:", JSON.stringify(areaData, null, 2));
-
-    // Validate required fields
-    const requiredFields = [
-      "area_name",
-      "state",
-      "district",
-      "pincode",
-      "area_description",
-      "status",
-      "sub_locations",
-    ];
-
-    const missingFields = requiredFields.filter(field => {
-      const value = areaData[field as keyof CreateAreaDto];
-      if (field === 'sub_locations') {
-        return !value || !Array.isArray(value) || value.length === 0;
-      }
-      return !value;
-    });
-
-    if (missingFields.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-        details: {
-          received: Object.keys(areaData),
-          missing: missingFields,
-        },
-      });
-      return;
-    }
-
-    // Validate sub_locations structure
-    if (!Array.isArray(areaData.sub_locations) || areaData.sub_locations.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: "sub_locations must be a non-empty array",
-        received: areaData.sub_locations,
-      });
-      return;
-    }
-
-    // Process file uploads if any
-    if (files && files.length > 0) {
-      const uploadService = new ImageUploadService();
-      const processedFiles = await uploadService.uploadMultipleFiles(
-        files,
-        "areaMachine_images",
-        "areaMachine"
-      );
-
-      // Match and distribute files to machines based on machine ID in filename
-      const distributionResult = AreaController.matchAndDistributeFilesToMachines(
-        areaData,
-        processedFiles
-      );
-
-      // Log unmatched files
-      if (distributionResult.unmatchedFiles.length > 0) {
-        logger.warn(`Unmatched files: ${distributionResult.unmatchedFiles.map(f => f.image_name).join(', ')}`);
-        
-        res.status(400).json({
-          success: false,
-          message: "Some files could not be matched to machines",
-          details: {
-            unmatched_files: distributionResult.unmatchedFiles.map(f => f.image_name),
-            expected_machine_ids: areaData.sub_locations
-              .filter(sl => sl.select_machine?.machine_id)
-              .map(sl => sl.select_machine.machine_id),
-            file_mapping_suggestions: distributionResult.unmatchedFiles.map(file => ({
-              file_name: file.image_name,
-              suggestions: AreaController.extractPossibleMachineIdsFromFileName(file.image_name)
-            }))
-          }
-        });
-        return;
-      }
-
-      // Log distribution summary
-      logger.info("File distribution summary:", {
-        total_files: processedFiles.length,
-        matched_files: distributionResult.matchedCount,
-        machines_with_images: distributionResult.machinesWithImages
-      });
-    }
-
-    const auditParams = AreaController.getAuditParams(req);
-    const newArea = await AreaService.createArea(areaData, auditParams);
-
-    res.status(201).json({
-      success: true,
-      message: "Area route created successfully",
-      data: newArea,
-    });
-  } catch (error) {
-    logger.error("Error creating area route:", error);
-
-    const statusCode = error.message.includes("already exists")
-      ? 409
-      : error.message.includes("Validation")
-        ? 400
-        : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
-  }
-}
-
-// NEW HELPER METHOD: Match files to machines based on machine ID in filename
-private static matchAndDistributeFilesToMachines(
-  areaData: CreateAreaDto,
-  processedFiles: IMachineImageData[]
-): {
-  matchedCount: number;
-  unmatchedFiles: IMachineImageData[];
-  machinesWithImages: Record<string, number>;
-} {
-  const unmatchedFiles: IMachineImageData[] = [];
-  const machinesWithImages: Record<string, number> = {};
-  let matchedCount = 0;
-
-  // Extract all machine IDs from area data
-  const machineIds = areaData.sub_locations
-    .filter(sl => sl.select_machine?.machine_id)
-    .map(sl => sl.select_machine.machine_id);
-
-  logger.info("Available machine IDs:", machineIds);
-
-  // Process each file
-  processedFiles.forEach(file => {
-    const fileName = file.image_name.toLowerCase();
-    let matched = false;
-
-    // Try to find matching machine ID in filename
-    for (const machineId of machineIds) {
-      const machineIdLower = machineId.toLowerCase();
-      
-      // Check if machine ID is in filename (with various separators)
-      const patterns = [
-        machineIdLower,                     // Exact match
-        machineIdLower.replace(/-/g, '_'),  // Replace - with _
-        machineIdLower.replace(/-/g, ''),   // Remove -
-        machineIdLower.replace(/_/g, ''),   // Remove _
-      ];
-
-      for (const pattern of patterns) {
-        if (fileName.includes(pattern)) {
-          // Find the sub-location with this machine ID
-          const subLocationIndex = areaData.sub_locations.findIndex(
-            sl => sl.select_machine?.machine_id?.toLowerCase() === machineIdLower
-          );
-
-          if (subLocationIndex !== -1) {
-            const subLocation = areaData.sub_locations[subLocationIndex];
-            
-            // Initialize machine image array if needed
-            if (!subLocation.select_machine.machine_image) {
-              subLocation.select_machine.machine_image = [];
-            }
-
-            // Add file to machine
-            subLocation.select_machine.machine_image.push(file);
-            
-            // Update counters
-            matchedCount++;
-            machinesWithImages[machineId] = (machinesWithImages[machineId] || 0) + 1;
-            matched = true;
-            
-            logger.info(`Matched file "${file.image_name}" to machine "${machineId}"`);
-            break;
-          }
-        }
-        if (matched) break;
-      }
-      if (matched) break;
-    }
-
-    // If no match found, add to unmatched files
-    if (!matched) {
-      unmatchedFiles.push(file);
-      logger.warn(`Could not match file "${file.image_name}" to any machine`);
-    }
-  });
-
-  return {
-    matchedCount,
-    unmatchedFiles,
-    machinesWithImages
-  };
-}
-
-// HELPER: Extract possible machine IDs from filename
-private static extractPossibleMachineIdsFromFileName(fileName: string): string[] {
-  const suggestions: string[] = [];
-  
-  // Try to extract patterns that look like machine IDs
-  const patterns = [
-    /(VM-\d+)/i,           // VM-001, VM-101
-    /(MACHINE-\d+)/i,      // MACHINE-001
-    /(MACH-\d+)/i,         // MACH-001
-    /(EQUIP-\d+)/i,        // EQUIP-001
-    /([A-Z]{2,}-\d+)/i,    // Any 2+ letters followed by - and numbers
-    /(\d{3,})/,            // 3+ digit numbers
-  ];
-
-  fileName = fileName.toUpperCase();
-  
-  patterns.forEach(pattern => {
-    const matches = fileName.match(pattern);
-    if (matches && matches[1]) {
-      suggestions.push(matches[1]);
-    }
-  });
-
-  // Also try to extract by removing common file extensions and prefixes
-  const cleanName = fileName
-    .replace(/\.[^/.]+$/, '') // Remove extension
-    .replace(/^IMG_/, '')     // Remove IMG_ prefix
-    .replace(/^DSC_/, '')     // Remove DSC_ prefix
-    .replace(/^PIC_/, '')     // Remove PIC_ prefix
-    .replace(/^IMAGE_/, '');  // Remove IMAGE_ prefix
-
-  if (cleanName && cleanName !== fileName) {
-    suggestions.push(cleanName);
-  }
-
-  return [...new Set(suggestions)]; // Remove duplicates
-}
-
-  private static parseFlatFormData(body: any): CreateAreaDto {
-    try {
-      // Check if sub_locations is already provided as JSON string
-      let sub_locations = [];
-
-      if (body.sub_locations) {
-        // Case 1: sub_locations provided as JSON string or array
-        if (typeof body.sub_locations === 'string') {
-          sub_locations = JSON.parse(body.sub_locations);
-        } else if (Array.isArray(body.sub_locations)) {
-          sub_locations = body.sub_locations;
-        }
-      } else if (body['sub_locations.campus']) {
-        // Case 2: Flat form-data keys (build from individual fields)
-        const subLocation: any = {
-          campus: body['sub_locations.campus'],
-          tower: body['sub_locations.tower'],
-          floor: body['sub_locations.floor'],
-          select_machine: {
-            machine_id: body['sub_locations.select_machines.machine_id'],
-            installed_status: body['sub_locations.select_machines.installed_status'] || 'not_installed', // Updated
-            status: body['sub_locations.select_machines.status'] || 'active', // Updated
-          }
-        };
-
-        // Only add if all required fields are present
-        if (subLocation.campus && subLocation.tower && subLocation.floor && subLocation.select_machine.machine_id) {
-          sub_locations = [subLocation];
-        }
-      }
-
-      // Build the CreateAreaDto object
-      const areaData: CreateAreaDto = {
-        area_name: body.area_name,
-        state: body.state,
-        district: body.district,
-        pincode: body.pincode,
-        area_description: body.area_description,
-        status: body.status || 'active',
-        sub_locations: sub_locations,
-      };
-
-      // Add optional fields if they exist
-      if (body.latitude) {
-        areaData.latitude = parseFloat(body.latitude);
-      }
-      if (body.longitude) {
-        areaData.longitude = parseFloat(body.longitude);
-      }
-      if (body.address) {
-        areaData.address = body.address;
-      }
-
-      return areaData;
-    } catch (error) {
-      logger.error("Error parsing flat form data:", error);
-      throw new Error("Failed to parse form data. Ensure sub_locations is valid JSON or individual fields are correctly named.");
-    }
-  }
-
-  // ADD SUB-LOCATION - UPDATED FOR NEW SCHEMA
-  static async addSubLocation(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      let sub_location: any;
-      const files = req.files as Express.Multer.File[] | undefined;
-
-      if (req.body.sub_location) {
-        if (typeof req.body.sub_location === 'string') {
-          sub_location = JSON.parse(req.body.sub_location);
-        } else {
-          sub_location = req.body.sub_location;
-        }
-      }
-
-      if (!sub_location || !sub_location.campus || !sub_location.tower || !sub_location.floor) {
-        res.status(400).json({
-          success: false,
-          message: "Sub-location with campus, tower, and floor is required",
-        });
-        return;
-      }
-
-      if (!sub_location.select_machine || !sub_location.select_machine.machine_id) {
-        res.status(400).json({
-          success: false,
-          message: "Machine details are required",
-        });
-        return;
-      }
-
-      // Set default values for new schema fields if not provided
-      if (!sub_location.select_machine.installed_status) {
-        sub_location.select_machine.installed_status = 'not_installed';
-      }
-      if (!sub_location.select_machine.status) {
-        sub_location.select_machine.status = 'active';
-      }
-
-      // Validate enum values
-      const validInstalledStatuses = ['installed', 'not_installed'];
-      const validStatuses = ['active', 'inactive'];
-
-      if (!validInstalledStatuses.includes(sub_location.select_machine.installed_status)) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid installed_status: ${sub_location.select_machine.installed_status}. Must be one of: ${validInstalledStatuses.join(', ')}`,
-        });
-        return;
-      }
-
-      if (!validStatuses.includes(sub_location.select_machine.status)) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid status: ${sub_location.select_machine.status}. Must be one of: ${validStatuses.join(', ')}`,
-        });
-        return;
-      }
-
-      // Process file uploads if any
-      if (files && files.length > 0) {
-        const uploadService = new ImageUploadService();
-        const processedFiles = await uploadService.uploadMultipleFiles(
-          files,
-          "areaMachine_images",
-          "areaMachine"
-        );
-
-        // Initialize machine_image array if not exists
-        if (!sub_location.select_machine.machine_image) {
-          sub_location.select_machine.machine_image = [];
-        }
-
-        // Add uploaded files to machine images
-        sub_location.select_machine.machine_image.push(...processedFiles);
-      }
-
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedArea = await AreaService.addSubLocation(id, sub_location, auditParams);
-
-      if (!updatedArea) {
-        res.status(404).json({
-          success: false,
-          message: "Area not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Sub-location added successfully",
-        data: updatedArea,
-      });
-    } catch (error) {
-      logger.error("Error adding sub-location:", error);
-
-      const statusCode = error.message.includes("already exists")
-        ? 409
-        : error.message.includes("Invalid MongoDB ObjectId")
-          ? 400
-          : error.message.includes("Validation")
-            ? 400
-            : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  // UPDATE AREA - UPDATED FOR NEW SCHEMA
-  static async updateAreaRoute(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      let updateData: UpdateAreaDto;
-      const files = req.files as Express.Multer.File[] | undefined;
-
-      if (req.body.data) {
-        // Form-data with files
-        updateData = JSON.parse(req.body.data);
-      } else {
-        // JSON request without files
-        updateData = req.body;
-      }
-
-      // Validate machine status fields if present
-      if (updateData.sub_locations) {
-        for (const subLoc of updateData.sub_locations) {
-          if (subLoc.select_machine) {
-            // Validate installed_status if present
-            if (subLoc.select_machine.installed_status) {
-              const validInstalledStatuses = ['installed', 'not_installed'];
-              if (!validInstalledStatuses.includes(subLoc.select_machine.installed_status)) {
-                res.status(400).json({
-                  success: false,
-                  message: `Invalid installed_status: ${subLoc.select_machine.installed_status}. Must be one of: ${validInstalledStatuses.join(', ')}`,
-                });
-                return;
-              }
-            }
-
-            // Validate status if present
-            if (subLoc.select_machine.status) {
-              const validStatuses = ['active', 'inactive'];
-              if (!validStatuses.includes(subLoc.select_machine.status)) {
-                res.status(400).json({
-                  success: false,
-                  message: `Invalid status: ${subLoc.select_machine.status}. Must be one of: ${validStatuses.join(', ')}`,
-                });
-                return;
-              }
-            }
-          }
-        }
-      }
-
-      // Process file uploads if any
-      if (files && files.length > 0) {
-        const uploadService = new ImageUploadService();
-        const processedFiles = await uploadService.uploadMultipleFiles(
-          files,
-          "areaMachine_images",
-          "areaMachine"
-        );
-
-        // Attach file data to appropriate sub-locations
-        await AreaController.attachFilesToSubLocations(
-          updateData,
-          processedFiles,
-          req.body.fileMap
-        );
-      }
-
-      // Handle image deletions
-      if (req.body.deletedImages) {
-        const deletedImages = JSON.parse(req.body.deletedImages);
-        if (Array.isArray(deletedImages) && deletedImages.length > 0) {
-          await AreaController.deleteMachineImages(deletedImages);
-        }
-      }
-
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedAreaRoute = await AreaService.updateArea(id, updateData, auditParams);
-
-      if (!updatedAreaRoute) {
-        res.status(404).json({
-          success: false,
-          message: "Area route not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Area route updated successfully",
-        data: updatedAreaRoute,
-      });
-    } catch (error) {
-      logger.error("Error updating area route:", error);
-
-      const statusCode = error.message.includes("already exists")
-        ? 409
-        : error.message.includes("Invalid")
-          ? 400
-          : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  // DASHBOARD METHODS - UPDATED FOR NEW SCHEMA
+  // DASHBOARD DATA
   static async getDashboardData(req: Request, res: Response): Promise<void> {
     try {
-      const params: DashboardFilterParams = {
+      const params: any = {
         status: (req.query.status as "active" | "inactive" | "all") || "all",
         state: req.query.state as string,
         district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
         search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sortBy: (req.query.sortBy as string) || "area_name",
-        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
       };
 
-      const dashboardData = await AreaService.getDashboardData(params);
+      // Build query
+      const query: any = {};
+      if (params.status && params.status !== 'all') {
+        query.status = params.status;
+      }
+      if (params.state) {
+        query.state = new RegExp(params.state, 'i');
+      }
+      if (params.district) {
+        query.district = new RegExp(params.district, 'i');
+      }
+      if (params.search) {
+        query.$or = [
+          { area_name: new RegExp(params.search, 'i') },
+          { state: new RegExp(params.search, 'i') },
+          { district: new RegExp(params.search, 'i') },
+        ];
+      }
 
-      // Enrich dashboard data with machine and image information
-      const enrichedAreas = dashboardData.areas.map(area => {
-        const areaObj = area.toObject ? area.toObject() : area;
+      // Get locations
+      const locations = await LocationModel.find(query);
 
-        // Calculate detailed statistics for new schema
-        let totalMachines = 0;
-        let installedMachines = 0;
-        let notInstalledMachines = 0;
-        let activeMachines = 0;
-        let inactiveMachines = 0;
-        let totalImages = 0;
-        const machineIds: string[] = [];
-        const imageUrls: string[] = [];
+      // Calculate statistics
+      let totalLocations = 0;
+      let activeLocations = 0;
+      let inactiveLocations = 0;
+      let totalMachines = 0;
+      let installedMachines = 0;
+      let activeMachines = 0;
 
-        areaObj.sub_locations?.forEach((subloc: any) => {
-          if (subloc.select_machine && subloc.select_machine.machine_id) {
-            totalMachines++;
-            machineIds.push(subloc.select_machine.machine_id);
+      for (const location of locations) {
+        totalLocations++;
+        if (location.status === 'active') activeLocations++;
+        if (location.status === 'inactive') inactiveLocations++;
 
-            // Count by installed_status
-            if (subloc.select_machine.installed_status === 'installed') {
-              installedMachines++;
-            } else if (subloc.select_machine.installed_status === 'not_installed') {
-              notInstalledMachines++;
-            }
+        // Get sub-locations for this location
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
 
-            // Count by status
-            if (subloc.select_machine.status === 'active') {
-              activeMachines++;
-            } else if (subloc.select_machine.status === 'inactive') {
-              inactiveMachines++;
-            }
+        for (const subLoc of subLocations) {
+          // Get machine details for this sub-location
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
 
-            if (subloc.select_machine.machine_image) {
-              totalImages += subloc.select_machine.machine_image.length;
-              subloc.select_machine.machine_image.forEach((img: any) => {
-                if (img.file_url) {
-                  imageUrls.push(img.file_url);
-                }
-              });
-            }
-          }
-        });
-
-        return {
-          ...areaObj,
-          summary: {
-            total_machines: totalMachines,
-            installed_machines: installedMachines,
-            not_installed_machines: notInstalledMachines,
-            active_machines: activeMachines,
-            inactive_machines: inactiveMachines,
-            total_images: totalImages,
-            machine_ids: machineIds,
-            sample_image_url: imageUrls.length > 0 ? imageUrls[0] : null
-          }
-        };
-      });
-
-      // Enrich statistics with image and machine counts
-      const enrichedStatistics = {
-        ...dashboardData.statistics,
-        total_images: enrichedAreas.reduce((sum, area) => sum + (area.summary?.total_images || 0), 0),
-        machines_by_installed_status: {
-          installed: enrichedAreas.reduce((sum, area) => sum + (area.summary?.installed_machines || 0), 0),
-          not_installed: enrichedAreas.reduce((sum, area) => sum + (area.summary?.not_installed_machines || 0), 0)
-        },
-        machines_by_status: {
-          active: enrichedAreas.reduce((sum, area) => sum + (area.summary?.active_machines || 0), 0),
-          inactive: enrichedAreas.reduce((sum, area) => sum + (area.summary?.inactive_machines || 0), 0)
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          activeMachines += machines.filter(m => m.status === 'active').length;
         }
-      };
+      }
 
       res.status(200).json({
         success: true,
         data: {
-          ...dashboardData,
-          areas: enrichedAreas,
-          statistics: enrichedStatistics
+          statistics: {
+            total_locations: totalLocations,
+            active_locations: activeLocations,
+            inactive_locations: inactiveLocations,
+            total_machines: totalMachines,
+            installed_machines: installedMachines,
+            not_installed_machines: totalMachines - installedMachines,
+            active_machines: activeMachines,
+            inactive_machines: totalMachines - activeMachines,
+          },
+          locations: locations.slice(0, 10), // Return first 10 for preview
         },
       });
     } catch (error) {
@@ -919,87 +1066,549 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
     }
   }
 
-  static async getDashboardTable(req: Request, res: Response): Promise<void> {
+
+  // TOGGLE MACHINE STATUS (active ↔ inactive) - CORRECTED
+  static async toggleMachineStatus(req: Request, res: Response): Promise<void> {
     try {
-      const params: DashboardFilterParams = {
-        status: (req.query.status as "active" | "inactive" | "all") || "all",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
-        search: req.query.search as string,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sortBy: (req.query.sortBy as string) || "area_name",
-        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
-      };
+      const { machineDetailsId } = req.params;
 
-      const tableData = await AreaService.getDashboardTableData(params);
-
-      // Enrich table data with machine and image information
-      const enrichedData = await Promise.all(tableData.data.map(async (item) => {
-        const area = await AreaService.getAreaById(item.id);
-        if (!area) return item;
-
-        const areaObj = area.toObject ? area.toObject() : area;
-
-        // Calculate detailed machine and image information for new schema
-        let totalMachines = 0;
-        let installedMachines = 0;
-        let notInstalledMachines = 0;
-        let totalImages = 0;
-        const machineIds: string[] = [];
-        const imageUrls: string[] = [];
-
-        areaObj.sub_locations?.forEach((subloc: any) => {
-          if (subloc.select_machine && subloc.select_machine.machine_id) {
-            totalMachines++;
-            machineIds.push(subloc.select_machine.machine_id);
-
-            // Count by installed_status
-            if (subloc.select_machine.installed_status === 'installed') {
-              installedMachines++;
-            } else if (subloc.select_machine.installed_status === 'not_installed') {
-              notInstalledMachines++;
-            }
-
-            if (subloc.select_machine.machine_image) {
-              totalImages += subloc.select_machine.machine_image.length;
-              subloc.select_machine.machine_image.forEach((img: any) => {
-                if (img.file_url) {
-                  imageUrls.push(img.file_url);
-                }
-              });
-            }
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
           }
         });
 
-        return {
-          ...item,
-          total_machines: totalMachines,
-          installed_machines: installedMachines,
-          not_installed_machines: notInstalledMachines,
-          total_images: totalImages,
-          machine_ids: machineIds,
-          image_urls: imageUrls,
-          sample_image_url: imageUrls.length > 0 ? imageUrls[0] : null,
-          has_images: totalImages > 0
-        };
-      }));
+      if (!machineDetails) {
+        res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+        return;
+      }
+
+      const oldStatus = machineDetails.status;
+      const newStatus = oldStatus === "active" ? "inactive" : "active";
+
+      const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+        machineDetailsId,
+        { status: newStatus },
+        { new: true }
+      ).populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+      // Get location ID for audit log
+      const subLocation = await SubLocationModel.findById(updatedMachine?.sub_location_id);
+      const locationId = subLocation?.location_id;
+
+      // Create audit log - FIXED: Use AreaController.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: locationId,
+        action: "UPDATE",
+        changes: {
+          "machine.status": {
+            old: oldStatus,
+            new: newStatus,
+          },
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
 
       res.status(200).json({
         success: true,
-        data: enrichedData,
-        pagination: {
-          currentPage: params.page || 1,
-          totalItems: tableData.total,
-          totalPages: Math.ceil(tableData.total / (params.limit || 10)),
-          itemsPerPage: params.limit || 10,
+        message: `Machine status changed from ${oldStatus} to ${newStatus}`,
+        data: updatedMachine,
+      });
+    } catch (error) {
+      logger.error("Error toggling machine status:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // TOGGLE MACHINE INSTALLED STATUS (installed ↔ not_installed)
+  static async toggleMachineInstalledStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineDetailsId } = req.params;
+
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
+          }
+        });
+
+      if (!machineDetails) {
+        res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+        return;
+      }
+
+      const oldInstalledStatus = machineDetails.installed_status;
+      const newInstalledStatus = oldInstalledStatus === "installed" ? "not_installed" : "installed";
+
+      const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+        machineDetailsId,
+        { installed_status: newInstalledStatus },
+        { new: true }
+      ).populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+      // Get location ID for audit log
+      const subLocation = await SubLocationModel.findById(updatedMachine?.sub_location_id);
+      const locationId = subLocation?.location_id;
+
+      // Create audit log - FIXED: Use AreaController.createAuditLog instead of this.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: locationId,
+        action: "UPDATE",
+        changes: {
+          "machine.installed_status": {
+            old: oldInstalledStatus,
+            new: newInstalledStatus,
+          },
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Machine installed status changed from ${oldInstalledStatus} to ${newInstalledStatus}`,
+        data: updatedMachine,
+      });
+    } catch (error) {
+      logger.error("Error toggling machine installed status:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // GET ALL SUB-LOCATIONS FOR A LOCATION
+  static async getSubLocationsByLocationId(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID",
+        });
+        return;
+      }
+
+      // Check if location exists
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Get sub-locations with their machines
+      const subLocations = await SubLocationModel.find({ location_id: locationId });
+
+      const subLocationsWithMachines = await Promise.all(
+        subLocations.map(async (subLoc) => {
+          const machines = await MachineDetailsModel.find({
+            sub_location_id: subLoc._id
+          });
+          return {
+            ...subLoc.toObject(),
+            machines: machines,
+          };
+        })
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          location: {
+            id: location._id,
+            area_name: location.area_name,
+            state: location.state,
+            district: location.district,
+          },
+          sub_locations: subLocationsWithMachines,
+          total: subLocationsWithMachines.length,
         },
       });
     } catch (error) {
-      logger.error("Error fetching dashboard table:", error);
+      logger.error("Error fetching sub-locations:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // DELETE SUB-LOCATION (cascading delete) - CORRECTED
+  static async deleteSubLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { subLocationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(subLocationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid sub-location ID",
+        });
+        return;
+      }
+
+      const subLocation = await SubLocationModel.findById(subLocationId);
+      if (!subLocation) {
+        res.status(404).json({
+          success: false,
+          message: "Sub-location not found",
+        });
+        return;
+      }
+
+      const locationId = subLocation.location_id;
+
+      // Get all machine details for this sub-location
+      const machines = await MachineDetailsModel.find({ sub_location_id: subLocationId });
+      const machineIds = machines.map(m => m._id);
+
+      // Delete machine images from cloud storage
+      const uploadService = new ImageUploadService();
+      for (const machine of machines) {
+        if (machine.machine_image && machine.machine_image.length > 0) {
+          for (const image of machine.machine_image) {
+            try {
+              await uploadService.deleteFromCloudinary(image.cloudinary_public_id);
+            } catch (error) {
+              logger.error(`Failed to delete image ${image.cloudinary_public_id}:`, error);
+            }
+          }
+        }
+      }
+
+      // Delete machine details
+      await MachineDetailsModel.deleteMany({ _id: { $in: machineIds } });
+
+      // Delete sub-location
+      await SubLocationModel.findByIdAndDelete(subLocationId);
+
+      // Create audit log - FIXED: Use AreaController.createAuditLog
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: new mongoose.Types.ObjectId(locationId.toString()),
+        action: "REMOVE_MACHINE",
+        changes: {
+          removed_sub_location: {
+            old: {
+              campus: subLocation.campus,
+              tower: subLocation.tower,
+              floor: subLocation.floor,
+              machines_count: machines.length,
+            },
+            new: null,
+          },
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Sub-location "${subLocation.campus} - ${subLocation.tower} - ${subLocation.floor}" and all associated machines deleted successfully`,
+        data: {
+          sub_location_id: subLocationId,
+          machines_deleted: machines.length,
+        },
+      });
+    } catch (error) {
+      logger.error("Error deleting sub-location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // UPDATE SUB-LOCATION
+  static async updateSubLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { subLocationId } = req.params;
+      const updateData = req.body;
+
+      if (!mongoose.Types.ObjectId.isValid(subLocationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid sub-location ID",
+        });
+        return;
+      }
+
+      // Validate update data
+      if (updateData.select_machine && !Array.isArray(updateData.select_machine)) {
+        res.status(400).json({
+          success: false,
+          message: "select_machine must be an array",
+        });
+        return;
+      }
+
+      if (updateData.select_machine && updateData.select_machine.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "select_machine array cannot be empty",
+        });
+        return;
+      }
+
+      const auditParams = AreaController.getAuditParams(req);
+      const result = await AreaService.updateSubLocation(
+        subLocationId,
+        updateData,
+        auditParams
+      );
+
+      if (!result) {
+        res.status(404).json({
+          success: false,
+          message: "Failed to update sub-location",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Sub-location updated successfully",
+        data: {
+          subLocation: result.subLocation,
+          changes: {
+            added_machines: result.addedMachines,
+            removed_machines: result.removedMachines,
+            total_machines: result.subLocation.select_machine.length
+          }
+        },
+      });
+    } catch (error) {
+      logger.error("Error updating sub-location:", error);
+
+      const statusCode = error.message.includes("not found") ? 404 :
+        error.message.includes("Invalid") ? 400 : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // EXPORT SUB-LOCATIONS BY LOCATION ID
+  static async exportSubLocationsByLocationId(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      const format = (req.query.format as string) || "csv";
+
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID",
+        });
+        return;
+      }
+
+      const result = await AreaService.exportSubLocationsByLocationId(locationId, format);
+
+      res.setHeader("Content-Type", result.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+
+      if (format === "csv") {
+        res.status(200).send(result.data);
+      } else {
+        res.status(200).json({
+          success: true,
+          ...result.data
+        });
+      }
+    } catch (error) {
+      logger.error("Error exporting sub-locations:", error);
+
+      const statusCode = error.message.includes("not found") ? 404 :
+        error.message.includes("Invalid") ? 400 : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET AUDIT LOGS BY SUB-LOCATION ID
+  static async getAuditLogsBySubLocationId(req: Request, res: Response): Promise<void> {
+    try {
+      const { subLocationId } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (!mongoose.Types.ObjectId.isValid(subLocationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid sub-location ID",
+        });
+        return;
+      }
+
+      const result = await AreaService.getAuditLogsBySubLocationId(subLocationId, page, limit);
+
+      // Enrich logs with sub-location information
+      const subLocation = await SubLocationModel.findById(subLocationId);
+      const enrichedLogs = result.logs.map(log => {
+        const logObj = log.toObject ? log.toObject() : log;
+
+        // Extract sub-location specific changes
+        let subLocationChanges = [];
+        if (logObj.changes) {
+          Object.keys(logObj.changes).forEach(key => {
+            if (['campus', 'tower', 'floor', 'select_machine'].includes(key)) {
+              subLocationChanges.push({
+                field: key,
+                old: logObj.changes[key].old,
+                new: logObj.changes[key].new
+              });
+            }
+          });
+        }
+
+        return {
+          ...logObj,
+          sub_location_info: {
+            id: subLocation?._id,
+            campus: subLocation?.campus,
+            tower: subLocation?.tower,
+            floor: subLocation?.floor
+          },
+          sub_location_changes: subLocationChanges.length > 0 ? subLocationChanges : undefined,
+          is_sub_location_related: subLocationChanges.length > 0
+        };
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          logs: enrichedLogs,
+          sub_location: subLocation ? {
+            id: subLocation._id,
+            campus: subLocation.campus,
+            tower: subLocation.tower,
+            floor: subLocation.floor
+          } : null,
+          pagination: result.pagination,
+          summary: {
+            total_logs: result.pagination.totalItems,
+            sub_location_related_logs: enrichedLogs.filter(log => log.is_sub_location_related).length
+          }
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching sub-location audit logs:", error);
+
+      const statusCode = error.message.includes("not found") ? 404 :
+        error.message.includes("Invalid") ? 400 : 500;
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+  // GET MACHINE DETAILS BY SUB-LOCATION
+  static async getMachineDetailsBySubLocationId(req: Request, res: Response): Promise<void> {
+    try {
+      const { subLocationId } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(subLocationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid sub-location ID",
+        });
+        return;
+      }
+
+      // Check if sub-location exists
+      const subLocation = await SubLocationModel.findById(subLocationId);
+      if (!subLocation) {
+        res.status(404).json({
+          success: false,
+          message: "Sub-location not found",
+        });
+        return;
+      }
+
+      // Get machine details
+      const machineDetails = await MachineDetailsModel.find({
+        sub_location_id: subLocationId
+      });
+
+      // Get location info
+      const location = await LocationModel.findById(subLocation.location_id);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          sub_location: {
+            id: subLocation._id,
+            campus: subLocation.campus,
+            tower: subLocation.tower,
+            floor: subLocation.floor,
+            location_info: location ? {
+              id: location._id,
+              area_name: location.area_name,
+              state: location.state,
+              district: location.district,
+            } : null,
+          },
+          machines: machineDetails,
+          total: machineDetails.length,
+          summary: {
+            installed_machines: machineDetails.filter(m => m.installed_status === 'installed').length,
+            not_installed_machines: machineDetails.filter(m => m.installed_status === 'not_installed').length,
+            active_machines: machineDetails.filter(m => m.status === 'active').length,
+            inactive_machines: machineDetails.filter(m => m.status === 'inactive').length,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching machine details:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -1007,437 +1616,1135 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
     }
   }
 
-  // CSV GENERATION - UPDATED FOR NEW SCHEMA
-  private static convertAreasToCSV(areas: any[]): string {
-    if (!areas || areas.length === 0) {
-      return "No areas available for export";
+  // REMOVE IMAGE FROM MACHINE
+  static async removeMachineImage(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineDetailsId, imageIndex } = req.params;
+      const index = parseInt(imageIndex);
+
+      if (!mongoose.Types.ObjectId.isValid(machineDetailsId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid machine details ID",
+        });
+        return;
+      }
+
+      if (isNaN(index) || index < 0) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid image index",
+        });
+        return;
+      }
+
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
+          }
+        });
+
+      if (!machineDetails) {
+        res.status(404).json({
+          success: false,
+          message: "Machine details not found",
+        });
+        return;
+      }
+
+      if (machineDetails.machine_image.length <= index) {
+        res.status(404).json({
+          success: false,
+          message: "Image not found at the specified index",
+        });
+        return;
+      }
+
+      const imageToRemove = machineDetails.machine_image[index];
+      const oldImages = [...machineDetails.machine_image];
+
+      // Remove the image from array
+      machineDetails.machine_image.splice(index, 1);
+      const updatedMachine = await machineDetails.save();
+
+      // Delete from cloud storage
+      const uploadService = new ImageUploadService();
+      try {
+        await uploadService.deleteFromCloudinary(imageToRemove.cloudinary_public_id);
+      } catch (error) {
+        logger.error("Failed to delete image from cloud storage:", error);
+      }
+
+      // Get location ID for audit log
+      const subLocation = await SubLocationModel.findById(machineDetails.sub_location_id);
+      const locationId = subLocation?.location_id;
+
+      // Create audit log
+      if (locationId) {
+        const auditParams = AreaController.getAuditParams(req);
+        await this.createAuditLog({
+          location_id: new mongoose.Types.ObjectId(locationId.toString()),
+          action: "UPDATE",
+          changes: {
+            removed_image: {
+              old: imageToRemove.image_name,
+              new: null
+            },
+            remaining_images: {
+              old: oldImages.length,
+              new: updatedMachine.machine_image.length
+            }
+          },
+          performed_by: {
+            user_id: auditParams.userId,
+            email: auditParams.userEmail,
+            name: auditParams.userName,
+          },
+          ip_address: auditParams.ipAddress,
+          user_agent: auditParams.userAgent,
+          timestamp: new Date(),
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Image "${imageToRemove.image_name}" removed successfully`,
+        data: {
+          machine: updatedMachine,
+          image_removed: imageToRemove,
+        },
+      });
+    } catch (error) {
+      logger.error("Error removing machine image:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // SEARCH MACHINES
+  static async searchMachines(req: Request, res: Response): Promise<void> {
+    try {
+      const searchTerm = req.query.q as string;
+
+      if (!searchTerm || searchTerm.trim() === '') {
+        res.status(400).json({
+          success: false,
+          message: "Search term is required",
+        });
+        return;
+      }
+
+      const searchRegex = new RegExp(searchTerm, 'i');
+
+      // Search in machine details
+      const machines = await MachineDetailsModel.find({
+        $or: [
+          { machine_name: searchRegex },
+        ]
+      })
+        .populate({
+          path: 'sub_location_id',
+          populate: {
+            path: 'location_id',
+            select: 'area_name state district'
+          }
+        })
+        .limit(50);
+
+      const enrichedMachines = machines.map(machine => ({
+        id: machine._id,
+        machine_name: machine.machine_name,
+        installed_status: machine.installed_status,
+        status: machine.status,
+        images_count: machine.machine_image.length,
+        sub_location: machine.sub_location_id ? {
+          id: (machine.sub_location_id as any)._id,
+          campus: (machine.sub_location_id as any).campus,
+          tower: (machine.sub_location_id as any).tower,
+          floor: (machine.sub_location_id as any).floor,
+        } : null,
+        location: (machine.sub_location_id as any)?.location_id ? {
+          id: (machine.sub_location_id as any).location_id._id,
+          area_name: (machine.sub_location_id as any).location_id.area_name,
+          state: (machine.sub_location_id as any).location_id.state,
+          district: (machine.sub_location_id as any).location_id.district,
+        } : null,
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          machines: enrichedMachines,
+          total: machines.length,
+          search_term: searchTerm,
+        },
+      });
+    } catch (error) {
+      logger.error("Error searching machines:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // CHECK LOCATION EXISTS
+  static async checkLocationExists(req: Request, res: Response): Promise<void> {
+    try {
+      const { area_name, excludeId } = req.query;
+
+      if (!area_name) {
+        res.status(400).json({
+          success: false,
+          message: "Area name is required",
+        });
+        return;
+      }
+
+      const filter: any = { area_name: area_name as string };
+      if (excludeId) {
+        filter._id = { $ne: excludeId };
+      }
+
+      const count = await LocationModel.countDocuments(filter);
+
+      res.status(200).json({
+        success: true,
+        data: { exists: count > 0 },
+      });
+    } catch (error) {
+      logger.error("Error checking location existence:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // ENHANCED EXPORT LOCATIONS - INCLUDES SUB-LOCATIONS AND MACHINES
+  static async exportLocations(req: Request, res: Response): Promise<void> {
+    try {
+      const format = (req.query.format as string) || "csv";
+      const status = req.query.status as string;
+      const state = req.query.state as string;
+      const district = req.query.district as string;
+      const search = req.query.search as string;
+      const includeDetails = (req.query.includeDetails as string) === "true" || true; // Default to true
+      const includeImages = (req.query.includeImages as string) === "true";
+
+      // Build filter
+      const filter: any = {};
+      if (status && status !== 'all') {
+        filter.status = status;
+      }
+      if (state) {
+        filter.state = { $regex: state, $options: "i" };
+      }
+      if (district) {
+        filter.district = { $regex: district, $options: "i" };
+      }
+      if (search) {
+        filter.$or = [
+          { area_name: { $regex: search, $options: "i" } },
+          { state: { $regex: search, $options: "i" } },
+          { district: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const locations = await LocationModel.find(filter).limit(1000);
+
+      if (locations.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "No locations found to export",
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+      if (format === "csv") {
+        if (includeDetails) {
+          // Get detailed CSV with sub-locations and machines
+          const detailedCSV = await AreaController.generateDetailedCSVExport(locations, includeImages); // FIXED: Use AreaController
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.csv"`);
+          res.status(200).send(detailedCSV);
+        } else {
+          // Get basic CSV (only locations)
+          const csv = AreaController.convertLocationsToCSV(locations);
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader("Content-Disposition", `attachment; filename="locations-basic-export-${timestamp}.csv"`);
+          res.status(200).send(csv);
+        }
+      } else if (format === "json") {
+        // Get COMPLETE detailed data for each location including sub-locations and machines
+        const detailedLocations = await Promise.all(
+          locations.map(async (location) => {
+            const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+            // Get detailed sub-locations with machines
+            const detailedSubLocations = await Promise.all(
+              subLocations.map(async (subLoc) => {
+                const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+                // Get detailed machine information
+                const detailedMachines = await Promise.all(
+                  machines.map(async (machine) => {
+                    const machineObj = machine.toObject();
+
+                    // Handle image data if requested
+                    let images = [];
+                    if (includeImages && machine.machine_image && machine.machine_image.length > 0) {
+                      images = machine.machine_image.map(img => ({
+                        image_name: img.image_name,
+                        file_url: img.file_url,
+                        cloudinary_public_id: img.cloudinary_public_id,
+                        file_size: img.file_size,
+                        mime_type: img.mime_type,
+                        uploaded_at: img.uploaded_at,
+                        preview_url: img.file_url.replace('/upload/', '/upload/w_200,h_200,c_fill/')
+                      }));
+                    }
+
+                    return {
+                      id: machine._id,
+                      machine_name: machine.machine_name,
+                      installed_status: machine.installed_status,
+                      status: machine.status,
+                      images_count: machine.machine_image.length,
+                      images: includeImages ? images : undefined,
+                      created_at: machine.createdAt,
+                      updated_at: machine.updatedAt
+                    };
+                  })
+                );
+
+                return {
+                  id: subLoc._id,
+                  campus: subLoc.campus,
+                  tower: subLoc.tower,
+                  floor: subLoc.floor,
+                  select_machine: subLoc.select_machine,
+                  total_machines: detailedMachines.length,
+                  machines: detailedMachines,
+                  created_at: subLoc.createdAt,
+                  updated_at: subLoc.updatedAt,
+                  statistics: {
+                    installed_machines: detailedMachines.filter(m => m.installed_status === 'installed').length,
+                    active_machines: detailedMachines.filter(m => m.status === 'active').length,
+                    machines_with_images: detailedMachines.filter(m => m.images_count > 0).length
+                  }
+                };
+              })
+            );
+
+            // Calculate statistics
+            let totalMachines = 0;
+            let installedMachines = 0;
+            let notInstalledMachines = 0;
+            let activeMachines = 0;
+            let inactiveMachines = 0;
+
+            for (const subLoc of detailedSubLocations) {
+              totalMachines += subLoc.total_machines;
+              installedMachines += subLoc.statistics.installed_machines;
+              notInstalledMachines += (subLoc.total_machines - subLoc.statistics.installed_machines);
+              activeMachines += subLoc.statistics.active_machines;
+              inactiveMachines += (subLoc.total_machines - subLoc.statistics.active_machines);
+            }
+
+            return {
+              ...location.toObject(),
+              summary: {
+                sub_locations_count: detailedSubLocations.length,
+                total_machines: totalMachines,
+                installed_machines: installedMachines,
+                not_installed_machines: notInstalledMachines,
+                active_machines: activeMachines,
+                inactive_machines: inactiveMachines,
+              },
+              sub_locations: includeDetails ? detailedSubLocations : undefined,
+              export_metadata: {
+                exported_at: new Date().toISOString(),
+                includes_sub_locations: includeDetails,
+                includes_machine_images: includeImages
+              }
+            };
+          })
+        );
+
+        const totalSubLocations = detailedLocations.reduce((sum, loc) =>
+          sum + (loc.sub_locations ? loc.sub_locations.length : 0), 0);
+        const totalMachines = detailedLocations.reduce((sum, loc) =>
+          sum + loc.summary.total_machines, 0);
+
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.json"`);
+        res.status(200).json({
+          success: true,
+          data: detailedLocations,
+          export_summary: {
+            total_locations: locations.length,
+            total_sub_locations: totalSubLocations,
+            total_machines: totalMachines,
+            includes_sub_locations: includeDetails,
+            includes_images: includeImages,
+            export_date: new Date().toISOString(),
+          },
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
+      }
+    } catch (error) {
+      logger.error("Error exporting locations:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // NEW HELPER: Generate detailed CSV export
+  private static async generateDetailedCSVExport(locations: any[], includeImages: boolean): Promise<string> {
+    if (!locations || locations.length === 0) {
+      return "No locations available for export";
     }
 
     try {
-      const headers = [
-        "ID",
+      let csv = "\ufeff"; // BOM for UTF-8
+
+      // Sheet 1: Locations Summary
+      csv += "=== LOCATIONS SUMMARY ===\n";
+      const locationHeaders = [
+        "Location ID",
         "Area Name",
         "State",
         "District",
         "Pincode",
         "Status",
         "Address",
-        "Total Sub-locations",
+        "Description",
+        "Sub-locations Count",
         "Total Machines",
         "Installed Machines",
         "Not Installed Machines",
-        "Machine IDs",
-        "Total Images",
-        "Image URLs",
+        "Active Machines",
+        "Inactive Machines",
         "Created At",
         "Updated At"
       ];
+      csv += locationHeaders.join(",") + "\n";
 
-      let csv = "\ufeff";
-      csv += headers.join(",") + "\n";
+      for (const location of locations) {
+        const locationObj = location.toObject ? location.toObject() : location;
 
-      areas.forEach(area => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-
-        // Calculate machine and image information for new schema
+        // Get sub-locations for statistics
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
         let totalMachines = 0;
         let installedMachines = 0;
-        let notInstalledMachines = 0;
-        let totalImages = 0;
-        const machineIds: string[] = [];
-        const imageUrls: string[] = [];
+        let activeMachines = 0;
 
-        areaDoc.sub_locations?.forEach((subloc: any) => {
-          if (subloc.select_machine && subloc.select_machine.machine_id) {
-            totalMachines++;
-            machineIds.push(subloc.select_machine.machine_id);
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          activeMachines += machines.filter(m => m.status === 'active').length;
+        }
 
-            // Count by installed_status
-            if (subloc.select_machine.installed_status === 'installed') {
-              installedMachines++;
-            } else if (subloc.select_machine.installed_status === 'not_installed') {
-              notInstalledMachines++;
-            }
+        const notInstalledMachines = totalMachines - installedMachines;
+        const inactiveMachines = totalMachines - activeMachines;
 
-            if (subloc.select_machine.machine_image) {
-              totalImages += subloc.select_machine.machine_image.length;
-              subloc.select_machine.machine_image.forEach((img: any) => {
-                if (img.file_url) {
-                  imageUrls.push(img.file_url);
-                }
-              });
-            }
-          }
-        });
-
-        const row = [
-          areaDoc._id?.toString() || "",
-          `"${(areaDoc.area_name || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.state || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.district || "").replace(/"/g, '""')}"`,
-          areaDoc.pincode || "",
-          areaDoc.status || "",
-          `"${(areaDoc.address || "").replace(/"/g, '""')}"`,
-          areaDoc.sub_locations?.length || 0,
+        const locationRow = [
+          locationObj._id?.toString() || "",
+          `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+          locationObj.pincode || "",
+          locationObj.status || "",
+          `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+          subLocations.length,
           totalMachines,
           installedMachines,
           notInstalledMachines,
-          `"${machineIds.join("; ").replace(/"/g, '""')}"`,
-          totalImages,
-          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
-          areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : "",
-          areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : ""
+          activeMachines,
+          inactiveMachines,
+          locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
         ];
 
-        csv += row.join(",") + "\n";
-      });
+        csv += locationRow.join(",") + "\n";
+      }
+
+      csv += "\n\n";
+
+      // Sheet 2: Sub-locations
+      csv += "=== SUB-LOCATIONS ===\n";
+      const subLocationHeaders = [
+        "Sub-location ID",
+        "Location ID",
+        "Location Name",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Selected Machines",
+        "Total Machines",
+        "Installed Machines",
+        "Active Machines",
+        "Created At",
+        "Updated At"
+      ];
+      csv += subLocationHeaders.join(",") + "\n";
+
+      for (const location of locations) {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+        for (const subLoc of subLocations) {
+          const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+          const installedMachines = machines.filter(m => m.installed_status === 'installed').length;
+          const activeMachines = machines.filter(m => m.status === 'active').length;
+
+          const subLocationRow = [
+            subLocObj._id?.toString() || "",
+            location._id?.toString() || "",
+            `"${location.area_name?.replace(/"/g, '""') || ""}"`,
+            `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.select_machine || []).join(", ").replace(/"/g, '""')}"`,
+            machines.length,
+            installedMachines,
+            activeMachines,
+            subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
+            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+          ];
+
+          csv += subLocationRow.join(",") + "\n";
+        }
+      }
+
+      csv += "\n\n";
+
+      // Sheet 3: Machines
+      csv += "=== MACHINES ===\n";
+      const machineHeaders = [
+        "Machine ID",
+        "Sub-location ID",
+        "Location Name",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Machine Name",
+        "Installed Status",
+        "Status",
+        "Images Count",
+        "Image Names",
+        "Created At",
+        "Updated At"
+      ];
+      csv += machineHeaders.join(",") + "\n";
+
+      for (const location of locations) {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+          for (const machine of machines) {
+            const machineObj = machine.toObject ? machine.toObject() : machine;
+            const imageNames = machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+
+            const machineRow = [
+              machineObj._id?.toString() || "",
+              subLoc._id?.toString() || "",
+              `"${location.area_name?.replace(/"/g, '""') || ""}"`,
+              `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
+              `"${(machineObj.machine_name || "").replace(/"/g, '""')}"`,
+              machineObj.installed_status || "",
+              machineObj.status || "",
+              machineObj.machine_image?.length || 0,
+              `"${imageNames.replace(/"/g, '""')}"`,
+              machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
+              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : ""
+            ];
+
+            csv += machineRow.join(",") + "\n";
+          }
+        }
+      }
 
       // Add summary
-      csv += "\n\n";
-      csv += "Export Summary\n";
-      csv += "Total Areas," + areas.length + "\n";
-      csv += "Total Sub-locations," + areas.reduce((sum, area) =>
-        sum + (area.sub_locations?.length || 0), 0) + "\n";
-      csv += "Total Machines," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
-          sl.select_machine && sl.select_machine.machine_id).length || 0);
-      }, 0) + "\n";
-      csv += "Total Installed Machines," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
-          sl.select_machine && sl.select_machine.machine_id &&
-          sl.select_machine.installed_status === 'installed').length || 0);
-      }, 0) + "\n";
-      csv += "Total Not Installed Machines," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
-          sl.select_machine && sl.select_machine.machine_id &&
-          sl.select_machine.installed_status === 'not_installed').length || 0);
-      }, 0) + "\n";
-      csv += "Total Images," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.reduce((imgSum: number, sl: any) =>
-          imgSum + (sl.select_machine?.machine_image?.length || 0), 0) || 0);
-      }, 0) + "\n";
+      csv += "\n\n=== EXPORT SUMMARY ===\n";
+      const totalSubLocations = (await Promise.all(
+        locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
+      )).reduce((sum, count) => sum + count, 0);
+
+      const totalMachines = (await Promise.all(
+        locations.map(async (loc) => {
+          const subLocs = await SubLocationModel.find({ location_id: loc._id });
+          const machineCounts = await Promise.all(
+            subLocs.map(subLoc => MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id }))
+          );
+          return machineCounts.reduce((sum, count) => sum + count, 0);
+        })
+      )).reduce((sum, count) => sum + count, 0);
+
+      csv += "Total Locations," + locations.length + "\n";
+      csv += "Total Sub-locations," + totalSubLocations + "\n";
+      csv += "Total Machines," + totalMachines + "\n";
+      csv += "Export Format,Detailed CSV (3 sheets)\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
+      csv += "Includes Images," + includeImages + "\n";
 
       return csv;
     } catch (error) {
-      logger.error("Error converting areas to CSV:", error);
-      return "Error generating areas CSV";
+      logger.error("Error generating detailed CSV:", error);
+      return "Error generating detailed CSV export";
     }
-  }
-
-  // REMOVE MACHINE FROM AREA - UPDATED FOR NEW SCHEMA
-  static async removeMachineFromArea(req: Request, res: Response): Promise<void> {
-    const { id, machineId } = req.params;
-
+  }// ENHANCED EXPORT LOCATIONS BY IDS - WITH IMAGE URLS AND COMPREHENSIVE DATA
+  static async exportLocationsByIds(req: Request, res: Response): Promise<void> {
     try {
-      if (!machineId || machineId.trim() === "") {
+      const { ids } = req.params; // This comes from /location/export/:ids
+      const format = (req.query.format as string) || "json";
+      const includeImages = (req.query.includeImages as string) === "true";
+      const includeDetails = (req.query.includeDetails as string) !== "false"; // Default to true
+
+      if (!ids || ids.trim() === '') {
         res.status(400).json({
           success: false,
-          message: "Machine ID is required in route parameter",
+          message: "Please provide location IDs",
         });
         return;
       }
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      const locationIds = ids
+        .split(",")
+        .map(id => id.trim())
+        .filter(id => id);
+
+      if (locationIds.length === 0) {
         res.status(400).json({
           success: false,
-          message: "Invalid area ID",
+          message: "Please provide valid location IDs",
         });
         return;
       }
 
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedArea = await AreaService.removeMachineFromArea(id, machineId, auditParams);
-
-      if (!updatedArea) {
-        res.status(404).json({
-          success: false,
-          message: "Area not found",
-        });
-        return;
-      }
-
-      // Calculate remaining machines with installed_status breakdown
-      let remainingMachines = 0;
-      let installedMachines = 0;
-      let notInstalledMachines = 0;
-
-      updatedArea.sub_locations?.forEach((subLoc: any) => {
-        if (subLoc.select_machine && subLoc.select_machine.machine_id) {
-          remainingMachines++;
-          if (subLoc.select_machine.installed_status === 'installed') {
-            installedMachines++;
-          } else if (subLoc.select_machine.installed_status === 'not_installed') {
-            notInstalledMachines++;
-          }
-        }
-      });
-
-      const response = {
-        success: true,
-        message: `Machine "${machineId}" removed successfully from area`,
-        data: updatedArea,
-        summary: {
-          removed_machine_id: machineId,
-          remaining_machines: remainingMachines,
-          installed_machines: installedMachines,
-          not_installed_machines: notInstalledMachines,
-          total_sub_locations: updatedArea.sub_locations?.length || 0,
-          has_machines: remainingMachines > 0,
-          warning: remainingMachines === 0 ?
-            "Warning: All machines have been removed from this area. The area will still exist with empty sub-locations." :
-            undefined
-        }
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      logger.error("Error removing machine from area:", error);
-
-      const statusCode = error.message.includes("not found")
-        ? 404
-        : error.message.includes("Invalid MongoDB ObjectId")
-          ? 400
-          : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || "Internal server error",
-        error_details: process.env.NODE_ENV === 'development' ? {
-          stack: error.stack,
-          area_id: id,
-          machine_id: machineId
-        } : undefined
-      });
-    }
-  }
-
-  // HELPER METHODS (Keep as is, no changes needed)
-  private static async attachFilesToSubLocations(
-    areaData: any,
-    processedFiles: IMachineImageData[],
-    fileMap?: string
-  ): Promise<void> {
-    if (!processedFiles.length || !fileMap) return;
-
-    try {
-      const fileMapping = JSON.parse(fileMap);
-
-      processedFiles.forEach((file, index) => {
-        const mapping = fileMapping[index];
-        if (mapping && areaData.sub_locations && areaData.sub_locations[mapping.subLocationIndex]) {
-          const subLocation = areaData.sub_locations[mapping.subLocationIndex];
-
-          // Ensure select_machine exists
-          if (!subLocation.select_machine) {
-            subLocation.select_machine = {
-              machine_id: '',
-              installed_status: 'not_installed',
-              status: 'active',
-              machine_image: []
-            };
-          }
-
-          // Ensure machine_image array exists
-          if (!subLocation.select_machine.machine_image) {
-            subLocation.select_machine.machine_image = [];
-          }
-
-          // Add the file to machine images
-          subLocation.select_machine.machine_image.push(file);
-        }
-      });
-    } catch (error) {
-      logger.error("Error attaching files to sub-locations:", error);
-      throw new Error("Failed to process file attachments");
-    }
-  }
-
-  private static async deleteMachineImages(publicIds: string[]): Promise<void> {
-    try {
-      const uploadService = new ImageUploadService();
-      await uploadService.deleteMultipleFiles(publicIds);
-    } catch (error) {
-      logger.error("Error deleting machine images:", error);
-      throw new Error("Failed to delete machine images");
-    }
-  }
-
-
-
-  static async exportAreaAuditLogs(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const format = (req.query.format as string) || "csv";
-
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      // Validate IDs
+      const invalidIds = locationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
         res.status(400).json({
           success: false,
-          message: "Invalid area ID",
+          message: `Invalid location IDs: ${invalidIds.join(", ")}`,
+          invalidIds,
         });
         return;
       }
 
-      const area = await AreaService.getAreaById(id);
-      if (!area) {
+      // Convert to ObjectId
+      const objectIds = locationIds.map(id => new mongoose.Types.ObjectId(id));
+
+      const locations = await LocationModel.find({
+        _id: { $in: objectIds },
+      });
+
+      if (locations.length === 0) {
         res.status(404).json({
           success: false,
-          message: "Area not found",
-        });
-        return;
-      }
-
-      const result = await AreaService.getAuditLogs(id, 1, 10000);
-      const logs = result.logs;
-
-      if (logs.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: "No audit logs found for this area",
+          message: "No locations found with the provided IDs",
         });
         return;
       }
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const areaName = area.area_name.replace(/[^a-zA-Z0-9]/g, "_");
+
+      if (format === "csv") {
+        if (includeDetails) {
+          // Get detailed CSV with sub-locations, machines, and images
+          const detailedCSV = await AreaController.generateDetailedCSVExportForIds(locations, includeImages);
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.csv"`);
+          res.status(200).send(detailedCSV);
+        } else {
+          // Get basic CSV (only locations)
+          const csv = AreaController.convertLocationsToCSV(locations);
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader("Content-Disposition", `attachment; filename="locations-basic-export-${timestamp}.csv"`);
+          res.status(200).send(csv);
+        }
+      } else if (format === "json") {
+        // Get COMPLETE detailed data for each location
+        const detailedLocations = await Promise.all(
+          locations.map(async (location) => {
+            const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+            // Get detailed sub-locations with machines
+            const detailedSubLocations = await Promise.all(
+              subLocations.map(async (subLoc) => {
+                const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+                // Get detailed machine information with images
+                const detailedMachines = await Promise.all(
+                  machines.map(async (machine) => {
+                    const machineObj = machine.toObject();
+
+                    // Handle image data
+                    let images = [];
+                    if (includeImages && machine.machine_image && machine.machine_image.length > 0) {
+                      images = machine.machine_image.map(img => ({
+                        image_name: img.image_name,
+                        file_url: img.file_url,
+                        cloudinary_public_id: img.cloudinary_public_id,
+                        file_size: img.file_size,
+                        file_size_mb: (img.file_size / (1024 * 1024)).toFixed(2) + " MB",
+                        mime_type: img.mime_type,
+                        uploaded_at: img.uploaded_at,
+                        // Image variations
+                        thumbnail_url: img.file_url.replace('/upload/', '/upload/w_100,h_100,c_fill/'),
+                        preview_url: img.file_url.replace('/upload/', '/upload/w_300,h_300,c_fill/'),
+                        original_url: img.file_url,
+                        download_url: `${img.file_url}?download=1`,
+                        // Image metadata
+                        dimensions: img.file_url.includes('cloudinary') ? "Extracted from Cloudinary" : "Not available",
+                        format: img.mime_type.split('/')[1]?.toUpperCase() || "Unknown"
+                      }));
+                    }
+
+                    return {
+                      id: machine._id.toString(),
+                      machine_name: machine.machine_name,
+                      installed_status: machine.installed_status,
+                      status: machine.status,
+                      images_count: machine.machine_image.length,
+                      images: includeImages ? images : undefined,
+                      image_summary: includeImages ? {
+                        total_images: machine.machine_image.length,
+                        image_formats: [...new Set(machine.machine_image.map(img => img.mime_type))],
+                        total_size_mb: (machine.machine_image.reduce((sum, img) => sum + img.file_size, 0) / (1024 * 1024)).toFixed(2),
+                        latest_image: machine.machine_image.length > 0 ?
+                          new Date(Math.max(...machine.machine_image.map(img => new Date(img.uploaded_at).getTime()))).toISOString() : null
+                      } : undefined,
+                      created_at: machine.createdAt,
+                      updated_at: machine.updatedAt,
+                      last_modified: machine.updatedAt || machine.createdAt
+                    };
+                  })
+                );
+
+                // Calculate sub-location statistics
+                const subLocStats = {
+                  total_machines: detailedMachines.length,
+                  installed_machines: detailedMachines.filter(m => m.installed_status === 'installed').length,
+                  not_installed_machines: detailedMachines.filter(m => m.installed_status === 'not_installed').length,
+                  active_machines: detailedMachines.filter(m => m.status === 'active').length,
+                  inactive_machines: detailedMachines.filter(m => m.status === 'inactive').length,
+                  machines_with_images: detailedMachines.filter(m => m.images_count > 0).length,
+                  total_images: detailedMachines.reduce((sum, m) => sum + m.images_count, 0)
+                };
+
+                return {
+                  id: subLoc._id.toString(),
+                  campus: subLoc.campus,
+                  tower: subLoc.tower,
+                  floor: subLoc.floor,
+                  select_machine: subLoc.select_machine,
+                  total_machines: detailedMachines.length,
+                  machines: includeDetails ? detailedMachines : undefined,
+                  created_at: subLoc.createdAt,
+                  updated_at: subLoc.updatedAt,
+                  statistics: subLocStats,
+                  export_metadata: {
+                    exported_at: new Date().toISOString(),
+                    includes_machines: includeDetails,
+                    includes_images: includeImages
+                  }
+                };
+              })
+            );
+
+            // Calculate location statistics
+            const locationStats = {
+              total_sub_locations: detailedSubLocations.length,
+              total_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.total_machines, 0),
+              installed_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.installed_machines, 0),
+              not_installed_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.not_installed_machines, 0),
+              active_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.active_machines, 0),
+              inactive_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.inactive_machines, 0),
+              machines_with_images: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.machines_with_images, 0),
+              total_images: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.total_images, 0)
+            };
+
+            return {
+              location: {
+                id: location._id.toString(),
+                area_name: location.area_name,
+                state: location.state,
+                district: location.district,
+                pincode: location.pincode,
+                area_description: location.area_description,
+                status: location.status,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                address: location.address,
+                created_at: location.createdAt,
+                updated_at: location.updatedAt
+              },
+              sub_locations: includeDetails ? detailedSubLocations : undefined,
+              statistics: locationStats,
+              export_metadata: {
+                exported_at: new Date().toISOString(),
+                includes_sub_locations: includeDetails,
+                includes_machines: includeDetails,
+                includes_machine_images: includeImages,
+                image_count: locationStats.total_images
+              }
+            };
+          })
+        );
+
+        // Calculate overall export statistics
+        const exportSummary = {
+          total_locations: detailedLocations.length,
+          total_sub_locations: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_sub_locations, 0),
+          total_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_machines, 0),
+          installed_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.installed_machines, 0),
+          active_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.active_machines, 0),
+          total_images: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_images, 0),
+          includes_images: includeImages,
+          includes_details: includeDetails,
+          export_format: "comprehensive"
+        };
+
+        const exportData = {
+          success: true,
+          export_summary: exportSummary,
+          data: detailedLocations,
+          export_info: {
+            requested_location_ids: locationIds,
+            found_location_ids: locations.map(loc => loc._id.toString()),
+            missing_location_ids: locationIds.filter(id =>
+              !locations.some(loc => loc._id.toString() === id)
+            ),
+            export_date: new Date().toISOString(),
+            export_options: {
+              format: format,
+              include_images: includeImages,
+              include_details: includeDetails,
+              image_quality: includeImages ? "full_urls_with_metadata" : "no_images"
+            }
+          }
+        };
+
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="locations-export-${timestamp}.json"`);
+        res.status(200).json(exportData);
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
+      }
+    } catch (error) {
+      logger.error("Error exporting locations by IDs:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // HELPER: Generate detailed CSV export for specific IDs
+  private static async generateDetailedCSVExportForIds(locations: any[], includeImages: boolean): Promise<string> {
+    if (!locations || locations.length === 0) {
+      return "No locations available for export";
+    }
+
+    try {
+      let csv = "\ufeff"; // BOM for UTF-8
+
+      // Sheet 1: Locations Summary
+      csv += "=== LOCATIONS SUMMARY ===\n";
+      const locationHeaders = [
+        "Location ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Description",
+        "Latitude",
+        "Longitude",
+        "Sub-locations Count",
+        "Total Machines",
+        "Installed Machines",
+        "Active Machines",
+        "Total Images",
+        "Created At",
+        "Updated At"
+      ];
+      csv += locationHeaders.join(",") + "\n";
+
+      for (const location of locations) {
+        const locationObj = location.toObject ? location.toObject() : location;
+
+        // Get detailed statistics
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+        let totalMachines = 0;
+        let installedMachines = 0;
+        let activeMachines = 0;
+        let totalImages = 0;
+
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          activeMachines += machines.filter(m => m.status === 'active').length;
+          totalImages += machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
+        }
+
+        const locationRow = [
+          locationObj._id?.toString() || "",
+          `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+          locationObj.pincode || "",
+          locationObj.status || "",
+          `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+          locationObj.latitude || "",
+          locationObj.longitude || "",
+          subLocations.length,
+          totalMachines,
+          installedMachines,
+          activeMachines,
+          totalImages,
+          locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+        ];
+
+        csv += locationRow.join(",") + "\n";
+      }
+
+      csv += "\n\n";
+
+      // Sheet 2: Sub-locations
+      csv += "=== SUB-LOCATIONS ===\n";
+      const subLocationHeaders = [
+        "Sub-location ID",
+        "Location ID",
+        "Location Name",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Selected Machines",
+        "Total Machines",
+        "Installed Machines",
+        "Active Machines",
+        "Images Count",
+        "Created At",
+        "Updated At"
+      ];
+      csv += subLocationHeaders.join(",") + "\n";
+
+      for (const location of locations) {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+        for (const subLoc of subLocations) {
+          const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+          const installedMachines = machines.filter(m => m.installed_status === 'installed').length;
+          const activeMachines = machines.filter(m => m.status === 'active').length;
+          const totalImages = machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
+
+          const subLocationRow = [
+            subLocObj._id?.toString() || "",
+            location._id?.toString() || "",
+            `"${location.area_name?.replace(/"/g, '""') || ""}"`,
+            `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
+            `"${(subLocObj.select_machine || []).join(", ").replace(/"/g, '""')}"`,
+            machines.length,
+            installedMachines,
+            activeMachines,
+            totalImages,
+            subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
+            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+          ];
+
+          csv += subLocationRow.join(",") + "\n";
+        }
+      }
+
+      csv += "\n\n";
+
+      // Sheet 3: Machines
+      csv += "=== MACHINES ===\n";
+      const machineHeaders = [
+        "Machine ID",
+        "Sub-location ID",
+        "Location Name",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Machine Name",
+        "Installed Status",
+        "Status",
+        "Images Count",
+        "Image URLs",
+        "Image Names",
+        "Created At",
+        "Updated At"
+      ];
+      csv += machineHeaders.join(",") + "\n";
+
+      for (const location of locations) {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+        for (const subLoc of subLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+
+          for (const machine of machines) {
+            const machineObj = machine.toObject ? machine.toObject() : machine;
+            const imageNames = machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+            const imageUrls = machineObj.machine_image?.map(img => img.file_url).join("; ") || "";
+
+            const machineRow = [
+              machineObj._id?.toString() || "",
+              subLoc._id?.toString() || "",
+              `"${location.area_name?.replace(/"/g, '""') || ""}"`,
+              `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
+              `"${(machineObj.machine_name || "").replace(/"/g, '""')}"`,
+              machineObj.installed_status || "",
+              machineObj.status || "",
+              machineObj.machine_image?.length || 0,
+              `"${imageUrls.replace(/"/g, '""')}"`,
+              `"${imageNames.replace(/"/g, '""')}"`,
+              machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
+              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : ""
+            ];
+
+            csv += machineRow.join(",") + "\n";
+          }
+        }
+      }
+
+      // Add summary
+      csv += "\n\n=== EXPORT SUMMARY ===\n";
+      const totalSubLocations = (await Promise.all(
+        locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
+      )).reduce((sum, count) => sum + count, 0);
+
+      const totalMachines = (await Promise.all(
+        locations.map(async (loc) => {
+          const subLocs = await SubLocationModel.find({ location_id: loc._id });
+          const machineCounts = await Promise.all(
+            subLocs.map(subLoc => MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id }))
+          );
+          return machineCounts.reduce((sum, count) => sum + count, 0);
+        })
+      )).reduce((sum, count) => sum + count, 0);
+
+      const totalImages = (await Promise.all(
+        locations.map(async (loc) => {
+          const subLocs = await SubLocationModel.find({ location_id: loc._id });
+          let imageCount = 0;
+          for (const subLoc of subLocs) {
+            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+            imageCount += machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
+          }
+          return imageCount;
+        })
+      )).reduce((sum, count) => sum + count, 0);
+
+      csv += "Total Locations," + locations.length + "\n";
+      csv += "Total Sub-locations," + totalSubLocations + "\n";
+      csv += "Total Machines," + totalMachines + "\n";
+      csv += "Total Images," + totalImages + "\n";
+      csv += "Export Format,Detailed CSV (3 sheets)\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+      csv += "Includes Images," + includeImages + "\n";
+      csv += "Image URLs Included," + (includeImages ? "Yes" : "No") + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error generating detailed CSV for IDs:", error);
+      return "Error generating detailed CSV export";
+    }
+  }
+  // EXPORT LOCATION AUDIT LOGS
+  static async exportLocationAuditLogs(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      const format = (req.query.format as string) || "csv";
+
+      if (!mongoose.Types.ObjectId.isValid(locationId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid location ID",
+        });
+        return;
+      }
+
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Get all audit logs for this location
+      const logs = await HistoryAreaModel.find({ location_id: locationId })
+        .sort({ timestamp: -1 })
+        .limit(10000);
+
+      if (logs.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "No audit logs found for this location",
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const areaName = location.area_name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = `audit-logs-${areaName}-${timestamp}`;
 
       if (format === "csv") {
-        const csv = AreaController.convertAuditLogsToCSV(logs, area);
+        const csv = AreaController.convertAuditLogsToCSV(logs, location);
         res.setHeader("Content-Type", "text/csv");
         res.setHeader("Content-Disposition", `attachment; filename="${filename}.csv"`);
         res.status(200).send(csv);
       } else if (format === "json") {
-        // Get all current machine and image information from the area
-        const currentMachines: any[] = [];
-        const currentImages: any[] = [];
-
-        area.sub_locations?.forEach((subloc: any, subIdx: number) => {
-          if (subloc.select_machine && subloc.select_machine.machine_id) {
-            currentMachines.push({
-              sub_location_index: subIdx,
-              campus: subloc.campus,
-              tower: subloc.tower,
-              floor: subloc.floor,
-              machine_id: subloc.select_machine.machine_id,
-              machine_status: subloc.select_machine.status,
-              total_images: subloc.select_machine.machine_image?.length || 0
-            });
-
-            if (subloc.select_machine.machine_image) {
-              subloc.select_machine.machine_image.forEach((img: any, imgIdx: number) => {
-                if (img.file_url) {
-                  currentImages.push({
-                    sub_location_index: subIdx,
-                    machine_id: subloc.select_machine.machine_id,
-                    image_index: imgIdx,
-                    image_name: img.image_name,
-                    file_url: img.file_url,
-                    cloudinary_public_id: img.cloudinary_public_id,
-                    file_size: img.file_size,
-                    mime_type: img.mime_type,
-                    uploaded_at: img.uploaded_at
-                  });
-                }
-              });
-            }
-          }
-        });
-
         const exportData = {
-          area: {
-            id: area._id,
-            name: area.area_name,
-            state: area.state,
-            district: area.district,
-            pincode: area.pincode,
-            status: area.status,
-            address: area.address,
-            total_sub_locations: area.sub_locations?.length || 0,
-            total_machines: currentMachines.length,
-            total_images: currentImages.length,
-            current_machines: currentMachines,
-            current_images: currentImages
+          location: {
+            id: location._id,
+            name: location.area_name,
+            state: location.state,
+            district: location.district,
+            status: location.status,
           },
-          audit_logs: logs.map(log => {
-            const logObj = log.toObject ? log.toObject() : log;
-
-            // Extract image URLs and machine changes from log data
-            const imageChanges: any[] = [];
-            const machineChanges: any[] = [];
-
-            if (logObj.changes) {
-              Object.keys(logObj.changes).forEach(key => {
-                if (key.includes('machine_image')) {
-                  const change = logObj.changes[key];
-                  if (change.old && Array.isArray(change.old)) {
-                    change.old.forEach((img: any) => {
-                      if (img && img.file_url) {
-                        imageChanges.push({
-                          action: 'removed',
-                          ...img
-                        });
-                      }
-                    });
-                  }
-                  if (change.new && Array.isArray(change.new)) {
-                    change.new.forEach((img: any) => {
-                      if (img && img.file_url) {
-                        imageChanges.push({
-                          action: 'added',
-                          ...img
-                        });
-                      }
-                    });
-                  }
-                }
-
-                if (key.includes('machine_id') || key.includes('machine')) {
-                  machineChanges.push({
-                    field: key,
-                    old: logObj.changes[key].old,
-                    new: logObj.changes[key].new
-                  });
-                }
-              });
-            }
-
-            return {
-              ...logObj,
-              image_changes: imageChanges.length > 0 ? imageChanges : undefined,
-              machine_changes: machineChanges.length > 0 ? machineChanges : undefined
-            };
-          }),
-          export_date: new Date().toISOString(),
+          audit_logs: logs.map(log => log.toObject()),
           total_logs: logs.length,
-          summary: {
-            total_image_changes: logs.reduce((sum, log) => {
-              const logObj = log.toObject ? log.toObject() : log;
-              if (logObj.changes) {
-                Object.keys(logObj.changes).forEach(key => {
-                  if (key.includes('machine_image')) {
-                    const change = logObj.changes[key];
-                    if (change.old && Array.isArray(change.old)) sum += change.old.length;
-                    if (change.new && Array.isArray(change.new)) sum += change.new.length;
-                  }
-                });
-              }
-              return sum;
-            }, 0),
-            total_machine_changes: logs.reduce((sum, log) => {
-              const logObj = log.toObject ? log.toObject() : log;
-              if (logObj.changes) {
-                Object.keys(logObj.changes).forEach(key => {
-                  if (key.includes('machine')) sum++;
-                });
-              }
-              return sum;
-            }, 0)
-          }
+          export_date: new Date().toISOString(),
         };
 
         res.setHeader("Content-Type", "application/json");
@@ -1453,7 +2760,7 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
         });
       }
     } catch (error) {
-      logger.error("Error exporting area audit logs:", error);
+      logger.error("Error exporting location audit logs:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
@@ -1461,6 +2768,7 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
     }
   }
 
+  // EXPORT RECENT AUDIT ACTIVITIES
   static async exportRecentAuditActivities(req: Request, res: Response): Promise<void> {
     try {
       const limit = parseInt(req.query.limit as string) || 100;
@@ -1476,7 +2784,10 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
         filter.timestamp = { ...filter.timestamp, $lte: new Date(endDate) };
       }
 
-      const activities = await AreaService.getRecentActivities(limit, filter);
+      const activities = await HistoryAreaModel.find(filter)
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .populate("location_id", "area_name state district");
 
       if (activities.length === 0) {
         res.status(404).json({
@@ -1496,106 +2807,9 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
         res.status(200).send(csv);
       } else if (format === "json") {
         const exportData = {
-          activities: activities.map(activity => {
-            // Extract image and machine information
-            let imageChanges: any[] = [];
-            let machineChanges: any[] = [];
-
-            if (activity.changes) {
-              Object.keys(activity.changes).forEach(key => {
-                if (key.includes('machine_image') || key.includes('image')) {
-                  const change = activity.changes[key];
-                  if (change.old && Array.isArray(change.old)) {
-                    change.old.forEach((img: any) => {
-                      if (img && img.file_url) {
-                        imageChanges.push({
-                          type: 'removed',
-                          image_name: img.image_name,
-                          file_url: img.file_url,
-                          cloudinary_id: img.cloudinary_public_id,
-                          file_size: img.file_size,
-                          mime_type: img.mime_type
-                        });
-                      }
-                    });
-                  }
-                  if (change.new && Array.isArray(change.new)) {
-                    change.new.forEach((img: any) => {
-                      if (img && img.file_url) {
-                        imageChanges.push({
-                          type: 'added',
-                          image_name: img.image_name,
-                          file_url: img.file_url,
-                          cloudinary_id: img.cloudinary_public_id,
-                          file_size: img.file_size,
-                          mime_type: img.mime_type
-                        });
-                      }
-                    });
-                  }
-                }
-
-                // Machine changes
-                if (key.includes('machine_id') || key.includes('machine_status')) {
-                  machineChanges.push({
-                    field: key,
-                    old_value: activity.changes[key].old,
-                    new_value: activity.changes[key].new
-                  });
-                }
-              });
-            }
-
-            return {
-              id: activity.id,
-              action: activity.action,
-              area_id: activity.area_id,
-              area_name: activity.area_name,
-              area_state: activity.area_state,
-              area_district: activity.area_district,
-              performed_by: activity.performed_by,
-              ip_address: activity.ip_address,
-              user_agent: activity.user_agent,
-              timestamp: activity.timestamp,
-              changes: activity.changes,
-              image_changes: imageChanges.length > 0 ? imageChanges : undefined,
-              machine_changes: machineChanges.length > 0 ? machineChanges : undefined,
-              total_image_changes: imageChanges.length,
-              total_machine_changes: machineChanges.length
-            };
-          }),
-          export_date: new Date().toISOString(),
+          activities: activities.map(activity => activity.toObject()),
           total_activities: activities.length,
-          date_range: {
-            start: startDate || "all",
-            end: endDate || "all",
-          },
-          summary: {
-            total_image_changes: activities.reduce((sum, activity) => {
-              if (activity.changes) {
-                Object.keys(activity.changes).forEach(key => {
-                  if (key.includes('machine_image')) {
-                    const change = activity.changes[key];
-                    if (change.old && Array.isArray(change.old)) sum += change.old.length;
-                    if (change.new && Array.isArray(change.new)) sum += change.new.length;
-                  }
-                });
-              }
-              return sum;
-            }, 0),
-            total_machine_changes: activities.reduce((sum, activity) => {
-              if (activity.changes) {
-                Object.keys(activity.changes).forEach(key => {
-                  if (key.includes('machine')) sum++;
-                });
-              }
-              return sum;
-            }, 0),
-            actions_breakdown: activities.reduce((acc: any, activity) => {
-              acc[activity.action] = (acc[activity.action] || 0) + 1;
-              return acc;
-            }, {})
-          }
+          export_date: new Date().toISOString(),
         };
 
         res.setHeader("Content-Type", "application/json");
@@ -1619,7 +2833,497 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
     }
   }
 
-  private static convertAuditLogsToCSV(logs: any[], area: any): string {
+  // GET DASHBOARD TABLE DATA
+  static async getDashboardTableData(req: Request, res: Response): Promise<void> {
+    try {
+      const params: any = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        sortBy: req.query.sortBy as string || "area_name",
+        sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
+      };
+
+      // Build location filter
+      const locationFilter: any = {};
+      if (params.status && params.status !== 'all') {
+        locationFilter.status = params.status;
+      }
+      if (params.state) {
+        locationFilter.state = new RegExp(params.state, 'i');
+      }
+      if (params.district) {
+        locationFilter.district = new RegExp(params.district, 'i');
+      }
+      if (params.search) {
+        locationFilter.$or = [
+          { area_name: new RegExp(params.search, 'i') },
+          { state: new RegExp(params.search, 'i') },
+          { district: new RegExp(params.search, 'i') },
+        ];
+      }
+
+      // Get locations with pagination
+      const skip = (params.page - 1) * params.limit;
+      const [locations, total] = await Promise.all([
+        LocationModel.find(locationFilter)
+          .sort({ [params.sortBy]: params.sortOrder === 'asc' ? 1 : -1 })
+          .skip(skip)
+          .limit(params.limit),
+        LocationModel.countDocuments(locationFilter),
+      ]);
+
+      // Get detailed data for each location
+      const tableData = await Promise.all(
+        locations.map(async (location) => {
+          const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+          // Filter sub-locations if campus/tower/floor filter is applied
+          let filteredSubLocations = subLocations;
+          if (params.campus || params.tower || params.floor) {
+            filteredSubLocations = subLocations.filter(subLoc => {
+              if (params.campus && !new RegExp(params.campus, 'i').test(subLoc.campus)) {
+                return false;
+              }
+              if (params.tower && !new RegExp(params.tower, 'i').test(subLoc.tower)) {
+                return false;
+              }
+              if (params.floor && !new RegExp(params.floor, 'i').test(subLoc.floor)) {
+                return false;
+              }
+              return true;
+            });
+          }
+
+          // Get machine statistics
+          let totalMachines = 0;
+          let installedMachines = 0;
+          let notInstalledMachines = 0;
+
+          for (const subLoc of filteredSubLocations) {
+            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+            totalMachines += machines.length;
+            installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+            notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+          }
+
+          return {
+            id: location._id,
+            area_name: location.area_name,
+            state: location.state,
+            district: location.district,
+            pincode: location.pincode,
+            status: location.status,
+            sub_locations_count: filteredSubLocations.length,
+            total_machines: totalMachines,
+            installed_machines: installedMachines,
+            not_installed_machines: notInstalledMachines,
+            created_at: location.createdAt,
+            updated_at: location.updatedAt,
+          };
+        })
+      );
+
+      res.status(200).json({
+        success: true,
+        data: tableData,
+        pagination: {
+          currentPage: params.page,
+          totalItems: total,
+          totalPages: Math.ceil(total / params.limit),
+          itemsPerPage: params.limit,
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching dashboard table data:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // EXPORT DASHBOARD DATA
+  static async exportDashboardData(req: Request, res: Response): Promise<void> {
+    try {
+      const format = (req.query.format as string) || "csv";
+
+      // Use same logic as getDashboardTableData but get all records
+      const params: any = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        limit: 10000,
+      };
+
+      const tableData = await AreaController.getDashboardTableDataForExport(params);
+
+      if (tableData.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "No dashboard data found to export",
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+      if (format === "csv") {
+        const csv = AreaController.convertDashboardToCSV(tableData);
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="dashboard-export-${timestamp}.csv"`);
+        res.status(200).send(csv);
+      } else if (format === "json") {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="dashboard-export-${timestamp}.json"`);
+        res.status(200).json({
+          success: true,
+          data: tableData,
+          total: tableData.length,
+          export_date: new Date().toISOString(),
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported format. Use "csv" or "json"',
+        });
+      }
+    } catch (error) {
+      logger.error("Error exporting dashboard data:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET SUMMARIZED LOCATIONS BY IDS
+  static async getSummarizedLocationsByIds(req: Request, res: Response): Promise<void> {
+    try {
+      const { ids } = req.query;
+
+      if (!ids) {
+        res.status(400).json({
+          success: false,
+          message: "Location IDs are required",
+        });
+        return;
+      }
+
+      const locationIds = (ids as string).split(",")
+        .map(id => id.trim())
+        .filter(id => id);
+
+      if (locationIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "Please provide location IDs",
+        });
+        return;
+      }
+
+      const invalidIds = locationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid location IDs: ${invalidIds.join(", ")}`,
+          invalidIds,
+        });
+        return;
+      }
+
+      const locations = await LocationModel.find({
+        _id: { $in: locationIds },
+      });
+
+      const summarizedData = await Promise.all(
+        locations.map(async (location) => {
+          const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+          let totalMachines = 0;
+          let installedMachines = 0;
+          let notInstalledMachines = 0;
+
+          for (const subLoc of subLocations) {
+            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+            totalMachines += machines.length;
+            installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+            notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+          }
+
+          const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
+
+          return {
+            id: location._id,
+            area_name: location.area_name,
+            state: location.state,
+            district: location.district,
+            pincode: location.pincode,
+            status: location.status,
+            address: location.address,
+            sub_locations_count: subLocations.length,
+            total_machines: totalMachines,
+            installed_machines: installedMachines,
+            not_installed_machines: notInstalledMachines,
+            campuses: uniqueCampuses,
+            created_at: location.createdAt,
+            updated_at: location.updatedAt,
+          };
+        })
+      );
+
+      res.status(200).json({
+        success: true,
+        data: summarizedData,
+        total: summarizedData.length,
+      });
+    } catch (error) {
+      logger.error("Error fetching summarized locations:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // GET FILTER OPTIONS
+  static async getFilterOptions(req: Request, res: Response): Promise<void> {
+    try {
+      const [states, districts, campuses, towers, floors] = await Promise.all([
+        LocationModel.distinct("state"),
+        LocationModel.distinct("district"),
+        SubLocationModel.distinct("campus"),
+        SubLocationModel.distinct("tower"),
+        SubLocationModel.distinct("floor"),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          states: states.filter(Boolean).sort(),
+          districts: districts.filter(Boolean).sort(),
+          campuses: campuses.filter(Boolean).sort(),
+          towers: towers.filter(Boolean).sort(),
+          floors: floors.filter(Boolean).sort(),
+        },
+      });
+    } catch (error) {
+      logger.error("Error fetching filter options:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // ============================================
+  // HELPER METHODS FOR EXPORT
+  // ============================================
+
+  private static async getDashboardTableDataForExport(params: any): Promise<any[]> {
+    // Similar to getDashboardTableData but returns all data without pagination
+    const locationFilter: any = {};
+    if (params.status && params.status !== 'all') {
+      locationFilter.status = params.status;
+    }
+    if (params.state) {
+      locationFilter.state = new RegExp(params.state, 'i');
+    }
+    if (params.district) {
+      locationFilter.district = new RegExp(params.district, 'i');
+    }
+    if (params.search) {
+      locationFilter.$or = [
+        { area_name: new RegExp(params.search, 'i') },
+        { state: new RegExp(params.search, 'i') },
+        { district: new RegExp(params.search, 'i') },
+      ];
+    }
+
+    const locations = await LocationModel.find(locationFilter).limit(params.limit || 10000);
+
+    const tableData = await Promise.all(
+      locations.map(async (location) => {
+        const subLocations = await SubLocationModel.find({ location_id: location._id });
+
+        // Filter sub-locations if campus/tower/floor filter is applied
+        let filteredSubLocations = subLocations;
+        if (params.campus || params.tower || params.floor) {
+          filteredSubLocations = subLocations.filter(subLoc => {
+            if (params.campus && !new RegExp(params.campus, 'i').test(subLoc.campus)) {
+              return false;
+            }
+            if (params.tower && !new RegExp(params.tower, 'i').test(subLoc.tower)) {
+              return false;
+            }
+            if (params.floor && !new RegExp(params.floor, 'i').test(subLoc.floor)) {
+              return false;
+            }
+            return true;
+          });
+        }
+
+        let totalMachines = 0;
+        let installedMachines = 0;
+        let notInstalledMachines = 0;
+
+        for (const subLoc of filteredSubLocations) {
+          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+          totalMachines += machines.length;
+          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
+          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+        }
+
+        return {
+          id: location._id,
+          area_name: location.area_name,
+          state: location.state,
+          district: location.district,
+          pincode: location.pincode,
+          status: location.status,
+          address: location.address,
+          sub_locations_count: filteredSubLocations.length,
+          total_machines: totalMachines,
+          installed_machines: installedMachines,
+          not_installed_machines: notInstalledMachines,
+          created_at: location.createdAt,
+          updated_at: location.updatedAt,
+        };
+      })
+    );
+
+    return tableData;
+  }
+
+  private static convertLocationsToCSV(locations: any[]): string {
+    if (!locations || locations.length === 0) {
+      return "No locations available for export";
+    }
+
+    try {
+      const headers = [
+        "ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Latitude",
+        "Longitude",
+        "Description",
+        "Created At",
+        "Updated At"
+      ];
+
+      let csv = "\ufeff";
+      csv += headers.join(",") + "\n";
+
+      locations.forEach(location => {
+        const locationObj = location.toObject ? location.toObject() : location;
+
+        const row = [
+          locationObj._id?.toString() || "",
+          `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+          locationObj.pincode || "",
+          locationObj.status || "",
+          `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+          locationObj.latitude || "",
+          locationObj.longitude || "",
+          `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+          locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Total Locations," + locations.length + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting locations to CSV:", error);
+      return "Error generating locations CSV";
+    }
+  }
+
+  private static generateDetailedCSV(locations: any[]): string {
+    if (!locations || locations.length === 0) {
+      return "No data available for export";
+    }
+
+    try {
+      let csv = "\ufeff";
+
+      // Main location information
+      const headers = [
+        "Area ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Description",
+        "Latitude",
+        "Longitude",
+        "Created At",
+        "Updated At"
+      ];
+
+      csv += headers.join(",") + "\n";
+
+      locations.forEach(location => {
+        const locationObj = location.toObject ? location.toObject() : location;
+
+        const row = [
+          locationObj._id?.toString() || "",
+          `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+          locationObj.pincode || "",
+          locationObj.status || "",
+          `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+          `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+          locationObj.latitude || "",
+          locationObj.longitude || "",
+          locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Total Locations Exported," + locations.length + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error generating detailed CSV:", error);
+      return "Error generating detailed CSV data";
+    }
+  }
+
+  private static convertAuditLogsToCSV(logs: any[], location: any): string {
     if (!logs || logs.length === 0) {
       return "No audit logs available for export";
     }
@@ -1628,20 +3332,13 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       const headers = [
         "Log ID",
         "Action",
-        "Area ID",
-        "Area Name",
+        "Location ID",
+        "Location Name",
         "Performed By",
         "User Email",
         "Timestamp",
         "IP Address",
-        "Changes Summary",
-        "Field Changes",
-        "Image Changes Count",
-        "Added Images",
-        "Removed Images",
-        "Image URLs",
-        "Machine Changes",
-        "Machine IDs Affected"
+        "Changes Summary"
       ];
 
       let csv = "\ufeff";
@@ -1651,155 +3348,35 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
         const logDoc = log.toObject ? log.toObject() : log;
 
         let changesSummary = "";
-        let fieldChanges = "";
-        let addedImages: string[] = [];
-        let removedImages: string[] = [];
-        let imageUrls: string[] = [];
-        let imageChangesCount = 0;
-        let machineChanges = "";
-        let machineIdsAffected: string[] = [];
-
         if (logDoc.changes) {
           const changedFields = Object.keys(logDoc.changes);
           changesSummary = `${changedFields.length} field(s) changed`;
-          fieldChanges = changedFields
-            .map(
-              field => `${field}: "${logDoc.changes[field].old}" → "${logDoc.changes[field].new}"`
-            )
-            .join("; ");
-
-          // Extract image changes
-          Object.keys(logDoc.changes).forEach(key => {
-            if (key.includes('machine_image') || key.includes('image')) {
-              const change = logDoc.changes[key];
-
-              if (change.old && Array.isArray(change.old)) {
-                change.old.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    removedImages.push(img.image_name || "Unnamed");
-                    imageUrls.push(img.file_url);
-                    imageChangesCount++;
-                  }
-                });
-              }
-
-              if (change.new && Array.isArray(change.new)) {
-                change.new.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    addedImages.push(img.image_name || "Unnamed");
-                    imageUrls.push(img.file_url);
-                    imageChangesCount++;
-                  }
-                });
-              }
-            }
-
-            // Extract machine changes
-            if (key.includes('machine_id') || key.includes('machine_status')) {
-              const change = logDoc.changes[key];
-              machineChanges += `${key}: ${change.old} → ${change.new}; `;
-              if (key === 'removed_machine_id' && change.old) {
-                machineIdsAffected.push(change.old);
-              }
-            }
-          });
         } else if (logDoc.action === "CREATE") {
-          changesSummary = "New area created";
-          // Extract images from new_data if CREATE action
-          if (logDoc.new_data && logDoc.new_data.sub_locations) {
-            logDoc.new_data.sub_locations?.forEach((subloc: any) => {
-              if (subloc.select_machine?.machine_image) {
-                subloc.select_machine.machine_image.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    addedImages.push(img.image_name || "Unnamed");
-                    imageUrls.push(img.file_url);
-                    imageChangesCount++;
-                  }
-                });
-              }
-            });
-          }
+          changesSummary = "New location created";
         } else if (logDoc.action === "DELETE") {
-          changesSummary = "Area deleted";
-        } else if (logDoc.action === "ADD_SUB_LOCATION") {
-          changesSummary = "Sub-location added";
-        } else if (logDoc.action === "REMOVE_MACHINE") {
-          changesSummary = "Machine removed";
-          if (logDoc.changes?.removed_machine_id) {
-            changesSummary = `Machine ${logDoc.changes.removed_machine_id.old} removed`;
-            machineIdsAffected.push(logDoc.changes.removed_machine_id.old);
-            machineChanges = `Machine ${logDoc.changes.removed_machine_id.old} removed`;
-          }
+          changesSummary = "Location deleted";
         }
 
         const row = [
           logDoc._id?.toString() || "",
           logDoc.action || "",
-          area._id?.toString() || "",
-          `"${area.area_name?.replace(/"/g, '""') || ""}"`,
+          location._id?.toString() || "",
+          `"${location.area_name?.replace(/"/g, '""') || ""}"`,
           `"${logDoc.performed_by?.name?.replace(/"/g, '""') || logDoc.performed_by?.user_id || "Unknown"}"`,
           `"${logDoc.performed_by?.email?.replace(/"/g, '""') || "Unknown"}"`,
           logDoc.timestamp ? new Date(logDoc.timestamp).toISOString() : "",
           logDoc.ip_address || "Unknown",
-          `"${changesSummary.replace(/"/g, '""')}"`,
-          `"${fieldChanges.replace(/"/g, '""')}"`,
-          imageChangesCount,
-          `"${addedImages.join("; ").replace(/"/g, '""')}"`,
-          `"${removedImages.join("; ").replace(/"/g, '""')}"`,
-          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
-          `"${machineChanges.replace(/"/g, '""')}"`,
-          `"${machineIdsAffected.join("; ").replace(/"/g, '""')}"`
+          `"${changesSummary.replace(/"/g, '""')}"`
         ];
 
         csv += row.join(",") + "\n";
       });
 
-      // Add current area machine and image information
+      // Add summary
       csv += "\n\n";
-      csv += "Current Area Status\n";
-      csv += "Area Name," + `"${area.area_name}"` + "\n";
-      csv += "Status," + `"${area.status}"` + "\n";
-
-      // Extract all current machines and images from area
-      const currentMachines: any[] = [];
-      const currentImages: any[] = [];
-
-      area.sub_locations?.forEach((subloc: any, idx: number) => {
-        if (subloc.select_machine && subloc.select_machine.machine_id) {
-          csv += `\nSub-location ${idx + 1}\n`;
-          csv += `Campus,` + `"${subloc.campus}"` + "\n";
-          csv += `Tower,` + `"${subloc.tower}"` + "\n";
-          csv += `Floor,` + `"${subloc.floor}"` + "\n";
-          csv += `Machine ID,` + `"${subloc.select_machine.machine_id}"` + "\n";
-          csv += `Machine Status,` + `"${subloc.select_machine.status}"` + "\n";
-
-          currentMachines.push({
-            machine_id: subloc.select_machine.machine_id,
-            status: subloc.select_machine.status
-          });
-
-          if (subloc.select_machine.machine_image && subloc.select_machine.machine_image.length > 0) {
-            csv += `Total Images,${subloc.select_machine.machine_image.length}\n`;
-            subloc.select_machine.machine_image.forEach((img: any, imgIdx: number) => {
-              if (img.file_url) {
-                csv += `Image ${imgIdx + 1} Name,` + `"${img.image_name || 'Unnamed'}"` + "\n";
-                csv += `Image ${imgIdx + 1} URL,` + `"${img.file_url}"` + "\n";
-                currentImages.push(img.file_url);
-              }
-            });
-          } else {
-            csv += `Total Images,0\n`;
-          }
-        }
-      });
-
-      csv += "\nSummary\n";
-      csv += "Total Sub-locations," + (area.sub_locations?.length || 0) + "\n";
-      csv += "Total Current Machines," + currentMachines.length + "\n";
-      csv += "Total Current Images," + currentImages.length + "\n";
+      csv += "Export Summary\n";
+      csv += "Location Name," + `"${location.area_name}"` + "\n";
       csv += "Total Audit Logs," + logs.length + "\n";
-      csv += "First Log," + (logs[logs.length - 1]?.timestamp ? new Date(logs[logs.length - 1].timestamp).toISOString() : "") + "\n";
-      csv += "Last Log," + (logs[0]?.timestamp ? new Date(logs[0].timestamp).toISOString() : "") + "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
 
       return csv;
@@ -1818,19 +3395,14 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       const headers = [
         "Activity ID",
         "Action",
-        "Area ID",
-        "Area Name",
+        "Location ID",
+        "Location Name",
         "State",
         "District",
         "Performed By",
         "User Email",
         "Timestamp",
-        "IP Address",
-        "Changes Summary",
-        "Image Changes",
-        "Image URLs",
-        "Machine Changes",
-        "Machine IDs Affected"
+        "IP Address"
       ];
 
       let csv = "\ufeff";
@@ -1839,132 +3411,27 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       activities.forEach(activity => {
         const activityDoc = activity.toObject ? activity.toObject() : activity;
 
-        let changesSummary = "";
-        let imageChanges = "";
-        let imageUrls: string[] = [];
-        let machineChanges = "";
-        let machineIdsAffected: string[] = [];
-
-        if (activityDoc.changes) {
-          const changedFields = Object.keys(activityDoc.changes);
-          changesSummary = `${changedFields.length} field(s) changed`;
-
-          // Check for status change
-          if (activityDoc.changes.status) {
-            changesSummary = `Status changed: ${activityDoc.changes.status.old} → ${activityDoc.changes.status.new}`;
-          }
-
-          // Check for image changes
-          Object.keys(activityDoc.changes).forEach(key => {
-            if (key.includes('machine_image') || key.includes('image')) {
-              const change = activityDoc.changes[key];
-              let added = 0;
-              let removed = 0;
-
-              if (change.old && Array.isArray(change.old)) {
-                removed = change.old.filter((img: any) => img && img.file_url).length;
-                change.old.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    imageUrls.push(img.file_url);
-                  }
-                });
-              }
-
-              if (change.new && Array.isArray(change.new)) {
-                added = change.new.filter((img: any) => img && img.file_url).length;
-                change.new.forEach((img: any) => {
-                  if (img && img.file_url) {
-                    imageUrls.push(img.file_url);
-                  }
-                });
-              }
-
-              imageChanges = `Images: ${added} added, ${removed} removed`;
-            }
-
-            // Check for machine changes
-            if (key.includes('machine_id')) {
-              const change = activityDoc.changes[key];
-              machineChanges += `${key}: ${change.old} → ${change.new}; `;
-              if (key === 'removed_machine_id' && change.old) {
-                machineIdsAffected.push(change.old);
-              }
-            }
-            if (key.includes('machine_status')) {
-              const change = activityDoc.changes[key];
-              machineChanges += `Status: ${change.old} → ${change.new}; `;
-            }
-          });
-        } else if (activityDoc.action === "CREATE") {
-          changesSummary = "New area created";
-        } else if (activityDoc.action === "DELETE") {
-          changesSummary = "Area deleted";
-        } else if (activityDoc.action === "ADD_SUB_LOCATION") {
-          changesSummary = "Sub-location added";
-        } else if (activityDoc.action === "REMOVE_MACHINE") {
-          changesSummary = "Machine removed";
-          if (activityDoc.changes?.removed_machine_id) {
-            changesSummary = `Machine ${activityDoc.changes.removed_machine_id.old} removed`;
-            machineIdsAffected.push(activityDoc.changes.removed_machine_id.old);
-            machineChanges = `Machine ${activityDoc.changes.removed_machine_id.old} removed`;
-          }
-        }
-
         const row = [
           activityDoc._id?.toString() || "",
           activityDoc.action || "",
-          activityDoc.area_id?._id?.toString() || activityDoc.area_id || "",
-          `"${activityDoc.area_name?.replace(/"/g, '""') || "Deleted Area"}"`,
-          `"${activityDoc.area_id?.state?.replace(/"/g, '""') || ""}"`,
-          `"${activityDoc.area_id?.district?.replace(/"/g, '""') || ""}"`,
+          activityDoc.location_id?._id?.toString() || activityDoc.location_id || "",
+          `"${(activityDoc.location_id as any)?.area_name?.replace(/"/g, '""') || "Deleted Area"}"`,
+          `"${(activityDoc.location_id as any)?.state?.replace(/"/g, '""') || ""}"`,
+          `"${(activityDoc.location_id as any)?.district?.replace(/"/g, '""') || ""}"`,
           `"${activityDoc.performed_by?.name?.replace(/"/g, '""') || activityDoc.performed_by?.user_id || "Unknown"}"`,
           `"${activityDoc.performed_by?.email?.replace(/"/g, '""') || "Unknown"}"`,
           activityDoc.timestamp ? new Date(activityDoc.timestamp).toISOString() : "",
-          activityDoc.ip_address || "Unknown",
-          `"${changesSummary.replace(/"/g, '""')}"`,
-          `"${imageChanges.replace(/"/g, '""')}"`,
-          `"${imageUrls.join("; ").replace(/"/g, '""')}"`,
-          `"${machineChanges.replace(/"/g, '""')}"`,
-          `"${machineIdsAffected.join("; ").replace(/"/g, '""')}"`
+          activityDoc.ip_address || "Unknown"
         ];
 
         csv += row.join(",") + "\n";
       });
 
+      // Add summary
       csv += "\n\n";
-      csv += "Summary\n";
+      csv += "Export Summary\n";
       csv += "Total Activities," + activities.length + "\n";
-
-      // Calculate totals
-      let totalImageChanges = 0;
-      let totalMachineChanges = 0;
-      const actionCounts: Record<string, number> = {};
-
-      activities.forEach(activity => {
-        const action = activity.action || "UNKNOWN";
-        actionCounts[action] = (actionCounts[action] || 0) + 1;
-
-        if (activity.changes) {
-          Object.keys(activity.changes).forEach(key => {
-            if (key.includes('machine_image')) {
-              const change = activity.changes[key];
-              if (change.old && Array.isArray(change.old)) totalImageChanges += change.old.length;
-              if (change.new && Array.isArray(change.new)) totalImageChanges += change.new.length;
-            }
-            if (key.includes('machine')) totalMachineChanges++;
-          });
-        }
-      });
-
-      csv += "Total Image Changes," + totalImageChanges + "\n";
-      csv += "Total Machine Changes," + totalMachineChanges + "\n";
-      csv += "Date Range," + new Date(activities[activities.length - 1]?.timestamp).toISOString() + " to " + new Date(activities[0]?.timestamp).toISOString() + "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
-      csv += "Actions Breakdown\n";
-
-      Object.entries(actionCounts).forEach(([action, count]) => {
-        csv += `${action},${count}\n`;
-      });
 
       return csv;
     } catch (error) {
@@ -1980,23 +3447,19 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
 
     try {
       const headers = [
-        "Area ID",
+        "ID",
         "Area Name",
         "State",
         "District",
-        "Campus",
-        "Tower",
-        "Floor",
-        "Machine ID",
-        "Machine Status",
-        "Installed Status",
+        "Pincode",
+        "Status",
+        "Address",
+        "Sub-locations Count",
         "Total Machines",
         "Installed Machines",
         "Not Installed Machines",
-        "Total Images",
-        "Machine IDs",
-        "Image URLs",
-        "Sample Image URL"
+        "Created At",
+        "Updated At"
       ];
 
       let csv = "\ufeff";
@@ -2008,19 +3471,15 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
           `"${(item.area_name || "").replace(/"/g, '""')}"`,
           `"${(item.state || "").replace(/"/g, '""')}"`,
           `"${(item.district || "").replace(/"/g, '""')}"`,
-          `"${(item.campus || "").replace(/"/g, '""')}"`,
-          `"${(item.tower || "").replace(/"/g, '""')}"`,
-          `"${(item.floor || "").replace(/"/g, '""')}"`,
-          `"${(item.machine_id || "").replace(/"/g, '""')}"`,
-          `"${(item.machine_status || "").replace(/"/g, '""')}"`,
-          `"${(item.installed_status || "").replace(/"/g, '""')}"`,
+          item.pincode || "",
+          `"${(item.status || "").replace(/"/g, '""')}"`,
+          `"${(item.address || "").replace(/"/g, '""')}"`,
+          item.sub_locations_count || 0,
           item.total_machines || 0,
           item.installed_machines || 0,
           item.not_installed_machines || 0,
-          item.total_images || 0,
-          `"${(item.machine_ids?.join("; ") || "").replace(/"/g, '""')}"`,
-          `"${(item.image_urls?.join("; ") || "").replace(/"/g, '""')}"`,
-          `"${(item.sample_image_url || "").replace(/"/g, '""')}"`
+          item.created_at ? new Date(item.created_at).toISOString() : "",
+          item.updated_at ? new Date(item.updated_at).toISOString() : ""
         ];
 
         csv += row.join(",") + "\n";
@@ -2033,7 +3492,6 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       csv += "Total Machines," + dashboardData.reduce((sum, item) => sum + (item.total_machines || 0), 0) + "\n";
       csv += "Total Installed Machines," + dashboardData.reduce((sum, item) => sum + (item.installed_machines || 0), 0) + "\n";
       csv += "Total Not Installed Machines," + dashboardData.reduce((sum, item) => sum + (item.not_installed_machines || 0), 0) + "\n";
-      csv += "Total Images," + dashboardData.reduce((sum, item) => sum + (item.total_images || 0), 0) + "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
 
       return csv;
@@ -2042,887 +3500,4 @@ private static extractPossibleMachineIdsFromFileName(fileName: string): string[]
       return "Error generating dashboard CSV";
     }
   }
-
-  // UPDATED EXPORT METHODS
-
-  static async exportAreas(req: Request, res: Response): Promise<void> {
-    try {
-      const queryParams: AreaQueryParams = {
-        page: 1,
-        limit: 10000,
-        status: req.query.status as "active" | "inactive",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        search: req.query.search as string,
-      };
-
-      const result = await AreaService.getAllAreas(queryParams);
-      const format = req.query.format || "json";
-
-      if (format === "csv") {
-        const csv = AreaController.convertAreasToCSV(result.data);
-        res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=areas-export.csv");
-        res.status(200).send(csv);
-      } else if (format === "json") {
-        const enrichedData = result.data.map(area => {
-          const areaObj = area.toObject ? area.toObject() : area;
-
-          // Extract machine and image information
-          const machines: any[] = [];
-          const images: any[] = [];
-          let totalImages = 0;
-
-          areaObj.sub_locations?.forEach((subloc: any, idx: number) => {
-            if (subloc.select_machine && subloc.select_machine.machine_id) {
-              const machineInfo = {
-                sub_location_index: idx,
-                campus: subloc.campus,
-                tower: subloc.tower,
-                floor: subloc.floor,
-                machine_id: subloc.select_machine.machine_id,
-                machine_status: subloc.select_machine.status,
-                images: subloc.select_machine.machine_image?.map((img: any) => ({
-                  image_name: img.image_name,
-                  file_url: img.file_url,
-                  cloudinary_public_id: img.cloudinary_public_id,
-                  uploaded_at: img.uploaded_at
-                })) || []
-              };
-              machines.push(machineInfo);
-              totalImages += machineInfo.images.length;
-            }
-          });
-
-          return {
-            ...areaObj,
-            summary: {
-              total_sub_locations: areaObj.sub_locations?.length || 0,
-              total_machines: machines.length,
-              total_images: totalImages,
-              machines: machines
-            }
-          };
-        });
-
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", "attachment; filename=areas-export.json");
-        res.status(200).json({
-          success: true,
-          data: enrichedData,
-          export_date: new Date().toISOString(),
-          total_areas: result.data.length
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: 'Unsupported format. Use "csv" or "json"',
-        });
-      }
-    } catch (error) {
-      logger.error("Error exporting areas:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async exportDashboardData(req: Request, res: Response): Promise<void> {
-    try {
-      const params: DashboardFilterParams = {
-        status: (req.query.status as "active" | "inactive" | "all") || "all",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        campus: req.query.campus as string,
-        tower: req.query.tower as string,
-        floor: req.query.floor as string,
-        search: req.query.search as string,
-        limit: 10000,
-      };
-
-      const tableData = await AreaService.getDashboardTableData(params);
-      const format = req.query.format || "csv";
-
-      if (format === "csv") {
-        const csv = AreaController.convertDashboardToCSV(tableData.data);
-        res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.csv");
-        res.status(200).send(csv);
-      } else if (format === "json") {
-        const enrichedData = tableData.data.map(item => {
-          // Get full area data for additional details
-          return {
-            ...item,
-            export_date: new Date().toISOString()
-          };
-        });
-
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", "attachment; filename=dashboard-export.json");
-        res.status(200).json({
-          success: true,
-          data: enrichedData,
-          total: tableData.total,
-          export_date: new Date().toISOString(),
-          filter_params: params
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: 'Unsupported format. Use "csv" or "json"',
-        });
-      }
-    } catch (error) {
-      logger.error("Error exporting dashboard data:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async exportAreasByIds(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-      const format = (req.query.format as string) || "csv";
-
-      const areaIds = id
-        .split(",")
-        .map(id => id.trim())
-        .filter(id => id);
-
-      if (!areaIds || areaIds.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "Please provide area IDs in the URL parameter",
-        });
-        return;
-      }
-
-      const invalidIds = areaIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-      if (invalidIds.length > 0) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid area IDs: ${invalidIds.join(", ")}`,
-          invalidIds,
-        });
-        return;
-      }
-
-      const areas = await AreaService.getAreasByIds(areaIds);
-
-      if (areas.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: "No areas found with the provided IDs",
-        });
-        return;
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-
-      if (format === "csv") {
-        const filename = `areas-export-${timestamp}.csv`;
-        const csv = AreaController.generateDetailedCSV(areas);
-        res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-        res.status(200).send(csv);
-      } else if (format === "json") {
-        const filename = `areas-export-${timestamp}.json`;
-        const enrichedAreas = areas.map(area => {
-          const areaObj = area.toObject ? area.toObject() : area;
-
-          // Extract detailed information
-          const subLocations = areaObj.sub_locations?.map((subloc: any, idx: number) => {
-            const machineInfo = subloc.select_machine ? {
-              machine_id: subloc.select_machine.machine_id,
-              status: subloc.select_machine.status,
-              images: subloc.select_machine.machine_image?.map((img: any, imgIdx: number) => ({
-                image_index: imgIdx,
-                image_name: img.image_name,
-                file_url: img.file_url,
-                cloudinary_public_id: img.cloudinary_public_id,
-                file_size: img.file_size,
-                mime_type: img.mime_type,
-                uploaded_at: img.uploaded_at
-              })) || []
-            } : null;
-
-            return {
-              index: idx,
-              campus: subloc.campus,
-              tower: subloc.tower,
-              floor: subloc.floor,
-              machine: machineInfo,
-              has_machine: !!subloc.select_machine,
-              total_images: machineInfo?.images.length || 0
-            };
-          });
-
-          return {
-            ...areaObj,
-            detailed_info: {
-              total_sub_locations: areaObj.sub_locations?.length || 0,
-              total_machines: areaObj.sub_locations?.filter((sl: any) => sl.select_machine).length || 0,
-              total_images: areaObj.sub_locations?.reduce((sum: number, sl: any) =>
-                sum + (sl.select_machine?.machine_image?.length || 0), 0) || 0,
-              sub_locations: subLocations,
-              machine_ids: areaObj.sub_locations
-                ?.filter((sl: any) => sl.select_machine?.machine_id)
-                .map((sl: any) => sl.select_machine.machine_id) || [],
-              image_urls: areaObj.sub_locations?.reduce((urls: string[], sl: any) => {
-                if (sl.select_machine?.machine_image) {
-                  sl.select_machine.machine_image.forEach((img: any) => {
-                    if (img.file_url) urls.push(img.file_url);
-                  });
-                }
-                return urls;
-              }, []) || []
-            }
-          };
-        });
-
-        res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-        res.status(200).json({
-          success: true,
-          data: enrichedAreas,
-          export_date: new Date().toISOString(),
-          total_areas: areas.length,
-          area_ids: areaIds
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: 'Unsupported format. Use "csv" or "json"',
-        });
-      }
-    } catch (error) {
-      logger.error("Error exporting areas by IDs:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-
-  private static generateDetailedCSV(areas: any[]): string {
-    if (!areas || areas.length === 0) {
-      return "No data available for export";
-    }
-
-    try {
-      let csv = "\ufeff";
-
-      // Main area information
-      const headers = [
-        "Area ID",
-        "Area Name",
-        "State",
-        "District",
-        "Pincode",
-        "Status",
-        "Address",
-        "Description",
-        "Latitude",
-        "Longitude",
-        "Total Sub-locations",
-        "Total Machines",
-        "Total Images",
-        "Created At",
-        "Updated At"
-      ];
-
-      csv += headers.join(",") + "\n";
-
-      areas.forEach(area => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-
-        // Calculate totals
-        let totalMachines = 0;
-        let totalImages = 0;
-
-        areaDoc.sub_locations?.forEach((subloc: any) => {
-          if (subloc.select_machine && subloc.select_machine.machine_id) {
-            totalMachines++;
-            if (subloc.select_machine.machine_image) {
-              totalImages += subloc.select_machine.machine_image.length;
-            }
-          }
-        });
-
-        const row = [
-          areaDoc._id?.toString() || "",
-          `"${(areaDoc.area_name || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.state || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.district || "").replace(/"/g, '""')}"`,
-          areaDoc.pincode || "",
-          areaDoc.status || "",
-          `"${(areaDoc.address || "").replace(/"/g, '""')}"`,
-          `"${(areaDoc.area_description || "").replace(/"/g, '""')}"`,
-          areaDoc.latitude || "",
-          areaDoc.longitude || "",
-          areaDoc.sub_locations?.length || 0,
-          totalMachines,
-          totalImages,
-          areaDoc.createdAt ? new Date(areaDoc.createdAt).toISOString() : "",
-          areaDoc.updatedAt ? new Date(areaDoc.updatedAt).toISOString() : ""
-        ];
-
-        csv += row.join(",") + "\n";
-      });
-
-      // Add detailed sub-location information
-      csv += "\n\n";
-      csv += "Sub-location Details\n";
-      csv += "Area Name,Sub-location Index,Campus,Tower,Floor,Machine ID,Machine Status,Total Images,Image URLs\n";
-
-      areas.forEach(area => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-
-        areaDoc.sub_locations?.forEach((subloc: any, idx: number) => {
-          const machineId = subloc.select_machine?.machine_id || "No Machine";
-          const machineStatus = subloc.select_machine?.status || "N/A";
-          const totalImages = subloc.select_machine?.machine_image?.length || 0;
-          const imageUrls = subloc.select_machine?.machine_image
-            ?.map((img: any) => img.file_url)
-            .filter(Boolean)
-            .join("; ") || "";
-
-          const row = [
-            `"${areaDoc.area_name?.replace(/"/g, '""') || ""}"`,
-            idx + 1,
-            `"${(subloc.campus || "").replace(/"/g, '""')}"`,
-            `"${(subloc.tower || "").replace(/"/g, '""')}"`,
-            `"${(subloc.floor || "").replace(/"/g, '""')}"`,
-            `"${machineId.replace(/"/g, '""')}"`,
-            `"${machineStatus.replace(/"/g, '""')}"`,
-            totalImages,
-            `"${imageUrls.replace(/"/g, '""')}"`
-          ];
-
-          csv += row.join(",") + "\n";
-        });
-      });
-
-      // Add summary
-      csv += "\n\n";
-      csv += "Export Summary\n";
-      csv += "Total Areas Exported," + areas.length + "\n";
-      csv += "Total Sub-locations," + areas.reduce((sum, area) =>
-        sum + (area.sub_locations?.length || 0), 0) + "\n";
-      csv += "Total Machines," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.filter((sl: any) =>
-          sl.select_machine && sl.select_machine.machine_id).length || 0);
-      }, 0) + "\n";
-      csv += "Total Images," + areas.reduce((sum, area) => {
-        const areaDoc = area.toObject ? area.toObject() : area;
-        return sum + (areaDoc.sub_locations?.reduce((imgSum: number, sl: any) =>
-          imgSum + (sl.select_machine?.machine_image?.length || 0), 0) || 0);
-      }, 0) + "\n";
-      csv += "Export Date," + new Date().toISOString() + "\n";
-
-      return csv;
-    } catch (error) {
-      logger.error("Error generating detailed CSV:", error);
-      return "Error generating detailed CSV data";
-    }
-  }
-
-  static async getAllAreaRoutes(req: Request, res: Response): Promise<void> {
-    try {
-      const queryParams: AreaQueryParams = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        status: req.query.status as "active" | "inactive",
-        state: req.query.state as string,
-        district: req.query.district as string,
-        search: req.query.search as string,
-        sortBy: req.query.sortBy as string,
-        sortOrder: req.query.sortOrder as "asc" | "desc",
-      };
-
-      const result = await AreaService.getAllAreas(queryParams);
-
-      res.status(200).json({
-        success: true,
-        data: result.data,
-        pagination: result.pagination,
-      });
-    } catch (error) {
-      logger.error("Error fetching area routes:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async getAreaRouteById(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      const areaRoute = await AreaService.getAreaById(id);
-
-      if (!areaRoute) {
-        res.status(404).json({
-          success: false,
-          message: "Area route not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        data: areaRoute,
-      });
-    } catch (error) {
-      logger.error("Error fetching area route:", error);
-
-      const statusCode = error.message.includes("Invalid MongoDB ObjectId") ? 400 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-
-  // UPLOAD MACHINE IMAGES TO EXISTING SUB-LOCATION
-  static async uploadMachineImages(req: Request, res: Response): Promise<void> {
-    try {
-      const { areaId, subLocationIndex, machineIndex } = req.params;
-      const files = req.files as Express.Multer.File[];
-
-      if (!files || files.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "No files uploaded",
-        });
-        return;
-      }
-
-      const uploadService = new ImageUploadService();
-      const processedFiles = await uploadService.uploadMultipleFiles(
-        files,
-        "areaMachine_images",
-        "areaMachine"
-      );
-
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedArea = await AreaService.addMachineImages(
-        areaId,
-        parseInt(subLocationIndex),
-        parseInt(machineIndex),
-        processedFiles,
-        auditParams
-      );
-
-      if (!updatedArea) {
-        res.status(404).json({
-          success: false,
-          message: "Area or sub-location not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Machine images uploaded successfully",
-        data: {
-          images: processedFiles,
-          updatedArea,
-        },
-      });
-    } catch (error) {
-      logger.error("Error uploading machine images:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  // REMOVE MACHINE IMAGE
-  static async removeMachineImage(req: Request, res: Response): Promise<void> {
-    try {
-      const { areaId, subLocationIndex, machineIndex, imageIndex } = req.params;
-
-      if (!mongoose.Types.ObjectId.isValid(areaId)) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid area ID",
-        });
-        return;
-      }
-
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedArea = await AreaService.removeMachineImage(
-        areaId,
-        parseInt(subLocationIndex),
-        parseInt(machineIndex),
-        parseInt(imageIndex),
-        auditParams
-      );
-
-      if (!updatedArea) {
-        res.status(404).json({
-          success: false,
-          message: "Area, machine, or image not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Machine image removed successfully",
-        data: updatedArea,
-      });
-    } catch (error) {
-      logger.error("Error removing machine image:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async deleteAreaRoute(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      const auditParams = AreaController.getAuditParams(req);
-      const deletedAreaRoute = await AreaService.deleteArea(id, auditParams);
-
-      if (!deletedAreaRoute) {
-        res.status(404).json({
-          success: false,
-          message: "Area route not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Area route deleted successfully",
-        data: deletedAreaRoute,
-      });
-    } catch (error) {
-      logger.error("Error deleting area route:", error);
-
-      const statusCode = error.message.includes("Invalid MongoDB ObjectId") ? 400 : 500;
-
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async toggleAreaStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const { id } = req.params;
-
-      const auditParams = AreaController.getAuditParams(req);
-      const updatedAreaRoute = await AreaService.toggleAreaStatus(id, auditParams);
-
-      if (!updatedAreaRoute) {
-        res.status(404).json({
-          success: false,
-          message: "Area route not found",
-        });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: `Area route status toggled to ${updatedAreaRoute.status}`,
-        data: updatedAreaRoute,
-      });
-    } catch (error) {
-      logger.error("Error toggling area status:", error);
-      res.status(400).json({
-        success: false,
-        message: error.message || "Invalid area ID",
-      });
-    }
-  }
-
-  static async getFilterOptions(req: Request, res: Response): Promise<void> {
-    try {
-      const filterOptions = await AreaService.getFilterOptions();
-
-      res.status(200).json({
-        success: true,
-        data: filterOptions,
-      });
-    } catch (error) {
-      logger.error("Error fetching filter options:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  static async checkAreaExists(req: Request, res: Response): Promise<void> {
-    try {
-      const { areaName, excludeId } = req.query;
-
-      if (!areaName) {
-        res.status(400).json({
-          success: false,
-          message: "Area name is required",
-        });
-        return;
-      }
-
-      const exists = await AreaService.checkAreaExists(areaName as string, excludeId as string);
-
-      res.status(200).json({
-        success: true,
-        data: { exists },
-      });
-    } catch (error) {
-      logger.error("Error checking area existence:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-/**
- * Simple toggle machine status (active ↔ inactive)
- * No request body needed - just hit the API
- */
-static async toggleMachineStatus(req: Request, res: Response): Promise<void> {
-  try {
-    const { id, machineId } = req.params;
-    
-    // Validate area ID
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid area ID format",
-      });
-      return;
-    }
-
-    // Validate machine ID
-    if (!machineId || machineId.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Machine ID is required",
-      });
-      return;
-    }
-
-    // Get audit parameters
-    const auditParams = AreaController.getAuditParams(req);
-
-    // Call service to toggle machine status
-    const updatedArea = await AreaService.toggleMachineStatus(
-      id,
-      machineId,
-      auditParams
-    );
-
-    if (!updatedArea) {
-      res.status(404).json({
-        success: false,
-        message: "Area or machine not found",
-      });
-      return;
-    }
-
-    // Find the specific machine that was toggled
-    const toggledMachine = updatedArea.sub_locations?.find(
-      subloc => subloc.select_machine?.machine_id === machineId
-    )?.select_machine;
-
-    if (!toggledMachine) {
-      res.status(404).json({
-        success: false,
-        message: "Machine not found after update",
-      });
-      return;
-    }
-
-    // Count active/inactive machines
-    const activeMachines = updatedArea.sub_locations?.filter(
-      sl => sl.select_machine?.status === 'active'
-    ).length || 0;
-    
-    const inactiveMachines = updatedArea.sub_locations?.filter(
-      sl => sl.select_machine?.status === 'inactive'
-    ).length || 0;
-
-    res.status(200).json({
-      success: true,
-      message: `Machine "${machineId}" status toggled from ${toggledMachine.status === 'active' ? 'inactive' : 'active'} to ${toggledMachine.status}`,
-      data: {
-        area_id: id,
-        area_name: updatedArea.area_name,
-        machine_id: machineId,
-        new_status: toggledMachine.status,
-        previous_status: toggledMachine.status === 'active' ? 'inactive' : 'active',
-        location: {
-          campus: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.campus,
-          tower: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.tower,
-          floor: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.floor
-        },
-        summary: {
-          total_machines: activeMachines + inactiveMachines,
-          active_machines: activeMachines,
-          inactive_machines: inactiveMachines
-        },
-        timestamp: new Date().toISOString()
-      },
-    });
-  } catch (error) {
-    logger.error("Error toggling machine status:", error);
-
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("Invalid")
-        ? 400
-        : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || "Internal server error",
-      error_details: process.env.NODE_ENV === 'development' ? {
-        stack: error.stack,
-        area_id: req.params.id,
-        machine_id: req.params.machineId
-      } : undefined,
-    });
-  }
-}
-/**
- * Toggle machine installed_status (installed ↔ not_installed)
- * Changes between 'installed' and 'not_installed' for a specific machine
- * No request body needed - just hit the API
- */
-static async toggleMachineInstalledStatus(req: Request, res: Response): Promise<void> {
-  try {
-    const { areaId, machineId } = req.params;
-    
-    // Validate area ID
-    if (!mongoose.Types.ObjectId.isValid(areaId)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid area ID format",
-      });
-      return;
-    }
-
-    // Validate machine ID
-    if (!machineId || machineId.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Machine ID is required",
-      });
-      return;
-    }
-
-    // Get audit parameters
-    const auditParams = AreaController.getAuditParams(req);
-
-    // Call service to toggle machine installed_status
-    const updatedArea = await AreaService.toggleMachineInstalledStatus(
-      areaId,
-      machineId,
-      auditParams
-    );
-
-    if (!updatedArea) {
-      res.status(404).json({
-        success: false,
-        message: "Area or machine not found",
-      });
-      return;
-    }
-
-    // Find the specific machine that was toggled
-    const toggledMachine = updatedArea.sub_locations?.find(
-      subloc => subloc.select_machine?.machine_id === machineId
-    )?.select_machine;
-
-    if (!toggledMachine) {
-      res.status(404).json({
-        success: false,
-        message: "Machine not found after update",
-      });
-      return;
-    }
-
-    // Count installed/not_installed machines
-    const installedMachines = updatedArea.sub_locations?.filter(
-      sl => sl.select_machine?.installed_status === 'installed'
-    ).length || 0;
-    
-    const notInstalledMachines = updatedArea.sub_locations?.filter(
-      sl => sl.select_machine?.installed_status === 'not_installed'
-    ).length || 0;
-
-    res.status(200).json({
-      success: true,
-      message: `Machine "${machineId}" installed_status toggled from ${toggledMachine.installed_status === 'installed' ? 'not_installed' : 'installed'} to ${toggledMachine.installed_status}`,
-      data: {
-        area_id: areaId,
-        area_name: updatedArea.area_name,
-        machine_id: machineId,
-        new_installed_status: toggledMachine.installed_status,
-        previous_installed_status: toggledMachine.installed_status === 'installed' ? 'not_installed' : 'installed',
-        machine_status: toggledMachine.status, // Keep the regular status unchanged
-        location: {
-          campus: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.campus,
-          tower: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.tower,
-          floor: updatedArea.sub_locations?.find(
-            sl => sl.select_machine?.machine_id === machineId
-          )?.floor
-        },
-        summary: {
-          total_machines: installedMachines + notInstalledMachines,
-          installed_machines: installedMachines,
-          not_installed_machines: notInstalledMachines
-        },
-        timestamp: new Date().toISOString()
-      },
-    });
-  } catch (error) {
-    logger.error("Error toggling machine installed_status:", error);
-
-    const statusCode = error.message.includes("not found")
-      ? 404
-      : error.message.includes("Invalid")
-        ? 400
-        : 500;
-
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || "Internal server error",
-      error_details: process.env.NODE_ENV === 'development' ? {
-        stack: error.stack,
-        area_id: req.params.areaId,
-        machine_id: req.params.machineId
-      } : undefined,
-    });
-  }
-}
 }
