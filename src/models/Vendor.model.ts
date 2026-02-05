@@ -25,6 +25,7 @@ const companyCreateSchema = new Schema<ICompanyCreate>(
     registered_office_address: { type: String, required: true, trim: true },
     official_email: { type: String, required: true, lowercase: true, trim: true, unique: true },
     legal_entity_structure: { type: String, required: true, trim: true },
+    registration_type: { type: String, enum: ["cin", "msme"], required: true }, 
     cin_or_msme_number: { type: String, required: true, trim: true, unique: true },
     date_of_incorporation: { type: Date, required: true },
     corporate_website: { type: String, required: false, trim: true },

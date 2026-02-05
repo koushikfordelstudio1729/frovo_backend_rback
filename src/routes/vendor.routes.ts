@@ -2,7 +2,7 @@ import { Router } from "express";
 import { VendorController } from "../controllers/vendor.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
-import { uploadMultiple, uploadSingle } from "../middleware/upload.middleware";
+import { uploadMultiple, uploadSingle, uploadBrandDocuments } from "../middleware/upload.middleware";
 
 const router = Router();
 
@@ -11,6 +11,7 @@ router.use(authenticate);
 // Role definitions
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const VENDOR_MANAGEMENT = ["super_admin", "vendor_admin"];
+const BRAND_MANAGEMENT = ["super_admin", "vendor_admin"];
 const STAFF_MANAGEMENT = ["super_admin", "vendor_admin", "vendor_staff"];
 
 
@@ -99,8 +100,34 @@ router.get(
 // BRAND ROUTES
 // ============================================
 
+// In your router file
+import { upload } from "../middleware/upload.middleware";
 
+// Create a new brand with multiple document uploads
+router.post(
+  "/brands",
+  authorize(BRAND_MANAGEMENT),
+  upload.fields([
+    // Common mandatory documents
+    { name: 'upload_cancelled_cheque_image', maxCount: 1 },
+    { name: 'gst_certificate_image', maxCount: 1 },
+    { name: 'PAN_image', maxCount: 1 },
+    { name: 'FSSAI_image', maxCount: 1 },
 
+    // Legal entity specific documents (all possible documents)
+    { name: 'certificate_of_incorporation_image', maxCount: 1 },
+    { name: 'MSME_or_Udyam_certificate_image', maxCount: 1 },
+    { name: 'MOA_image', maxCount: 1 },
+    { name: 'AOA_image', maxCount: 1 },
+    { name: 'Trademark_certificate_image', maxCount: 1 },
+    { name: 'Authorized_Signatory_image', maxCount: 1 },
+    { name: 'LLP_agreement_image', maxCount: 1 },
+    { name: 'Shop_and_Establishment_certificate_image', maxCount: 1 },
+    { name: 'Registered_Partnership_deed_image', maxCount: 1 },
+    { name: 'Board_resolution_image', maxCount: 1 },
+  ]),
+  VendorController.createBrand
+);
 // Get all brands with pagination
 router.get(
   "/brands",

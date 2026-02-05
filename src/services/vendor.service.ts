@@ -1093,70 +1093,136 @@ export class BrandService {
 
   // Create a new brand
   async createBrand(
-    brandData: IBrandCreateData,
-    createdBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<IBrandCreate> {
-    try {
-      // Validate company exists by registration number
-      const company = await CompanyCreate.findOne({
-        cin_or_msme_number: brandData.cin_or_msme_number,
+  brandData: IBrandCreateData,
+  createdBy: Types.ObjectId,
+  userEmail: string,
+  userRole: string,
+  req?: Request
+): Promise<IBrandCreate> {
+  try {
+    // Validate company exists
+    const company = await CompanyCreate.findOne({
+      cin_or_msme_number: brandData.cin_or_msme_number,
+    });
+
+    if (!company) {
+      throw new Error(`Company with registration number ${brandData.cin_or_msme_number} does not exist`);
+    }
+
+    // Check if brand with same email already exists
+    const existingBrand = await BrandCreate.findOne({
+      brand_email: brandData.brand_email.toLowerCase(),
+    });
+
+    if (existingBrand) {
+      throw new Error(`Brand with email ${brandData.brand_email} already exists`);
+    }
+
+    // Check if company_id matches the found company
+    if (!company._id.equals(brandData.company_id)) {
+      throw new Error("Company ID does not match the registration number");
+    }
+
+    // Validate required files based on legal entity structure
+    await this.validateBrandFiles(brandData, company.legal_entity_structure);
+
+    // Create new brand
+    const newBrand = new BrandCreate({
+      ...brandData,
+      verification_status: brandData.verification_status || "pending",
+      createdBy: createdBy,
+    });
+
+    await newBrand.save();
+
+    // Create audit trail
+    if (req) {
+      await auditTrailService.createAuditRecord({
+        user: createdBy,
+        user_email: userEmail,
+        user_role: userRole,
+        action: "create",
+        action_description: `Created brand: ${brandData.brand_name}`,
+        target_type: "brand",
+        target_brand: newBrand._id,
+        target_brand_name: brandData.brand_name,
+        target_company: brandData.company_id,
+        target_company_name: company.registered_company_name,
+        ip_address: req.ip,
+        user_agent: req.get("User-Agent"),
       });
+    }
 
-      if (!company) {
-        throw new Error(`Company with registration number ${brandData.cin_or_msme_number} does not exist`);
-      }
+    logger.info(`Brand created: ${newBrand.brand_name} (ID: ${newBrand._id})`);
+    return newBrand;
+  } catch (error) {
+    logger.error("Error creating brand:", error);
+    throw error;
+  }
+}
 
-      // Check if brand with same email already exists
-      const existingBrand = await BrandCreate.findOne({
-        brand_email: brandData.brand_email.toLowerCase(),
-      });
-
-      if (existingBrand) {
-        throw new Error(`Brand with email ${brandData.brand_email} already exists`);
-      }
-
-      // Check if company_id matches the found company
-      if (!company._id.equals(brandData.company_id)) {
-        throw new Error("Company ID does not match the registration number");
-      }
-
-      // Create new brand
-      const newBrand = new BrandCreate({
-        ...brandData,
-        verification_status: brandData.verification_status || "pending",
-        createdBy: createdBy,
-      });
-
-      await newBrand.save();
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: createdBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "create",
-          action_description: `Created brand: ${brandData.brand_name}`,
-          target_type: "brand",
-          target_brand: newBrand._id,
-          target_brand_name: brandData.brand_name,
-          target_company: brandData.company_id,
-          target_company_name: company.registered_company_name,
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(`Brand created: ${newBrand.brand_name} (ID: ${newBrand._id})`);
-      return newBrand;
-    } catch (error) {
-      logger.error("Error creating brand:", error);
-      throw error;
+/**
+ * Validate required files based on legal entity structure
+ */
+private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
+  const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
+  
+  for (const field of requiredFields) {
+    if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
+      throw new Error(`Missing or invalid ${field} file upload`);
     }
   }
+}
+
+/**
+ * Get required file fields based on legal entity
+ */
+private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
+  const commonFields = [
+    'upload_cancelled_cheque_image',
+    'gst_certificate_image',
+    'PAN_image',
+    'FSSAI_image'
+  ];
+
+  const entitySpecificFields: Record<string, string[]> = {
+    'pvt': [
+      'certificate_of_incorporation_image',
+      'MSME_or_Udyam_certificate_image',
+      'MOA_image',
+      'AOA_image',
+      'Trademark_certificate_image',
+      'Authorized_Signatory_image'
+    ],
+    'opc': [
+      'certificate_of_incorporation_image',
+      'MSME_or_Udyam_certificate_image',
+      'MOA_image',
+      'AOA_image'
+    ],
+    'llp': [
+      'certificate_of_incorporation_image',
+      'MSME_or_Udyam_certificate_image',
+      'LLP_agreement_image'
+    ],
+    'proprietorship': [
+      'MSME_or_Udyam_certificate_image',
+      'Shop_and_Establishment_certificate_image'
+    ],
+    'partnership': [
+      'Registered_Partnership_deed_image',
+      'MSME_or_Udyam_certificate_image'
+    ],
+    'public': [
+      'certificate_of_incorporation_image',
+      'Board_resolution_image',
+      'MOA_image',
+      'AOA_image'
+    ]
+  };
+
+  return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
+}
 
   // Get all brands with pagination and search
   async getAllBrands(options: IBrandPaginationOptions): Promise<{
