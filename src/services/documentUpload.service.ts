@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
-import { IVendorDocument } from "../models/Vendor.model";
+//import { IVendorDocument } from "../models/Vendor.model";
 
 import { logger } from "../utils/logger.util";
 export class DocumentUploadService {
@@ -75,24 +75,7 @@ export class DocumentUploadService {
     }
   }
 
-  createDocumentMetadata(
-    file: Express.Multer.File,
-    documentType: IVendorDocument["document_type"],
-    cloudinaryUrl: string,
-    cloudinaryPublicId: string,
-    expiryDate?: Date
-  ): Omit<IVendorDocument, "_id"> {
-    return {
-      document_name: file.originalname,
-      document_type: documentType,
-      file_url: cloudinaryUrl,
-      cloudinary_public_id: cloudinaryPublicId,
-      file_size: file.size,
-      mime_type: file.mimetype,
-      expiry_date: expiryDate,
-      uploaded_at: new Date(),
-    };
-  }
+  
 
   validateDocumentType(documentType: string): boolean {
     const validTypes = [

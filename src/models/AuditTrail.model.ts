@@ -6,10 +6,13 @@ export interface IAuditTrail extends Document {
   user_role: string;
   action: string;
   action_description: string;
-  target_type?: "vendor" | "company";
+  target_type?: "vendor" | "company" | "brand";
   target_vendor?: Types.ObjectId;
   target_vendor_name?: string;
   target_vendor_id?: string;
+  target_brand?: Types.ObjectId;
+  target_brand_name?: string;
+  target_brand_id?: string;
   target_company?: Types.ObjectId;
   target_company_name?: string;
   target_company_cin?: string;
@@ -66,7 +69,7 @@ const auditTrailSchema = new Schema<IAuditTrail>(
     },
     target_type: {
       type: String,
-      enum: ["vendor", "company"],
+      enum: ["vendor", "company", "brand"],
       required: false,
     },
     target_vendor: {
@@ -79,6 +82,19 @@ const auditTrailSchema = new Schema<IAuditTrail>(
       trim: true,
     },
     target_vendor_id: {
+      type: String,
+      trim: true,
+    },
+    target_brand: {
+      type: Schema.Types.ObjectId,
+      ref: "BrandCreate",
+      required: false,
+    },
+    target_brand_name: {
+      type: String,
+      trim: true,
+    },
+    target_brand_id: {
       type: String,
       trim: true,
     },
@@ -125,6 +141,7 @@ const auditTrailSchema = new Schema<IAuditTrail>(
 
 auditTrailSchema.index({ user: 1, timestamp: -1 });
 auditTrailSchema.index({ target_vendor: 1, timestamp: -1 });
+auditTrailSchema.index({ target_brand: 1, timestamp: -1 });
 auditTrailSchema.index({ target_company: 1, timestamp: -1 });
 auditTrailSchema.index({ action: 1, timestamp: -1 });
 auditTrailSchema.index({ user_role: 1, timestamp: -1 });
@@ -136,6 +153,8 @@ auditTrailSchema.index({
   action_description: "text",
   target_vendor_name: "text",
   target_vendor_id: "text",
+  target_brand_name: "text",
+  target_brand_id: "text",
   target_company_name: "text",
   target_company_cin: "text",
 });

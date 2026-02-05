@@ -9,10 +9,13 @@ export class AuditTrailService {
     user_role: string;
     action: string;
     action_description: string;
-    target_type?: "vendor" | "company";
+    target_type?: "vendor" | "company" | "brand";
     target_vendor?: any;
     target_vendor_name?: string;
     target_vendor_id?: string;
+    target_brand?: any;
+    target_brand_name?: string;
+    target_brand_id?: string;
     target_company?: any;
     target_company_name?: string;
     target_company_cin?: string;
@@ -33,6 +36,9 @@ export class AuditTrailService {
         target_vendor: auditData.target_vendor,
         target_vendor_name: auditData.target_vendor_name,
         target_vendor_id: auditData.target_vendor_id,
+        target_brand: auditData.target_brand,
+        target_brand_name: auditData.target_brand_name,
+        target_brand_id: auditData.target_brand_id,
         target_company: auditData.target_company,
         target_company_name: auditData.target_company_name,
         target_company_cin: auditData.target_company_cin,
@@ -57,6 +63,7 @@ export class AuditTrailService {
         user,
         target_type,
         target_vendor,
+        target_brand,
         target_company,
         action,
         user_role,
@@ -72,6 +79,7 @@ export class AuditTrailService {
       if (user) query.user = new Types.ObjectId(user);
       if (target_type) query.target_type = target_type;
       if (target_vendor) query.target_vendor = new Types.ObjectId(target_vendor);
+      if (target_brand) query.target_brand = new Types.ObjectId(target_brand);
       if (target_company) query.target_company = new Types.ObjectId(target_company);
       if (action) query.action = action;
       if (user_role) query.user_role = user_role;
@@ -88,6 +96,8 @@ export class AuditTrailService {
           { action_description: { $regex: search, $options: "i" } },
           { target_vendor_name: { $regex: search, $options: "i" } },
           { target_vendor_id: { $regex: search, $options: "i" } },
+          { target_brand_name: { $regex: search, $options: "i" } },
+          { target_brand_id: { $regex: search, $options: "i" } },
           { target_company_name: { $regex: search, $options: "i" } },
           { target_company_cin: { $regex: search, $options: "i" } },
         ];
@@ -99,6 +109,7 @@ export class AuditTrailService {
         AuditTrail.find(query)
           .populate("user", "name email")
           .populate("target_vendor", "vendor_name vendor_id")
+          .populate("target_brand", "brand_name brand_id")
           .populate("target_company", "registered_company_name cin")
           .sort({ timestamp: -1 })
           .skip(skip)
@@ -149,6 +160,39 @@ export class AuditTrailService {
       };
     } catch (error: any) {
       throw new Error(`Error fetching vendor audit trails: ${error.message}`);
+    }
+  }
+
+  async getBrandAuditTrails(brandId: string, page: number = 1, limit: number = 20) {
+    try {
+      const skip = (page - 1) * limit;
+
+      const [audits, total] = await Promise.all([
+        AuditTrail.find({
+          target_brand: new Types.ObjectId(brandId),
+          target_type: "brand",
+        })
+          .populate("user", "name email")
+          .populate("target_brand", "brand_name brand_id")
+          .sort({ timestamp: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        AuditTrail.countDocuments({
+          target_brand: new Types.ObjectId(brandId),
+          target_type: "brand",
+        }),
+      ]);
+
+      return {
+        audits,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        limit,
+      };
+    } catch (error: any) {
+      throw new Error(`Error fetching brand audit trails: ${error.message}`);
     }
   }
 
