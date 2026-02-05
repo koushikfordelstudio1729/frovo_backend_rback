@@ -40,6 +40,7 @@ export enum SystemRole {
   WAREHOUSE_STAFF = "warehouse_staff",
   AUDITOR = "auditor",
   CUSTOMER = "customer",
+  VENDOR_STAFF = "vendor_staff",
 }
 
 export enum DepartmentName {

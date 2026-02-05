@@ -54,6 +54,8 @@ const auditTrailSchema = new Schema<IAuditTrail>(
         "verify",
         "reject",
         "status_change",
+        "toggle_verification",  // Add this
+    "toggle_status",
         "quick_status_change",
         "document_upload",
         "document_delete",

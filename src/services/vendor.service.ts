@@ -2418,7 +2418,110 @@ export class BrandService {
       throw error;
     }
   }
+/**
+ * Toggle brand verification status
+ * Cycles through: pending -> verified -> rejected -> pending
+ */
+async toggleBrandVerificationStatus(
+  brandIdentifier: string,
+  updatedBy: Types.ObjectId,
+  userEmail: string,
+  userRole: string,
+  req?: Request
+): Promise<IBrandCreate | null> {
+  try {
+    let currentBrand;
+    let query: any;
+    
+    // Determine query based on identifier type
+    if (mongoose.Types.ObjectId.isValid(brandIdentifier) && 
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
+      // It's a MongoDB ObjectId
+      query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
+    } else {
+      // It's a custom brand_id
+      query = { brand_id: brandIdentifier };
+    }
+    
+    // Get current brand
+    currentBrand = await BrandCreate.findOne(query);
+    
+    if (!currentBrand) {
+      throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+    }
 
+    // Determine next verification status
+    const currentStatus = currentBrand.verification_status;
+    let nextStatus: "pending" | "verified" | "rejected";
+    let verificationNotes = "";
+
+    // Cycle: pending -> verified -> rejected -> pending
+    switch (currentStatus) {
+      case "pending":
+        nextStatus = "verified";
+        verificationNotes = "Brand verified by system administrator";
+        break;
+      case "verified":
+        nextStatus = "rejected";
+        verificationNotes = "Brand rejected by system administrator";
+        break;
+      case "rejected":
+        nextStatus = "pending";
+        verificationNotes = "Brand status reset to pending";
+        break;
+      default:
+        nextStatus = "pending";
+        verificationNotes = "Brand status set to pending";
+    }
+
+    // Update verification status
+    const updateData = {
+      verification_status: nextStatus,
+      ...(nextStatus === "verified" ? { verified_by: updatedBy } : {}),
+    };
+
+    const updatedBrand = await BrandCreate.findOneAndUpdate(
+      query,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    )
+      .populate("company_id", "company_id registered_company_name official_email")
+      .populate("verified_by", "email name role")
+      .populate("createdBy", "email name")
+      .lean() as unknown as IBrandCreate | null;
+
+    if (!updatedBrand) {
+      throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+    }
+
+    // Create audit trail
+    if (req) {
+      await auditTrailService.createAuditRecord({
+        user: updatedBy,
+        user_email: userEmail,
+        user_role: userRole,
+        action: "toggle_verification",
+        action_description: `Toggled brand verification status from ${currentStatus} to ${nextStatus}: ${currentBrand.brand_name}`,
+        target_type: "brand",
+        target_brand: currentBrand._id,
+        target_brand_name: currentBrand.brand_name,
+        target_company: currentBrand.company_id,
+        before_state: { verification_status: currentStatus },
+        after_state: { verification_status: nextStatus },
+        changed_fields: ["verification_status"],
+        ip_address: req.ip,
+        user_agent: req.get("User-Agent"),
+      });
+    }
+
+    logger.info(`Brand verification status toggled: ${currentBrand.brand_name} from ${currentStatus} to ${nextStatus}`);
+    return updatedBrand;
+  } catch (error) {
+    logger.error(`Error toggling brand verification status ${brandIdentifier}:`, error);
+    throw error;
+  }
+}
   /**
    * Generate PDF for a brand
    */

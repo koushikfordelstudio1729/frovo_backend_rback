@@ -3,7 +3,7 @@ import { VendorController } from "../controllers/vendor.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
 import { uploadMultiple, uploadSingle, uploadBrandDocuments } from "../middleware/upload.middleware";
-
+import { upload } from "../middleware/upload.middleware";
 const router = Router();
 
 router.use(authenticate);
@@ -11,7 +11,6 @@ router.use(authenticate);
 // Role definitions
 const SUPER_ADMIN_ONLY = ["super_admin"];
 const VENDOR_MANAGEMENT = ["super_admin", "vendor_admin"];
-const BRAND_MANAGEMENT = ["super_admin", "vendor_admin"];
 const STAFF_MANAGEMENT = ["super_admin", "vendor_admin", "vendor_staff"];
 
 // Get company dashboard data
@@ -105,13 +104,13 @@ router.get(
 // BRAND ROUTES
 // ============================================
 
-// In your router file
-import { upload } from "../middleware/upload.middleware";
+
+
 
 // Create a new brand with multiple document uploads
 router.post(
   "/brands",
-  authorize(BRAND_MANAGEMENT),
+  authorize(STAFF_MANAGEMENT),
   upload.fields([
     // Common mandatory documents
     { name: 'upload_cancelled_cheque_image', maxCount: 1 },
@@ -146,7 +145,12 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.getBrandById
 );
-
+// Toggle brand verification status
+router.patch(
+  "/brands/:brand_id/toggle-verification",
+  authorize(VENDOR_MANAGEMENT),
+  VendorController.toggleBrandVerificationStatus
+);
 
 
 // Delete brand by brand_id
@@ -202,7 +206,7 @@ router.get(
 // Update brand by identifier (handles both types)
 router.put(
   "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
-  authorize(BRAND_MANAGEMENT),
+  authorize(STAFF_MANAGEMENT),
   upload.fields([
     { name: 'upload_cancelled_cheque_image', maxCount: 1 },
     { name: 'gst_certificate_image', maxCount: 1 },
@@ -226,7 +230,7 @@ router.put(
 // Delete brand by identifier (handles both types)
 router.delete(
   "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
-  authorize(BRAND_MANAGEMENT),
+  authorize(STAFF_MANAGEMENT),
   VendorController.deleteBrand
 );
 

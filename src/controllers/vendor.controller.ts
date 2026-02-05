@@ -1502,6 +1502,64 @@ export class VendorController {
     }
   }
   /**
+ * Toggle brand verification status
+ */
+public static async toggleBrandVerificationStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+    const userRole = roles[0]?.key || "unknown";
+
+    const { brand_id } = req.params;
+    
+    if (!brand_id || brand_id.trim() === "") {
+      res.status(400).json({
+        success: false,
+        message: "Brand ID is required",
+      });
+      return;
+    }
+
+    const updatedBrand = await brandService.toggleBrandVerificationStatus(
+      brand_id,
+      userId,
+      userEmail,
+      userRole,
+      req
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Brand verification status toggled successfully",
+      data: updatedBrand,
+    });
+  } catch (error) {
+    logger.error("Error toggling brand verification status:", error);
+
+    if (error instanceof Error) {
+      if (error.message.includes("not found")) {
+        res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+      if (error.message.includes("Invalid")) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+  /**
    * Update brand by brand_id (handles both MongoDB _id and custom brand_id)
    */
   public static async updateBrand(req: Request, res: Response): Promise<void> {
