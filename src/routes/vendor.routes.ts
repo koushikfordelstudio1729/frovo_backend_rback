@@ -14,7 +14,12 @@ const VENDOR_MANAGEMENT = ["super_admin", "vendor_admin"];
 const BRAND_MANAGEMENT = ["super_admin", "vendor_admin"];
 const STAFF_MANAGEMENT = ["super_admin", "vendor_admin", "vendor_staff"];
 
-
+// Get company dashboard data
+router.get(
+  "/companies/dashboard",
+  authorize(STAFF_MANAGEMENT),
+  VendorController.getCompanyDashboard
+);
 // ============================================
 // COMPANY ROUTES
 // ============================================
@@ -137,7 +142,7 @@ router.get(
 
 // Get brand by brand_id
 router.get(
-  "/brands/:brand_id",
+  "/brands/:id",
   authorize(STAFF_MANAGEMENT),
   VendorController.getBrandById
 );
@@ -146,14 +151,14 @@ router.get(
 
 // Delete brand by brand_id
 router.delete(
-  "/brands/:brand_id",
+  "/brands/:id",
   authorize(STAFF_MANAGEMENT),
   VendorController.deleteBrand
 );
 
 // Update brand verification status
 router.patch(
-  "/brands/:brand_id/verification",
+  "/brands/:id/verification",
   authorize(STAFF_MANAGEMENT),
   VendorController.updateBrandVerificationStatus
 );
@@ -194,72 +199,37 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.exportBrandById
 );
-
-// ============================================
-// COMMON/VENDOR ROUTES (for backward compatibility)
-// ============================================
-
-// Get common dashboard (placeholder)
-router.get(
-  "/common-dashboard",
-  authorize(VENDOR_MANAGEMENT),
-  async (req, res) => {
-    res.status(200).json({
-      success: true,
-      message: "Dashboard endpoint - to be implemented",
-      data: {},
-    });
-  }
+// Update brand by identifier (handles both types)
+router.put(
+  "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
+  authorize(BRAND_MANAGEMENT),
+  upload.fields([
+    { name: 'upload_cancelled_cheque_image', maxCount: 1 },
+    { name: 'gst_certificate_image', maxCount: 1 },
+    { name: 'PAN_image', maxCount: 1 },
+    { name: 'FSSAI_image', maxCount: 1 },
+    // Add other document fields as needed
+    { name: 'certificate_of_incorporation_image', maxCount: 1 },
+    { name: 'MSME_or_Udyam_certificate_image', maxCount: 1 },
+    { name: 'MOA_image', maxCount: 1 },
+    { name: 'AOA_image', maxCount: 1 },
+    { name: 'Trademark_certificate_image', maxCount: 1 },
+    { name: 'Authorized_Signatory_image', maxCount: 1 },
+    { name: 'LLP_agreement_image', maxCount: 1 },
+    { name: 'Shop_and_Establishment_certificate_image', maxCount: 1 },
+    { name: 'Registered_Partnership_deed_image', maxCount: 1 },
+    { name: 'Board_resolution_image', maxCount: 1 },
+  ]),
+  VendorController.updateBrand
 );
 
-// Get super admin vendor management (placeholder)
-router.get(
-  "/super-admin/vendor-management",
-  authorize(SUPER_ADMIN_ONLY),
-  async (req, res) => {
-    res.status(200).json({
-      success: true,
-      message: "Super admin vendor management - to be implemented",
-      data: {},
-    });
-  }
+// Delete brand by identifier (handles both types)
+router.delete(
+  "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
+  authorize(BRAND_MANAGEMENT),
+  VendorController.deleteBrand
 );
 
-// Get all vendors for super admin (placeholder - could map to companies or brands)
-router.get(
-  "/super-admin/vendors",
-  authorize(SUPER_ADMIN_ONLY),
-  async (req, res) => {
-    try {
-      const result = await VendorController.getAllCompanies(req, res);
-      // This will return companies, you may want to modify this
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-);
 
-// Get vendor statistics (placeholder - could combine company and brand stats)
-router.get(
-  "/super-admin/statistics",
-  authorize(SUPER_ADMIN_ONLY),
-  async (req, res) => {
-    try {
-      const companyStats = await VendorController.getCompanyStatistics(req, res);
-      const brandStats = await VendorController.getBrandStatistics(req, res);
-      // Combine both stats
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-);
 
 export default router;

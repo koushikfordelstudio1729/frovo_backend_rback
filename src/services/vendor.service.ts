@@ -3,12 +3,52 @@ import { Request } from "express";
 import { CompanyCreate, ICompanyCreate, BrandCreate, IBrandCreate } from "../models/Vendor.model";
 import { AuditTrailService } from "./auditTrail.service";
 import { logger } from "../utils/logger.util";
+import { ImageUploadService } from "./vendorFileUpload.service";
 
 const auditTrailService = new AuditTrailService();
 
 // ============================================
 // COMPANY SERVICE INTERFACES
 // ============================================
+// Add this interface at the top with other interfaces
+export interface ICompanyDashboardOptions {
+  page: number;
+  limit: number;
+  company_status?: string;
+  legal_entity_structure?: string;
+  registration_type?: string;
+  search?: string;
+}
+
+export interface ICompanyDashboardResponse {
+  data: Array<{
+    _id: string;
+    company_id: string;
+    registered_company_name: string;
+    cin_or_msme_number: string;
+    legal_entity_structure: string;
+    registration_type: string;
+    company_status: string;
+    brandCount: number;
+    official_email?: string;
+    date_of_incorporation?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
+  statistics: {
+    totalCompanies: number;
+    activeCompanies: number;
+    inactiveCompanies: number;
+    byLegalEntityStructure: Array<{ _id: string, count: number }>;
+    byRegistrationType: Array<{ _id: string, count: number }>;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
 export interface ICompanyCreateData {
   registered_company_name: string;
@@ -621,6 +661,119 @@ export class CompanyService {
     }
   }
 
+  async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
+    try {
+      const {
+        page,
+        limit,
+        company_status,
+        legal_entity_structure,
+        registration_type,
+        search
+      } = options;
+      const skip = (page - 1) * limit;
+
+      // Build query
+      const query: any = {};
+
+      if (search) {
+        query.$or = [
+          { registered_company_name: { $regex: search, $options: "i" } },
+          { cin_or_msme_number: { $regex: search, $options: "i" } },
+          { official_email: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      if (company_status) {
+        query.company_status = company_status;
+      }
+
+      if (registration_type) {
+        query.registration_type = registration_type;
+      }
+
+      if (legal_entity_structure) {
+        query.legal_entity_structure = legal_entity_structure;
+      }
+
+      // Get total count
+      const total = await CompanyCreate.countDocuments(query);
+
+      // Get companies with aggregation to include brand count
+      const companiesWithBrandCount = await CompanyCreate.aggregate([
+        { $match: query },
+        {
+          $lookup: {
+            from: "brands", // Make sure this matches your BrandCreate collection name
+            localField: "_id",
+            foreignField: "company_id",
+            as: "brands"
+          }
+        },
+        {
+          $project: {
+            _id: { $toString: "$_id" },
+            company_id: 1,
+            registered_company_name: 1,
+            cin_or_msme_number: 1,
+            legal_entity_structure: 1,
+            registration_type: 1,
+            company_status: 1,
+            official_email: 1,
+            date_of_incorporation: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            brandCount: { $size: "$brands" }
+          }
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit }
+      ]);
+
+      // Calculate statistics
+      const [
+        totalCompanies,
+        activeCompanies,
+        inactiveCompanies,
+        byLegalEntityStructure,
+        byRegistrationType
+      ] = await Promise.all([
+        CompanyCreate.countDocuments({}),
+        CompanyCreate.countDocuments({ company_status: "active" }),
+        CompanyCreate.countDocuments({ company_status: "inactive" }),
+        CompanyCreate.aggregate([
+          { $group: { _id: "$legal_entity_structure", count: { $sum: 1 } } },
+          { $sort: { count: -1 } }
+        ]),
+        CompanyCreate.aggregate([
+          { $group: { _id: "$registration_type", count: { $sum: 1 } } },
+          { $sort: { count: -1 } }
+        ])
+      ]);
+
+      return {
+        data: companiesWithBrandCount,
+        statistics: {
+          totalCompanies,
+          activeCompanies,
+          inactiveCompanies,
+          byLegalEntityStructure,
+          byRegistrationType
+        },
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error("Error fetching company dashboard:", error);
+      throw error;
+    }
+  }
+
   async getCompanyById(id: string): Promise<ICompanyCreate | null> {
     try {
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1093,136 +1246,136 @@ export class BrandService {
 
   // Create a new brand
   async createBrand(
-  brandData: IBrandCreateData,
-  createdBy: Types.ObjectId,
-  userEmail: string,
-  userRole: string,
-  req?: Request
-): Promise<IBrandCreate> {
-  try {
-    // Validate company exists
-    const company = await CompanyCreate.findOne({
-      cin_or_msme_number: brandData.cin_or_msme_number,
-    });
-
-    if (!company) {
-      throw new Error(`Company with registration number ${brandData.cin_or_msme_number} does not exist`);
-    }
-
-    // Check if brand with same email already exists
-    const existingBrand = await BrandCreate.findOne({
-      brand_email: brandData.brand_email.toLowerCase(),
-    });
-
-    if (existingBrand) {
-      throw new Error(`Brand with email ${brandData.brand_email} already exists`);
-    }
-
-    // Check if company_id matches the found company
-    if (!company._id.equals(brandData.company_id)) {
-      throw new Error("Company ID does not match the registration number");
-    }
-
-    // Validate required files based on legal entity structure
-    await this.validateBrandFiles(brandData, company.legal_entity_structure);
-
-    // Create new brand
-    const newBrand = new BrandCreate({
-      ...brandData,
-      verification_status: brandData.verification_status || "pending",
-      createdBy: createdBy,
-    });
-
-    await newBrand.save();
-
-    // Create audit trail
-    if (req) {
-      await auditTrailService.createAuditRecord({
-        user: createdBy,
-        user_email: userEmail,
-        user_role: userRole,
-        action: "create",
-        action_description: `Created brand: ${brandData.brand_name}`,
-        target_type: "brand",
-        target_brand: newBrand._id,
-        target_brand_name: brandData.brand_name,
-        target_company: brandData.company_id,
-        target_company_name: company.registered_company_name,
-        ip_address: req.ip,
-        user_agent: req.get("User-Agent"),
+    brandData: IBrandCreateData,
+    createdBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate> {
+    try {
+      // Validate company exists
+      const company = await CompanyCreate.findOne({
+        cin_or_msme_number: brandData.cin_or_msme_number,
       });
+
+      if (!company) {
+        throw new Error(`Company with registration number ${brandData.cin_or_msme_number} does not exist`);
+      }
+
+      // Check if brand with same email already exists
+      const existingBrand = await BrandCreate.findOne({
+        brand_email: brandData.brand_email.toLowerCase(),
+      });
+
+      if (existingBrand) {
+        throw new Error(`Brand with email ${brandData.brand_email} already exists`);
+      }
+
+      // Check if company_id matches the found company
+      if (!company._id.equals(brandData.company_id)) {
+        throw new Error("Company ID does not match the registration number");
+      }
+
+      // Validate required files based on legal entity structure
+      await this.validateBrandFiles(brandData, company.legal_entity_structure);
+
+      // Create new brand
+      const newBrand = new BrandCreate({
+        ...brandData,
+        verification_status: brandData.verification_status || "pending",
+        createdBy: createdBy,
+      });
+
+      await newBrand.save();
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: createdBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "create",
+          action_description: `Created brand: ${brandData.brand_name}`,
+          target_type: "brand",
+          target_brand: newBrand._id,
+          target_brand_name: brandData.brand_name,
+          target_company: brandData.company_id,
+          target_company_name: company.registered_company_name,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand created: ${newBrand.brand_name} (ID: ${newBrand._id})`);
+      return newBrand;
+    } catch (error) {
+      logger.error("Error creating brand:", error);
+      throw error;
     }
-
-    logger.info(`Brand created: ${newBrand.brand_name} (ID: ${newBrand._id})`);
-    return newBrand;
-  } catch (error) {
-    logger.error("Error creating brand:", error);
-    throw error;
   }
-}
 
-/**
- * Validate required files based on legal entity structure
- */
-private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
-  const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
-  
-  for (const field of requiredFields) {
-    if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
-      throw new Error(`Missing or invalid ${field} file upload`);
+  /**
+   * Validate required files based on legal entity structure
+   */
+  private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
+    const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
+
+    for (const field of requiredFields) {
+      if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
+        throw new Error(`Missing or invalid ${field} file upload`);
+      }
     }
   }
-}
 
-/**
- * Get required file fields based on legal entity
- */
-private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
-  const commonFields = [
-    'upload_cancelled_cheque_image',
-    'gst_certificate_image',
-    'PAN_image',
-    'FSSAI_image'
-  ];
+  /**
+   * Get required file fields based on legal entity
+   */
+  private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
+    const commonFields = [
+      'upload_cancelled_cheque_image',
+      'gst_certificate_image',
+      'PAN_image',
+      'FSSAI_image'
+    ];
 
-  const entitySpecificFields: Record<string, string[]> = {
-    'pvt': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image',
-      'Trademark_certificate_image',
-      'Authorized_Signatory_image'
-    ],
-    'opc': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image'
-    ],
-    'llp': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'LLP_agreement_image'
-    ],
-    'proprietorship': [
-      'MSME_or_Udyam_certificate_image',
-      'Shop_and_Establishment_certificate_image'
-    ],
-    'partnership': [
-      'Registered_Partnership_deed_image',
-      'MSME_or_Udyam_certificate_image'
-    ],
-    'public': [
-      'certificate_of_incorporation_image',
-      'Board_resolution_image',
-      'MOA_image',
-      'AOA_image'
-    ]
-  };
+    const entitySpecificFields: Record<string, string[]> = {
+      'pvt': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image',
+        'Trademark_certificate_image',
+        'Authorized_Signatory_image'
+      ],
+      'opc': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image'
+      ],
+      'llp': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'LLP_agreement_image'
+      ],
+      'proprietorship': [
+        'MSME_or_Udyam_certificate_image',
+        'Shop_and_Establishment_certificate_image'
+      ],
+      'partnership': [
+        'Registered_Partnership_deed_image',
+        'MSME_or_Udyam_certificate_image'
+      ],
+      'public': [
+        'certificate_of_incorporation_image',
+        'Board_resolution_image',
+        'MOA_image',
+        'AOA_image'
+      ]
+    };
 
-  return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
-}
+    return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
+  }
 
   // Get all brands with pagination and search
   async getAllBrands(options: IBrandPaginationOptions): Promise<{
@@ -1310,7 +1463,196 @@ private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
       throw error;
     }
   }
+  // In BrandService class
 
+  /**
+   * Update brand by identifier (handles both MongoDB _id and custom brand_id)
+   */
+  async updateBrandById(
+    brandIdentifier: string,
+    updateData: IBrandUpdateData,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      let currentBrand;
+      let query: any;
+
+      // Determine query based on identifier type
+      if (mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
+        // It's a MongoDB ObjectId
+        query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
+      } else {
+        // It's a custom brand_id
+        query = { brand_id: brandIdentifier };
+      }
+
+      // Get current brand data for audit
+      currentBrand = await BrandCreate.findOne(query);
+      if (!currentBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Check for duplicate email if provided
+      if (updateData.brand_email && updateData.brand_email !== currentBrand.brand_email) {
+        const existingEmail = await BrandCreate.findOne({
+          brand_email: updateData.brand_email.toLowerCase(),
+          _id: { $ne: currentBrand._id },
+        });
+
+        if (existingEmail) {
+          throw new Error(`Brand with email ${updateData.brand_email} already exists`);
+        }
+      }
+
+      // If updating company registration number, validate the company exists
+      if (updateData.cin_or_msme_number) {
+        const company = await CompanyCreate.findOne({
+          cin_or_msme_number: updateData.cin_or_msme_number,
+        });
+
+        if (!company) {
+          throw new Error(`Company with registration number ${updateData.cin_or_msme_number} does not exist`);
+        }
+
+        // Update company_id to match the found company
+        updateData.company_id = company._id;
+      }
+
+      // Prepare update data
+      const updateObj: any = { ...updateData };
+      if (updateObj.brand_email) {
+        updateObj.brand_email = updateObj.brand_email.toLowerCase();
+      }
+      if (updateObj.ifsc_code) {
+        updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
+      }
+      if (updateObj.gst_details) {
+        updateObj.gst_details = updateObj.gst_details.toUpperCase();
+      }
+      if (updateObj.PAN_number) {
+        updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
+      }
+
+      // Update brand
+      const updatedBrand = await BrandCreate.findOneAndUpdate(
+        query,
+        { $set: updateObj },
+        { new: true, runValidators: true }
+      )
+        .populate("company_id", "company_id registered_company_name official_email cin_or_msme_number")
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean() as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Updated brand: ${currentBrand.brand_name}`,
+          target_type: "brand",
+          target_brand: currentBrand._id,
+          target_brand_name: currentBrand.brand_name,
+          target_company: currentBrand.company_id,
+          before_state: currentBrand.toObject(),
+          after_state: updateData,
+          changed_fields: Object.keys(updateData),
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand updated: ${updatedBrand.brand_name} (Identifier: ${brandIdentifier})`);
+      return updatedBrand;
+    } catch (error) {
+      logger.error(`Error updating brand ${brandIdentifier}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete brand by identifier (handles both MongoDB _id and custom brand_id)
+   */
+  async deleteBrandById(
+    brandIdentifier: string,
+    deletedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      let query: any;
+
+      // Determine query based on identifier type
+      if (mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
+        // It's a MongoDB ObjectId
+        query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
+      } else {
+        // It's a custom brand_id
+        query = { brand_id: brandIdentifier };
+      }
+
+      const brand = await BrandCreate.findOneAndDelete(query)
+        .populate("company_id", "company_id registered_company_name official_email")
+        .lean() as unknown as IBrandCreate | null;
+
+      if (!brand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Clean up Cloudinary files if needed
+      const imageUploadService = new ImageUploadService();
+      const publicIds = imageUploadService.extractPublicIdsFromBrand(brand);
+
+      if (publicIds.length > 0) {
+        try {
+          await imageUploadService.deleteMultipleFiles(publicIds);
+          logger.info(`Deleted ${publicIds.length} Cloudinary files for brand ${brandIdentifier}`);
+        } catch (cloudinaryError) {
+          logger.error(`Failed to delete Cloudinary files for brand ${brandIdentifier}:`, cloudinaryError);
+          // Don't throw error here, continue with deletion
+        }
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: deletedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "delete",
+          action_description: `Deleted brand: ${brand.brand_name}`,
+          target_type: "brand",
+          target_brand: brand._id,
+          target_brand_name: brand.brand_name,
+          target_company: brand.company_id,
+          before_state: brand,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand deleted: ${brand.brand_name} (Identifier: ${brandIdentifier})`);
+      return brand;
+    } catch (error) {
+      logger.error(`Error deleting brand ${brandIdentifier}:`, error);
+      throw error;
+    }
+  }
   // Get brand by brand_id
   async getBrandByBrandId(brandId: string): Promise<IBrandCreate | null> {
     try {
@@ -1648,7 +1990,7 @@ private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
     }
   }
 
-  // Export brands data
+  // In BrandService class
   async exportBrands(
     format: string,
     filters: any,
@@ -1678,45 +2020,155 @@ private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
           { brand_billing_name: { $regex: filters.search, $options: "i" } },
           { brand_email: { $regex: filters.search, $options: "i" } },
           { brand_id: { $regex: filters.search, $options: "i" } },
+          { contact_name: { $regex: filters.search, $options: "i" } },
+          { contact_phone: { $regex: filters.search, $options: "i" } },
+          { PAN_number: { $regex: filters.search, $options: "i" } },
+          { gst_details: { $regex: filters.search, $options: "i" } },
+          { cin_or_msme_number: { $regex: filters.search, $options: "i" } },
         ];
       }
 
       const brands = await BrandCreate.find(query)
-        .populate("company_id", "company_id registered_company_name")
+        .populate("company_id", "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type")
+        .populate("warehouse_id", "warehouse_name warehouse_code address")
+        .populate("verified_by", "email name role")
+        .populate("createdBy", "email name role")
         .sort({ createdAt: -1 })
         .lean();
 
-      // For CSV/Excel export, you would convert brands to CSV/Excel format
-      // For JSON export, return as is
       if (format === "json") {
         return JSON.stringify(brands, null, 2);
       } else if (format === "csv") {
-        // Convert to CSV format
+        // Convert to CSV format with ALL details
         const headers = [
           "Brand ID",
           "Brand Name",
+          "Brand Billing Name",
           "Brand Email",
-          "Company Name",
-          "Verification Status",
           "Brand Category",
           "Brand Type",
+          "Registration Type",
+          "CIN/MSME Number",
+          "Company Name",
+          "Company ID",
+          "Company Email",
+          "Company Legal Entity",
           "Contact Name",
           "Contact Phone",
-          "Created At"
+          "Address",
+          "Bank Account",
+          "IFSC Code",
+          "Payment Terms",
+          "GST Details",
+          "PAN Number",
+          "FSSAI Number",
+          "TDS Rate (%)",
+          "Billing Cycle",
+          "Brand Status Cycle",
+          "Verification Status",
+          "Risk Notes",
+          "Contract Terms",
+          "Contract Start Date",
+          "Contract End Date",
+          "Contract Renewal Date",
+          "Payment Methods",
+          "Internal Notes",
+          "Warehouse Name",
+          "Warehouse Code",
+          "Verified By",
+          "Verified By Email",
+          "Created By",
+          "Created By Email",
+          "Created At",
+          "Updated At",
+          // Document URLs
+          "Cancelled Cheque URL",
+          "GST Certificate URL",
+          "PAN Image URL",
+          "FSSAI Certificate URL",
+          "Certificate of Incorporation URL",
+          "MSME/Udyam Certificate URL",
+          "MOA Document URL",
+          "AOA Document URL",
+          "Trademark Certificate URL",
+          "Authorized Signatory URL",
+          "LLP Agreement URL",
+          "Shop & Establishment Certificate URL",
+          "Registered Partnership Deed URL",
+          "Board Resolution URL"
         ];
 
-        const csvRows = brands.map(brand => [
-          brand.brand_id,
-          brand.brand_name,
-          brand.brand_email,
-          (brand.company_id as any)?.registered_company_name || 'N/A',
-          brand.verification_status,
-          brand.brand_category,
-          brand.brand_type,
-          brand.contact_name,
-          brand.contact_phone,
-          new Date(brand.createdAt).toISOString()
-        ].join(','));
+        const csvRows = brands.map(brand => {
+          const brandData = brand as any;
+
+          return [
+            brandData.brand_id || "",
+            brandData.brand_name || "",
+            brandData.brand_billing_name || "",
+            brandData.brand_email || "",
+            brandData.brand_category || "",
+            brandData.brand_type || "",
+            brandData.registration_type || "",
+            brandData.cin_or_msme_number || "",
+            brandData.company_id?.registered_company_name || "",
+            brandData.company_id?.company_id || "",
+            brandData.company_id?.official_email || "",
+            brandData.company_id?.legal_entity_structure || "",
+            brandData.contact_name || "",
+            brandData.contact_phone || "",
+            brandData.address || "",
+            brandData.bank_account_of_brand || "",
+            brandData.ifsc_code || "",
+            brandData.payment_terms || "",
+            brandData.gst_details || "",
+            brandData.PAN_number || "",
+            brandData.FSSAI_number || "",
+            brandData.TDS_rate || "",
+            brandData.billing_cycle || "",
+            brandData.brand_status_cycle || "",
+            brandData.verification_status || "",
+            brandData.risk_notes || "",
+            brandData.contract_terms || "",
+            brandData.contract_start_date ?
+              new Date(brandData.contract_start_date).toISOString().split('T')[0] : "",
+            brandData.contract_end_date ?
+              new Date(brandData.contract_end_date).toISOString().split('T')[0] : "",
+            brandData.contract_renewal_date ?
+              new Date(brandData.contract_renewal_date).toISOString().split('T')[0] : "",
+            brandData.payment_methods || "",
+            brandData.internal_notes || "",
+            brandData.warehouse_id?.warehouse_name || "",
+            brandData.warehouse_id?.warehouse_code || "",
+            brandData.verified_by?.name || "",
+            brandData.verified_by?.email || "",
+            brandData.createdBy?.name || "",
+            brandData.createdBy?.email || "",
+            brandData.createdAt ? new Date(brandData.createdAt).toISOString() : "",
+            brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : "",
+            // Document URLs
+            brandData.upload_cancelled_cheque_image?.file_url || "",
+            brandData.gst_certificate_image?.file_url || "",
+            brandData.PAN_image?.file_url || "",
+            brandData.FSSAI_image?.file_url || "",
+            brandData.certificate_of_incorporation_image?.file_url || "",
+            brandData.MSME_or_Udyam_certificate_image?.file_url || "",
+            brandData.MOA_image?.file_url || "",
+            brandData.AOA_image?.file_url || "",
+            brandData.Trademark_certificate_image?.file_url || "",
+            brandData.Authorized_Signatory_image?.file_url || "",
+            brandData.LLP_agreement_image?.file_url || "",
+            brandData.Shop_and_Establishment_certificate_image?.file_url || "",
+            brandData.Registered_Partnership_deed_image?.file_url || "",
+            brandData.Board_resolution_image?.file_url || ""
+          ].map(cell => {
+            // Escape commas and quotes in cell values
+            const cellStr = String(cell);
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          }).join(',');
+        });
 
         return [headers.join(','), ...csvRows].join('\n');
       }
@@ -1799,115 +2251,240 @@ private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
       throw error;
     }
   }
-
   // In BrandService class
   async exportBrandById(
-    brandId: string,
+    brandIdentifier: string | Types.ObjectId,
     format: string,
     userId: Types.ObjectId
   ): Promise<any> {
     try {
-      const brand = await BrandCreate.findOne({ brand_id: brandId })
-        .populate("company_id", "company_id registered_company_name official_email cin_or_msme_number")
-        .populate("warehouse_id", "warehouse_name warehouse_code")
-        .populate("verified_by", "email name")
-        .populate("createdBy", "email name")
-        .lean();
+      let brand;
+
+      // Convert brandIdentifier to string for validation if it's an ObjectId
+      const brandIdStr = typeof brandIdentifier === 'string'
+        ? brandIdentifier
+        : brandIdentifier.toString();
+
+      // Check if it's MongoDB ObjectId or custom brand_id
+      if (mongoose.Types.ObjectId.isValid(brandIdStr) &&
+        brandIdStr.length === 24) {
+        // If it's already an ObjectId, use it directly, otherwise create new
+        const objectId = typeof brandIdentifier === 'string'
+          ? new Types.ObjectId(brandIdentifier)
+          : brandIdentifier;
+
+        brand = await BrandCreate.findById(objectId)
+          .populate("company_id", "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address")
+          .populate("warehouse_id", "warehouse_name warehouse_code address contact_person contact_phone")
+          .populate("verified_by", "email name role department")
+          .populate("createdBy", "email name role department")
+          .lean();
+      } else {
+        // Search by custom brand_id field
+        brand = await BrandCreate.findOne({ brand_id: brandIdStr })
+          .populate("company_id", "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address")
+          .populate("warehouse_id", "warehouse_name warehouse_code address contact_person contact_phone")
+          .populate("verified_by", "email name role department")
+          .populate("createdBy", "email name role department")
+          .lean();
+      }
 
       if (!brand) {
-        throw new Error(`Brand with ID ${brandId} not found`);
+        throw new Error(`Brand with identifier ${brandIdStr} not found`);
       }
 
       if (format === "json") {
         return JSON.stringify(brand, null, 2);
       } else if (format === "csv") {
-        // Convert single brand to CSV format
+        // Convert single brand to detailed CSV format
         const brandData = brand as any;
 
-        // Define CSV headers
-        const headers = [
-          "Field",
-          "Value"
+        // Define detailed CSV structure
+        const csvRows = [
+          ["FIELD", "VALUE"],
+          ["Brand Information", ""],
+          ["Brand ID", brandData.brand_id || ""],
+          ["Brand Name", brandData.brand_name || ""],
+          ["Brand Billing Name", brandData.brand_billing_name || ""],
+          ["Brand Email", brandData.brand_email || ""],
+          ["Brand Category", brandData.brand_category || ""],
+          ["Brand Type", brandData.brand_type || ""],
+          ["Registration Type", brandData.registration_type || ""],
+          ["CIN/MSME Number", brandData.cin_or_msme_number || ""],
+          ["", ""],
+          ["Company Information", ""],
+          ["Company Name", brandData.company_id?.registered_company_name || ""],
+          ["Company ID", brandData.company_id?.company_id || ""],
+          ["Company Email", brandData.company_id?.official_email || ""],
+          ["Company Legal Entity", brandData.company_id?.legal_entity_structure || ""],
+          ["Company Registration Type", brandData.company_id?.registration_type || ""],
+          ["Date of Incorporation", brandData.company_id?.date_of_incorporation ?
+            new Date(brandData.company_id.date_of_incorporation).toISOString().split('T')[0] : ""],
+          ["Company Address", brandData.company_id?.registered_office_address || ""],
+          ["", ""],
+          ["Contact Information", ""],
+          ["Contact Name", brandData.contact_name || ""],
+          ["Contact Phone", brandData.contact_phone || ""],
+          ["Brand Address", brandData.address || ""],
+          ["", ""],
+          ["Financial Information", ""],
+          ["Bank Account", brandData.bank_account_of_brand || ""],
+          ["IFSC Code", brandData.ifsc_code || ""],
+          ["Payment Terms", brandData.payment_terms || ""],
+          ["GST Details", brandData.gst_details || ""],
+          ["PAN Number", brandData.PAN_number || ""],
+          ["FSSAI Number", brandData.FSSAI_number || ""],
+          ["TDS Rate (%)", brandData.TDS_rate || ""],
+          ["Billing Cycle", brandData.billing_cycle || ""],
+          ["Brand Status Cycle", brandData.brand_status_cycle || ""],
+          ["Payment Methods", brandData.payment_methods || ""],
+          ["", ""],
+          ["Contract Information", ""],
+          ["Contract Start Date", brandData.contract_start_date ?
+            new Date(brandData.contract_start_date).toISOString().split('T')[0] : ""],
+          ["Contract End Date", brandData.contract_end_date ?
+            new Date(brandData.contract_end_date).toISOString().split('T')[0] : ""],
+          ["Contract Renewal Date", brandData.contract_renewal_date ?
+            new Date(brandData.contract_renewal_date).toISOString().split('T')[0] : ""],
+          ["Contract Terms", brandData.contract_terms || ""],
+          ["", ""],
+          ["Status & Verification", ""],
+          ["Verification Status", brandData.verification_status || ""],
+          ["Risk Notes", brandData.risk_notes || ""],
+          ["Internal Notes", brandData.internal_notes || ""],
+          ["Verified By", brandData.verified_by?.name || ""],
+          ["Verified By Email", brandData.verified_by?.email || ""],
+          ["Verified By Role", brandData.verified_by?.role || ""],
+          ["", ""],
+          ["Warehouse Information", ""],
+          ["Warehouse Name", brandData.warehouse_id?.warehouse_name || ""],
+          ["Warehouse Code", brandData.warehouse_id?.warehouse_code || ""],
+          ["Warehouse Address", brandData.warehouse_id?.address || ""],
+          ["Warehouse Contact", brandData.warehouse_id?.contact_person || ""],
+          ["Warehouse Phone", brandData.warehouse_id?.contact_phone || ""],
+          ["", ""],
+          ["Document URLs", ""],
+          ["Cancelled Cheque", brandData.upload_cancelled_cheque_image?.file_url || ""],
+          ["GST Certificate", brandData.gst_certificate_image?.file_url || ""],
+          ["PAN Image", brandData.PAN_image?.file_url || ""],
+          ["FSSAI Certificate", brandData.FSSAI_image?.file_url || ""],
+          ["Certificate of Incorporation", brandData.certificate_of_incorporation_image?.file_url || ""],
+          ["MSME/Udyam Certificate", brandData.MSME_or_Udyam_certificate_image?.file_url || ""],
+          ["MOA Document", brandData.MOA_image?.file_url || ""],
+          ["AOA Document", brandData.AOA_image?.file_url || ""],
+          ["Trademark Certificate", brandData.Trademark_certificate_image?.file_url || ""],
+          ["Authorized Signatory", brandData.Authorized_Signatory_image?.file_url || ""],
+          ["LLP Agreement", brandData.LLP_agreement_image?.file_url || ""],
+          ["Shop & Establishment Certificate", brandData.Shop_and_Establishment_certificate_image?.file_url || ""],
+          ["Registered Partnership Deed", brandData.Registered_Partnership_deed_image?.file_url || ""],
+          ["Board Resolution", brandData.Board_resolution_image?.file_url || ""],
+          ["", ""],
+          ["Document Details", ""],
+          ["Cancelled Cheque File Name", brandData.upload_cancelled_cheque_image?.image_name || ""],
+          ["Cancelled Cheque Upload Date", brandData.upload_cancelled_cheque_image?.uploaded_at ?
+            new Date(brandData.upload_cancelled_cheque_image.uploaded_at).toISOString() : ""],
+          ["GST Certificate File Name", brandData.gst_certificate_image?.image_name || ""],
+          ["GST Certificate Upload Date", brandData.gst_certificate_image?.uploaded_at ?
+            new Date(brandData.gst_certificate_image.uploaded_at).toISOString() : ""],
+          ["", ""],
+          ["System Information", ""],
+          ["Created By", brandData.createdBy?.name || ""],
+          ["Created By Email", brandData.createdBy?.email || ""],
+          ["Created By Role", brandData.createdBy?.role || ""],
+          ["Created At", brandData.createdAt ? new Date(brandData.createdAt).toISOString() : ""],
+          ["Updated At", brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : ""],
         ];
 
-        // Flatten brand data into key-value pairs
-        const csvRows = [];
-
-        // Add basic brand info
-        csvRows.push(["Brand ID", brandData.brand_id || ""]);
-        csvRows.push(["Brand Name", brandData.brand_name || ""]);
-        csvRows.push(["Brand Billing Name", brandData.brand_billing_name || ""]);
-        csvRows.push(["Brand Email", brandData.brand_email || ""]);
-        csvRows.push(["Brand Category", brandData.brand_category || ""]);
-        csvRows.push(["Brand Type", brandData.brand_type || ""]);
-        csvRows.push(["Registration Type", brandData.registration_type || ""]);
-        csvRows.push(["CIN/MSME Number", brandData.cin_or_msme_number || ""]);
-        csvRows.push(["Company", brandData.company_id?.registered_company_name || ""]);
-        csvRows.push(["Company ID", brandData.company_id?.company_id || ""]);
-
-        // Contact information
-        csvRows.push(["Contact Name", brandData.contact_name || ""]);
-        csvRows.push(["Contact Phone", brandData.contact_phone || ""]);
-        csvRows.push(["Address", brandData.address || ""]);
-
-        // Financial information
-        csvRows.push(["Bank Account", brandData.bank_account_of_brand || ""]);
-        csvRows.push(["IFSC Code", brandData.ifsc_code || ""]);
-        csvRows.push(["Payment Terms", brandData.payment_terms || ""]);
-        csvRows.push(["GST Details", brandData.gst_details || ""]);
-        csvRows.push(["PAN Number", brandData.PAN_number || ""]);
-        csvRows.push(["FSSAI Number", brandData.FSSAI_number || ""]);
-        csvRows.push(["TDS Rate", brandData.TDS_rate || ""]);
-        csvRows.push(["Billing Cycle", brandData.billing_cycle || ""]);
-        csvRows.push(["Payment Methods", brandData.payment_methods || ""]);
-
-        // Contract information
-        csvRows.push(["Contract Start Date", brandData.contract_start_date ?
-          new Date(brandData.contract_start_date).toISOString().split('T')[0] : ""]);
-        csvRows.push(["Contract End Date", brandData.contract_end_date ?
-          new Date(brandData.contract_end_date).toISOString().split('T')[0] : ""]);
-        csvRows.push(["Contract Renewal Date", brandData.contract_renewal_date ?
-          new Date(brandData.contract_renewal_date).toISOString().split('T')[0] : ""]);
-
-        // Status information
-        csvRows.push(["Verification Status", brandData.verification_status || ""]);
-        csvRows.push(["Brand Status Cycle", brandData.brand_status_cycle || ""]);
-        csvRows.push(["Verified By", brandData.verified_by?.email || ""]);
-        csvRows.push(["Warehouse", brandData.warehouse_id?.warehouse_name || ""]);
-
-        // Additional notes
-        csvRows.push(["Risk Notes", brandData.risk_notes || ""]);
-        csvRows.push(["Contract Terms", brandData.contract_terms || ""]);
-        csvRows.push(["Internal Notes", brandData.internal_notes || ""]);
-
-        // Timestamps
-        csvRows.push(["Created At", brandData.createdAt ?
-          new Date(brandData.createdAt).toISOString() : ""]);
-        csvRows.push(["Updated At", brandData.updatedAt ?
-          new Date(brandData.updatedAt).toISOString() : ""]);
-
         // Convert to CSV string
-        const csvContent = [
-          headers.join(','),
-          ...csvRows.map(row =>
-            row.map(cell => {
-              // Escape commas and quotes in cell values
-              const cellStr = String(cell);
-              if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-                return `"${cellStr.replace(/"/g, '""')}"`;
-              }
-              return cellStr;
-            }).join(',')
-          )
-        ].join('\n');
+        const csvContent = csvRows.map(row =>
+          row.map(cell => {
+            const cellStr = String(cell);
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          }).join(',')
+        ).join('\n');
 
         return csvContent;
+      } else if (format === "pdf") {
+        // PDF generation - you'll need a PDF library like pdfkit or puppeteer
+        return this.generateBrandPDF(brand);
       }
 
       return brand;
     } catch (error) {
-      logger.error(`Error exporting brand ${brandId}:`, error);
+      logger.error(`Error exporting brand ${brandIdentifier}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Generate PDF for a brand
+   */
+  private async generateBrandPDF(brand: any): Promise<Buffer> {
+    try {
+      // You'll need to install a PDF generation library
+      // Example using pdfkit:
+      const PDFDocument = require('pdfkit');
+      const doc = new PDFDocument();
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => { });
+
+      // Brand Information
+      doc.fontSize(16).text('Brand Export Report', { align: 'center' });
+      doc.moveDown();
+
+      doc.fontSize(14).text('Brand Information:');
+      doc.fontSize(12).text(`Brand ID: ${brand.brand_id || 'N/A'}`);
+      doc.text(`Brand Name: ${brand.brand_name || 'N/A'}`);
+      doc.text(`Brand Email: ${brand.brand_email || 'N/A'}`);
+      doc.moveDown();
+
+      // Company Information
+      if (brand.company_id) {
+        doc.fontSize(14).text('Company Information:');
+        doc.fontSize(12).text(`Company Name: ${brand.company_id.registered_company_name || 'N/A'}`);
+        doc.text(`Company ID: ${brand.company_id.company_id || 'N/A'}`);
+        doc.text(`Official Email: ${brand.company_id.official_email || 'N/A'}`);
+        doc.moveDown();
+      }
+
+      // Contact Information
+      doc.fontSize(14).text('Contact Information:');
+      doc.fontSize(12).text(`Contact Name: ${brand.contact_name || 'N/A'}`);
+      doc.text(`Contact Phone: ${brand.contact_phone || 'N/A'}`);
+      doc.text(`Address: ${brand.address || 'N/A'}`);
+      doc.moveDown();
+
+      // Financial Information
+      doc.fontSize(14).text('Financial Information:');
+      doc.fontSize(12).text(`Bank Account: ${brand.bank_account_of_brand || 'N/A'}`);
+      doc.text(`IFSC Code: ${brand.ifsc_code || 'N/A'}`);
+      doc.text(`PAN Number: ${brand.PAN_number || 'N/A'}`);
+      doc.text(`GST Details: ${brand.gst_details || 'N/A'}`);
+      doc.moveDown();
+
+      // Status Information
+      doc.fontSize(14).text('Status Information:');
+      doc.fontSize(12).text(`Verification Status: ${brand.verification_status || 'N/A'}`);
+      doc.text(`Created At: ${brand.createdAt ? new Date(brand.createdAt).toLocaleString() : 'N/A'}`);
+      doc.text(`Updated At: ${brand.updatedAt ? new Date(brand.updatedAt).toLocaleString() : 'N/A'}`);
+
+      doc.end();
+
+      return new Promise((resolve, reject) => {
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+        doc.on('error', reject);
+      });
+    } catch (error) {
+      logger.error('Error generating PDF:', error);
+      throw new Error('Failed to generate PDF');
     }
   }
   async toggleCompanyStatus(
@@ -2072,6 +2649,143 @@ private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
       return { successful, failed };
     } catch (error) {
       logger.error("Error in bulk brand creation:", error);
+      throw error;
+    }
+  }
+
+  // Add this method to your existing CompanyService class
+  async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
+    try {
+      const {
+        page,
+        limit,
+        company_status,
+        legal_entity_structure,
+        registration_type,
+        search
+      } = options;
+      const skip = (page - 1) * limit;
+
+      // Build query for companies
+      const companyQuery: any = {};
+
+      if (company_status) {
+        companyQuery.company_status = company_status;
+      }
+
+      if (legal_entity_structure) {
+        companyQuery.legal_entity_structure = legal_entity_structure;
+      }
+
+      if (registration_type) {
+        companyQuery.registration_type = registration_type;
+      }
+
+      if (search) {
+        companyQuery.$or = [
+          { registered_company_name: { $regex: search, $options: "i" } },
+          { company_id: { $regex: search, $options: "i" } },
+          { cin_or_msme_number: { $regex: search, $options: "i" } },
+          { official_email: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      // Get statistics in parallel
+      const [
+        totalCompanies,
+        activeCompanies,
+        inactiveCompanies,
+        legalEntityStats,
+        registrationTypeStats,
+        companies,
+        totalCount
+      ] = await Promise.all([
+        // Total companies count
+        CompanyCreate.countDocuments(companyQuery),
+
+        // Active companies count
+        CompanyCreate.countDocuments({ ...companyQuery, company_status: "active" }),
+
+        // Inactive companies count
+        CompanyCreate.countDocuments({ ...companyQuery, company_status: "inactive" }),
+
+        // Legal entity structure statistics
+        CompanyCreate.aggregate([
+          { $match: companyQuery },
+          {
+            $group: {
+              _id: "$legal_entity_structure",
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { count: -1 } },
+        ]),
+
+        // Registration type statistics
+        CompanyCreate.aggregate([
+          { $match: companyQuery },
+          {
+            $group: {
+              _id: "$registration_type",
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+
+        // Get companies with pagination
+        CompanyCreate.find(companyQuery)
+          .select("company_id registered_company_name cin_or_msme_number legal_entity_structure registration_type company_status official_email date_of_incorporation createdAt updatedAt")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+
+        // Get total count for pagination
+        CompanyCreate.countDocuments(companyQuery),
+      ]);
+
+      // Get brand counts for each company
+      const companiesWithBrandCounts = await Promise.all(
+        companies.map(async (company: any) => {
+          const brandCount = await BrandCreate.countDocuments({
+            company_id: company._id
+          });
+
+          return {
+            _id: company._id.toString(),
+            company_id: company.company_id,
+            registered_company_name: company.registered_company_name,
+            cin_or_msme_number: company.cin_or_msme_number,
+            legal_entity_structure: company.legal_entity_structure,
+            registration_type: company.registration_type,
+            company_status: company.company_status,
+            brandCount,
+            official_email: company.official_email,
+            date_of_incorporation: company.date_of_incorporation,
+            createdAt: company.createdAt,
+            updatedAt: company.updatedAt,
+          };
+        })
+      );
+
+      return {
+        data: companiesWithBrandCounts,
+        statistics: {
+          totalCompanies,
+          activeCompanies,
+          inactiveCompanies,
+          byLegalEntityStructure: legalEntityStats,
+          byRegistrationType: registrationTypeStats,
+        },
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+        },
+      };
+    } catch (error) {
+      logger.error("Error generating company dashboard:", error);
       throw error;
     }
   }

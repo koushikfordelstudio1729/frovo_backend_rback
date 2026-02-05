@@ -36,186 +36,186 @@ export class VendorController {
   /**
  * Create a new company
  */
-public static async createCompany(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
-
-    const {
-      registered_company_name,
-      registered_office_address,
-      official_email,
-      legal_entity_structure,
-      registration_type,
-      cin_or_msme_number,
-      date_of_incorporation,
-      corporate_website,
-      directory_signature_name,
-      din,
-      company_status,
-    } = req.body;
-
-    // Validate required fields
-    const requiredFields = [
-      "registered_company_name",
-      "registered_office_address",
-      "official_email",
-      "legal_entity_structure",
-      "registration_type",
-      "cin_or_msme_number",
-      "date_of_incorporation",
-      "directory_signature_name",
-      "din"
-    ];
-
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    if (missingFields.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-      });
-      return;
-    }
-
-    // Validate legal_entity_structure
-    const validStructures = ["pvt", "public", "opc", "llp", "proprietorship", "partnership"];
-    if (!validStructures.includes(legal_entity_structure)) {
-      res.status(400).json({
-        success: false,
-        message: `Invalid legal_entity_structure. Must be one of: ${validStructures.join(", ")}`,
-      });
-      return;
-    }
-
-    // Validate registration_type
-    if (!["cin", "msme"].includes(registration_type)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid registration_type. Must be 'cin' or 'msme'",
-      });
-      return;
-    }
-
-    // Validate the relationship between legal_entity_structure and registration_type
-    const cinRequiredStructures = ["pvt", "public", "opc"];
-    const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
-    
-    if (cinRequiredStructures.includes(legal_entity_structure) && registration_type !== "cin") {
-      res.status(400).json({
-        success: false,
-        message: `For legal entity structure '${legal_entity_structure}', registration type must be 'cin'`,
-      });
-      return;
-    }
-    
-    if (msmeAllowedStructures.includes(legal_entity_structure) && registration_type !== "msme") {
-      res.status(400).json({
-        success: false,
-        message: `For legal entity structure '${legal_entity_structure}', registration type must be 'msme'`,
-      });
-      return;
-    }
-
-    // Additional validation for DIN based on structure
-    if (cinRequiredStructures.includes(legal_entity_structure) && (!din || din.trim() === "")) {
-      res.status(400).json({
-        success: false,
-        message: `DIN is required for legal entity structure '${legal_entity_structure}'`,
-      });
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(official_email)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid email format",
-      });
-      return;
-    }
-
-    // Parse and validate date
-    let parsedDate: Date;
+  public static async createCompany(req: Request, res: Response): Promise<void> {
     try {
-      parsedDate = new Date(date_of_incorporation);
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error("Invalid date");
-      }
-      
-      // Validate date is not in the future
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (parsedDate > today) {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
+
+      const {
+        registered_company_name,
+        registered_office_address,
+        official_email,
+        legal_entity_structure,
+        registration_type,
+        cin_or_msme_number,
+        date_of_incorporation,
+        corporate_website,
+        directory_signature_name,
+        din,
+        company_status,
+      } = req.body;
+
+      // Validate required fields
+      const requiredFields = [
+        "registered_company_name",
+        "registered_office_address",
+        "official_email",
+        "legal_entity_structure",
+        "registration_type",
+        "cin_or_msme_number",
+        "date_of_incorporation",
+        "directory_signature_name",
+        "din"
+      ];
+
+      const missingFields = requiredFields.filter(field => !req.body[field]);
+      if (missingFields.length > 0) {
         res.status(400).json({
           success: false,
-          message: "Date of incorporation cannot be in the future",
+          message: `Missing required fields: ${missingFields.join(", ")}`,
         });
         return;
       }
-    } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
+
+      // Validate legal_entity_structure
+      const validStructures = ["pvt", "public", "opc", "llp", "proprietorship", "partnership"];
+      if (!validStructures.includes(legal_entity_structure)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid legal_entity_structure. Must be one of: ${validStructures.join(", ")}`,
+        });
+        return;
+      }
+
+      // Validate registration_type
+      if (!["cin", "msme"].includes(registration_type)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid registration_type. Must be 'cin' or 'msme'",
+        });
+        return;
+      }
+
+      // Validate the relationship between legal_entity_structure and registration_type
+      const cinRequiredStructures = ["pvt", "public", "opc"];
+      const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
+
+      if (cinRequiredStructures.includes(legal_entity_structure) && registration_type !== "cin") {
+        res.status(400).json({
+          success: false,
+          message: `For legal entity structure '${legal_entity_structure}', registration type must be 'cin'`,
+        });
+        return;
+      }
+
+      if (msmeAllowedStructures.includes(legal_entity_structure) && registration_type !== "msme") {
+        res.status(400).json({
+          success: false,
+          message: `For legal entity structure '${legal_entity_structure}', registration type must be 'msme'`,
+        });
+        return;
+      }
+
+      // Additional validation for DIN based on structure
+      if (cinRequiredStructures.includes(legal_entity_structure) && (!din || din.trim() === "")) {
+        res.status(400).json({
+          success: false,
+          message: `DIN is required for legal entity structure '${legal_entity_structure}'`,
+        });
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(official_email)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid email format",
+        });
+        return;
+      }
+
+      // Parse and validate date
+      let parsedDate: Date;
+      try {
+        parsedDate = new Date(date_of_incorporation);
+        if (isNaN(parsedDate.getTime())) {
+          throw new Error("Invalid date");
+        }
+
+        // Validate date is not in the future
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (parsedDate > today) {
+          res.status(400).json({
+            success: false,
+            message: "Date of incorporation cannot be in the future",
+          });
+          return;
+        }
+      } catch (error) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
+        });
+        return;
+      }
+
+      const companyData = {
+        registered_company_name,
+        registered_office_address,
+        official_email: official_email.toLowerCase(),
+        legal_entity_structure,
+        registration_type,
+        cin_or_msme_number,
+        date_of_incorporation: parsedDate,
+        corporate_website,
+        directory_signature_name,
+        din,
+        company_status: company_status || "active",
+      };
+
+      const newCompany = await companyService.createCompany(
+        companyData,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(201).json({
+        success: true,
+        message: "Company created successfully",
+        data: newCompany,
       });
-      return;
-    }
+    } catch (error) {
+      logger.error("Error creating company:", error);
 
-    const companyData = {
-      registered_company_name,
-      registered_office_address,
-      official_email: official_email.toLowerCase(),
-      legal_entity_structure,
-      registration_type,
-      cin_or_msme_number,
-      date_of_incorporation: parsedDate,
-      corporate_website,
-      directory_signature_name,
-      din,
-      company_status: company_status || "active",
-    };
+      if (error instanceof Error) {
+        if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
+          res.status(409).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
 
-    const newCompany = await companyService.createCompany(
-      companyData,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
-
-    res.status(201).json({
-      success: true,
-      message: "Company created successfully",
-      data: newCompany,
-    });
-  } catch (error) {
-    logger.error("Error creating company:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
-        res.status(409).json({
-          success: false,
-          message: error.message,
-        });
-        return;
+        if (error.message.includes("Invalid") || error.message.includes("Missing")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
       }
 
-      if (error.message.includes("Invalid") || error.message.includes("Missing")) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
   }
-}
 
   /**
    * Get all companies with pagination and search
@@ -306,214 +306,214 @@ public static async createCompany(req: Request, res: Response): Promise<void> {
   /**
  * Update company by company_id
  */
-public static async updateCompany(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+  public static async updateCompany(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-    const { company_id } = req.params;
-    const updateData = req.body;
+      const { company_id } = req.params;
+      const updateData = req.body;
 
-    if (!company_id || company_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Company ID is required",
-      });
-      return;
-    }
-
-    // Validate legal_entity_structure if provided
-    if (updateData.legal_entity_structure) {
-      const validStructures = ["pvt", "public", "opc", "llp", "proprietorship", "partnership"];
-      if (!validStructures.includes(updateData.legal_entity_structure)) {
+      if (!company_id || company_id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: `Invalid legal_entity_structure. Must be one of: ${validStructures.join(", ")}`,
+          message: "Company ID is required",
         });
         return;
       }
-    }
 
-    // Validate registration_type if provided
-    if (updateData.registration_type && !["cin", "msme"].includes(updateData.registration_type)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid registration_type. Must be 'cin' or 'msme'",
-      });
-      return;
-    }
+      // Validate legal_entity_structure if provided
+      if (updateData.legal_entity_structure) {
+        const validStructures = ["pvt", "public", "opc", "llp", "proprietorship", "partnership"];
+        if (!validStructures.includes(updateData.legal_entity_structure)) {
+          res.status(400).json({
+            success: false,
+            message: `Invalid legal_entity_structure. Must be one of: ${validStructures.join(", ")}`,
+          });
+          return;
+        }
+      }
 
-    // If both legal_entity_structure and registration_type are being updated, validate their relationship
-    if (updateData.legal_entity_structure && updateData.registration_type) {
-      const cinRequiredStructures = ["pvt", "public", "opc"];
-      const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
-      
-      if (cinRequiredStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "cin") {
+      // Validate registration_type if provided
+      if (updateData.registration_type && !["cin", "msme"].includes(updateData.registration_type)) {
         res.status(400).json({
           success: false,
-          message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'cin'`,
+          message: "Invalid registration_type. Must be 'cin' or 'msme'",
         });
         return;
       }
-      
-      if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "msme") {
-        res.status(400).json({
-          success: false,
-          message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'msme'`,
-        });
-        return;
-      }
-    }
-    // If only legal_entity_structure is being updated, we need to check existing registration_type
-    else if (updateData.legal_entity_structure) {
-      // Get current company to check existing registration_type
-      const currentCompany = await companyService.getCompanyByCompanyId(company_id);
-      if (currentCompany) {
+
+      // If both legal_entity_structure and registration_type are being updated, validate their relationship
+      if (updateData.legal_entity_structure && updateData.registration_type) {
         const cinRequiredStructures = ["pvt", "public", "opc"];
         const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
-        
-        if (cinRequiredStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "cin") {
+
+        if (cinRequiredStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "cin") {
           res.status(400).json({
             success: false,
-            message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'cin'`,
+            message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'cin'`,
           });
           return;
         }
-        
-        if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "msme") {
+
+        if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "msme") {
           res.status(400).json({
             success: false,
-            message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'msme'`,
-          });
-          return;
-        }
-      }
-    }
-    // If only registration_type is being updated, we need to check existing legal_entity_structure
-    else if (updateData.registration_type) {
-      // Get current company to check existing legal_entity_structure
-      const currentCompany = await companyService.getCompanyByCompanyId(company_id);
-      if (currentCompany) {
-        const cinRequiredStructures = ["pvt", "public", "opc"];
-        const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
-        
-        if (cinRequiredStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "cin") {
-          res.status(400).json({
-            success: false,
-            message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
-          });
-          return;
-        }
-        
-        if (msmeAllowedStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "msme") {
-          res.status(400).json({
-            success: false,
-            message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
+            message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'msme'`,
           });
           return;
         }
       }
-    }
+      // If only legal_entity_structure is being updated, we need to check existing registration_type
+      else if (updateData.legal_entity_structure) {
+        // Get current company to check existing registration_type
+        const currentCompany = await companyService.getCompanyByCompanyId(company_id);
+        if (currentCompany) {
+          const cinRequiredStructures = ["pvt", "public", "opc"];
+          const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-    // Validate email format if provided
-    if (updateData.official_email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(updateData.official_email)) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid email format",
-        });
-        return;
-      }
-      updateData.official_email = updateData.official_email.toLowerCase();
-    }
+          if (cinRequiredStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "cin") {
+            res.status(400).json({
+              success: false,
+              message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'cin'`,
+            });
+            return;
+          }
 
-    if (updateData.date_of_incorporation) {
-      try {
-        const parsedDate = new Date(updateData.date_of_incorporation);
-        if (isNaN(parsedDate.getTime())) {
-          throw new Error("Invalid date");
+          if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "msme") {
+            res.status(400).json({
+              success: false,
+              message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'msme'`,
+            });
+            return;
+          }
         }
-        
-        // Validate date is not in the future
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (parsedDate > today) {
+      }
+      // If only registration_type is being updated, we need to check existing legal_entity_structure
+      else if (updateData.registration_type) {
+        // Get current company to check existing legal_entity_structure
+        const currentCompany = await companyService.getCompanyByCompanyId(company_id);
+        if (currentCompany) {
+          const cinRequiredStructures = ["pvt", "public", "opc"];
+          const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
+
+          if (cinRequiredStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "cin") {
+            res.status(400).json({
+              success: false,
+              message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
+            });
+            return;
+          }
+
+          if (msmeAllowedStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "msme") {
+            res.status(400).json({
+              success: false,
+              message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
+            });
+            return;
+          }
+        }
+      }
+
+      // Validate email format if provided
+      if (updateData.official_email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(updateData.official_email)) {
           res.status(400).json({
             success: false,
-            message: "Date of incorporation cannot be in the future",
+            message: "Invalid email format",
           });
           return;
         }
-        
-        updateData.date_of_incorporation = parsedDate;
-      } catch (error) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
-        });
-        return;
+        updateData.official_email = updateData.official_email.toLowerCase();
       }
-    }
 
-    const updatedCompany = await companyService.updateCompanyByCompanyId(
-      company_id,
-      updateData,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
+      if (updateData.date_of_incorporation) {
+        try {
+          const parsedDate = new Date(updateData.date_of_incorporation);
+          if (isNaN(parsedDate.getTime())) {
+            throw new Error("Invalid date");
+          }
 
-    if (!updatedCompany) {
-      res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
-      return;
-    }
+          // Validate date is not in the future
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (parsedDate > today) {
+            res.status(400).json({
+              success: false,
+              message: "Date of incorporation cannot be in the future",
+            });
+            return;
+          }
 
-    res.status(200).json({
-      success: true,
-      message: "Company updated successfully",
-      data: updatedCompany,
-    });
-  } catch (error) {
-    logger.error("Error updating company:", error);
+          updateData.date_of_incorporation = parsedDate;
+        } catch (error) {
+          res.status(400).json({
+            success: false,
+            message: "Invalid date format for date_of_incorporation. Use ISO format (YYYY-MM-DD)",
+          });
+          return;
+        }
+      }
 
-    if (error instanceof Error) {
-      if (error.message.includes("not found")) {
+      const updatedCompany = await companyService.updateCompanyByCompanyId(
+        company_id,
+        updateData,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      if (!updatedCompany) {
         res.status(404).json({
           success: false,
-          message: error.message,
+          message: "Company not found",
         });
         return;
       }
 
-      if (error.message.includes("already exists")) {
-        res.status(409).json({
-          success: false,
-          message: error.message,
-        });
-        return;
+      res.status(200).json({
+        success: true,
+        message: "Company updated successfully",
+        data: updatedCompany,
+      });
+    } catch (error) {
+      logger.error("Error updating company:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+
+        if (error.message.includes("already exists")) {
+          res.status(409).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+
+        if (error.message.includes("Invalid")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
       }
 
-      if (error.message.includes("Invalid")) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
   }
-}
 
   /**
    * Delete company by company_id
@@ -760,651 +760,651 @@ public static async updateCompany(req: Request, res: Response): Promise<void> {
   /**
  * Export single company data by company_id
  */
-public static async exportCompanyById(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+  public static async exportCompanyById(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-    // Only super admin and vendor admin can export
-    if (!["super_admin", "vendor_admin"].includes(userRole)) {
-      res.status(403).json({
-        success: false,
-        message: "Access denied. Only super admin and vendor admin can export company data",
-      });
-      return;
-    }
-
-    const { company_id } = req.params;
-    const { format = "csv" } = req.query; // Changed default to CSV
-
-    if (!company_id || company_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Company ID is required",
-      });
-      return;
-    }
-
-    // Validate format
-    if (!["csv", "json"].includes(format as string)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid format. Only 'csv' and 'json' are supported",
-      });
-      return;
-    }
-
-    const exportData = await companyService.exportCompanyById(
-      company_id,
-      format as string,
-      userId
-    );
-
-    // Set headers based on format
-    const timestamp = Date.now();
-    if (format === "csv") {
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.csv`);
-    } else if (format === "json") {
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.json`);
-    }
-
-    res.status(200).send(exportData);
-  } catch (error) {
-    logger.error("Error exporting company by ID:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("not found")) {
-        res.status(404).json({
+      // Only super admin and vendor admin can export
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
           success: false,
-          message: error.message,
+          message: "Access denied. Only super admin and vendor admin can export company data",
         });
         return;
       }
-    }
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-}
-/**
- * Toggle company status (active/inactive)
- */
-public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+      const { company_id } = req.params;
+      const { format = "csv" } = req.query; // Changed default to CSV
 
-    // Only vendor management roles can toggle company status
-    if (!["super_admin", "vendor_admin"].includes(userRole)) {
-      res.status(403).json({
-        success: false,
-        message: "Access denied. Only super admin and vendor admin can toggle company status",
-      });
-      return;
-    }
-
-    const { company_id } = req.params;
-
-    if (!company_id || company_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Company ID is required",
-      });
-      return;
-    }
-
-    const updatedCompany = await companyService.toggleCompanyStatus(
-      company_id,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
-
-    res.status(200).json({
-      success: true,
-      message: `Company status toggled successfully`,
-      data: {
-        company_id: updatedCompany.company_id,
-        company_name: updatedCompany.registered_company_name,
-        previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
-        current_status: updatedCompany.company_status,
-      },
-    });
-  } catch (error) {
-    logger.error("Error toggling company status:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("not found")) {
-        res.status(404).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
-      if (error.message.includes("Invalid")) {
+      if (!company_id || company_id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: error.message,
+          message: "Company ID is required",
         });
         return;
       }
-    }
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      // Validate format
+      if (!["csv", "json"].includes(format as string)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid format. Only 'csv' and 'json' are supported",
+        });
+        return;
+      }
+
+      const exportData = await companyService.exportCompanyById(
+        company_id,
+        format as string,
+        userId
+      );
+
+      // Set headers based on format
+      const timestamp = Date.now();
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.csv`);
+      } else if (format === "json") {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.json`);
+      }
+
+      res.status(200).send(exportData);
+    } catch (error) {
+      logger.error("Error exporting company by ID:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
+  /**
+   * Toggle company status (active/inactive)
+   */
+  public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
+
+      // Only vendor management roles can toggle company status
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
+          success: false,
+          message: "Access denied. Only super admin and vendor admin can toggle company status",
+        });
+        return;
+      }
+
+      const { company_id } = req.params;
+
+      if (!company_id || company_id.trim() === "") {
+        res.status(400).json({
+          success: false,
+          message: "Company ID is required",
+        });
+        return;
+      }
+
+      const updatedCompany = await companyService.toggleCompanyStatus(
+        company_id,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Company status toggled successfully`,
+        data: {
+          company_id: updatedCompany.company_id,
+          company_name: updatedCompany.registered_company_name,
+          previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
+          current_status: updatedCompany.company_status,
+        },
+      });
+    } catch (error) {
+      logger.error("Error toggling company status:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+        if (error.message.includes("Invalid")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 
 
   // ============================================
   // BRAND CONTROLLER METHODS
   // ============================================
 
- 
-/**
- * Validate required files based on legal entity structure
- */
-private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
-  const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
-  
-  for (const field of requiredFields) {
-    if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
-      throw new Error(`Missing or invalid ${field} file upload`);
+
+  /**
+   * Validate required files based on legal entity structure
+   */
+  private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
+    const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
+
+    for (const field of requiredFields) {
+      if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
+        throw new Error(`Missing or invalid ${field} file upload`);
+      }
     }
   }
-}
 
-/**
- * Get required file fields based on legal entity
- */
-private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
-  const commonFields = [
-    'upload_cancelled_cheque_image',
-    'gst_certificate_image',
-    'PAN_image',
-    'FSSAI_image'
-  ];
-
-  const entitySpecificFields: Record<string, string[]> = {
-    'pvt': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image',
-      'Trademark_certificate_image',
-      'Authorized_Signatory_image'
-    ],
-    'opc': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image'
-    ],
-    'llp': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'LLP_agreement_image'
-    ],
-    'proprietorship': [
-      'MSME_or_Udyam_certificate_image',
-      'Shop_and_Establishment_certificate_image'
-    ],
-    'partnership': [
-      'Registered_Partnership_deed_image',
-      'MSME_or_Udyam_certificate_image'
-    ],
-    'public': [
-      'certificate_of_incorporation_image',
-      'Board_resolution_image',
-      'MOA_image',
-      'AOA_image'
-    ]
-  };
-
-  return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
-}
-
-
-public static async createBrand(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
-
-    const {
-      registration_type,
-      cin_or_msme_number,
-      company_id,
-      brand_billing_name,
-      brand_name,
-      brand_email,
-      brand_category,
-      brand_type,
-      contact_name,
-      contact_phone,
-      address,
-      bank_account_of_brand,
-      ifsc_code,
-      payment_terms,
-      gst_details,
-      PAN_number,
-      FSSAI_number,
-      TDS_rate,
-      billing_cycle,
-      brand_status_cycle,
-      contract_start_date,
-      contract_end_date,
-      contract_renewal_date,
-      payment_methods,
-      warehouse_id,
-      risk_notes,
-      contract_terms,
-      internal_notes,
-    } = req.body;
-
-    // Validate required fields
-    const requiredFields = [
-      "registration_type",
-      "cin_or_msme_number",
-      "company_id",
-      "brand_billing_name",
-      "brand_name",
-      "brand_email",
-      "brand_category",
-      "brand_type",
-      "contact_name",
-      "contact_phone",
-      "address",
-      "bank_account_of_brand",
-      "ifsc_code",
-      "payment_terms",
-      "gst_details",
-      "PAN_number",
-      "FSSAI_number",
-      "TDS_rate",
-      "billing_cycle",
-      "brand_status_cycle",
-      "contract_start_date",
-      "contract_end_date",
-      "contract_renewal_date",
-      "payment_methods",
+  /**
+   * Get required file fields based on legal entity
+   */
+  private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
+    const commonFields = [
+      'upload_cancelled_cheque_image',
+      'gst_certificate_image',
+      'PAN_image',
+      'FSSAI_image'
     ];
 
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    if (missingFields.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
-      });
-      return;
-    }
+    const entitySpecificFields: Record<string, string[]> = {
+      'pvt': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image',
+        'Trademark_certificate_image',
+        'Authorized_Signatory_image'
+      ],
+      'opc': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image'
+      ],
+      'llp': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'LLP_agreement_image'
+      ],
+      'proprietorship': [
+        'MSME_or_Udyam_certificate_image',
+        'Shop_and_Establishment_certificate_image'
+      ],
+      'partnership': [
+        'Registered_Partnership_deed_image',
+        'MSME_or_Udyam_certificate_image'
+      ],
+      'public': [
+        'certificate_of_incorporation_image',
+        'Board_resolution_image',
+        'MOA_image',
+        'AOA_image'
+      ]
+    };
 
-    // Validate registration_type
-    if (!["cin", "msme"].includes(registration_type)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid registration_type. Must be 'cin' or 'msme'",
-      });
-      return;
-    }
+    return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
+  }
 
-    // Validate payment_methods
-    const validPaymentMethods = ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"];
-    if (!validPaymentMethods.includes(payment_methods)) {
-      res.status(400).json({
-        success: false,
-        message: `Invalid payment_methods. Must be one of: ${validPaymentMethods.join(", ")}`,
-      });
-      return;
-    }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(brand_email)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid brand email format",
-      });
-      return;
-    }
-
-    // Validate dates
-    let parsedContractStartDate: Date;
-    let parsedContractEndDate: Date;
-    let parsedContractRenewalDate: Date;
-
+  public static async createBrand(req: Request, res: Response): Promise<void> {
     try {
-      parsedContractStartDate = new Date(contract_start_date);
-      parsedContractEndDate = new Date(contract_end_date);
-      parsedContractRenewalDate = new Date(contract_renewal_date);
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-      if (isNaN(parsedContractStartDate.getTime()) ||
-        isNaN(parsedContractEndDate.getTime()) ||
-        isNaN(parsedContractRenewalDate.getTime())) {
-        throw new Error("Invalid date");
-      }
+      const {
+        registration_type,
+        cin_or_msme_number,
+        company_id,
+        brand_billing_name,
+        brand_name,
+        brand_email,
+        brand_category,
+        brand_type,
+        contact_name,
+        contact_phone,
+        address,
+        bank_account_of_brand,
+        ifsc_code,
+        payment_terms,
+        gst_details,
+        PAN_number,
+        FSSAI_number,
+        TDS_rate,
+        billing_cycle,
+        brand_status_cycle,
+        contract_start_date,
+        contract_end_date,
+        contract_renewal_date,
+        payment_methods,
+        warehouse_id,
+        risk_notes,
+        contract_terms,
+        internal_notes,
+      } = req.body;
 
-      // Validate contract dates are in correct order
-      if (parsedContractStartDate >= parsedContractEndDate) {
+      // Validate required fields
+      const requiredFields = [
+        "registration_type",
+        "cin_or_msme_number",
+        "company_id",
+        "brand_billing_name",
+        "brand_name",
+        "brand_email",
+        "brand_category",
+        "brand_type",
+        "contact_name",
+        "contact_phone",
+        "address",
+        "bank_account_of_brand",
+        "ifsc_code",
+        "payment_terms",
+        "gst_details",
+        "PAN_number",
+        "FSSAI_number",
+        "TDS_rate",
+        "billing_cycle",
+        "brand_status_cycle",
+        "contract_start_date",
+        "contract_end_date",
+        "contract_renewal_date",
+        "payment_methods",
+      ];
+
+      const missingFields = requiredFields.filter(field => !req.body[field]);
+      if (missingFields.length > 0) {
         res.status(400).json({
           success: false,
-          message: "Contract start date must be before contract end date",
+          message: `Missing required fields: ${missingFields.join(", ")}`,
         });
         return;
       }
 
-      if (parsedContractRenewalDate < parsedContractEndDate) {
+      // Validate registration_type
+      if (!["cin", "msme"].includes(registration_type)) {
         res.status(400).json({
           success: false,
-          message: "Contract renewal date must be on or after contract end date",
+          message: "Invalid registration_type. Must be 'cin' or 'msme'",
         });
         return;
       }
-    } catch (error) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid date format. Use ISO format (YYYY-MM-DD)",
-      });
-      return;
-    }
 
-    // Validate TDS rate
-    const tdsRateNum = Number(TDS_rate);
-    if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
-      res.status(400).json({
-        success: false,
-        message: "TDS rate must be a number between 0 and 100",
-      });
-      return;
-    }
+      // Validate payment_methods
+      const validPaymentMethods = ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"];
+      if (!validPaymentMethods.includes(payment_methods)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid payment_methods. Must be one of: ${validPaymentMethods.join(", ")}`,
+        });
+        return;
+      }
 
-    // Get company to check legal entity structure
-    const company = await CompanyCreate.findOne({ company_id: company_id });
-    if (!company) {
-      res.status(404).json({
-        success: false,
-        message: `Company with ID ${company_id} not found`,
-      });
-      return;
-    }
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(brand_email)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid brand email format",
+        });
+        return;
+      }
 
-    // Verify that registration type matches company's registration type
-    if (company.registration_type !== registration_type) {
-      res.status(400).json({
-        success: false,
-        message: `Registration type mismatch. Company is registered as '${company.registration_type}' but brand is being created as '${registration_type}'`,
-      });
-      return;
-    }
+      // Validate dates
+      let parsedContractStartDate: Date;
+      let parsedContractEndDate: Date;
+      let parsedContractRenewalDate: Date;
 
-    // Verify that cin_or_msme_number matches company's registration number
-    if (company.cin_or_msme_number !== cin_or_msme_number) {
-      res.status(400).json({
-        success: false,
-        message: "CIN/MSME number does not match the company's registration number",
-      });
-      return;
-    }
+      try {
+        parsedContractStartDate = new Date(contract_start_date);
+        parsedContractEndDate = new Date(contract_end_date);
+        parsedContractRenewalDate = new Date(contract_renewal_date);
 
-    // Check which documents are required based on legal entity structure
-    const requiredDocuments = VendorController.getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
-    
-    // Check if all required files are uploaded
-    if (!req.files) {
-      res.status(400).json({
-        success: false,
-        message: `Required documents for legal entity structure '${company.legal_entity_structure}' are missing`,
-        required_documents: requiredDocuments,
-      });
-      return;
-    }
+        if (isNaN(parsedContractStartDate.getTime()) ||
+          isNaN(parsedContractEndDate.getTime()) ||
+          isNaN(parsedContractRenewalDate.getTime())) {
+          throw new Error("Invalid date");
+        }
 
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    const uploadedFiles = Object.keys(files);
-    
-    // Check for missing required documents
-    const missingDocuments = requiredDocuments.filter(doc => !uploadedFiles.includes(doc));
-    
-    if (missingDocuments.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required documents for legal entity structure '${company.legal_entity_structure}': ${missingDocuments.join(", ")}`,
-        required_documents: requiredDocuments,
-      });
-      return;
-    }
+        // Validate contract dates are in correct order
+        if (parsedContractStartDate >= parsedContractEndDate) {
+          res.status(400).json({
+            success: false,
+            message: "Contract start date must be before contract end date",
+          });
+          return;
+        }
 
-    // Initialize ImageUploadService
-    const imageUploadService = new ImageUploadService();
+        if (parsedContractRenewalDate < parsedContractEndDate) {
+          res.status(400).json({
+            success: false,
+            message: "Contract renewal date must be on or after contract end date",
+          });
+          return;
+        }
+      } catch (error) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid date format. Use ISO format (YYYY-MM-DD)",
+        });
+        return;
+      }
 
-    // Process uploaded files
-    const processedFiles: any = {};
-    
-    for (const fieldName of uploadedFiles) {
-      const fileArray = files[fieldName];
-      if (fileArray && fileArray.length > 0) {
-        const file = fileArray[0];
-        
-        // Map field name to document type
-        const documentType = VendorController.mapFieldNameToDocumentType(fieldName);
-        
-        if (documentType) {
-          try {
-            // Upload to Cloudinary using ImageUploadService
-            const result = await imageUploadService.uploadDocument(
-              file,
-              documentType,
-              `${company.registered_company_name}/${brand_name}`
-            );
-            
-            processedFiles[fieldName] = result;
-          } catch (uploadError: any) {
-            logger.error(`Failed to upload ${fieldName}:`, uploadError);
-            // Clean up any already uploaded files
-            await VendorController.cleanupUploadedFiles(processedFiles, imageUploadService);
-            
-            res.status(500).json({
-              success: false,
-              message: `Failed to upload ${fieldName}: ${uploadError.message}`,
-            });
-            return;
+      // Validate TDS rate
+      const tdsRateNum = Number(TDS_rate);
+      if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
+        res.status(400).json({
+          success: false,
+          message: "TDS rate must be a number between 0 and 100",
+        });
+        return;
+      }
+
+      // Get company to check legal entity structure
+      const company = await CompanyCreate.findOne({ company_id: company_id });
+      if (!company) {
+        res.status(404).json({
+          success: false,
+          message: `Company with ID ${company_id} not found`,
+        });
+        return;
+      }
+
+      // Verify that registration type matches company's registration type
+      if (company.registration_type !== registration_type) {
+        res.status(400).json({
+          success: false,
+          message: `Registration type mismatch. Company is registered as '${company.registration_type}' but brand is being created as '${registration_type}'`,
+        });
+        return;
+      }
+
+      // Verify that cin_or_msme_number matches company's registration number
+      if (company.cin_or_msme_number !== cin_or_msme_number) {
+        res.status(400).json({
+          success: false,
+          message: "CIN/MSME number does not match the company's registration number",
+        });
+        return;
+      }
+
+      // Check which documents are required based on legal entity structure
+      const requiredDocuments = VendorController.getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
+
+      // Check if all required files are uploaded
+      if (!req.files) {
+        res.status(400).json({
+          success: false,
+          message: `Required documents for legal entity structure '${company.legal_entity_structure}' are missing`,
+          required_documents: requiredDocuments,
+        });
+        return;
+      }
+
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const uploadedFiles = Object.keys(files);
+
+      // Check for missing required documents
+      const missingDocuments = requiredDocuments.filter(doc => !uploadedFiles.includes(doc));
+
+      if (missingDocuments.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Missing required documents for legal entity structure '${company.legal_entity_structure}': ${missingDocuments.join(", ")}`,
+          required_documents: requiredDocuments,
+        });
+        return;
+      }
+
+      // Initialize ImageUploadService
+      const imageUploadService = new ImageUploadService();
+
+      // Process uploaded files
+      const processedFiles: any = {};
+
+      for (const fieldName of uploadedFiles) {
+        const fileArray = files[fieldName];
+        if (fileArray && fileArray.length > 0) {
+          const file = fileArray[0];
+
+          // Map field name to document type
+          const documentType = VendorController.mapFieldNameToDocumentType(fieldName);
+
+          if (documentType) {
+            try {
+              // Upload to Cloudinary using ImageUploadService
+              const result = await imageUploadService.uploadDocument(
+                file,
+                documentType,
+                `${company.registered_company_name}/${brand_name}`
+              );
+
+              processedFiles[fieldName] = result;
+            } catch (uploadError: any) {
+              logger.error(`Failed to upload ${fieldName}:`, uploadError);
+              // Clean up any already uploaded files
+              await VendorController.cleanupUploadedFiles(processedFiles, imageUploadService);
+
+              res.status(500).json({
+                success: false,
+                message: `Failed to upload ${fieldName}: ${uploadError.message}`,
+              });
+              return;
+            }
           }
         }
       }
-    }
 
-    // Build brand data
-    const brandData: any = {
-      registration_type,
-      cin_or_msme_number,
-      company_id: company._id,
-      brand_billing_name,
-      brand_name,
-      brand_email: brand_email.toLowerCase(),
-      brand_category,
-      brand_type,
-      contact_name,
-      contact_phone,
-      address,
-      bank_account_of_brand,
-      ifsc_code: ifsc_code.toUpperCase(),
-      payment_terms,
-      gst_details: gst_details.toUpperCase(),
-      PAN_number: PAN_number.toUpperCase(),
-      FSSAI_number,
-      TDS_rate: tdsRateNum,
-      billing_cycle,
-      brand_status_cycle,
-      verification_status: "pending",
-      risk_notes: risk_notes || "",
-      contract_terms: contract_terms || "",
-      contract_start_date: parsedContractStartDate,
-      contract_end_date: parsedContractEndDate,
-      contract_renewal_date: parsedContractRenewalDate,
-      payment_methods,
-      internal_notes: internal_notes || "",
-      createdBy: userId,
-      ...(warehouse_id && { warehouse_id: new mongoose.Types.ObjectId(warehouse_id) }),
-      ...processedFiles, // Add all processed files
+      // Build brand data
+      const brandData: any = {
+        registration_type,
+        cin_or_msme_number,
+        company_id: company._id,
+        brand_billing_name,
+        brand_name,
+        brand_email: brand_email.toLowerCase(),
+        brand_category,
+        brand_type,
+        contact_name,
+        contact_phone,
+        address,
+        bank_account_of_brand,
+        ifsc_code: ifsc_code.toUpperCase(),
+        payment_terms,
+        gst_details: gst_details.toUpperCase(),
+        PAN_number: PAN_number.toUpperCase(),
+        FSSAI_number,
+        TDS_rate: tdsRateNum,
+        billing_cycle,
+        brand_status_cycle,
+        verification_status: "pending",
+        risk_notes: risk_notes || "",
+        contract_terms: contract_terms || "",
+        contract_start_date: parsedContractStartDate,
+        contract_end_date: parsedContractEndDate,
+        contract_renewal_date: parsedContractRenewalDate,
+        payment_methods,
+        internal_notes: internal_notes || "",
+        createdBy: userId,
+        ...(warehouse_id && { warehouse_id: new mongoose.Types.ObjectId(warehouse_id) }),
+        ...processedFiles, // Add all processed files
+      };
+
+      // Debug: Log what we're sending to the service
+      logger.debug('Brand data to save:', {
+        brand_name: brandData.brand_name,
+        brand_email: brandData.brand_email,
+        company_id: brandData.company_id,
+        file_fields: Object.keys(processedFiles),
+      });
+
+      const newBrand = await brandService.createBrand(
+        brandData,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(201).json({
+        success: true,
+        message: "Brand created successfully",
+        data: newBrand,
+      });
+    } catch (error) {
+      logger.error("Error creating brand:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
+          res.status(409).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+
+        if (error.message.includes("Company with this registration number does not exist")) {
+          res.status(404).json({
+            success: false,
+            message: "Company not found with the provided registration number",
+          });
+          return;
+        }
+
+        if (error.message.includes("Invalid") || error.message.includes("Missing")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Helper method to map field names to document types
+   */
+  private static mapFieldNameToDocumentType(fieldName: string): any {
+    const mapping: Record<string, any> = {
+      'upload_cancelled_cheque_image': 'cancelled_cheque',
+      'gst_certificate_image': 'gst_certificate',
+      'PAN_image': 'pan_card',
+      'FSSAI_image': 'fssai_certificate',
+      'certificate_of_incorporation_image': 'certificate_of_incorporation',
+      'MSME_or_Udyam_certificate_image': 'msme_udyam_certificate',
+      'MOA_image': 'moa',
+      'AOA_image': 'aoa',
+      'Trademark_certificate_image': 'trademark_certificate',
+      'Authorized_Signatory_image': 'authorized_signatory',
+      'LLP_agreement_image': 'llp_agreement',
+      'Shop_and_Establishment_certificate_image': 'shop_establishment_certificate',
+      'Registered_Partnership_deed_image': 'partnership_deed',
+      'Board_resolution_image': 'board_resolution',
     };
 
-    // Debug: Log what we're sending to the service
-    logger.debug('Brand data to save:', {
-      brand_name: brandData.brand_name,
-      brand_email: brandData.brand_email,
-      company_id: brandData.company_id,
-      file_fields: Object.keys(processedFiles),
-    });
-
-    const newBrand = await brandService.createBrand(
-      brandData,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
-
-    res.status(201).json({
-      success: true,
-      message: "Brand created successfully",
-      data: newBrand,
-    });
-  } catch (error) {
-    logger.error("Error creating brand:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("already exists") || error.message.includes("duplicate key")) {
-        res.status(409).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
-
-      if (error.message.includes("Company with this registration number does not exist")) {
-        res.status(404).json({
-          success: false,
-          message: "Company not found with the provided registration number",
-        });
-        return;
-      }
-
-      if (error.message.includes("Invalid") || error.message.includes("Missing")) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+    return mapping[fieldName] || null;
   }
-}
 
-/**
- * Helper method to map field names to document types
- */
-private static mapFieldNameToDocumentType(fieldName: string): any {
-  const mapping: Record<string, any> = {
-    'upload_cancelled_cheque_image': 'cancelled_cheque',
-    'gst_certificate_image': 'gst_certificate',
-    'PAN_image': 'pan_card',
-    'FSSAI_image': 'fssai_certificate',
-    'certificate_of_incorporation_image': 'certificate_of_incorporation',
-    'MSME_or_Udyam_certificate_image': 'msme_udyam_certificate',
-    'MOA_image': 'moa',
-    'AOA_image': 'aoa',
-    'Trademark_certificate_image': 'trademark_certificate',
-    'Authorized_Signatory_image': 'authorized_signatory',
-    'LLP_agreement_image': 'llp_agreement',
-    'Shop_and_Establishment_certificate_image': 'shop_establishment_certificate',
-    'Registered_Partnership_deed_image': 'partnership_deed',
-    'Board_resolution_image': 'board_resolution',
-  };
-  
-  return mapping[fieldName] || null;
-}
+  /**
+   * Cleanup uploaded files if something goes wrong
+   */
+  private static async cleanupUploadedFiles(files: Record<string, any>, imageUploadService: ImageUploadService): Promise<void> {
+    try {
+      const publicIds = Object.values(files)
+        .filter(file => file && file.cloudinary_public_id)
+        .map(file => file.cloudinary_public_id);
 
-/**
- * Cleanup uploaded files if something goes wrong
- */
-private static async cleanupUploadedFiles(files: Record<string, any>, imageUploadService: ImageUploadService): Promise<void> {
-  try {
-    const publicIds = Object.values(files)
-      .filter(file => file && file.cloudinary_public_id)
-      .map(file => file.cloudinary_public_id);
-    
-    if (publicIds.length > 0) {
-      await imageUploadService.deleteMultipleFiles(publicIds);
-      logger.info(`Cleaned up ${publicIds.length} uploaded files`);
+      if (publicIds.length > 0) {
+        await imageUploadService.deleteMultipleFiles(publicIds);
+        logger.info(`Cleaned up ${publicIds.length} uploaded files`);
+      }
+    } catch (cleanupError) {
+      logger.error("Error during file cleanup:", cleanupError);
     }
-  } catch (cleanupError) {
-    logger.error("Error during file cleanup:", cleanupError);
   }
-}
 
-/**
- * Helper method to get required documents based on legal entity structure
- */
-private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[] {
-  const commonDocuments = [
-    'upload_cancelled_cheque_image',
-    'gst_certificate_image',
-    'PAN_image',
-    'FSSAI_image'
-  ];
+  /**
+   * Helper method to get required documents based on legal entity structure
+   */
+  private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[] {
+    const commonDocuments = [
+      'upload_cancelled_cheque_image',
+      'gst_certificate_image',
+      'PAN_image',
+      'FSSAI_image'
+    ];
 
-  const legalEntityDocuments: { [key: string]: string[] } = {
-    'pvt': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image',
-      'Trademark_certificate_image',
-      'Authorized_Signatory_image'
-    ],
-    'opc': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'MOA_image',
-      'AOA_image'
-    ],
-    'llp': [
-      'certificate_of_incorporation_image',
-      'MSME_or_Udyam_certificate_image',
-      'LLP_agreement_image'
-    ],
-    'proprietorship': [
-      'MSME_or_Udyam_certificate_image',
-      'Shop_and_Establishment_certificate_image'
-    ],
-    'partnership': [
-      'Registered_Partnership_deed_image',
-      'MSME_or_Udyam_certificate_image'
-    ],
-    'public': [
-      'certificate_of_incorporation_image',
-      'Board_resolution_image',
-      'MOA_image',
-      'AOA_image'
-    ]
-  };
+    const legalEntityDocuments: { [key: string]: string[] } = {
+      'pvt': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image',
+        'Trademark_certificate_image',
+        'Authorized_Signatory_image'
+      ],
+      'opc': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'MOA_image',
+        'AOA_image'
+      ],
+      'llp': [
+        'certificate_of_incorporation_image',
+        'MSME_or_Udyam_certificate_image',
+        'LLP_agreement_image'
+      ],
+      'proprietorship': [
+        'MSME_or_Udyam_certificate_image',
+        'Shop_and_Establishment_certificate_image'
+      ],
+      'partnership': [
+        'Registered_Partnership_deed_image',
+        'MSME_or_Udyam_certificate_image'
+      ],
+      'public': [
+        'certificate_of_incorporation_image',
+        'Board_resolution_image',
+        'MOA_image',
+        'AOA_image'
+      ]
+    };
 
-  return [...commonDocuments, ...(legalEntityDocuments[legalEntity] || [])];
-}
+    return [...commonDocuments, ...(legalEntityDocuments[legalEntity] || [])];
+  }
   /**
    * Get all brands with pagination and search
    */
@@ -1451,21 +1451,30 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
   }
 
   /**
-   * Get brand by brand_id
-   */
+ * Get brand by MongoDB ObjectId
+ */
   public static async getBrandById(req: Request, res: Response): Promise<void> {
     try {
-      const { brand_id } = req.params;
+      const { id } = req.params;
 
-      if (!brand_id || brand_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: "Brand ID is required",
+          message: "Brand MongoDB ID is required",
         });
         return;
       }
 
-      const brand = await brandService.getBrandByBrandId(brand_id);
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid MongoDB ObjectId format",
+        });
+        return;
+      }
+
+      const brand = await brandService.getBrandById(id); // Use existing method
 
       res.status(200).json({
         success: true,
@@ -1473,7 +1482,7 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
         data: brand,
       });
     } catch (error) {
-      logger.error("Error fetching brand:", error);
+      logger.error("Error fetching brand by MongoDB ID:", error);
 
       if (error instanceof Error) {
         if (error.message.includes("not found")) {
@@ -1492,9 +1501,8 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
       });
     }
   }
-
   /**
-   * Update brand by brand_id
+   * Update brand by brand_id (handles both MongoDB _id and custom brand_id)
    */
   public static async updateBrand(req: Request, res: Response): Promise<void> {
     try {
@@ -1548,13 +1556,15 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
 
       // Validate TDS rate if provided
       if (updateData.TDS_rate !== undefined) {
-        if (updateData.TDS_rate < 0 || updateData.TDS_rate > 100) {
+        const tdsRateNum = Number(updateData.TDS_rate);
+        if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
           res.status(400).json({
             success: false,
-            message: "TDS rate must be between 0 and 100",
+            message: "TDS rate must be a number between 0 and 100",
           });
           return;
         }
+        updateData.TDS_rate = tdsRateNum;
       }
 
       // Handle date parsing
@@ -1566,6 +1576,32 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
             if (isNaN(parsedDate.getTime())) {
               throw new Error("Invalid date");
             }
+
+            // Additional date validations
+            if (field === "contract_start_date" && updateData.contract_end_date) {
+              const endDate = updateData.contract_end_date instanceof Date ?
+                updateData.contract_end_date : new Date(updateData.contract_end_date);
+              if (parsedDate >= endDate) {
+                res.status(400).json({
+                  success: false,
+                  message: "Contract start date must be before contract end date",
+                });
+                return;
+              }
+            }
+
+            if (field === "contract_renewal_date" && updateData.contract_end_date) {
+              const endDate = updateData.contract_end_date instanceof Date ?
+                updateData.contract_end_date : new Date(updateData.contract_end_date);
+              if (parsedDate < endDate) {
+                res.status(400).json({
+                  success: false,
+                  message: "Contract renewal date must be on or after contract end date",
+                });
+                return;
+              }
+            }
+
             updateData[field] = parsedDate;
           } catch (error) {
             res.status(400).json({
@@ -1577,64 +1613,85 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
         }
       }
 
+      // Handle uppercase conversion for certain fields
+      if (updateData.ifsc_code) {
+        updateData.ifsc_code = updateData.ifsc_code.toUpperCase();
+      }
+      if (updateData.gst_details) {
+        updateData.gst_details = updateData.gst_details.toUpperCase();
+      }
+      if (updateData.PAN_number) {
+        updateData.PAN_number = updateData.PAN_number.toUpperCase();
+      }
+
       // Handle file uploads if present
       if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const imageUploadService = new ImageUploadService();
 
-        // Handle cancelled cheque image update
-        if (files['upload_cancelled_cheque_image']) {
-          const file = files['upload_cancelled_cheque_image'][0];
-          updateData.upload_cancelled_cheque_image = {
-            image_name: file.originalname,
-            file_url: file.path,
-            cloudinary_public_id: file.filename,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-          };
-        }
+        // List of updatable document fields
+        const updatableDocumentFields = [
+          'upload_cancelled_cheque_image',
+          'gst_certificate_image',
+          'PAN_image',
+          'FSSAI_image',
+          'certificate_of_incorporation_image',
+          'MSME_or_Udyam_certificate_image',
+          'MOA_image',
+          'AOA_image',
+          'Trademark_certificate_image',
+          'Authorized_Signatory_image',
+          'LLP_agreement_image',
+          'Shop_and_Establishment_certificate_image',
+          'Registered_Partnership_deed_image',
+          'Board_resolution_image'
+        ];
 
-        // Handle GST certificate image update
-        if (files['gst_certificate_image']) {
-          const file = files['gst_certificate_image'][0];
-          updateData.gst_certificate_image = {
-            image_name: file.originalname,
-            file_url: file.path,
-            cloudinary_public_id: file.filename,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-          };
-        }
+        for (const fieldName of updatableDocumentFields) {
+          if (files[fieldName] && files[fieldName][0]) {
+            const file = files[fieldName][0];
+            const documentType = VendorController.mapFieldNameToDocumentType(fieldName);
 
-        // Handle PAN image update
-        if (files['PAN_image']) {
-          const file = files['PAN_image'][0];
-          updateData.PAN_image = {
-            image_name: file.originalname,
-            file_url: file.path,
-            cloudinary_public_id: file.filename,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-          };
-        }
+            if (documentType) {
+              try {
+                // Get current brand to use for folder naming
+                let currentBrand;
+                if (mongoose.Types.ObjectId.isValid(brand_id) && brand_id.length === 24) {
+                  currentBrand = await BrandCreate.findById(brand_id);
+                } else {
+                  currentBrand = await BrandCreate.findOne({ brand_id: brand_id });
+                }
 
-        // Handle FSSAI image update
-        if (files['FSSAI_image']) {
-          const file = files['FSSAI_image'][0];
-          updateData.FSSAI_image = {
-            image_name: file.originalname,
-            file_url: file.path,
-            cloudinary_public_id: file.filename,
-            file_size: file.size,
-            mime_type: file.mimetype,
-            uploaded_at: new Date(),
-          };
+                let folderPath;
+                if (currentBrand) {
+                  const company = await CompanyCreate.findById(currentBrand.company_id);
+                  folderPath = company ?
+                    `${company.registered_company_name}/${currentBrand.brand_name}` :
+                    `brands/${currentBrand.brand_id}`;
+                }
+
+                // Upload to Cloudinary
+                const result = await imageUploadService.uploadDocument(
+                  file,
+                  documentType,
+                  folderPath
+                );
+
+                updateData[fieldName] = result;
+              } catch (uploadError: any) {
+                logger.error(`Failed to upload ${fieldName} for brand update:`, uploadError);
+                res.status(500).json({
+                  success: false,
+                  message: `Failed to upload ${fieldName}: ${uploadError.message}`,
+                });
+                return;
+              }
+            }
+          }
         }
       }
 
-      const updatedBrand = await brandService.updateBrandByBrandId(
+      const updatedBrand = await brandService.updateBrandById(
         brand_id,
         updateData,
         userId,
@@ -1694,8 +1751,8 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
   }
 
   /**
-   * Delete brand by brand_id
-   */
+ * Delete brand by brand_id (handles both MongoDB _id and custom brand_id)
+ */
   public static async deleteBrand(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -1711,7 +1768,7 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
         return;
       }
 
-      const deletedBrand = await brandService.deleteBrandByBrandId(
+      const deletedBrand = await brandService.deleteBrandById(
         brand_id,
         userId,
         userEmail,
@@ -1900,61 +1957,69 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
   }
 
   /**
-   * Get audit trail for a specific brand by brand_id
-   */
-  public static async getBrandAuditTrail(req: Request, res: Response): Promise<void> {
-    try {
-      const { brand_id } = req.params;
-      const { page = 1, limit = 50 } = req.query;
+ * Get audit trail for a specific brand by identifier (handles both MongoDB _id and custom brand_id)
+ */
+public static async getBrandAuditTrail(req: Request, res: Response): Promise<void> {
+  try {
+    const { brand_id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
 
-      if (!brand_id || brand_id.trim() === "") {
-        res.status(400).json({
-          success: false,
-          message: "Brand ID is required",
-        });
-        return;
-      }
-
-      // Get brand by brand_id
-      const brand = await brandService.getBrandByBrandId(brand_id);
-      if (!brand) {
-        res.status(404).json({
-          success: false,
-          message: "Brand not found",
-        });
-        return;
-      }
-
-      const auditData = await auditTrailService.getBrandAuditTrails(
-        brand._id.toString(),
-        Number(page),
-        Number(limit)
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Brand audit trail retrieved successfully",
-        data: auditData,
-      });
-    } catch (error) {
-      logger.error("Error fetching brand audit trail:", error);
-      res.status(500).json({
+    if (!brand_id || brand_id.trim() === "") {
+      res.status(400).json({
         success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
+        message: "Brand ID is required",
       });
+      return;
     }
-  }
 
+    let brand;
+    
+    // Check if it's MongoDB ObjectId or custom brand_id
+    if (mongoose.Types.ObjectId.isValid(brand_id) && brand_id.length === 24) {
+      // It's MongoDB ObjectId
+      brand = await brandService.getBrandById(brand_id);
+    } else {
+      // It's custom brand_id
+      brand = await brandService.getBrandByBrandId(brand_id);
+    }
+
+    if (!brand) {
+      res.status(404).json({
+        success: false,
+        message: "Brand not found",
+      });
+      return;
+    }
+
+    const auditData = await auditTrailService.getBrandAuditTrails(
+      brand._id.toString(),
+      Number(page),
+      Number(limit)
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Brand audit trail retrieved successfully",
+      data: auditData,
+    });
+  } catch (error) {
+    logger.error("Error fetching brand audit trail:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
   /**
-   * Export brands data
-   */
+ * Export brands data
+ */
   public static async exportBrands(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      // Only super admin and vendor admin can export
+      // Only authorized roles can export
       if (!["super_admin", "vendor_admin", "brand_manager"].includes(userRole)) {
         res.status(403).json({
           success: false,
@@ -1966,6 +2031,16 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
       const { format = "csv", filters } = req.query;
       const filterData = filters ? JSON.parse(filters as string) : {};
 
+      // Validate format
+      const validFormats = ["csv", "json", "excel"];
+      if (!validFormats.includes(format as string)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid format. Must be one of: ${validFormats.join(", ")}`,
+        });
+        return;
+      }
+
       const exportData = await brandService.exportBrands(
         format as string,
         filterData,
@@ -1973,15 +2048,16 @@ private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[]
       );
 
       // Set headers based on format
+      const timestamp = Date.now();
       if (format === "csv") {
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", `attachment; filename=brands_${Date.now()}.csv`);
+        res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.csv`);
       } else if (format === "json") {
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename=brands_${Date.now()}.json`);
+        res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.json`);
       } else if (format === "excel") {
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", `attachment; filename=brands_${Date.now()}.xlsx`);
+        res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.xlsx`);
       }
 
       res.status(200).send(exportData);
@@ -2013,39 +2089,47 @@ public static async exportBrandById(req: Request, res: Response): Promise<void> 
     }
 
     const { brand_id } = req.params;
-    const { format = "csv" } = req.query; // Changed default to CSV
+    const { format = "csv" } = req.query;
 
+    // Basic validation
     if (!brand_id || brand_id.trim() === "") {
       res.status(400).json({
         success: false,
-        message: "Brand ID is required",
+        message: "Brand ID is required"
       });
       return;
     }
 
     // Validate format
-    if (!["csv", "json"].includes(format as string)) {
+    const validFormats = ["csv", "json", "pdf"];
+    if (!validFormats.includes(format as string)) {
       res.status(400).json({
         success: false,
-        message: "Invalid format. Only 'csv' and 'json' are supported",
+        message: `Invalid format. Must be one of: ${validFormats.join(", ")}`,
       });
       return;
     }
 
+    // Pass the brand_id as string - the service will handle both ObjectId and custom brand_id
     const exportData = await brandService.exportBrandById(
-      brand_id,
+      brand_id, // Pass as string, not ObjectId
       format as string,
       userId
     );
 
     // Set headers based on format
     const timestamp = Date.now();
+    const filename = `brand_${brand_id}_export_${timestamp}`;
+    
     if (format === "csv") {
       res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", `attachment; filename=brand_${brand_id}_${timestamp}.csv`);
+      res.setHeader("Content-Disposition", `attachment; filename=${filename}.csv`);
     } else if (format === "json") {
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename=brand_${brand_id}_${timestamp}.json`);
+      res.setHeader("Content-Disposition", `attachment; filename=${filename}.json`);
+    } else if (format === "pdf") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=${filename}.pdf`);
     }
 
     res.status(200).send(exportData);
@@ -2053,10 +2137,19 @@ public static async exportBrandById(req: Request, res: Response): Promise<void> 
     logger.error("Error exporting brand by ID:", error);
 
     if (error instanceof Error) {
-      if (error.message.includes("not found")) {
+      if (error.message.includes("not found") || error.message.includes("does not exist")) {
         res.status(404).json({
           success: false,
-          message: error.message,
+          message: "Brand not found with the provided ID"
+        });
+        return;
+      }
+
+      // Handle MongoDB-specific errors
+      if (error.name === 'CastError' || error.message.includes('Cast to ObjectId failed')) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Brand ID format"
         });
         return;
       }
@@ -2064,7 +2157,47 @@ public static async exportBrandById(req: Request, res: Response): Promise<void> 
 
     res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: "Internal server error while exporting brand data",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+/**
+ * Get comprehensive company dashboard data
+ * Includes total companies, inactive companies, and detailed company list with brand counts
+ */
+public static async getCompanyDashboard(req: Request, res: Response): Promise<void> {
+  try {
+    const { 
+      page = 1, 
+      limit = 10,
+      company_status,
+      legal_entity_structure,
+      registration_type,
+      search
+    } = req.query;
+
+    const result = await companyService.getCompanyDashboard({
+      page: Number(page),
+      limit: Number(limit),
+      company_status: company_status as string,
+      legal_entity_structure: legal_entity_structure as string,
+      registration_type: registration_type as string,
+      search: search as string
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Company dashboard data retrieved successfully",
+      data: result.data,
+      statistics: result.statistics,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    logger.error("Error fetching company dashboard:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while fetching dashboard data",
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }
