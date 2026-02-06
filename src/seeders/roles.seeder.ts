@@ -14,20 +14,8 @@ export const seedRoles = async (
   departmentMap: { [key: string]: Types.ObjectId }
 ): Promise<{ [key: string]: Types.ObjectId }> => {
   try {
-    // Debug: Log all departments that were seeded
-    logger.info("Department map received:", {
-      departmentCount: Object.keys(departmentMap).length,
-      departmentKeys: Object.keys(departmentMap),
-      departmentValues: Object.values(departmentMap).map(id => id.toString())
-    });
-
-    // Check if FIELD_OPERATIONS exists in departmentMap
-    if (!departmentMap[DepartmentName.FIELD_OPERATIONS]) {
-      logger.warn(`⚠️ FIELD_OPERATIONS department not found in departmentMap! Available departments:`);
-      Object.keys(departmentMap).forEach(key => {
-        logger.warn(`  - ${key}: ${departmentMap[key]?.toString()}`);
-      });
-    }
+    
+    
 
     const existingCount = await Role.countDocuments();
     const existingRoles = await Role.find();
@@ -57,7 +45,7 @@ export const seedRoles = async (
       systemRole => !existingSystemRoles.includes(systemRole)
     );
 
-    logger.info(`Missing system roles: ${missingSystemRoles.join(', ')}`);
+   
 
     // Define role configurations for all system roles with FALLBACK departments
     const roleConfigs: { [key in SystemRole]?: any } = {
@@ -333,9 +321,7 @@ export const seedRoles = async (
       }
     });
 
-    // Log summary
-    logger.info(`Total roles: ${allRoles.length}, Existing: ${existingRoles.length}, New: ${newlyCreatedRoles.length}`);
-
+    
     return roleMap;
   } catch (error) {
     logger.error("Error seeding roles:", error);

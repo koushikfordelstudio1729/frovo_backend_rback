@@ -4,6 +4,7 @@ import { CompanyCreate, ICompanyCreate, BrandCreate, IBrandCreate } from "../mod
 import { AuditTrailService } from "./auditTrail.service";
 import { logger } from "../utils/logger.util";
 import { ImageUploadService } from "./vendorFileUpload.service";
+import { AuditTrail } from "../models/AuditTrail.model";
 
 const auditTrailService = new AuditTrailService();
 
@@ -49,6 +50,26 @@ export interface ICompanyDashboardResponse {
     totalPages: number;
   };
 }
+
+// Type for lean company documents (without Mongoose Document methods)
+export type LeanCompany = {
+  _id: mongoose.Types.ObjectId;
+  company_id: string;
+  legal_entity_structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
+  registered_company_name: string;
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
+  date_of_incorporation: Date;
+  registered_office_address: string;
+  corporate_website: string;
+  official_email: string;
+  directory_signature_name: string;
+  din: string;
+  company_status: "active" | "inactive";
+  createdAt: Date;
+  updatedAt: Date;
+  __v: number;
+};
 
 export interface ICompanyCreateData {
   registered_company_name: string;
@@ -363,63 +384,6 @@ export class CompanyService {
     }
   }
 
-  // Toggle company status (active/inactive) by company_id
-  async toggleCompanyStatus(
-    companyId: string,
-    updatedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<ICompanyCreate> {
-    try {
-      // Get current company
-      const currentCompany = await CompanyCreate.findOne({ company_id: companyId });
-
-      if (!currentCompany) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      // Toggle the status
-      const newStatus = currentCompany.company_status === "active" ? "inactive" : "active";
-
-      // Update company status
-      const updatedCompany = await CompanyCreate.findOneAndUpdate(
-        { company_id: companyId },
-        { $set: { company_status: newStatus } },
-        { new: true, runValidators: true }
-      ).lean() as unknown as ICompanyCreate;
-
-      if (!updatedCompany) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: updatedBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "update",
-          action_description: `Toggled company status from ${currentCompany.company_status} to ${newStatus}: ${currentCompany.registered_company_name}`,
-          target_type: "company",
-          target_company: currentCompany._id,
-          target_company_name: currentCompany.registered_company_name,
-          target_company_cin: currentCompany.cin_or_msme_number,
-          before_state: { company_status: currentCompany.company_status },
-          after_state: { company_status: newStatus },
-          changed_fields: ["company_status"],
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(`Company status toggled: ${updatedCompany.registered_company_name} (Company ID: ${companyId}) - ${currentCompany.company_status} -> ${newStatus}`);
-      return updatedCompany;
-    } catch (error) {
-      logger.error(`Error toggling company status ${companyId}:`, error);
-      throw error;
-    }
-  }
 
   // Export companies data
   async exportCompanies(
@@ -492,30 +456,47 @@ export class CompanyService {
     }
   }
 
-  // Export single company data by company_id
-  async exportCompanyById(
-    companyId: string,
-    format: string,
-    userId: Types.ObjectId
+  /**
+ * Get audit trails for a company by MongoDB ObjectId
+ */
+  async getCompanyAuditTrails(
+    companyId: string, // MongoDB ObjectId
+    page: number = 1,
+    limit: number = 50
   ): Promise<any> {
     try {
-      const company = await CompanyCreate.findOne({ company_id: companyId }).lean();
-
-      if (!company) {
-        throw new Error(`Company with ID ${companyId} not found`);
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
       }
 
-      if (format === "json") {
-        return JSON.stringify(company, null, 2);
-      }
+      const skip = (page - 1) * limit;
 
-      return company;
+      // Query audit trails by company MongoDB ObjectId
+      const query = { target_company: new mongoose.Types.ObjectId(companyId) };
+
+      const total = await AuditTrail.countDocuments(query);
+
+      const auditTrails = await AuditTrail.find(query)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      return {
+        data: auditTrails,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
     } catch (error) {
-      logger.error(`Error exporting company ${companyId}:`, error);
+      logger.error(`Error fetching company audit trails for ${companyId}:`, error);
       throw error;
     }
   }
-
   // ============================================
   // All the existing methods from your original service
   // ============================================
@@ -660,7 +641,82 @@ export class CompanyService {
       throw error;
     }
   }
+  // In CompanyService class
+  async toggleCompanyStatus(
+    companyId: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<LeanCompany | null> {
+    try {
+      console.log('Service: toggleCompanyStatus called with:', companyId);
 
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      // Convert to ObjectId
+      const objectId = new mongoose.Types.ObjectId(companyId);
+
+      // Get current company
+      const currentCompany = await CompanyCreate.findById(objectId);
+      console.log('Service: Current company found:', currentCompany ? 'Yes' : 'No');
+
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      // Toggle status
+      const newStatus = currentCompany.company_status === "active" ? "inactive" : "active";
+      console.log('Service: Toggling status from', currentCompany.company_status, 'to', newStatus);
+
+      // Update company
+      const updatedCompany = await CompanyCreate.findByIdAndUpdate(
+        objectId,
+        { $set: { company_status: newStatus } },
+        { new: true, runValidators: true }
+      ).lean() as unknown as LeanCompany | null;
+
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found after update`);
+      }
+
+      console.log('Service: Company updated successfully');
+
+      // Create audit trail if request is provided
+      if (req && auditTrailService) {
+        try {
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action: "update",
+            action_description: `Toggled company status from ${currentCompany.company_status} to ${newStatus}: ${currentCompany.registered_company_name}`,
+            target_type: "company",
+            target_company: currentCompany._id,
+            target_company_name: currentCompany.registered_company_name,
+            target_company_cin: currentCompany.cin_or_msme_number,
+            before_state: { company_status: currentCompany.company_status },
+            after_state: { company_status: newStatus },
+            changed_fields: ["company_status"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+          console.log('Service: Audit trail created');
+        } catch (auditError) {
+          console.error('Service: Failed to create audit trail:', auditError);
+          // Don't throw error for audit trail failure
+        }
+      }
+
+      return updatedCompany;
+    } catch (error) {
+      console.error('Service: Error in toggleCompanyStatus:', error);
+      throw error;
+    }
+  }
   async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
     try {
       const {
@@ -774,6 +830,7 @@ export class CompanyService {
     }
   }
 
+  // Get company by MongoDB ObjectId (should already exist)
   async getCompanyById(id: string): Promise<ICompanyCreate | null> {
     try {
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -792,7 +849,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async getCompanyByRegistrationNumber(registrationNumber: string): Promise<ICompanyCreate | null> {
     try {
       const company = await CompanyCreate.findOne({
@@ -985,7 +1041,84 @@ export class CompanyService {
       throw error;
     }
   }
+  /**
+   * Export single company data by MongoDB ObjectId
+   */
+  async exportCompanyById(
+    companyId: string, // MongoDB ObjectId
+    format: string,
+    userId: Types.ObjectId
+  ): Promise<any> {
+    try {
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
 
+      const company = await CompanyCreate.findById(companyId).lean();
+
+      if (!company) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      if (format === "json") {
+        return JSON.stringify(company, null, 2);
+      } else if (format === "csv") {
+        // Convert single company to CSV format
+        const companyData = company as any;
+
+        // Define CSV headers
+        const headers = [
+          "Field",
+          "Value"
+        ];
+
+        // Flatten company data into key-value pairs
+        const csvRows = [];
+
+        // Add basic company info
+        csvRows.push(["Company ID", companyData.company_id || ""]);
+        csvRows.push(["Registered Company Name", companyData.registered_company_name || ""]);
+        csvRows.push(["Official Email", companyData.official_email || ""]);
+        csvRows.push(["Legal Entity Structure", companyData.legal_entity_structure || ""]);
+        csvRows.push(["Registration Type", companyData.registration_type || ""]);
+        csvRows.push(["CIN/MSME Number", companyData.cin_or_msme_number || ""]);
+        csvRows.push(["Date of Incorporation", companyData.date_of_incorporation ?
+          new Date(companyData.date_of_incorporation).toISOString().split('T')[0] : ""]);
+        csvRows.push(["Registered Office Address", companyData.registered_office_address || ""]);
+        csvRows.push(["Corporate Website", companyData.corporate_website || ""]);
+        csvRows.push(["Directory Signature Name", companyData.directory_signature_name || ""]);
+        csvRows.push(["DIN", companyData.din || ""]);
+        csvRows.push(["Company Status", companyData.company_status || ""]);
+        csvRows.push(["Created At", companyData.createdAt ?
+          new Date(companyData.createdAt).toISOString() : ""]);
+        csvRows.push(["Updated At", companyData.updatedAt ?
+          new Date(companyData.updatedAt).toISOString() : ""]);
+
+        // Convert to CSV string
+        const csvContent = [
+          headers.join(','),
+          ...csvRows.map(row =>
+            row.map(cell => {
+              // Escape commas and quotes in cell values
+              const cellStr = String(cell);
+              if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                return `"${cellStr.replace(/"/g, '""')}"`;
+              }
+              return cellStr;
+            }).join(',')
+          )
+        ].join('\n');
+
+        return csvContent;
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error exporting company ${companyId}:`, error);
+      throw error;
+    }
+  }
   async getCompanyStatistics(): Promise<any> {
     try {
       const totalCompanies = await CompanyCreate.countDocuments();
@@ -2418,110 +2551,110 @@ export class BrandService {
       throw error;
     }
   }
-/**
- * Toggle brand verification status
- * Cycles through: pending -> verified -> rejected -> pending
- */
-async toggleBrandVerificationStatus(
-  brandIdentifier: string,
-  updatedBy: Types.ObjectId,
-  userEmail: string,
-  userRole: string,
-  req?: Request
-): Promise<IBrandCreate | null> {
-  try {
-    let currentBrand;
-    let query: any;
-    
-    // Determine query based on identifier type
-    if (mongoose.Types.ObjectId.isValid(brandIdentifier) && 
+  /**
+   * Toggle brand verification status
+   * Cycles through: pending -> verified -> rejected -> pending
+   */
+  async toggleBrandVerificationStatus(
+    brandIdentifier: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      let currentBrand;
+      let query: any;
+
+      // Determine query based on identifier type
+      if (mongoose.Types.ObjectId.isValid(brandIdentifier) &&
         brandIdentifier.length === 24 &&
         brandIdentifier.match(/^[0-9a-fA-F]{24}$/)) {
-      // It's a MongoDB ObjectId
-      query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
-    } else {
-      // It's a custom brand_id
-      query = { brand_id: brandIdentifier };
+        // It's a MongoDB ObjectId
+        query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
+      } else {
+        // It's a custom brand_id
+        query = { brand_id: brandIdentifier };
+      }
+
+      // Get current brand
+      currentBrand = await BrandCreate.findOne(query);
+
+      if (!currentBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Determine next verification status
+      const currentStatus = currentBrand.verification_status;
+      let nextStatus: "pending" | "verified" | "rejected";
+      let verificationNotes = "";
+
+      // Cycle: pending -> verified -> rejected -> pending
+      switch (currentStatus) {
+        case "pending":
+          nextStatus = "verified";
+          verificationNotes = "Brand verified by system administrator";
+          break;
+        case "verified":
+          nextStatus = "rejected";
+          verificationNotes = "Brand rejected by system administrator";
+          break;
+        case "rejected":
+          nextStatus = "pending";
+          verificationNotes = "Brand status reset to pending";
+          break;
+        default:
+          nextStatus = "pending";
+          verificationNotes = "Brand status set to pending";
+      }
+
+      // Update verification status
+      const updateData = {
+        verification_status: nextStatus,
+        ...(nextStatus === "verified" ? { verified_by: updatedBy } : {}),
+      };
+
+      const updatedBrand = await BrandCreate.findOneAndUpdate(
+        query,
+        { $set: updateData },
+        { new: true, runValidators: true }
+      )
+        .populate("company_id", "company_id registered_company_name official_email")
+        .populate("verified_by", "email name role")
+        .populate("createdBy", "email name")
+        .lean() as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "toggle_verification",
+          action_description: `Toggled brand verification status from ${currentStatus} to ${nextStatus}: ${currentBrand.brand_name}`,
+          target_type: "brand",
+          target_brand: currentBrand._id,
+          target_brand_name: currentBrand.brand_name,
+          target_company: currentBrand.company_id,
+          before_state: { verification_status: currentStatus },
+          after_state: { verification_status: nextStatus },
+          changed_fields: ["verification_status"],
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand verification status toggled: ${currentBrand.brand_name} from ${currentStatus} to ${nextStatus}`);
+      return updatedBrand;
+    } catch (error) {
+      logger.error(`Error toggling brand verification status ${brandIdentifier}:`, error);
+      throw error;
     }
-    
-    // Get current brand
-    currentBrand = await BrandCreate.findOne(query);
-    
-    if (!currentBrand) {
-      throw new Error(`Brand with identifier ${brandIdentifier} not found`);
-    }
-
-    // Determine next verification status
-    const currentStatus = currentBrand.verification_status;
-    let nextStatus: "pending" | "verified" | "rejected";
-    let verificationNotes = "";
-
-    // Cycle: pending -> verified -> rejected -> pending
-    switch (currentStatus) {
-      case "pending":
-        nextStatus = "verified";
-        verificationNotes = "Brand verified by system administrator";
-        break;
-      case "verified":
-        nextStatus = "rejected";
-        verificationNotes = "Brand rejected by system administrator";
-        break;
-      case "rejected":
-        nextStatus = "pending";
-        verificationNotes = "Brand status reset to pending";
-        break;
-      default:
-        nextStatus = "pending";
-        verificationNotes = "Brand status set to pending";
-    }
-
-    // Update verification status
-    const updateData = {
-      verification_status: nextStatus,
-      ...(nextStatus === "verified" ? { verified_by: updatedBy } : {}),
-    };
-
-    const updatedBrand = await BrandCreate.findOneAndUpdate(
-      query,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    )
-      .populate("company_id", "company_id registered_company_name official_email")
-      .populate("verified_by", "email name role")
-      .populate("createdBy", "email name")
-      .lean() as unknown as IBrandCreate | null;
-
-    if (!updatedBrand) {
-      throw new Error(`Brand with identifier ${brandIdentifier} not found`);
-    }
-
-    // Create audit trail
-    if (req) {
-      await auditTrailService.createAuditRecord({
-        user: updatedBy,
-        user_email: userEmail,
-        user_role: userRole,
-        action: "toggle_verification",
-        action_description: `Toggled brand verification status from ${currentStatus} to ${nextStatus}: ${currentBrand.brand_name}`,
-        target_type: "brand",
-        target_brand: currentBrand._id,
-        target_brand_name: currentBrand.brand_name,
-        target_company: currentBrand.company_id,
-        before_state: { verification_status: currentStatus },
-        after_state: { verification_status: nextStatus },
-        changed_fields: ["verification_status"],
-        ip_address: req.ip,
-        user_agent: req.get("User-Agent"),
-      });
-    }
-
-    logger.info(`Brand verification status toggled: ${currentBrand.brand_name} from ${currentStatus} to ${nextStatus}`);
-    return updatedBrand;
-  } catch (error) {
-    logger.error(`Error toggling brand verification status ${brandIdentifier}:`, error);
-    throw error;
   }
-}
   /**
    * Generate PDF for a brand
    */
@@ -2590,33 +2723,43 @@ async toggleBrandVerificationStatus(
       throw new Error('Failed to generate PDF');
     }
   }
+
+  /**
+ * Toggle company status (active/inactive) by MongoDB ObjectId
+ */
   async toggleCompanyStatus(
-    companyId: string,
+    companyId: string, // MongoDB ObjectId
     updatedBy: Types.ObjectId,
     userEmail: string,
     userRole: string,
     req?: Request
-  ): Promise<ICompanyCreate | null> {
+  ): Promise<ICompanyCreate> {
     try {
-      // Find the company by company_id
-      const company = await CompanyCreate.findOne({ company_id: companyId });
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
 
-      if (!company) {
+      // Get current company by MongoDB ObjectId
+      const currentCompany = await CompanyCreate.findById(companyId);
+
+      if (!currentCompany) {
         throw new Error(`Company with ID ${companyId} not found`);
       }
 
-      // Get current status
-      const currentStatus = company.company_status;
-
       // Toggle the status
-      const newStatus = currentStatus === "active" ? "inactive" : "active";
+      const newStatus = currentCompany.company_status === "active" ? "inactive" : "active";
 
-      // Save the old state for audit trail
-      const oldState = company.toObject();
+      // Update company status
+      const updatedCompany = await CompanyCreate.findByIdAndUpdate(
+        companyId,
+        { $set: { company_status: newStatus } },
+        { new: true, runValidators: true }
+      ).lean() as unknown as ICompanyCreate;
 
-      // Update the status
-      company.company_status = newStatus;
-      await company.save();
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
 
       // Create audit trail
       if (req) {
@@ -2624,13 +2767,13 @@ async toggleBrandVerificationStatus(
           user: updatedBy,
           user_email: userEmail,
           user_role: userRole,
-          action: "toggle_status",
-          action_description: `Toggled company status from ${currentStatus} to ${newStatus}`,
+          action: "update",
+          action_description: `Toggled company status from ${currentCompany.company_status} to ${newStatus}: ${currentCompany.registered_company_name}`,
           target_type: "company",
-          target_company: company._id,
-          target_company_name: company.registered_company_name,
-          target_company_cin: company.cin_or_msme_number,
-          before_state: { company_status: currentStatus },
+          target_company: currentCompany._id,
+          target_company_name: currentCompany.registered_company_name,
+          target_company_cin: currentCompany.cin_or_msme_number,
+          before_state: { company_status: currentCompany.company_status },
           after_state: { company_status: newStatus },
           changed_fields: ["company_status"],
           ip_address: req.ip,
@@ -2638,12 +2781,7 @@ async toggleBrandVerificationStatus(
         });
       }
 
-      logger.info(`Company status toggled: ${company.registered_company_name} from ${currentStatus} to ${newStatus}`);
-
-      // Return the updated company
-      const updatedCompany = await CompanyCreate.findOne({ company_id: companyId })
-        .lean() as unknown as ICompanyCreate;
-
+      logger.info(`Company status toggled: ${updatedCompany.registered_company_name} (ID: ${companyId}) - ${currentCompany.company_status} -> ${newStatus}`);
       return updatedCompany;
     } catch (error) {
       logger.error(`Error toggling company status ${companyId}:`, error);

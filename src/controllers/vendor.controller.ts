@@ -259,15 +259,14 @@ export class VendorController {
       });
     }
   }
-
   /**
-   * Get company by company_id (7-digit ID)
+   * Get company by MongoDB ObjectId
    */
   public static async getCompanyById(req: Request, res: Response): Promise<void> {
     try {
-      const { company_id } = req.params;
+      const { id } = req.params;
 
-      if (!company_id || company_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Company ID is required",
@@ -275,7 +274,16 @@ export class VendorController {
         return;
       }
 
-      const company = await companyService.getCompanyByCompanyId(company_id);
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
+        });
+        return;
+      }
+
+      const company = await companyService.getCompanyById(id);
 
       res.status(200).json({
         success: true,
@@ -304,20 +312,29 @@ export class VendorController {
   }
 
   /**
- * Update company by company_id
- */
+   * Update company by MongoDB ObjectId
+   */
   public static async updateCompany(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      const { company_id } = req.params;
+      const { id } = req.params; // Changed from company_id to id
       const updateData = req.body;
 
-      if (!company_id || company_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Company ID is required",
+        });
+        return;
+      }
+
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
         });
         return;
       }
@@ -343,6 +360,14 @@ export class VendorController {
         return;
       }
 
+      // Get current company for validation
+      let currentCompany: any = null;
+      try {
+        currentCompany = await companyService.getCompanyById(id);
+      } catch (error) {
+        // Company not found, will be caught later
+      }
+
       // If both legal_entity_structure and registration_type are being updated, validate their relationship
       if (updateData.legal_entity_structure && updateData.registration_type) {
         const cinRequiredStructures = ["pvt", "public", "opc"];
@@ -365,53 +390,45 @@ export class VendorController {
         }
       }
       // If only legal_entity_structure is being updated, we need to check existing registration_type
-      else if (updateData.legal_entity_structure) {
-        // Get current company to check existing registration_type
-        const currentCompany = await companyService.getCompanyByCompanyId(company_id);
-        if (currentCompany) {
-          const cinRequiredStructures = ["pvt", "public", "opc"];
-          const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
+      else if (updateData.legal_entity_structure && currentCompany) {
+        const cinRequiredStructures = ["pvt", "public", "opc"];
+        const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-          if (cinRequiredStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "cin") {
-            res.status(400).json({
-              success: false,
-              message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'cin'`,
-            });
-            return;
-          }
+        if (cinRequiredStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "cin") {
+          res.status(400).json({
+            success: false,
+            message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'cin'`,
+          });
+          return;
+        }
 
-          if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "msme") {
-            res.status(400).json({
-              success: false,
-              message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'msme'`,
-            });
-            return;
-          }
+        if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "msme") {
+          res.status(400).json({
+            success: false,
+            message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'msme'`,
+          });
+          return;
         }
       }
       // If only registration_type is being updated, we need to check existing legal_entity_structure
-      else if (updateData.registration_type) {
-        // Get current company to check existing legal_entity_structure
-        const currentCompany = await companyService.getCompanyByCompanyId(company_id);
-        if (currentCompany) {
-          const cinRequiredStructures = ["pvt", "public", "opc"];
-          const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
+      else if (updateData.registration_type && currentCompany) {
+        const cinRequiredStructures = ["pvt", "public", "opc"];
+        const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-          if (cinRequiredStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "cin") {
-            res.status(400).json({
-              success: false,
-              message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
-            });
-            return;
-          }
+        if (cinRequiredStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "cin") {
+          res.status(400).json({
+            success: false,
+            message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
+          });
+          return;
+        }
 
-          if (msmeAllowedStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "msme") {
-            res.status(400).json({
-              success: false,
-              message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
-            });
-            return;
-          }
+        if (msmeAllowedStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "msme") {
+          res.status(400).json({
+            success: false,
+            message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
+          });
+          return;
         }
       }
 
@@ -456,8 +473,8 @@ export class VendorController {
         }
       }
 
-      const updatedCompany = await companyService.updateCompanyByCompanyId(
-        company_id,
+      const updatedCompany = await companyService.updateCompany(
+        id,
         updateData,
         userId,
         userEmail,
@@ -516,16 +533,16 @@ export class VendorController {
   }
 
   /**
-   * Delete company by company_id
+   * Delete company by MongoDB ObjectId
    */
   public static async deleteCompany(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      const { company_id } = req.params;
+      const { id } = req.params; // Changed from company_id to id
 
-      if (!company_id || company_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Company ID is required",
@@ -533,8 +550,17 @@ export class VendorController {
         return;
       }
 
-      const deletedCompany = await companyService.deleteCompanyByCompanyId(
-        company_id,
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
+        });
+        return;
+      }
+
+      const deletedCompany = await companyService.deleteCompany(
+        id,
         userId,
         userEmail,
         userRole,
@@ -589,52 +615,6 @@ export class VendorController {
     }
   }
 
-  /**
-   * Get audit trail for a specific company by company_id
-   */
-  public static async getCompanyAuditTrail(req: Request, res: Response): Promise<void> {
-    try {
-      const { company_id } = req.params;
-      const { page = 1, limit = 50 } = req.query;
-
-      if (!company_id || company_id.trim() === "") {
-        res.status(400).json({
-          success: false,
-          message: "Company ID is required",
-        });
-        return;
-      }
-
-      // Get company by company_id
-      const company = await companyService.getCompanyByCompanyId(company_id);
-      if (!company) {
-        res.status(404).json({
-          success: false,
-          message: "Company not found",
-        });
-        return;
-      }
-
-      const auditData = await auditTrailService.getCompanyAuditTrails(
-        company._id.toString(),
-        Number(page),
-        Number(limit)
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Company audit trail retrieved successfully",
-        data: auditData,
-      });
-    } catch (error) {
-      logger.error("Error fetching company audit trail:", error);
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
 
   /**
    * Get all company audit trails (for super admin)
@@ -758,8 +738,87 @@ export class VendorController {
   }
 
   /**
- * Export single company data by company_id
+ * Get audit trail for a specific company by MongoDB ObjectId
  */
+  public static async getCompanyAuditTrail(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params; // Changed from company_id to id
+      const { page = 1, limit = 50, format = "json" } = req.query;
+
+      if (!id || id.trim() === "") {
+        res.status(400).json({
+          success: false,
+          message: "Company ID is required",
+        });
+        return;
+      }
+
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
+        });
+        return;
+      }
+
+      // Validate format if provided
+      if (format && !["json", "csv"].includes(format as string)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid format. Must be 'json' or 'csv'",
+        });
+        return;
+      }
+
+      // Get company by MongoDB ObjectId
+      const company = await companyService.getCompanyById(id);
+      if (!company) {
+        res.status(404).json({
+          success: false,
+          message: "Company not found",
+        });
+        return;
+      }
+
+      const auditData = await auditTrailService.getCompanyAuditTrails(
+        id, // Pass MongoDB ObjectId directly
+        Number(page),
+        Number(limit)
+      );
+
+      // Handle CSV format
+      if (format === "csv") {
+        const csvContent = VendorController.convertAuditTrailToCSV(auditData);
+
+        const timestamp = Date.now();
+        const filename = `company_audit_${company.company_id}_${timestamp}.csv`;
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+        res.status(200).send(csvContent);
+        return;
+      }
+
+      // Default: JSON response
+      res.status(200).json({
+        success: true,
+        message: "Company audit trail retrieved successfully",
+        data: auditData,
+      });
+    } catch (error) {
+      logger.error("Error fetching company audit trail:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Export single company data by MongoDB ObjectId
+   */
   public static async exportCompanyById(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
@@ -774,13 +833,22 @@ export class VendorController {
         return;
       }
 
-      const { company_id } = req.params;
-      const { format = "csv" } = req.query; // Changed default to CSV
+      const { id } = req.params; // Changed from company_id to id
+      const { format = "csv" } = req.query;
 
-      if (!company_id || company_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Company ID is required",
+        });
+        return;
+      }
+
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
         });
         return;
       }
@@ -795,19 +863,23 @@ export class VendorController {
       }
 
       const exportData = await companyService.exportCompanyById(
-        company_id,
+        id, // Pass MongoDB ObjectId
         format as string,
         userId
       );
+
+      // Get company for filename
+      const company = await companyService.getCompanyById(id);
+      const companyIdForFilename = company?.company_id || id;
 
       // Set headers based on format
       const timestamp = Date.now();
       if (format === "csv") {
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.csv`);
+        res.setHeader("Content-Disposition", `attachment; filename=company_${companyIdForFilename}_${timestamp}.csv`);
       } else if (format === "json") {
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename=company_${company_id}_${timestamp}.json`);
+        res.setHeader("Content-Disposition", `attachment; filename=company_${companyIdForFilename}_${timestamp}.json`);
       }
 
       res.status(200).send(exportData);
@@ -818,7 +890,7 @@ export class VendorController {
         if (error.message.includes("not found")) {
           res.status(404).json({
             success: false,
-            message: error.message,
+            message: "Company not found",
           });
           return;
         }
@@ -831,80 +903,114 @@ export class VendorController {
       });
     }
   }
-  /**
-   * Toggle company status (active/inactive)
-   */
-  public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-      const userRole = roles[0]?.key || "unknown";
 
-      // Only vendor management roles can toggle company status
-      if (!["super_admin", "vendor_admin"].includes(userRole)) {
-        res.status(403).json({
+ /**
+ * Toggle company status (active/inactive) by MongoDB ObjectId
+ */
+public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('toggleCompanyStatus called with params:', req.params);
+    
+    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+    const userRole = roles[0]?.key || "unknown";
+
+    console.log('User info:', { userId, userEmail, userRole });
+
+    // Only vendor management roles can toggle company status
+    if (!["super_admin", "vendor_admin"].includes(userRole)) {
+      console.log('Access denied for user role:', userRole);
+      res.status(403).json({
+        success: false,
+        message: "Access denied. Only super admin and vendor admin can toggle company status",
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    console.log('Company ID received:', id);
+
+    if (!id || id.trim() === "") {
+      res.status(400).json({
+        success: false,
+        message: "Company ID is required",
+      });
+      return;
+    }
+
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log('Invalid ObjectId:', id);
+      res.status(400).json({
+        success: false,
+        message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
+      });
+      return;
+    }
+
+    console.log('Calling companyService.toggleCompanyStatus with:', { id, userId });
+
+    const updatedCompany = await companyService.toggleCompanyStatus(
+      id,
+      userId,
+      userEmail,
+      userRole,
+      req
+    );
+
+    console.log('Service returned:', updatedCompany);
+
+    if (!updatedCompany) {
+      console.log('No company returned from service');
+      res.status(404).json({
+        success: false,
+        message: "Company not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Company status toggled successfully`,
+      data: {
+        _id: updatedCompany._id,
+        company_id: updatedCompany.company_id,
+        company_name: updatedCompany.registered_company_name,
+        previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
+        current_status: updatedCompany.company_status,
+      },
+    });
+  } catch (error) {
+    console.error('Error in toggleCompanyStatus:', error);
+    logger.error("Error toggling company status:", error);
+
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
+      if (error.message.includes("not found")) {
+        res.status(404).json({
           success: false,
-          message: "Access denied. Only super admin and vendor admin can toggle company status",
+          message: error.message,
         });
         return;
       }
-
-      const { company_id } = req.params;
-
-      if (!company_id || company_id.trim() === "") {
+      if (error.message.includes("Invalid")) {
         res.status(400).json({
           success: false,
-          message: "Company ID is required",
+          message: error.message,
         });
         return;
       }
-
-      const updatedCompany = await companyService.toggleCompanyStatus(
-        company_id,
-        userId,
-        userEmail,
-        userRole,
-        req
-      );
-
-      res.status(200).json({
-        success: true,
-        message: `Company status toggled successfully`,
-        data: {
-          company_id: updatedCompany.company_id,
-          company_name: updatedCompany.registered_company_name,
-          previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
-          current_status: updatedCompany.company_status,
-        },
-      });
-    } catch (error) {
-      logger.error("Error toggling company status:", error);
-
-      if (error instanceof Error) {
-        if (error.message.includes("not found")) {
-          res.status(404).json({
-            success: false,
-            message: error.message,
-          });
-          return;
-        }
-        if (error.message.includes("Invalid")) {
-          res.status(400).json({
-            success: false,
-            message: error.message,
-          });
-          return;
-        }
-      }
-
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
     }
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-
-
+}
   // ============================================
   // BRAND CONTROLLER METHODS
   // ============================================
@@ -1504,61 +1610,61 @@ export class VendorController {
   /**
  * Toggle brand verification status
  */
-public static async toggleBrandVerificationStatus(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+  public static async toggleBrandVerificationStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-    const { brand_id } = req.params;
-    
-    if (!brand_id || brand_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Brand ID is required",
-      });
-      return;
-    }
+      const { brand_id } = req.params;
 
-    const updatedBrand = await brandService.toggleBrandVerificationStatus(
-      brand_id,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Brand verification status toggled successfully",
-      data: updatedBrand,
-    });
-  } catch (error) {
-    logger.error("Error toggling brand verification status:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("not found")) {
-        res.status(404).json({
-          success: false,
-          message: error.message,
-        });
-        return;
-      }
-      if (error.message.includes("Invalid")) {
+      if (!brand_id || brand_id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: error.message,
+          message: "Brand ID is required",
         });
         return;
       }
-    }
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      const updatedBrand = await brandService.toggleBrandVerificationStatus(
+        brand_id,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Brand verification status toggled successfully",
+        data: updatedBrand,
+      });
+    } catch (error) {
+      logger.error("Error toggling brand verification status:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+        if (error.message.includes("Invalid")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
   /**
    * Update brand by brand_id (handles both MongoDB _id and custom brand_id)
    */
@@ -2017,58 +2123,58 @@ public static async toggleBrandVerificationStatus(req: Request, res: Response): 
   /**
  * Get audit trail for a specific brand by identifier (handles both MongoDB _id and custom brand_id)
  */
-public static async getBrandAuditTrail(req: Request, res: Response): Promise<void> {
-  try {
-    const { brand_id } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+  public static async getBrandAuditTrail(req: Request, res: Response): Promise<void> {
+    try {
+      const { brand_id } = req.params;
+      const { page = 1, limit = 50 } = req.query;
 
-    if (!brand_id || brand_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Brand ID is required",
+      if (!brand_id || brand_id.trim() === "") {
+        res.status(400).json({
+          success: false,
+          message: "Brand ID is required",
+        });
+        return;
+      }
+
+      let brand;
+
+      // Check if it's MongoDB ObjectId or custom brand_id
+      if (mongoose.Types.ObjectId.isValid(brand_id) && brand_id.length === 24) {
+        // It's MongoDB ObjectId
+        brand = await brandService.getBrandById(brand_id);
+      } else {
+        // It's custom brand_id
+        brand = await brandService.getBrandByBrandId(brand_id);
+      }
+
+      if (!brand) {
+        res.status(404).json({
+          success: false,
+          message: "Brand not found",
+        });
+        return;
+      }
+
+      const auditData = await auditTrailService.getBrandAuditTrails(
+        brand._id.toString(),
+        Number(page),
+        Number(limit)
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Brand audit trail retrieved successfully",
+        data: auditData,
       });
-      return;
-    }
-
-    let brand;
-    
-    // Check if it's MongoDB ObjectId or custom brand_id
-    if (mongoose.Types.ObjectId.isValid(brand_id) && brand_id.length === 24) {
-      // It's MongoDB ObjectId
-      brand = await brandService.getBrandById(brand_id);
-    } else {
-      // It's custom brand_id
-      brand = await brandService.getBrandByBrandId(brand_id);
-    }
-
-    if (!brand) {
-      res.status(404).json({
+    } catch (error) {
+      logger.error("Error fetching brand audit trail:", error);
+      res.status(500).json({
         success: false,
-        message: "Brand not found",
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
-      return;
     }
-
-    const auditData = await auditTrailService.getBrandAuditTrails(
-      brand._id.toString(),
-      Number(page),
-      Number(limit)
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Brand audit trail retrieved successfully",
-      data: auditData,
-    });
-  } catch (error) {
-    logger.error("Error fetching brand audit trail:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
   }
-}
   /**
  * Export brands data
  */
@@ -2132,132 +2238,197 @@ public static async getBrandAuditTrail(req: Request, res: Response): Promise<voi
   /**
  * Export single brand data by brand_id
  */
-public static async exportBrandById(req: Request, res: Response): Promise<void> {
-  try {
-    const { _id: userId, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+  public static async exportBrandById(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-    // Only authorized roles can export
-    if (!["super_admin", "vendor_admin", "brand_manager"].includes(userRole)) {
-      res.status(403).json({
-        success: false,
-        message: "Access denied. Only authorized roles can export brand data",
-      });
-      return;
-    }
-
-    const { brand_id } = req.params;
-    const { format = "csv" } = req.query;
-
-    // Basic validation
-    if (!brand_id || brand_id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Brand ID is required"
-      });
-      return;
-    }
-
-    // Validate format
-    const validFormats = ["csv", "json", "pdf"];
-    if (!validFormats.includes(format as string)) {
-      res.status(400).json({
-        success: false,
-        message: `Invalid format. Must be one of: ${validFormats.join(", ")}`,
-      });
-      return;
-    }
-
-    // Pass the brand_id as string - the service will handle both ObjectId and custom brand_id
-    const exportData = await brandService.exportBrandById(
-      brand_id, // Pass as string, not ObjectId
-      format as string,
-      userId
-    );
-
-    // Set headers based on format
-    const timestamp = Date.now();
-    const filename = `brand_${brand_id}_export_${timestamp}`;
-    
-    if (format === "csv") {
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", `attachment; filename=${filename}.csv`);
-    } else if (format === "json") {
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename=${filename}.json`);
-    } else if (format === "pdf") {
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename=${filename}.pdf`);
-    }
-
-    res.status(200).send(exportData);
-  } catch (error) {
-    logger.error("Error exporting brand by ID:", error);
-
-    if (error instanceof Error) {
-      if (error.message.includes("not found") || error.message.includes("does not exist")) {
-        res.status(404).json({
+      // Only authorized roles can export
+      if (!["super_admin", "vendor_admin", "brand_manager"].includes(userRole)) {
+        res.status(403).json({
           success: false,
-          message: "Brand not found with the provided ID"
+          message: "Access denied. Only authorized roles can export brand data",
         });
         return;
       }
 
-      // Handle MongoDB-specific errors
-      if (error.name === 'CastError' || error.message.includes('Cast to ObjectId failed')) {
+      const { brand_id } = req.params;
+      const { format = "csv" } = req.query;
+
+      // Basic validation
+      if (!brand_id || brand_id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: "Invalid Brand ID format"
+          message: "Brand ID is required"
         });
         return;
       }
+
+      // Validate format
+      const validFormats = ["csv", "json", "pdf"];
+      if (!validFormats.includes(format as string)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid format. Must be one of: ${validFormats.join(", ")}`,
+        });
+        return;
+      }
+
+      // Pass the brand_id as string - the service will handle both ObjectId and custom brand_id
+      const exportData = await brandService.exportBrandById(
+        brand_id, // Pass as string, not ObjectId
+        format as string,
+        userId
+      );
+
+      // Set headers based on format
+      const timestamp = Date.now();
+      const filename = `brand_${brand_id}_export_${timestamp}`;
+
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}.csv`);
+      } else if (format === "json") {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}.json`);
+      } else if (format === "pdf") {
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}.pdf`);
+      }
+
+      res.status(200).send(exportData);
+    } catch (error) {
+      logger.error("Error exporting brand by ID:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found") || error.message.includes("does not exist")) {
+          res.status(404).json({
+            success: false,
+            message: "Brand not found with the provided ID"
+          });
+          return;
+        }
+
+        // Handle MongoDB-specific errors
+        if (error.name === 'CastError' || error.message.includes('Cast to ObjectId failed')) {
+          res.status(400).json({
+            success: false,
+            message: "Invalid Brand ID format"
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error while exporting brand data",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+  /**
+   * Convert audit trail data to CSV format
+   */
+  private static convertAuditTrailToCSV(auditData: any): string {
+    if (!auditData.audits || auditData.audits.length === 0) {
+      return "No audit trail data available for export";
     }
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error while exporting brand data",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-}
-/**
- * Get comprehensive company dashboard data
- * Includes total companies, inactive companies, and detailed company list with brand counts
- */
-public static async getCompanyDashboard(req: Request, res: Response): Promise<void> {
-  try {
-    const { 
-      page = 1, 
-      limit = 10,
-      company_status,
-      legal_entity_structure,
-      registration_type,
-      search
-    } = req.query;
+    try {
+      const headers = [
+        "Timestamp",
+        "Action",
+        "User Name",
+        "User Email",
+        "User Role",
+        "Action Description",
+        "IP Address",
+        "User Agent",
+        "Target Type",
+        "Target Company",
+      ];
 
-    const result = await companyService.getCompanyDashboard({
-      page: Number(page),
-      limit: Number(limit),
-      company_status: company_status as string,
-      legal_entity_structure: legal_entity_structure as string,
-      registration_type: registration_type as string,
-      search: search as string
-    });
+      // Add BOM for proper UTF-8 encoding in Excel
+      let csv = "\ufeff";
+      csv += headers.join(",") + "\n";
 
-    res.status(200).json({
-      success: true,
-      message: "Company dashboard data retrieved successfully",
-      data: result.data,
-      statistics: result.statistics,
-      pagination: result.pagination,
-    });
-  } catch (error) {
-    logger.error("Error fetching company dashboard:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error while fetching dashboard data",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      auditData.audits.forEach((audit: any) => {
+        const auditDoc = audit.toObject ? audit.toObject() : audit;
+
+        const userName = auditDoc.user?.name || "Unknown";
+        const userEmail = auditDoc.user_email || auditDoc.user?.email || "Unknown";
+        const companyName = auditDoc.target_company?.registered_company_name || "N/A";
+
+        const row = [
+          auditDoc.timestamp ? new Date(auditDoc.timestamp).toISOString() : "",
+          auditDoc.action || "",
+          `"${userName.replace(/"/g, '""')}"`,
+          `"${userEmail.replace(/"/g, '""')}"`,
+          auditDoc.user_role || "",
+          `"${(auditDoc.action_description || "").replace(/"/g, '""')}"`,
+          auditDoc.ip_address || "Unknown",
+          `"${(auditDoc.user_agent || "").replace(/"/g, '""')}"`,
+          auditDoc.target_type || "",
+          `"${companyName.replace(/"/g, '""')}"`,
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      // Add summary
+      csv += "\n\n";
+      csv += "Export Summary\n";
+      csv += "Total Audit Records," + auditData.audits.length + "\n";
+      csv += "Export Date," + new Date().toISOString() + "\n";
+      csv += "Page," + (auditData.page || 1) + "\n";
+      csv += "Total Pages," + (auditData.pages || 1) + "\n";
+      csv += "Total Records," + (auditData.total || 0) + "\n";
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting audit trail to CSV:", error);
+      return "Error generating audit trail CSV";
+    }
   }
-}
+
+  /**
+   * Get comprehensive company dashboard data
+   * Includes total companies, inactive companies, and detailed company list with brand counts
+   */
+  public static async getCompanyDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        company_status,
+        legal_entity_structure,
+        registration_type,
+        search
+      } = req.query;
+
+      const result = await companyService.getCompanyDashboard({
+        page: Number(page),
+        limit: Number(limit),
+        company_status: company_status as string,
+        legal_entity_structure: legal_entity_structure as string,
+        registration_type: registration_type as string,
+        search: search as string
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Company dashboard data retrieved successfully",
+        data: result.data,
+        statistics: result.statistics,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      logger.error("Error fetching company dashboard:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error while fetching dashboard data",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 }

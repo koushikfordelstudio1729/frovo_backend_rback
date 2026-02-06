@@ -39,28 +39,28 @@ router.get(
 
 // Get company by company_id
 router.get(
-  "/companies/:company_id",
+  "/companies/:id",
   authorize(STAFF_MANAGEMENT),
   VendorController.getCompanyById
 );
 
 // Update company by company_id
 router.put(
-  "/companies/:company_id",
+  "/companies/:id",
   authorize(STAFF_MANAGEMENT),
   VendorController.updateCompany
 );
 
 // Delete company by company_id
 router.delete(
-  "/companies/:company_id",
+  "/companies/:id",
   authorize(STAFF_MANAGEMENT),
   VendorController.deleteCompany
 );
 
 // Toggle company status (active/inactive)
 router.patch(
-  "/companies/:company_id/toggle-status",
+  "/companies/:id/toggle-status",
   authorize(VENDOR_MANAGEMENT),
   VendorController.toggleCompanyStatus
 );
@@ -74,7 +74,7 @@ router.get(
 
 // Get audit trail for a company
 router.get(
-  "/companies/:company_id/audit-trail",
+  "/companies/:id/audit-trail",
   authorize(STAFF_MANAGEMENT),
   VendorController.getCompanyAuditTrail
 );
@@ -95,7 +95,7 @@ router.get(
 
 // Export single company data
 router.get(
-  "/companies/:company_id/export",
+  "/companies/:id/export",
   authorize(STAFF_MANAGEMENT),
   VendorController.exportCompanyById
 );
