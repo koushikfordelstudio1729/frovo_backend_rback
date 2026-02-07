@@ -3517,5 +3517,165 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       return "Error generating dashboard CSV";
     }
   }
-  
+  // UPDATE MACHINE IMAGES (REPLACE ALL IMAGES)
+static async updateMachineImages(req: Request, res: Response): Promise<void> {
+  try {
+    const { machineDetailsId } = req.params;
+    const files = req.files as Express.Multer.File[] | undefined;
+
+    console.log("=== DEBUG: updateMachineImages called ===");
+    console.log("Machine Details ID:", machineDetailsId);
+    console.log("Files received:", files ? files.length : 0);
+
+    // Validate machine ID
+    if (!mongoose.Types.ObjectId.isValid(machineDetailsId)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid machine details ID",
+      });
+      return;
+    }
+
+    // Check if files are provided
+    if (!files || files.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "No images provided for update",
+      });
+      return;
+    }
+
+    // Get current machine details
+    const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
+      .populate({
+        path: 'sub_location_id',
+        populate: {
+          path: 'location_id',
+        }
+      });
+
+    if (!currentMachine) {
+      res.status(404).json({
+        success: false,
+        message: "Machine details not found",
+      });
+      return;
+    }
+
+    // Store old images for cleanup and audit log
+    const oldImages = [...currentMachine.machine_image];
+    const oldImageCount = oldImages.length;
+    const oldImageNames = oldImages.map(img => img.image_name);
+    const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
+
+    // Process new file uploads
+    const uploadService = new ImageUploadService();
+    const processedFiles = await uploadService.uploadMultipleFiles(
+      files,
+      "machine_images",
+      "areaMachine"
+    );
+
+    console.log("New files processed:", processedFiles.length);
+
+    // Delete old images from cloud storage
+    if (oldPublicIds.length > 0) {
+      console.log("Deleting old images from cloud storage...");
+      try {
+        await uploadService.deleteMultipleFiles(oldPublicIds);
+        console.log(`Successfully deleted ${oldPublicIds.length} old images`);
+      } catch (deleteError) {
+        logger.error("Error deleting old images from cloud:", deleteError);
+        // Continue with update even if deletion fails
+      }
+    }
+
+    // Update machine with new images (replace all)
+    const updateData = {
+      machine_image: processedFiles,
+      updatedAt: new Date()
+    };
+
+    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+      machineDetailsId,
+      updateData,
+      { new: true }
+    ).populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
+      }
+    });
+
+    if (!updatedMachine) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to update machine images",
+      });
+      return;
+    }
+
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+    const locationId = subLocation?.location_id;
+
+    // Create audit log
+    if (locationId) {
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: locationId,
+        action: "UPDATE",
+        changes: {
+          machine_images: {
+            old: {
+              count: oldImageCount,
+              names: oldImageNames
+            },
+            new: {
+              count: processedFiles.length,
+              names: processedFiles.map(f => f.image_name)
+            }
+          }
+        },
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Machine images replaced successfully. ${oldImageCount} old image(s) removed, ${processedFiles.length} new image(s) added.`,
+      data: {
+        machine: {
+          id: updatedMachine._id,
+          machine_name: updatedMachine.machine_name,
+          images_count: updatedMachine.machine_image.length,
+          images: updatedMachine.machine_image.map(img => ({
+            image_name: img.image_name,
+            file_url: img.file_url,
+            uploaded_at: img.uploaded_at
+          }))
+        },
+        changes: {
+          old_images_removed: oldImageCount,
+          new_images_added: processedFiles.length,
+          old_image_names: oldImageNames,
+          new_image_names: processedFiles.map(f => f.image_name)
+        }
+      },
+    });
+  } catch (error) {
+    logger.error("Error updating machine images:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+}
 }

@@ -76,6 +76,13 @@ router.delete("/machine/:machineDetailsId/images/:imageIndex", authorize(MANAGEM
 router.patch("/machine/:machineDetailsId/toggle-status", authorize(MANAGEMENT), AreaController.toggleMachineStatus);
 router.patch("/machine/:machineDetailsId/toggle-installed", authorize(MANAGEMENT), AreaController.toggleMachineInstalledStatus);
 router.get("/machine/search", authorize(MANAGEMENT), AreaController.searchMachines);
+// Add this to your routes file, preferably after the other machine routes
+router.put(
+  "/machine/:machineDetailsId/images",
+  uploadAreaFiles, // Make sure this middleware handles multiple files
+  authorize(MANAGEMENT),
+  AreaController.updateMachineImages
+);
 //router.put("/machine/:machineDetailsId/images",uploadAreaFiles, authorize(MANAGEMENT), AreaController.updateMachineImages);
 // ============================================
 // AUDIT LOG ROUTES

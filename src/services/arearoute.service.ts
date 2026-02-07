@@ -5,7 +5,9 @@ import { IMachineImageData } from "../models/AreaRoute.model";
 
 // Import the new models
 import { LocationModel, SubLocationModel, MachineDetailsModel, HistoryAreaModel, ILocation, ISubLocation, IMachineDetails, IHistoryArea } from "../models/AreaRoute.model"
-
+export interface UpdateMachineImagesDto {
+  files: Express.Multer.File[];
+}
 
 export interface DashboardFilterParams {
   status?: "active" | "inactive" | "all";
@@ -1899,4 +1901,110 @@ export class AreaService {
       }
     });
   }
+  // UPDATE MACHINE IMAGES (REPLACE ALL)
+static async updateMachineImages(
+  machineDetailsId: string,
+  files: Express.Multer.File[],
+  auditParams?: AuditLogParams
+): Promise<IMachineDetails> {
+  // Validate machine ID
+  this.validateObjectId(machineDetailsId);
+
+  // Validate files
+  if (!files || files.length === 0) {
+    throw new Error("No images provided for update");
+  }
+
+  // Get current machine details
+  const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
+    .populate({
+      path: 'sub_location_id',
+      populate: {
+        path: 'location_id',
+      }
+    });
+
+  if (!currentMachine) {
+    throw new Error("Machine details not found");
+  }
+
+  // Store old images for cleanup
+  const oldImages = [...currentMachine.machine_image];
+  const oldImageCount = oldImages.length;
+  const oldImageNames = oldImages.map(img => img.image_name);
+  const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
+
+  // Initialize upload service
+  const uploadService = new ImageUploadService();
+
+  // Process new file uploads
+  const processedFiles = await uploadService.uploadMultipleFiles(
+    files,
+    "machine_images",
+    "areaMachine"
+  );
+
+  // Delete old images from cloud storage
+  if (oldPublicIds.length > 0) {
+    try {
+      await uploadService.deleteMultipleFiles(oldPublicIds);
+      logger.info(`Deleted ${oldPublicIds.length} old images from cloud storage for machine ${machineDetailsId}`);
+    } catch (deleteError) {
+      logger.error(`Failed to delete old images for machine ${machineDetailsId}:`, deleteError);
+      // Continue with update even if deletion fails
+    }
+  }
+
+  // Update machine with new images (replace all)
+  const updateData = {
+    machine_image: processedFiles,
+    updatedAt: new Date()
+  };
+
+  const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+    machineDetailsId,
+    { $set: updateData },
+    { new: true, runValidators: true }
+  ).populate({
+    path: 'sub_location_id',
+    populate: {
+      path: 'location_id',
+    }
+  });
+
+  if (!updatedMachine) {
+    throw new Error("Failed to update machine images");
+  }
+
+  // Get location ID for audit log
+  const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+  const locationId = subLocation?.location_id;
+
+  // Create audit log
+  if (locationId && auditParams) {
+    const changes = {
+      machine_images: {
+        old: {
+          count: oldImageCount,
+          names: oldImageNames
+        },
+        new: {
+          count: processedFiles.length,
+          names: processedFiles.map(f => f.image_name)
+        }
+      }
+    };
+
+    await this.createAuditLog(
+      locationId,
+      "UPDATE",
+      null,
+      null,
+      changes,
+      auditParams
+    );
+  }
+
+  return updatedMachine;
+}
 }
