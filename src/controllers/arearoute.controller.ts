@@ -97,107 +97,124 @@ export class AreaController {
       });
     }
   }
+// Also fix the addSubLocation method:
+static async addSubLocation(req: Request, res: Response): Promise<void> {
+  try {
+    const { locationId } = req.params;
+    let subLocationData: any;
 
-  // Also fix the addSubLocation method:
-  static async addSubLocation(req: Request, res: Response): Promise<void> {
-    try {
-      const { locationId } = req.params;
-      let subLocationData: any;
-
-      // Parse sub-location data
-      if (req.body.data) {
-        subLocationData = JSON.parse(req.body.data);
-      } else {
-        subLocationData = req.body;
-      }
-
-      // Validate required fields for SubLocation
-      const requiredFields = ["campus", "tower", "floor", "select_machine"];
-      const missingFields = requiredFields.filter(field => !subLocationData[field]);
-
-      if (missingFields.length > 0) {
-        res.status(400).json({
-          success: false,
-          message: `Missing required fields: ${missingFields.join(", ")}`,
-        });
-        return;
-      }
-
-      // Validate select_machine is an array
-      if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "select_machine must be a non-empty array",
-        });
-        return;
-      }
-
-      // Check if location exists
-      const location = await LocationModel.findById(locationId);
-      if (!location) {
-        res.status(404).json({
-          success: false,
-          message: "Location not found",
-        });
-        return;
-      }
-
-      // Create sub-location
-      const newSubLocation = new SubLocationModel({
-        ...subLocationData,
-        location_id: locationId,
-      });
-      await newSubLocation.save();
-
-      // Create MachineDetails for each selected machine
-      const machineDetailsPromises = subLocationData.select_machine.map(async (machineName: string) => {
-        const machineDetail = new MachineDetailsModel({
-          machine_name: machineName,
-          sub_location_id: newSubLocation._id,
-          installed_status: "not_installed",
-          status: "active",
-          machine_image: [],
-        });
-        return await machineDetail.save();
-      });
-
-      await Promise.all(machineDetailsPromises);
-
-      // Create audit log - Fixed
-      const auditParams = AreaController.getAuditParams(req);
-      await AreaController.createAuditLog({
-        location_id: new mongoose.Types.ObjectId(locationId),
-        action: "ADD_SUB_LOCATION",
-        new_data: {
-          sub_location: newSubLocation.toObject(),
-          added_machines: subLocationData.select_machine,
-        },
-        performed_by: {
-          user_id: auditParams.userId,
-          email: auditParams.userEmail,
-          name: auditParams.userName,
-        },
-        ip_address: auditParams.ipAddress,
-        user_agent: auditParams.userAgent,
-        timestamp: new Date(),
-      });
-
-      res.status(201).json({
-        success: true,
-        message: "Sub-location added successfully",
-        data: {
-          subLocation: newSubLocation,
-          machines_added: subLocationData.select_machine,
-        },
-      });
-    } catch (error) {
-      logger.error("Error adding sub-location:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
+    // Parse sub-location data
+    if (req.body.data) {
+      subLocationData = JSON.parse(req.body.data);
+    } else {
+      subLocationData = req.body;
     }
+
+    // Validate required fields for SubLocation
+    const requiredFields = ["campus", "tower", "floor", "select_machine"];
+    const missingFields = requiredFields.filter(field => !subLocationData[field]);
+
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(", ")}`,
+      });
+      return;
+    }
+
+    // Validate select_machine is an array
+    if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "select_machine must be a non-empty array",
+      });
+      return;
+    }
+
+    // Check if location exists
+    const location = await LocationModel.findById(locationId);
+    if (!location) {
+      res.status(404).json({
+        success: false,
+        message: "Location not found",
+      });
+      return;
+    }
+
+    // Create sub-location
+    const newSubLocation = new SubLocationModel({
+      ...subLocationData,
+      location_id: locationId,
+    });
+    await newSubLocation.save();
+
+    // Create MachineDetails for each selected machine and collect their IDs
+    const machineDetailsPromises = subLocationData.select_machine.map(async (machineName: string) => {
+      const machineDetail = new MachineDetailsModel({
+        machine_name: machineName,
+        sub_location_id: newSubLocation._id,
+        installed_status: "not_installed",
+        status: "active",
+        machine_image: [],
+      });
+      const savedMachine = await machineDetail.save();
+      return {
+        id: savedMachine._id,
+        machine_name: savedMachine.machine_name,
+        installed_status: savedMachine.installed_status,
+        status: savedMachine.status,
+        sub_location_id: savedMachine.sub_location_id,
+      };
+    });
+
+    const createdMachines = await Promise.all(machineDetailsPromises);
+
+    // Create audit log - Fixed
+    const auditParams = AreaController.getAuditParams(req);
+    await AreaController.createAuditLog({
+      location_id: new mongoose.Types.ObjectId(locationId),
+      action: "ADD_SUB_LOCATION",
+      new_data: {
+        sub_location: newSubLocation.toObject(),
+        added_machines: subLocationData.select_machine,
+        machine_ids: createdMachines.map(m => m.id),
+      },
+      performed_by: {
+        user_id: auditParams.userId,
+        email: auditParams.userEmail,
+        name: auditParams.userName,
+      },
+      ip_address: auditParams.ipAddress,
+      user_agent: auditParams.userAgent,
+      timestamp: new Date(),
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Sub-location added successfully",
+      data: {
+        subLocation: {
+          id: newSubLocation._id,
+          campus: newSubLocation.campus,
+          tower: newSubLocation.tower,
+          floor: newSubLocation.floor,
+          select_machine: newSubLocation.select_machine,
+          location_id: newSubLocation.location_id,
+          created_at: newSubLocation.createdAt,
+          updated_at: newSubLocation.updatedAt,
+        },
+        machines_added: createdMachines,
+        total_machines_added: createdMachines.length,
+      },
+    });
+  } catch (error) {
+    logger.error("Error adding sub-location:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
   }
+}
   // UPDATE THE HELPER METHOD - Make it static
   private static async createAuditLog(data: {
     location_id: mongoose.Types.ObjectId;
@@ -3500,4 +3517,5 @@ export class AreaController {
       return "Error generating dashboard CSV";
     }
   }
+  
 }

@@ -76,7 +76,7 @@ router.delete("/machine/:machineDetailsId/images/:imageIndex", authorize(MANAGEM
 router.patch("/machine/:machineDetailsId/toggle-status", authorize(MANAGEMENT), AreaController.toggleMachineStatus);
 router.patch("/machine/:machineDetailsId/toggle-installed", authorize(MANAGEMENT), AreaController.toggleMachineInstalledStatus);
 router.get("/machine/search", authorize(MANAGEMENT), AreaController.searchMachines);
-
+//router.put("/machine/:machineDetailsId/images",uploadAreaFiles, authorize(MANAGEMENT), AreaController.updateMachineImages);
 // ============================================
 // AUDIT LOG ROUTES
 // ============================================
