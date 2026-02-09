@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
     "name": "FROVO Vendor Management",
-    "description": "Complete API collection for FROVO Vendor Management System. Includes Company and Brand CRUD operations, audit trails, exports, statistics, and dashboard endpoints.",
+    "description": "Complete API collection for FROVO Vendor Management System. Organized into Company Management, Dashboards, Vendor CRUD, Vendor Verification, Document Management, and Audit Trail.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -17,55 +17,9 @@
   },
   "item": [
     {
-      "name": "Auth",
-      "description": "Authentication endpoints - Login with different roles to get auth tokens.",
+      "name": "Company Management",
+      "description": "Company CRUD operations, statistics, and status management.",
       "item": [
-        {
-          "name": "Login - Vendor Staff",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.environment.set('auth_token', jsonData.token);",
-                  "}",
-                  "if (jsonData.data && jsonData.data.token) {",
-                  "    pm.environment.set('auth_token', jsonData.data.token);",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"vendorstaff@frovo.com\",\n  \"password\": \"Vstaff@12345\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{auth_url}}/login",
-              "host": ["{{auth_url}}"],
-              "path": ["login"]
-            },
-            "description": "Login as Vendor Staff. Auto-sets auth_token on success."
-          },
-          "response": []
-        },
         {
           "name": "Login - Super Admin",
           "event": [
@@ -157,13 +111,53 @@
             "description": "Login as Vendor Manager/Admin. Auto-sets auth_token on success."
           },
           "response": []
-        }
-      ]
-    },
-    {
-      "name": "Company",
-      "description": "Company management endpoints - CRUD, statistics, audit trails, exports, and dashboard.",
-      "item": [
+        },
+        {
+          "name": "Login - Vendor Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "}",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('auth_token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendorstaff@frovo.com\",\n  \"password\": \"Vstaff@12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/login",
+              "host": ["{{auth_url}}"],
+              "path": ["login"]
+            },
+            "description": "Login as Vendor Staff. Auto-sets auth_token on success."
+          },
+          "response": []
+        },
         {
           "name": "Create Company",
           "request": {
@@ -273,16 +267,58 @@
           "response": []
         },
         {
-          "name": "Toggle Company Status",
+          "name": "Update Company Status",
           "request": {
             "method": "PATCH",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/companies/{{company_id}}/toggle-status",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "{{company_id}}", "toggle-status"]
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_status\": \"active\",\n  \"risk_notes\": \"All documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "description": "Toggle the active/inactive status of a company."
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/verification",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "verification"]
+            },
+            "description": "Update the active/inactive status of a company. Only super_admin and vendor_admin can access this. Payload: { company_status: 'active' | 'inactive', risk_notes: 'reason' }"
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Update Company Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_ids\": [\"{{company_id}}\"],\n  \"company_status\": \"active\",\n  \"risk_notes\": \"Bulk approved - all documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/bulk-verification",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "bulk-verification"]
+            },
+            "description": "Bulk update company status. Only super_admin and vendor_admin can access this. Payload: { company_ids: [...], company_status: 'active' | 'inactive', risk_notes: 'reason' }"
           },
           "response": []
         },
@@ -299,83 +335,13 @@
             "description": "Retrieve statistical overview of all companies."
           },
           "response": []
-        },
-        {
-          "name": "Get Company Audit Trail",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/companies/{{company_id}}/audit-trail?page=1&limit=50&format=json",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "{{company_id}}", "audit-trail"],
-              "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "50" },
-                { "key": "format", "value": "json" }
-              ]
-            },
-            "description": "Retrieve the audit trail for a specific company by its MongoDB ObjectId."
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Company Audit Trails",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/audit-trails/companies?page=1&limit=50",
-              "host": ["{{base_url}}"],
-              "path": ["audit-trails", "companies"],
-              "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "50" },
-                { "key": "company_id", "value": "", "disabled": true },
-                { "key": "action", "value": "", "disabled": true },
-                { "key": "date_from", "value": "", "disabled": true },
-                { "key": "date_to", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Retrieve audit trails for all companies with optional filtering by company_id, action, and date range."
-          },
-          "response": []
-        },
-        {
-          "name": "Export All Companies",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/companies/export/all?format=csv",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "export", "all"],
-              "query": [
-                { "key": "format", "value": "csv" },
-                { "key": "filters", "value": "", "disabled": true }
-              ]
-            },
-            "description": "Export all companies data in the specified format (CSV by default)."
-          },
-          "response": []
-        },
-        {
-          "name": "Export Company By ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/companies/{{company_id}}/export?format=csv",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "{{company_id}}", "export"],
-              "query": [
-                { "key": "format", "value": "csv" }
-              ]
-            },
-            "description": "Export a single company's data by its MongoDB ObjectId in the specified format."
-          },
-          "response": []
-        },
+        }
+      ]
+    },
+    {
+      "name": "Dashboards",
+      "description": "Dashboard endpoints for company and brand overview data.",
+      "item": [
         {
           "name": "Get Company Dashboard",
           "request": {
@@ -401,8 +367,8 @@
       ]
     },
     {
-      "name": "Brand",
-      "description": "Brand management endpoints - CRUD, verification, statistics, audit trails, and exports.",
+      "name": "Vendor CRUD",
+      "description": "Brand/Vendor CRUD operations - create, read, update, delete brands and retrieve brand statistics.",
       "item": [
         {
           "name": "Create Brand",
@@ -551,48 +517,6 @@
           "response": []
         },
         {
-          "name": "Toggle Brand Verification",
-          "request": {
-            "method": "PATCH",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/brands/{{brand_id}}/toggle-verification",
-              "host": ["{{base_url}}"],
-              "path": ["brands", "{{brand_id}}", "toggle-verification"]
-            },
-            "description": "Toggle the verification status of a brand."
-          },
-          "response": []
-        },
-        {
-          "name": "Update Brand Verification Status",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"All documents verified\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/brands/{{brand_id}}/verification",
-              "host": ["{{base_url}}"],
-              "path": ["brands", "{{brand_id}}", "verification"]
-            },
-            "description": "Update a brand's verification status and risk notes."
-          },
-          "response": []
-        },
-        {
           "name": "Get Brands By Company ID",
           "request": {
             "method": "GET",
@@ -624,22 +548,107 @@
             "description": "Retrieve statistical overview of all brands."
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Vendor Verification",
+      "description": "Brand/Vendor verification status management endpoints. Only super_admin and vendor_admin can access these.",
+      "item": [
+        {
+          "name": "Update Brand Verification Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"All documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/verification",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "verification"]
+            },
+            "description": "Update a brand's verification status and risk notes. Only super_admin and vendor_admin can access this. Payload: { verification_status: 'verified' | 'rejected' | 'pending', risk_notes: 'reason' }"
+          },
+          "response": []
         },
         {
-          "name": "Get Brand Audit Trail",
+          "name": "Bulk Update Brand Verification",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brand_ids\": [\"{{brand_id}}\"],\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"Bulk approved - all documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/bulk-verification",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "bulk-verification"]
+            },
+            "description": "Bulk update brand verification status. Only super_admin and vendor_admin can access this. Payload: { brand_ids: [...], verification_status: 'verified' | 'rejected' | 'pending', risk_notes: 'reason' }"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Document Management",
+      "description": "Export and document management endpoints for companies and brands.",
+      "item": [
+        {
+          "name": "Export All Companies",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/brands/{{brand_id}}/audit-trail?page=1&limit=50",
+              "raw": "{{base_url}}/companies/export/all?format=csv",
               "host": ["{{base_url}}"],
-              "path": ["brands", "{{brand_id}}", "audit-trail"],
+              "path": ["companies", "export", "all"],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "50" }
+                { "key": "format", "value": "csv" },
+                { "key": "filters", "value": "", "disabled": true }
               ]
             },
-            "description": "Retrieve the audit trail for a specific brand by its MongoDB ObjectId."
+            "description": "Export all companies data in the specified format (CSV by default)."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Company By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/export?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "export"],
+              "query": [
+                { "key": "format", "value": "csv" }
+              ]
+            },
+            "description": "Export a single company's data by its MongoDB ObjectId in the specified format."
           },
           "response": []
         },
@@ -675,6 +684,71 @@
               ]
             },
             "description": "Export a single brand's data by its MongoDB ObjectId in the specified format."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit Trail",
+      "description": "Audit trail endpoints for tracking changes to companies and brands.",
+      "item": [
+        {
+          "name": "Get Company Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/audit-trail?page=1&limit=50&format=json",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "audit-trail"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "format", "value": "json" }
+              ]
+            },
+            "description": "Retrieve the audit trail for a specific company by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Company Audit Trails",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audit-trails/companies?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["audit-trails", "companies"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "company_id", "value": "", "disabled": true },
+                { "key": "action", "value": "", "disabled": true },
+                { "key": "date_from", "value": "", "disabled": true },
+                { "key": "date_to", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve audit trails for all companies with optional filtering by company_id, action, and date range."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brand Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/audit-trail?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "audit-trail"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Retrieve the audit trail for a specific brand by its MongoDB ObjectId."
           },
           "response": []
         }

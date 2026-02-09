@@ -39,11 +39,18 @@ router.put("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.updat
 // Delete company by company_id
 router.delete("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteCompany);
 
-// Toggle company status (active/inactive)
+// Update company status (active/inactive) with payload
 router.patch(
-  "/companies/:id/toggle-status",
+  "/companies/:id/verification",
   authorize(VENDOR_MANAGEMENT),
-  VendorController.toggleCompanyStatus
+  VendorController.updateCompanyVerificationStatus
+);
+
+// Bulk update company status
+router.patch(
+  "/companies/bulk-verification",
+  authorize(VENDOR_MANAGEMENT),
+  VendorController.bulkUpdateCompanyVerification
 );
 
 // Get company statistics
@@ -107,21 +114,21 @@ router.get("/brands", authorize(STAFF_MANAGEMENT), VendorController.getAllBrands
 
 // Get brand by brand_id
 router.get("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.getBrandById);
-// Toggle brand verification status
-router.patch(
-  "/brands/:brand_id/toggle-verification",
-  authorize(VENDOR_MANAGEMENT),
-  VendorController.toggleBrandVerificationStatus
-);
-
 // Delete brand by brand_id
 router.delete("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
-// Update brand verification status
+// Update brand verification status (only super_admin and vendor_admin)
 router.patch(
   "/brands/:id/verification",
-  authorize(STAFF_MANAGEMENT),
+  authorize(VENDOR_MANAGEMENT),
   VendorController.updateBrandVerificationStatus
+);
+
+// Bulk update brand verification status
+router.patch(
+  "/brands/bulk-verification",
+  authorize(VENDOR_MANAGEMENT),
+  VendorController.bulkUpdateBrandVerification
 );
 
 // Get brands by company_id
@@ -177,7 +184,5 @@ router.put(
   ]),
   VendorController.updateBrand
 );
-
-router.delete("/brands/:brand_id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
 export default router;

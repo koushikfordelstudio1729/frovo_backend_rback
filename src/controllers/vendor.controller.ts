@@ -927,23 +927,23 @@ export class VendorController {
   }
 
   /**
-   * Toggle company status (active/inactive) by MongoDB ObjectId
+   * Update company status (active/inactive) by MongoDB ObjectId
    */
-  public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
+  public static async updateCompanyVerificationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      // Only vendor management roles can toggle company status
       if (!["super_admin", "vendor_admin"].includes(userRole)) {
         res.status(403).json({
           success: false,
-          message: "Access denied. Only super admin and vendor admin can toggle company status",
+          message: "Access denied. Only super admin and vendor admin can update company status",
         });
         return;
       }
 
       const { id } = req.params;
+      const { company_status, risk_notes } = req.body;
 
       if (!id || id.trim() === "") {
         res.status(400).json({
@@ -953,7 +953,6 @@ export class VendorController {
         return;
       }
 
-      // Validate MongoDB ObjectId format
       if (!mongoose.Types.ObjectId.isValid(id)) {
         res.status(400).json({
           success: false,
@@ -962,8 +961,18 @@ export class VendorController {
         return;
       }
 
-      const updatedCompany = await companyService.toggleCompanyStatus(
+      if (!["active", "inactive"].includes(company_status)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid company_status. Must be 'active' or 'inactive'",
+        });
+        return;
+      }
+
+      const updatedCompany = await companyService.updateCompanyStatus(
         id,
+        company_status,
+        risk_notes || "",
         userId,
         userEmail,
         userRole,
@@ -980,17 +989,11 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: `Company status toggled successfully`,
-        data: {
-          _id: updatedCompany._id,
-          company_id: updatedCompany.company_id,
-          company_name: updatedCompany.registered_company_name,
-          previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
-          current_status: updatedCompany.company_status,
-        },
+        message: `Company status updated to ${company_status} successfully`,
+        data: updatedCompany,
       });
     } catch (error) {
-      logger.error("Error toggling company status:", error);
+      logger.error("Error updating company status:", error);
 
       if (error instanceof Error) {
         if (error.message.includes("not found")) {
@@ -1009,6 +1012,66 @@ export class VendorController {
         }
       }
 
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Bulk update company verification status
+   */
+  public static async bulkUpdateCompanyVerification(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
+
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
+          success: false,
+          message:
+            "Access denied. Only super admin and vendor admin can bulk update company status",
+        });
+        return;
+      }
+
+      const { company_ids, company_status, risk_notes } = req.body;
+
+      if (!company_ids || !Array.isArray(company_ids) || company_ids.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "company_ids must be a non-empty array",
+        });
+        return;
+      }
+
+      if (!["active", "inactive"].includes(company_status)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid company_status. Must be 'active' or 'inactive'",
+        });
+        return;
+      }
+
+      const result = await companyService.bulkUpdateCompanyStatus(
+        company_ids,
+        company_status,
+        risk_notes || "",
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Bulk company status update completed. ${result.updated} updated, ${result.failed.length} failed.`,
+        data: result,
+      });
+    } catch (error) {
+      logger.error("Error in bulk company status update:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",
@@ -1617,64 +1680,6 @@ export class VendorController {
     }
   }
   /**
-   * Toggle brand verification status
-   */
-  public static async toggleBrandVerificationStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-      const userRole = roles[0]?.key || "unknown";
-
-      const { brand_id } = req.params;
-
-      if (!brand_id || brand_id.trim() === "") {
-        res.status(400).json({
-          success: false,
-          message: "Brand ID is required",
-        });
-        return;
-      }
-
-      const updatedBrand = await brandService.toggleBrandVerificationStatus(
-        brand_id,
-        userId,
-        userEmail,
-        userRole,
-        req
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Brand verification status toggled successfully",
-        data: updatedBrand,
-      });
-    } catch (error) {
-      logger.error("Error toggling brand verification status:", error);
-
-      if (error instanceof Error) {
-        if (error.message.includes("not found")) {
-          res.status(404).json({
-            success: false,
-            message: error.message,
-          });
-          return;
-        }
-        if (error.message.includes("Invalid")) {
-          res.status(400).json({
-            success: false,
-            message: error.message,
-          });
-          return;
-        }
-      }
-
-      res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-  /**
    * Update brand by brand_id (handles both MongoDB _id and custom brand_id)
    */
   public static async updateBrand(req: Request, res: Response): Promise<void> {
@@ -2009,17 +2014,26 @@ export class VendorController {
   }
 
   /**
-   * Update brand verification status
+   * Update brand verification status (only super_admin and vendor_admin)
    */
   public static async updateBrandVerificationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      const { brand_id } = req.params;
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
+          success: false,
+          message:
+            "Access denied. Only super admin and vendor admin can update brand verification status",
+        });
+        return;
+      }
+
+      const { id } = req.params;
       const { verification_status, risk_notes } = req.body;
 
-      if (!brand_id || brand_id.trim() === "") {
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Brand ID is required",
@@ -2042,7 +2056,7 @@ export class VendorController {
       };
 
       const updatedBrand = await brandService.updateBrandByBrandId(
-        brand_id,
+        id,
         updateData,
         userId,
         userEmail,
@@ -2076,6 +2090,66 @@ export class VendorController {
         }
       }
 
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Bulk update brand verification status
+   */
+  public static async bulkUpdateBrandVerification(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
+
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
+          success: false,
+          message:
+            "Access denied. Only super admin and vendor admin can bulk update brand verification",
+        });
+        return;
+      }
+
+      const { brand_ids, verification_status, risk_notes } = req.body;
+
+      if (!brand_ids || !Array.isArray(brand_ids) || brand_ids.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "brand_ids must be a non-empty array",
+        });
+        return;
+      }
+
+      if (!["pending", "verified", "rejected"].includes(verification_status)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid verification_status. Must be 'pending', 'verified', or 'rejected'",
+        });
+        return;
+      }
+
+      const result = await brandService.bulkUpdateBrandVerificationStatus(
+        brand_ids,
+        verification_status,
+        risk_notes || "",
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Bulk brand verification update completed. ${result.updated} updated, ${result.failed.length} failed.`,
+        data: result,
+      });
+    } catch (error) {
+      logger.error("Error in bulk brand verification update:", error);
       res.status(500).json({
         success: false,
         message: "Internal server error",
