@@ -75,8 +75,6 @@ export class DocumentUploadService {
     }
   }
 
-  
-
   validateDocumentType(documentType: string): boolean {
     const validTypes = [
       "signed_contract",

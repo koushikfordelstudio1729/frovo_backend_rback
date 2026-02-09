@@ -14,12 +14,9 @@ export const seedRoles = async (
   departmentMap: { [key: string]: Types.ObjectId }
 ): Promise<{ [key: string]: Types.ObjectId }> => {
   try {
-    
-    
-
     const existingCount = await Role.countDocuments();
     const existingRoles = await Role.find();
-    
+
     // Define all system roles that should exist
     const allSystemRoles = [
       SystemRole.SUPER_ADMIN,
@@ -45,8 +42,6 @@ export const seedRoles = async (
       systemRole => !existingSystemRoles.includes(systemRole)
     );
 
-   
-
     // Define role configurations for all system roles with FALLBACK departments
     const roleConfigs: { [key in SystemRole]?: any } = {
       [SystemRole.SUPER_ADMIN]: {
@@ -54,7 +49,8 @@ export const seedRoles = async (
         key: "super_admin",
         systemRole: SystemRole.SUPER_ADMIN,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.SYSTEM_ADMIN] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.SYSTEM_ADMIN] || departmentMap[DepartmentName.OPERATIONS],
         permissions: ["*:*"],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.ADMIN_PANEL,
@@ -134,7 +130,9 @@ export const seedRoles = async (
         systemRole: SystemRole.FIELD_AGENT,
         type: RoleType.SYSTEM,
         // Use OPERATIONS as fallback if FIELD_OPERATIONS doesn't exist
-        department: departmentMap[DepartmentName.FIELD_OPERATIONS] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.FIELD_OPERATIONS] ||
+          departmentMap[DepartmentName.OPERATIONS],
         permissions: ["refills:execute", "job:update", "machines:view"],
         scope: { level: ScopeLevel.MACHINE },
         uiAccess: UIAccess.MOBILE_APP,
@@ -146,7 +144,8 @@ export const seedRoles = async (
         key: "technician",
         systemRole: SystemRole.TECHNICIAN,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.MAINTENANCE] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.MAINTENANCE] || departmentMap[DepartmentName.OPERATIONS],
         permissions: ["maintenance:view", "ticket:resolve", "machines:view"],
         scope: { level: ScopeLevel.MACHINE },
         uiAccess: UIAccess.MOBILE_AND_WEB,
@@ -158,7 +157,8 @@ export const seedRoles = async (
         key: "finance_manager",
         systemRole: SystemRole.FINANCE_MANAGER,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.FINANCE] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.FINANCE] || departmentMap[DepartmentName.OPERATIONS],
         permissions: [
           "finance:view",
           "settlement:view",
@@ -178,7 +178,8 @@ export const seedRoles = async (
         key: "support_agent",
         systemRole: SystemRole.SUPPORT_AGENT,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.SUPPORT] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.SUPPORT] || departmentMap[DepartmentName.OPERATIONS],
         permissions: ["orders:view", "orders:refund", "ticket:resolve", "machines:view"],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.SUPPORT_PORTAL,
@@ -190,7 +191,8 @@ export const seedRoles = async (
         key: "warehouse_manager",
         systemRole: SystemRole.WAREHOUSE_MANAGER,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.WAREHOUSE] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.WAREHOUSE] || departmentMap[DepartmentName.OPERATIONS],
         permissions: [
           "inventory:receive",
           "batch:log",
@@ -219,7 +221,8 @@ export const seedRoles = async (
         key: "warehouse_staff",
         systemRole: SystemRole.WAREHOUSE_STAFF,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.WAREHOUSE] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.WAREHOUSE] || departmentMap[DepartmentName.OPERATIONS],
         permissions: [
           "warehouse:view",
           "inventory:receive",
@@ -239,7 +242,8 @@ export const seedRoles = async (
         key: "auditor",
         systemRole: SystemRole.AUDITOR,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.COMPLIANCE] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.COMPLIANCE] || departmentMap[DepartmentName.OPERATIONS],
         permissions: ["audit:view", "users:view", "roles:view", "departments:view"],
         scope: { level: ScopeLevel.GLOBAL },
         uiAccess: UIAccess.ADMIN_PANEL,
@@ -251,7 +255,8 @@ export const seedRoles = async (
         key: "customer",
         systemRole: SystemRole.CUSTOMER,
         type: RoleType.SYSTEM,
-        department: departmentMap[DepartmentName.CUSTOMER] || departmentMap[DepartmentName.OPERATIONS],
+        department:
+          departmentMap[DepartmentName.CUSTOMER] || departmentMap[DepartmentName.OPERATIONS],
         permissions: ["orders:view"],
         scope: { level: ScopeLevel.MACHINE },
         uiAccess: UIAccess.MOBILE_APP,
@@ -273,11 +278,15 @@ export const seedRoles = async (
 
     let newlyCreatedRoles: any[] = [];
     if (rolesToCreate.length > 0) {
-      logger.info(`Creating ${rolesToCreate.length} missing roles: ${missingSystemRoles.join(', ')}`);
-      
+      logger.info(
+        `Creating ${rolesToCreate.length} missing roles: ${missingSystemRoles.join(", ")}`
+      );
+
       // Log each role's department info
       rolesToCreate.forEach(role => {
-        logger.info(`Role: ${role.name}, Department ID: ${role.department?.toString() || 'MISSING'}`);
+        logger.info(
+          `Role: ${role.name}, Department ID: ${role.department?.toString() || "MISSING"}`
+        );
       });
 
       try {
@@ -287,15 +296,15 @@ export const seedRoles = async (
         logger.error("❌ Error inserting roles:", insertError.message);
         logger.error("Error name:", insertError.name);
         logger.error("Error code:", insertError.code);
-        
-        if (insertError.name === 'ValidationError') {
+
+        if (insertError.name === "ValidationError") {
           logger.error("Validation errors:");
           Object.keys(insertError.errors).forEach(key => {
             const err = insertError.errors[key];
             logger.error(`  - ${key}: ${err.message}`);
           });
         }
-        
+
         // Try to create roles one by one to see which fails
         logger.info("Trying to create roles one by one...");
         for (const roleData of rolesToCreate) {
@@ -321,7 +330,6 @@ export const seedRoles = async (
       }
     });
 
-    
     return roleMap;
   } catch (error) {
     logger.error("Error seeding roles:", error);

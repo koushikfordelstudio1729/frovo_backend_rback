@@ -1,17 +1,19 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import {
-  AreaService,
-  AuditLogParams,
-} from "../services/arearoute.service";
+import { AreaService, AuditLogParams } from "../services/arearoute.service";
 import { ImageUploadService } from "../services/areaFileUpload.service";
 import { logger } from "../utils/logger.util";
 
 // Import the new models
-import { LocationModel, SubLocationModel, MachineDetailsModel, HistoryAreaModel, IMachineImageData } from "../models/AreaRoute.model"
+import {
+  LocationModel,
+  SubLocationModel,
+  MachineDetailsModel,
+  HistoryAreaModel,
+  IMachineImageData,
+} from "../models/AreaRoute.model";
 
 export class AreaController {
-
   private static getAuditParams(req: Request): AuditLogParams {
     const user = (req as any).user || {};
     return {
@@ -97,128 +99,139 @@ export class AreaController {
       });
     }
   }
-// Also fix the addSubLocation method:
-static async addSubLocation(req: Request, res: Response): Promise<void> {
-  try {
-    const { locationId } = req.params;
-    let subLocationData: any;
+  // Also fix the addSubLocation method:
+  static async addSubLocation(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      let subLocationData: any;
 
-    // Parse sub-location data
-    if (req.body.data) {
-      subLocationData = JSON.parse(req.body.data);
-    } else {
-      subLocationData = req.body;
-    }
+      // Parse sub-location data
+      if (req.body.data) {
+        subLocationData = JSON.parse(req.body.data);
+      } else {
+        subLocationData = req.body;
+      }
 
-    // Validate required fields for SubLocation
-    const requiredFields = ["campus", "tower", "floor", "select_machine"];
-    const missingFields = requiredFields.filter(field => !subLocationData[field]);
+      // Validate required fields for SubLocation
+      const requiredFields = ["campus", "tower", "floor", "select_machine"];
+      const missingFields = requiredFields.filter(field => !subLocationData[field]);
 
-    if (missingFields.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(", ")}`,
+      if (missingFields.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: `Missing required fields: ${missingFields.join(", ")}`,
+        });
+        return;
+      }
+
+      // Validate select_machine is an array
+      if (
+        !Array.isArray(subLocationData.select_machine) ||
+        subLocationData.select_machine.length === 0
+      ) {
+        res.status(400).json({
+          success: false,
+          message: "select_machine must be a non-empty array",
+        });
+        return;
+      }
+
+      // Check if location exists
+      const location = await LocationModel.findById(locationId);
+      if (!location) {
+        res.status(404).json({
+          success: false,
+          message: "Location not found",
+        });
+        return;
+      }
+
+      // Create sub-location
+      const newSubLocation = new SubLocationModel({
+        ...subLocationData,
+        location_id: locationId,
       });
-      return;
-    }
+      await newSubLocation.save();
 
-    // Validate select_machine is an array
-    if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: "select_machine must be a non-empty array",
-      });
-      return;
-    }
+      // Create MachineDetails for each selected machine and collect their IDs
+      const machineDetailsPromises = subLocationData.select_machine.map(
+        async (machineName: string) => {
+          const machineDetail = new MachineDetailsModel({
+            machine_name: machineName,
+            sub_location_id: newSubLocation._id,
+            installed_status: "not_installed",
+            status: "active",
+            machine_image: [],
+          });
+          const savedMachine = await machineDetail.save();
+          return {
+            id: savedMachine._id,
+            machine_name: savedMachine.machine_name,
+            installed_status: savedMachine.installed_status,
+            status: savedMachine.status,
+            sub_location_id: savedMachine.sub_location_id,
+          };
+        }
+      );
 
-    // Check if location exists
-    const location = await LocationModel.findById(locationId);
-    if (!location) {
-      res.status(404).json({
-        success: false,
-        message: "Location not found",
-      });
-      return;
-    }
+      const createdMachines = await Promise.all(machineDetailsPromises);
 
-    // Create sub-location
-    const newSubLocation = new SubLocationModel({
-      ...subLocationData,
-      location_id: locationId,
-    });
-    await newSubLocation.save();
-
-    // Create MachineDetails for each selected machine and collect their IDs
-    const machineDetailsPromises = subLocationData.select_machine.map(async (machineName: string) => {
-      const machineDetail = new MachineDetailsModel({
-        machine_name: machineName,
-        sub_location_id: newSubLocation._id,
-        installed_status: "not_installed",
-        status: "active",
-        machine_image: [],
-      });
-      const savedMachine = await machineDetail.save();
-      return {
-        id: savedMachine._id,
-        machine_name: savedMachine.machine_name,
-        installed_status: savedMachine.installed_status,
-        status: savedMachine.status,
-        sub_location_id: savedMachine.sub_location_id,
-      };
-    });
-
-    const createdMachines = await Promise.all(machineDetailsPromises);
-
-    // Create audit log - Fixed
-    const auditParams = AreaController.getAuditParams(req);
-    await AreaController.createAuditLog({
-      location_id: new mongoose.Types.ObjectId(locationId),
-      action: "ADD_SUB_LOCATION",
-      new_data: {
-        sub_location: newSubLocation.toObject(),
-        added_machines: subLocationData.select_machine,
-        machine_ids: createdMachines.map(m => m.id),
-      },
-      performed_by: {
-        user_id: auditParams.userId,
-        email: auditParams.userEmail,
-        name: auditParams.userName,
-      },
-      ip_address: auditParams.ipAddress,
-      user_agent: auditParams.userAgent,
-      timestamp: new Date(),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Sub-location added successfully",
-      data: {
-        subLocation: {
-          id: newSubLocation._id,
-          campus: newSubLocation.campus,
-          tower: newSubLocation.tower,
-          floor: newSubLocation.floor,
-          select_machine: newSubLocation.select_machine,
-          location_id: newSubLocation.location_id,
-          created_at: newSubLocation.createdAt,
-          updated_at: newSubLocation.updatedAt,
+      // Create audit log - Fixed
+      const auditParams = AreaController.getAuditParams(req);
+      await AreaController.createAuditLog({
+        location_id: new mongoose.Types.ObjectId(locationId),
+        action: "ADD_SUB_LOCATION",
+        new_data: {
+          sub_location: newSubLocation.toObject(),
+          added_machines: subLocationData.select_machine,
+          machine_ids: createdMachines.map(m => m.id),
         },
-        machines_added: createdMachines,
-        total_machines_added: createdMachines.length,
-      },
-    });
-  } catch (error) {
-    logger.error("Error adding sub-location:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Internal server error",
-    });
+        performed_by: {
+          user_id: auditParams.userId,
+          email: auditParams.userEmail,
+          name: auditParams.userName,
+        },
+        ip_address: auditParams.ipAddress,
+        user_agent: auditParams.userAgent,
+        timestamp: new Date(),
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Sub-location added successfully",
+        data: {
+          subLocation: {
+            id: newSubLocation._id,
+            campus: newSubLocation.campus,
+            tower: newSubLocation.tower,
+            floor: newSubLocation.floor,
+            select_machine: newSubLocation.select_machine,
+            location_id: newSubLocation.location_id,
+            created_at: newSubLocation.createdAt,
+            updated_at: newSubLocation.updatedAt,
+          },
+          machines_added: createdMachines,
+          total_machines_added: createdMachines.length,
+        },
+      });
+    } catch (error) {
+      logger.error("Error adding sub-location:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
   }
-}
   // UPDATE THE HELPER METHOD - Make it static
   private static async createAuditLog(data: {
     location_id: mongoose.Types.ObjectId;
-    action: "CREATE" | "UPDATE" | "DELETE" | "STATUS_CHANGE" | "ADD_SUB_LOCATION" | "REMOVE_MACHINE";
+    action:
+      | "CREATE"
+      | "UPDATE"
+      | "DELETE"
+      | "STATUS_CHANGE"
+      | "ADD_SUB_LOCATION"
+      | "REMOVE_MACHINE";
     old_data?: any;
     new_data?: any;
     changes?: Record<string, { old: any; new: any }>;
@@ -256,13 +269,11 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       const updateData = req.body;
       const files = req.files as Express.Multer.File[] | undefined;
 
-      console.log("=== DEBUG: updateMachineDetails called ===");
-      console.log("Machine Details ID:", machineDetailsId);
-      console.log("Update Data:", JSON.stringify(updateData, null, 2));
-      console.log("Files received:", files ? files.length : 0);
-
       // Validate update data
-      if (updateData.installed_status && !["installed", "not_installed"].includes(updateData.installed_status)) {
+      if (
+        updateData.installed_status &&
+        !["installed", "not_installed"].includes(updateData.installed_status)
+      ) {
         res.status(400).json({
           success: false,
           message: "installed_status must be either 'installed' or 'not_installed'",
@@ -279,13 +290,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       }
 
       // Get current machine details
-      const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
-        .populate({
-          path: 'sub_location_id',
-          populate: {
-            path: 'location_id',
-          }
-        });
+      const currentMachine = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
+      });
 
       if (!currentMachine) {
         res.status(404).json({
@@ -297,20 +307,16 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       const oldData = { ...currentMachine.toObject() };
       let processedFiles: IMachineImageData[] = [];
-      let changes: Record<string, { old: any; new: any }> = {};
+      const changes: Record<string, { old: any; new: any }> = {};
 
       // Process file uploads if any
       if (files && files.length > 0) {
-        console.log("Processing file uploads...");
-
         const uploadService = new ImageUploadService();
         processedFiles = await uploadService.uploadMultipleFiles(
           files,
           "machine_images",
           "areaMachine"
         );
-
-        console.log("Files processed:", processedFiles.length);
 
         // Add uploaded files to machine images
         if (!updateData.machine_image || !Array.isArray(updateData.machine_image)) {
@@ -323,13 +329,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         // Record image changes
         changes["machine_image"] = {
           old: oldData.machine_image?.length || 0,
-          new: updateData.machine_image.length
+          new: updateData.machine_image.length,
         };
       }
 
       // Handle machine_image if provided in request body (for reordering or removing images)
       if (updateData.machine_image && Array.isArray(updateData.machine_image)) {
-        console.log("Machine image array provided in request");
         // The array will be replaced with what's provided
       }
 
@@ -339,10 +344,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         updateData,
         { new: true }
       ).populate({
-        path: 'sub_location_id',
+        path: "sub_location_id",
         populate: {
-          path: 'location_id',
-        }
+          path: "location_id",
+        },
       });
 
       if (!updatedMachine) {
@@ -379,9 +384,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           location_id: locationId,
           action: "UPDATE",
           changes: changes,
-          new_data: processedFiles.length > 0 ? {
-            added_images: processedFiles.map(f => f.image_name)
-          } : undefined,
+          new_data:
+            processedFiles.length > 0
+              ? {
+                  added_images: processedFiles.map(f => f.image_name),
+                }
+              : undefined,
           performed_by: {
             user_id: auditParams.userId,
             email: auditParams.userEmail,
@@ -395,13 +403,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       res.status(200).json({
         success: true,
-        message: "Machine details updated successfully" +
+        message:
+          "Machine details updated successfully" +
           (processedFiles.length > 0 ? ` with ${processedFiles.length} new image(s)` : ""),
         data: updatedMachine,
-        changes: processedFiles.length > 0 ? {
-          images_added: processedFiles.length,
-          image_names: processedFiles.map(f => f.image_name)
-        } : undefined,
+        changes:
+          processedFiles.length > 0
+            ? {
+                images_added: processedFiles.length,
+                image_names: processedFiles.map(f => f.image_name),
+              }
+            : undefined,
       });
     } catch (error) {
       logger.error("Error updating machine details:", error);
@@ -426,43 +438,40 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Build query
       const query: any = {};
-      if (queryParams.status && queryParams.status !== 'all') {
+      if (queryParams.status && queryParams.status !== "all") {
         query.status = queryParams.status;
       }
       if (queryParams.state) {
-        query.state = new RegExp(queryParams.state, 'i');
+        query.state = new RegExp(queryParams.state, "i");
       }
       if (queryParams.district) {
-        query.district = new RegExp(queryParams.district, 'i');
+        query.district = new RegExp(queryParams.district, "i");
       }
       if (queryParams.search) {
         query.$or = [
-          { area_name: new RegExp(queryParams.search, 'i') },
-          { state: new RegExp(queryParams.search, 'i') },
-          { district: new RegExp(queryParams.search, 'i') },
+          { area_name: new RegExp(queryParams.search, "i") },
+          { state: new RegExp(queryParams.search, "i") },
+          { district: new RegExp(queryParams.search, "i") },
         ];
       }
 
       // Get locations with pagination
       const skip = (queryParams.page - 1) * queryParams.limit;
       const [locations, total] = await Promise.all([
-        LocationModel.find(query)
-          .skip(skip)
-          .limit(queryParams.limit)
-          .sort({ createdAt: -1 }),
+        LocationModel.find(query).skip(skip).limit(queryParams.limit).sort({ createdAt: -1 }),
         LocationModel.countDocuments(query),
       ]);
 
       // Get sub-locations and machines for each location
       const enrichedLocations = await Promise.all(
-        locations.map(async (location) => {
+        locations.map(async location => {
           const subLocations = await SubLocationModel.find({ location_id: location._id });
 
           // Get machine details for each sub-location
           const subLocationsWithMachines = await Promise.all(
-            subLocations.map(async (subLoc) => {
+            subLocations.map(async subLoc => {
               const machineDetails = await MachineDetailsModel.find({
-                sub_location_id: subLoc._id
+                sub_location_id: subLoc._id,
               });
               return {
                 ...subLoc.toObject(),
@@ -473,17 +482,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
           // Calculate summary
           const totalMachines = subLocationsWithMachines.reduce(
-            (sum, subLoc) => sum + subLoc.machines.length, 0
+            (sum, subLoc) => sum + subLoc.machines.length,
+            0
           );
           const installedMachines = subLocationsWithMachines.reduce(
-            (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-              m.installed_status === 'installed'
-            ).length, 0
+            (sum, subLoc) =>
+              sum + subLoc.machines.filter((m: any) => m.installed_status === "installed").length,
+            0
           );
           const activeMachines = subLocationsWithMachines.reduce(
-            (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-              m.status === 'active'
-            ).length, 0
+            (sum, subLoc) => sum + subLoc.machines.filter((m: any) => m.status === "active").length,
+            0
           );
 
           return {
@@ -539,9 +548,9 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Get machine details for each sub-location
       const subLocationsWithMachines = await Promise.all(
-        subLocations.map(async (subLoc) => {
+        subLocations.map(async subLoc => {
           const machineDetails = await MachineDetailsModel.find({
-            sub_location_id: subLoc._id
+            sub_location_id: subLoc._id,
           });
           return {
             ...subLoc.toObject(),
@@ -552,17 +561,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Calculate summary
       const totalMachines = subLocationsWithMachines.reduce(
-        (sum, subLoc) => sum + subLoc.machines.length, 0
+        (sum, subLoc) => sum + subLoc.machines.length,
+        0
       );
       const installedMachines = subLocationsWithMachines.reduce(
-        (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-          m.installed_status === 'installed'
-        ).length, 0
+        (sum, subLoc) =>
+          sum + subLoc.machines.filter((m: any) => m.installed_status === "installed").length,
+        0
       );
       const activeMachines = subLocationsWithMachines.reduce(
-        (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-          m.status === 'active'
-        ).length, 0
+        (sum, subLoc) => sum + subLoc.machines.filter((m: any) => m.status === "active").length,
+        0
       );
 
       const enrichedLocation = {
@@ -618,11 +627,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       const oldData = { ...currentLocation.toObject() };
 
       // Update location
-      const updatedLocation = await LocationModel.findByIdAndUpdate(
-        locationId,
-        updateData,
-        { new: true, runValidators: true }
-      );
+      const updatedLocation = await LocationModel.findByIdAndUpdate(locationId, updateData, {
+        new: true,
+        runValidators: true,
+      });
 
       if (!updatedLocation) {
         res.status(404).json({
@@ -845,13 +853,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-        .populate({
-          path: 'sub_location_id',
-          populate: {
-            path: 'location_id',
-          }
-        });
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
+      });
 
       if (!machineDetails) {
         res.status(404).json({
@@ -912,11 +919,13 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           machine_id: machineDetailsId,
           machine_name: machineName,
           images_deleted: machineDetails.machine_image.length,
-          sub_location: subLocation ? {
-            campus: subLocation.campus,
-            tower: subLocation.tower,
-            floor: subLocation.floor,
-          } : null,
+          sub_location: subLocation
+            ? {
+                campus: subLocation.campus,
+                tower: subLocation.tower,
+                floor: subLocation.floor,
+              }
+            : null,
         },
       });
     } catch (error) {
@@ -983,8 +992,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         .sort({ timestamp: -1 })
         .limit(limit)
         .populate({
-          path: 'location_id',
-          select: 'area_name state district',
+          path: "location_id",
+          select: "area_name state district",
         });
 
       res.status(200).json({
@@ -1012,20 +1021,20 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Build query
       const query: any = {};
-      if (params.status && params.status !== 'all') {
+      if (params.status && params.status !== "all") {
         query.status = params.status;
       }
       if (params.state) {
-        query.state = new RegExp(params.state, 'i');
+        query.state = new RegExp(params.state, "i");
       }
       if (params.district) {
-        query.district = new RegExp(params.district, 'i');
+        query.district = new RegExp(params.district, "i");
       }
       if (params.search) {
         query.$or = [
-          { area_name: new RegExp(params.search, 'i') },
-          { state: new RegExp(params.search, 'i') },
-          { district: new RegExp(params.search, 'i') },
+          { area_name: new RegExp(params.search, "i") },
+          { state: new RegExp(params.search, "i") },
+          { district: new RegExp(params.search, "i") },
         ];
       }
 
@@ -1042,8 +1051,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       for (const location of locations) {
         totalLocations++;
-        if (location.status === 'active') activeLocations++;
-        if (location.status === 'inactive') inactiveLocations++;
+        if (location.status === "active") activeLocations++;
+        if (location.status === "inactive") inactiveLocations++;
 
         // Get sub-locations for this location
         const subLocations = await SubLocationModel.find({ location_id: location._id });
@@ -1053,8 +1062,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
 
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          activeMachines += machines.filter(m => m.status === 'active').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          activeMachines += machines.filter(m => m.status === "active").length;
         }
       }
 
@@ -1083,19 +1092,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
     }
   }
 
-
   // TOGGLE MACHINE STATUS (active ↔ inactive) - CORRECTED
   static async toggleMachineStatus(req: Request, res: Response): Promise<void> {
     try {
       const { machineDetailsId } = req.params;
 
-      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-        .populate({
-          path: 'sub_location_id',
-          populate: {
-            path: 'location_id',
-          }
-        });
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
+      });
 
       if (!machineDetails) {
         res.status(404).json({
@@ -1113,10 +1120,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         { status: newStatus },
         { new: true }
       ).populate({
-        path: 'sub_location_id',
+        path: "sub_location_id",
         populate: {
-          path: 'location_id',
-        }
+          path: "location_id",
+        },
       });
 
       // Get location ID for audit log
@@ -1162,13 +1169,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
     try {
       const { machineDetailsId } = req.params;
 
-      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-        .populate({
-          path: 'sub_location_id',
-          populate: {
-            path: 'location_id',
-          }
-        });
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
+      });
 
       if (!machineDetails) {
         res.status(404).json({
@@ -1186,10 +1192,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         { installed_status: newInstalledStatus },
         { new: true }
       ).populate({
-        path: 'sub_location_id',
+        path: "sub_location_id",
         populate: {
-          path: 'location_id',
-        }
+          path: "location_id",
+        },
       });
 
       // Get location ID for audit log
@@ -1257,9 +1263,9 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       const subLocations = await SubLocationModel.find({ location_id: locationId });
 
       const subLocationsWithMachines = await Promise.all(
-        subLocations.map(async (subLoc) => {
+        subLocations.map(async subLoc => {
           const machines = await MachineDetailsModel.find({
-            sub_location_id: subLoc._id
+            sub_location_id: subLoc._id,
           });
           return {
             ...subLoc.toObject(),
@@ -1411,11 +1417,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       }
 
       const auditParams = AreaController.getAuditParams(req);
-      const result = await AreaService.updateSubLocation(
-        subLocationId,
-        updateData,
-        auditParams
-      );
+      const result = await AreaService.updateSubLocation(subLocationId, updateData, auditParams);
 
       if (!result) {
         res.status(404).json({
@@ -1433,15 +1435,18 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           changes: {
             added_machines: result.addedMachines,
             removed_machines: result.removedMachines,
-            total_machines: result.subLocation.select_machine.length
-          }
+            total_machines: result.subLocation.select_machine.length,
+          },
         },
       });
     } catch (error) {
       logger.error("Error updating sub-location:", error);
 
-      const statusCode = error.message.includes("not found") ? 404 :
-        error.message.includes("Invalid") ? 400 : 500;
+      const statusCode = error.message.includes("not found")
+        ? 404
+        : error.message.includes("Invalid")
+          ? 400
+          : 500;
 
       res.status(statusCode).json({
         success: false,
@@ -1474,14 +1479,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       } else {
         res.status(200).json({
           success: true,
-          ...result.data
+          ...result.data,
         });
       }
     } catch (error) {
       logger.error("Error exporting sub-locations:", error);
 
-      const statusCode = error.message.includes("not found") ? 404 :
-        error.message.includes("Invalid") ? 400 : 500;
+      const statusCode = error.message.includes("not found")
+        ? 404
+        : error.message.includes("Invalid")
+          ? 400
+          : 500;
 
       res.status(statusCode).json({
         success: false,
@@ -1513,14 +1521,14 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         const logObj = log.toObject ? log.toObject() : log;
 
         // Extract sub-location specific changes
-        let subLocationChanges = [];
+        const subLocationChanges = [];
         if (logObj.changes) {
           Object.keys(logObj.changes).forEach(key => {
-            if (['campus', 'tower', 'floor', 'select_machine'].includes(key)) {
+            if (["campus", "tower", "floor", "select_machine"].includes(key)) {
               subLocationChanges.push({
                 field: key,
                 old: logObj.changes[key].old,
-                new: logObj.changes[key].new
+                new: logObj.changes[key].new,
               });
             }
           });
@@ -1532,10 +1540,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             id: subLocation?._id,
             campus: subLocation?.campus,
             tower: subLocation?.tower,
-            floor: subLocation?.floor
+            floor: subLocation?.floor,
           },
           sub_location_changes: subLocationChanges.length > 0 ? subLocationChanges : undefined,
-          is_sub_location_related: subLocationChanges.length > 0
+          is_sub_location_related: subLocationChanges.length > 0,
         };
       });
 
@@ -1543,24 +1551,30 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         success: true,
         data: {
           logs: enrichedLogs,
-          sub_location: subLocation ? {
-            id: subLocation._id,
-            campus: subLocation.campus,
-            tower: subLocation.tower,
-            floor: subLocation.floor
-          } : null,
+          sub_location: subLocation
+            ? {
+                id: subLocation._id,
+                campus: subLocation.campus,
+                tower: subLocation.tower,
+                floor: subLocation.floor,
+              }
+            : null,
           pagination: result.pagination,
           summary: {
             total_logs: result.pagination.totalItems,
-            sub_location_related_logs: enrichedLogs.filter(log => log.is_sub_location_related).length
-          }
+            sub_location_related_logs: enrichedLogs.filter(log => log.is_sub_location_related)
+              .length,
+          },
         },
       });
     } catch (error) {
       logger.error("Error fetching sub-location audit logs:", error);
 
-      const statusCode = error.message.includes("not found") ? 404 :
-        error.message.includes("Invalid") ? 400 : 500;
+      const statusCode = error.message.includes("not found")
+        ? 404
+        : error.message.includes("Invalid")
+          ? 400
+          : 500;
 
       res.status(statusCode).json({
         success: false,
@@ -1593,7 +1607,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Get machine details
       const machineDetails = await MachineDetailsModel.find({
-        sub_location_id: subLocationId
+        sub_location_id: subLocationId,
       });
 
       // Get location info
@@ -1607,20 +1621,25 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             campus: subLocation.campus,
             tower: subLocation.tower,
             floor: subLocation.floor,
-            location_info: location ? {
-              id: location._id,
-              area_name: location.area_name,
-              state: location.state,
-              district: location.district,
-            } : null,
+            location_info: location
+              ? {
+                  id: location._id,
+                  area_name: location.area_name,
+                  state: location.state,
+                  district: location.district,
+                }
+              : null,
           },
           machines: machineDetails,
           total: machineDetails.length,
           summary: {
-            installed_machines: machineDetails.filter(m => m.installed_status === 'installed').length,
-            not_installed_machines: machineDetails.filter(m => m.installed_status === 'not_installed').length,
-            active_machines: machineDetails.filter(m => m.status === 'active').length,
-            inactive_machines: machineDetails.filter(m => m.status === 'inactive').length,
+            installed_machines: machineDetails.filter(m => m.installed_status === "installed")
+              .length,
+            not_installed_machines: machineDetails.filter(
+              m => m.installed_status === "not_installed"
+            ).length,
+            active_machines: machineDetails.filter(m => m.status === "active").length,
+            inactive_machines: machineDetails.filter(m => m.status === "inactive").length,
           },
         },
       });
@@ -1655,13 +1674,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-        .populate({
-          path: 'sub_location_id',
-          populate: {
-            path: 'location_id',
-          }
-        });
+      const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
+      });
 
       if (!machineDetails) {
         res.status(404).json({
@@ -1707,12 +1725,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           changes: {
             removed_image: {
               old: imageToRemove.image_name,
-              new: null
+              new: null,
             },
             remaining_images: {
               old: oldImages.length,
-              new: updatedMachine.machine_image.length
-            }
+              new: updatedMachine.machine_image.length,
+            },
           },
           performed_by: {
             user_id: auditParams.userId,
@@ -1747,7 +1765,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
     try {
       const searchTerm = req.query.q as string;
 
-      if (!searchTerm || searchTerm.trim() === '') {
+      if (!searchTerm || searchTerm.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Search term is required",
@@ -1755,20 +1773,18 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const searchRegex = new RegExp(searchTerm, 'i');
+      const searchRegex = new RegExp(searchTerm, "i");
 
       // Search in machine details
       const machines = await MachineDetailsModel.find({
-        $or: [
-          { machine_name: searchRegex },
-        ]
+        $or: [{ machine_name: searchRegex }],
       })
         .populate({
-          path: 'sub_location_id',
+          path: "sub_location_id",
           populate: {
-            path: 'location_id',
-            select: 'area_name state district'
-          }
+            path: "location_id",
+            select: "area_name state district",
+          },
         })
         .limit(50);
 
@@ -1778,18 +1794,22 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         installed_status: machine.installed_status,
         status: machine.status,
         images_count: machine.machine_image.length,
-        sub_location: machine.sub_location_id ? {
-          id: (machine.sub_location_id as any)._id,
-          campus: (machine.sub_location_id as any).campus,
-          tower: (machine.sub_location_id as any).tower,
-          floor: (machine.sub_location_id as any).floor,
-        } : null,
-        location: (machine.sub_location_id as any)?.location_id ? {
-          id: (machine.sub_location_id as any).location_id._id,
-          area_name: (machine.sub_location_id as any).location_id.area_name,
-          state: (machine.sub_location_id as any).location_id.state,
-          district: (machine.sub_location_id as any).location_id.district,
-        } : null,
+        sub_location: machine.sub_location_id
+          ? {
+              id: (machine.sub_location_id as any)._id,
+              campus: (machine.sub_location_id as any).campus,
+              tower: (machine.sub_location_id as any).tower,
+              floor: (machine.sub_location_id as any).floor,
+            }
+          : null,
+        location: (machine.sub_location_id as any)?.location_id
+          ? {
+              id: (machine.sub_location_id as any).location_id._id,
+              area_name: (machine.sub_location_id as any).location_id.area_name,
+              state: (machine.sub_location_id as any).location_id.state,
+              district: (machine.sub_location_id as any).location_id.district,
+            }
+          : null,
       }));
 
       res.status(200).json({
@@ -1855,7 +1875,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Build filter
       const filter: any = {};
-      if (status && status !== 'all') {
+      if (status && status !== "all") {
         filter.status = status;
       }
       if (state) {
@@ -1887,36 +1907,49 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       if (format === "csv") {
         if (includeDetails) {
           // Get detailed CSV with sub-locations and machines
-          const detailedCSV = await AreaController.generateDetailedCSVExport(locations, includeImages); // FIXED: Use AreaController
+          const detailedCSV = await AreaController.generateDetailedCSVExport(
+            locations,
+            includeImages
+          ); // FIXED: Use AreaController
           res.setHeader("Content-Type", "text/csv");
-          res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.csv"`);
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="locations-detailed-export-${timestamp}.csv"`
+          );
           res.status(200).send(detailedCSV);
         } else {
           // Get basic CSV (only locations)
           const csv = AreaController.convertLocationsToCSV(locations);
           res.setHeader("Content-Type", "text/csv");
-          res.setHeader("Content-Disposition", `attachment; filename="locations-basic-export-${timestamp}.csv"`);
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="locations-basic-export-${timestamp}.csv"`
+          );
           res.status(200).send(csv);
         }
       } else if (format === "json") {
         // Get COMPLETE detailed data for each location including sub-locations and machines
         const detailedLocations = await Promise.all(
-          locations.map(async (location) => {
+          locations.map(async location => {
             const subLocations = await SubLocationModel.find({ location_id: location._id });
 
             // Get detailed sub-locations with machines
             const detailedSubLocations = await Promise.all(
-              subLocations.map(async (subLoc) => {
+              subLocations.map(async subLoc => {
                 const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
 
                 // Get detailed machine information
                 const detailedMachines = await Promise.all(
-                  machines.map(async (machine) => {
+                  machines.map(async machine => {
                     const machineObj = machine.toObject();
 
                     // Handle image data if requested
                     let images = [];
-                    if (includeImages && machine.machine_image && machine.machine_image.length > 0) {
+                    if (
+                      includeImages &&
+                      machine.machine_image &&
+                      machine.machine_image.length > 0
+                    ) {
                       images = machine.machine_image.map(img => ({
                         image_name: img.image_name,
                         file_url: img.file_url,
@@ -1924,7 +1957,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                         file_size: img.file_size,
                         mime_type: img.mime_type,
                         uploaded_at: img.uploaded_at,
-                        preview_url: img.file_url.replace('/upload/', '/upload/w_200,h_200,c_fill/')
+                        preview_url: img.file_url.replace(
+                          "/upload/",
+                          "/upload/w_200,h_200,c_fill/"
+                        ),
                       }));
                     }
 
@@ -1936,7 +1972,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                       images_count: machine.machine_image.length,
                       images: includeImages ? images : undefined,
                       created_at: machine.createdAt,
-                      updated_at: machine.updatedAt
+                      updated_at: machine.updatedAt,
                     };
                   })
                 );
@@ -1952,10 +1988,12 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                   created_at: subLoc.createdAt,
                   updated_at: subLoc.updatedAt,
                   statistics: {
-                    installed_machines: detailedMachines.filter(m => m.installed_status === 'installed').length,
-                    active_machines: detailedMachines.filter(m => m.status === 'active').length,
-                    machines_with_images: detailedMachines.filter(m => m.images_count > 0).length
-                  }
+                    installed_machines: detailedMachines.filter(
+                      m => m.installed_status === "installed"
+                    ).length,
+                    active_machines: detailedMachines.filter(m => m.status === "active").length,
+                    machines_with_images: detailedMachines.filter(m => m.images_count > 0).length,
+                  },
                 };
               })
             );
@@ -1970,9 +2008,9 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             for (const subLoc of detailedSubLocations) {
               totalMachines += subLoc.total_machines;
               installedMachines += subLoc.statistics.installed_machines;
-              notInstalledMachines += (subLoc.total_machines - subLoc.statistics.installed_machines);
+              notInstalledMachines += subLoc.total_machines - subLoc.statistics.installed_machines;
               activeMachines += subLoc.statistics.active_machines;
-              inactiveMachines += (subLoc.total_machines - subLoc.statistics.active_machines);
+              inactiveMachines += subLoc.total_machines - subLoc.statistics.active_machines;
             }
 
             return {
@@ -1989,19 +2027,26 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
               export_metadata: {
                 exported_at: new Date().toISOString(),
                 includes_sub_locations: includeDetails,
-                includes_machine_images: includeImages
-              }
+                includes_machine_images: includeImages,
+              },
             };
           })
         );
 
-        const totalSubLocations = detailedLocations.reduce((sum, loc) =>
-          sum + (loc.sub_locations ? loc.sub_locations.length : 0), 0);
-        const totalMachines = detailedLocations.reduce((sum, loc) =>
-          sum + loc.summary.total_machines, 0);
+        const totalSubLocations = detailedLocations.reduce(
+          (sum, loc) => sum + (loc.sub_locations ? loc.sub_locations.length : 0),
+          0
+        );
+        const totalMachines = detailedLocations.reduce(
+          (sum, loc) => sum + loc.summary.total_machines,
+          0
+        );
 
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.json"`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="locations-detailed-export-${timestamp}.json"`
+        );
         res.status(200).json({
           success: true,
           data: detailedLocations,
@@ -2030,7 +2075,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
   }
 
   // NEW HELPER: Generate detailed CSV export
-  private static async generateDetailedCSVExport(locations: any[], includeImages: boolean): Promise<string> {
+  private static async generateDetailedCSVExport(
+    locations: any[],
+    includeImages: boolean
+  ): Promise<string> {
     if (!locations || locations.length === 0) {
       return "No locations available for export";
     }
@@ -2056,7 +2104,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Active Machines",
         "Inactive Machines",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += locationHeaders.join(",") + "\n";
 
@@ -2072,8 +2120,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         for (const subLoc of subLocations) {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          activeMachines += machines.filter(m => m.status === 'active').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          activeMachines += machines.filter(m => m.status === "active").length;
         }
 
         const notInstalledMachines = totalMachines - installedMachines;
@@ -2095,7 +2143,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           activeMachines,
           inactiveMachines,
           locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
-          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
         ];
 
         csv += locationRow.join(",") + "\n";
@@ -2117,7 +2165,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Installed Machines",
         "Active Machines",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += subLocationHeaders.join(",") + "\n";
 
@@ -2128,8 +2176,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
 
-          const installedMachines = machines.filter(m => m.installed_status === 'installed').length;
-          const activeMachines = machines.filter(m => m.status === 'active').length;
+          const installedMachines = machines.filter(m => m.installed_status === "installed").length;
+          const activeMachines = machines.filter(m => m.status === "active").length;
 
           const subLocationRow = [
             subLocObj._id?.toString() || "",
@@ -2143,7 +2191,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             installedMachines,
             activeMachines,
             subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
-            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
           ];
 
           csv += subLocationRow.join(",") + "\n";
@@ -2167,7 +2215,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Images Count",
         "Image Names",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += machineHeaders.join(",") + "\n";
 
@@ -2179,7 +2227,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
           for (const machine of machines) {
             const machineObj = machine.toObject ? machine.toObject() : machine;
-            const imageNames = machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+            const imageNames =
+              machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
 
             const machineRow = [
               machineObj._id?.toString() || "",
@@ -2194,7 +2243,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
               machineObj.machine_image?.length || 0,
               `"${imageNames.replace(/"/g, '""')}"`,
               machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
-              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : ""
+              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : "",
             ];
 
             csv += machineRow.join(",") + "\n";
@@ -2204,19 +2253,25 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Add summary
       csv += "\n\n=== EXPORT SUMMARY ===\n";
-      const totalSubLocations = (await Promise.all(
-        locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
-      )).reduce((sum, count) => sum + count, 0);
+      const totalSubLocations = (
+        await Promise.all(
+          locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
+        )
+      ).reduce((sum, count) => sum + count, 0);
 
-      const totalMachines = (await Promise.all(
-        locations.map(async (loc) => {
-          const subLocs = await SubLocationModel.find({ location_id: loc._id });
-          const machineCounts = await Promise.all(
-            subLocs.map(subLoc => MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id }))
-          );
-          return machineCounts.reduce((sum, count) => sum + count, 0);
-        })
-      )).reduce((sum, count) => sum + count, 0);
+      const totalMachines = (
+        await Promise.all(
+          locations.map(async loc => {
+            const subLocs = await SubLocationModel.find({ location_id: loc._id });
+            const machineCounts = await Promise.all(
+              subLocs.map(subLoc =>
+                MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id })
+              )
+            );
+            return machineCounts.reduce((sum, count) => sum + count, 0);
+          })
+        )
+      ).reduce((sum, count) => sum + count, 0);
 
       csv += "Total Locations," + locations.length + "\n";
       csv += "Total Sub-locations," + totalSubLocations + "\n";
@@ -2230,7 +2285,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       logger.error("Error generating detailed CSV:", error);
       return "Error generating detailed CSV export";
     }
-  }// ENHANCED EXPORT LOCATIONS BY IDS - WITH IMAGE URLS AND COMPREHENSIVE DATA
+  } // ENHANCED EXPORT LOCATIONS BY IDS - WITH IMAGE URLS AND COMPREHENSIVE DATA
   static async exportLocationsByIds(req: Request, res: Response): Promise<void> {
     try {
       const { ids } = req.params; // This comes from /location/export/:ids
@@ -2238,7 +2293,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       const includeImages = (req.query.includeImages as string) === "true";
       const includeDetails = (req.query.includeDetails as string) !== "false"; // Default to true
 
-      if (!ids || ids.trim() === '') {
+      if (!ids || ids.trim() === "") {
         res.status(400).json({
           success: false,
           message: "Please provide location IDs",
@@ -2290,36 +2345,49 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       if (format === "csv") {
         if (includeDetails) {
           // Get detailed CSV with sub-locations, machines, and images
-          const detailedCSV = await AreaController.generateDetailedCSVExportForIds(locations, includeImages);
+          const detailedCSV = await AreaController.generateDetailedCSVExportForIds(
+            locations,
+            includeImages
+          );
           res.setHeader("Content-Type", "text/csv");
-          res.setHeader("Content-Disposition", `attachment; filename="locations-detailed-export-${timestamp}.csv"`);
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="locations-detailed-export-${timestamp}.csv"`
+          );
           res.status(200).send(detailedCSV);
         } else {
           // Get basic CSV (only locations)
           const csv = AreaController.convertLocationsToCSV(locations);
           res.setHeader("Content-Type", "text/csv");
-          res.setHeader("Content-Disposition", `attachment; filename="locations-basic-export-${timestamp}.csv"`);
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="locations-basic-export-${timestamp}.csv"`
+          );
           res.status(200).send(csv);
         }
       } else if (format === "json") {
         // Get COMPLETE detailed data for each location
         const detailedLocations = await Promise.all(
-          locations.map(async (location) => {
+          locations.map(async location => {
             const subLocations = await SubLocationModel.find({ location_id: location._id });
 
             // Get detailed sub-locations with machines
             const detailedSubLocations = await Promise.all(
-              subLocations.map(async (subLoc) => {
+              subLocations.map(async subLoc => {
                 const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
 
                 // Get detailed machine information with images
                 const detailedMachines = await Promise.all(
-                  machines.map(async (machine) => {
+                  machines.map(async machine => {
                     const machineObj = machine.toObject();
 
                     // Handle image data
                     let images = [];
-                    if (includeImages && machine.machine_image && machine.machine_image.length > 0) {
+                    if (
+                      includeImages &&
+                      machine.machine_image &&
+                      machine.machine_image.length > 0
+                    ) {
                       images = machine.machine_image.map(img => ({
                         image_name: img.image_name,
                         file_url: img.file_url,
@@ -2329,13 +2397,21 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                         mime_type: img.mime_type,
                         uploaded_at: img.uploaded_at,
                         // Image variations
-                        thumbnail_url: img.file_url.replace('/upload/', '/upload/w_100,h_100,c_fill/'),
-                        preview_url: img.file_url.replace('/upload/', '/upload/w_300,h_300,c_fill/'),
+                        thumbnail_url: img.file_url.replace(
+                          "/upload/",
+                          "/upload/w_100,h_100,c_fill/"
+                        ),
+                        preview_url: img.file_url.replace(
+                          "/upload/",
+                          "/upload/w_300,h_300,c_fill/"
+                        ),
                         original_url: img.file_url,
                         download_url: `${img.file_url}?download=1`,
                         // Image metadata
-                        dimensions: img.file_url.includes('cloudinary') ? "Extracted from Cloudinary" : "Not available",
-                        format: img.mime_type.split('/')[1]?.toUpperCase() || "Unknown"
+                        dimensions: img.file_url.includes("cloudinary")
+                          ? "Extracted from Cloudinary"
+                          : "Not available",
+                        format: img.mime_type.split("/")[1]?.toUpperCase() || "Unknown",
                       }));
                     }
 
@@ -2346,16 +2422,31 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                       status: machine.status,
                       images_count: machine.machine_image.length,
                       images: includeImages ? images : undefined,
-                      image_summary: includeImages ? {
-                        total_images: machine.machine_image.length,
-                        image_formats: [...new Set(machine.machine_image.map(img => img.mime_type))],
-                        total_size_mb: (machine.machine_image.reduce((sum, img) => sum + img.file_size, 0) / (1024 * 1024)).toFixed(2),
-                        latest_image: machine.machine_image.length > 0 ?
-                          new Date(Math.max(...machine.machine_image.map(img => new Date(img.uploaded_at).getTime()))).toISOString() : null
-                      } : undefined,
+                      image_summary: includeImages
+                        ? {
+                            total_images: machine.machine_image.length,
+                            image_formats: [
+                              ...new Set(machine.machine_image.map(img => img.mime_type)),
+                            ],
+                            total_size_mb: (
+                              machine.machine_image.reduce((sum, img) => sum + img.file_size, 0) /
+                              (1024 * 1024)
+                            ).toFixed(2),
+                            latest_image:
+                              machine.machine_image.length > 0
+                                ? new Date(
+                                    Math.max(
+                                      ...machine.machine_image.map(img =>
+                                        new Date(img.uploaded_at).getTime()
+                                      )
+                                    )
+                                  ).toISOString()
+                                : null,
+                          }
+                        : undefined,
                       created_at: machine.createdAt,
                       updated_at: machine.updatedAt,
-                      last_modified: machine.updatedAt || machine.createdAt
+                      last_modified: machine.updatedAt || machine.createdAt,
                     };
                   })
                 );
@@ -2363,12 +2454,16 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                 // Calculate sub-location statistics
                 const subLocStats = {
                   total_machines: detailedMachines.length,
-                  installed_machines: detailedMachines.filter(m => m.installed_status === 'installed').length,
-                  not_installed_machines: detailedMachines.filter(m => m.installed_status === 'not_installed').length,
-                  active_machines: detailedMachines.filter(m => m.status === 'active').length,
-                  inactive_machines: detailedMachines.filter(m => m.status === 'inactive').length,
+                  installed_machines: detailedMachines.filter(
+                    m => m.installed_status === "installed"
+                  ).length,
+                  not_installed_machines: detailedMachines.filter(
+                    m => m.installed_status === "not_installed"
+                  ).length,
+                  active_machines: detailedMachines.filter(m => m.status === "active").length,
+                  inactive_machines: detailedMachines.filter(m => m.status === "inactive").length,
                   machines_with_images: detailedMachines.filter(m => m.images_count > 0).length,
-                  total_images: detailedMachines.reduce((sum, m) => sum + m.images_count, 0)
+                  total_images: detailedMachines.reduce((sum, m) => sum + m.images_count, 0),
                 };
 
                 return {
@@ -2385,8 +2480,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                   export_metadata: {
                     exported_at: new Date().toISOString(),
                     includes_machines: includeDetails,
-                    includes_images: includeImages
-                  }
+                    includes_images: includeImages,
+                  },
                 };
               })
             );
@@ -2394,13 +2489,34 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             // Calculate location statistics
             const locationStats = {
               total_sub_locations: detailedSubLocations.length,
-              total_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.total_machines, 0),
-              installed_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.installed_machines, 0),
-              not_installed_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.not_installed_machines, 0),
-              active_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.active_machines, 0),
-              inactive_machines: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.inactive_machines, 0),
-              machines_with_images: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.machines_with_images, 0),
-              total_images: detailedSubLocations.reduce((sum, subLoc) => sum + subLoc.statistics.total_images, 0)
+              total_machines: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.total_machines,
+                0
+              ),
+              installed_machines: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.installed_machines,
+                0
+              ),
+              not_installed_machines: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.not_installed_machines,
+                0
+              ),
+              active_machines: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.active_machines,
+                0
+              ),
+              inactive_machines: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.inactive_machines,
+                0
+              ),
+              machines_with_images: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.machines_with_images,
+                0
+              ),
+              total_images: detailedSubLocations.reduce(
+                (sum, subLoc) => sum + subLoc.statistics.total_images,
+                0
+              ),
             };
 
             return {
@@ -2416,7 +2532,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                 longitude: location.longitude,
                 address: location.address,
                 created_at: location.createdAt,
-                updated_at: location.updatedAt
+                updated_at: location.updatedAt,
               },
               sub_locations: includeDetails ? detailedSubLocations : undefined,
               statistics: locationStats,
@@ -2425,8 +2541,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
                 includes_sub_locations: includeDetails,
                 includes_machines: includeDetails,
                 includes_machine_images: includeImages,
-                image_count: locationStats.total_images
-              }
+                image_count: locationStats.total_images,
+              },
             };
           })
         );
@@ -2434,14 +2550,29 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         // Calculate overall export statistics
         const exportSummary = {
           total_locations: detailedLocations.length,
-          total_sub_locations: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_sub_locations, 0),
-          total_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_machines, 0),
-          installed_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.installed_machines, 0),
-          active_machines: detailedLocations.reduce((sum, loc) => sum + loc.statistics.active_machines, 0),
-          total_images: detailedLocations.reduce((sum, loc) => sum + loc.statistics.total_images, 0),
+          total_sub_locations: detailedLocations.reduce(
+            (sum, loc) => sum + loc.statistics.total_sub_locations,
+            0
+          ),
+          total_machines: detailedLocations.reduce(
+            (sum, loc) => sum + loc.statistics.total_machines,
+            0
+          ),
+          installed_machines: detailedLocations.reduce(
+            (sum, loc) => sum + loc.statistics.installed_machines,
+            0
+          ),
+          active_machines: detailedLocations.reduce(
+            (sum, loc) => sum + loc.statistics.active_machines,
+            0
+          ),
+          total_images: detailedLocations.reduce(
+            (sum, loc) => sum + loc.statistics.total_images,
+            0
+          ),
           includes_images: includeImages,
           includes_details: includeDetails,
-          export_format: "comprehensive"
+          export_format: "comprehensive",
         };
 
         const exportData = {
@@ -2451,21 +2582,24 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           export_info: {
             requested_location_ids: locationIds,
             found_location_ids: locations.map(loc => loc._id.toString()),
-            missing_location_ids: locationIds.filter(id =>
-              !locations.some(loc => loc._id.toString() === id)
+            missing_location_ids: locationIds.filter(
+              id => !locations.some(loc => loc._id.toString() === id)
             ),
             export_date: new Date().toISOString(),
             export_options: {
               format: format,
               include_images: includeImages,
               include_details: includeDetails,
-              image_quality: includeImages ? "full_urls_with_metadata" : "no_images"
-            }
-          }
+              image_quality: includeImages ? "full_urls_with_metadata" : "no_images",
+            },
+          },
         };
 
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename="locations-export-${timestamp}.json"`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="locations-export-${timestamp}.json"`
+        );
         res.status(200).json(exportData);
       } else {
         res.status(400).json({
@@ -2483,7 +2617,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
   }
 
   // HELPER: Generate detailed CSV export for specific IDs
-  private static async generateDetailedCSVExportForIds(locations: any[], includeImages: boolean): Promise<string> {
+  private static async generateDetailedCSVExportForIds(
+    locations: any[],
+    includeImages: boolean
+  ): Promise<string> {
     if (!locations || locations.length === 0) {
       return "No locations available for export";
     }
@@ -2510,7 +2647,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Active Machines",
         "Total Images",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += locationHeaders.join(",") + "\n";
 
@@ -2527,8 +2664,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         for (const subLoc of subLocations) {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          activeMachines += machines.filter(m => m.status === 'active').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          activeMachines += machines.filter(m => m.status === "active").length;
           totalImages += machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
         }
 
@@ -2549,7 +2686,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           activeMachines,
           totalImages,
           locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
-          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
         ];
 
         csv += locationRow.join(",") + "\n";
@@ -2572,7 +2709,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Active Machines",
         "Images Count",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += subLocationHeaders.join(",") + "\n";
 
@@ -2583,8 +2720,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
 
-          const installedMachines = machines.filter(m => m.installed_status === 'installed').length;
-          const activeMachines = machines.filter(m => m.status === 'active').length;
+          const installedMachines = machines.filter(m => m.installed_status === "installed").length;
+          const activeMachines = machines.filter(m => m.status === "active").length;
           const totalImages = machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
 
           const subLocationRow = [
@@ -2600,7 +2737,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
             activeMachines,
             totalImages,
             subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
-            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
           ];
 
           csv += subLocationRow.join(",") + "\n";
@@ -2625,7 +2762,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Image URLs",
         "Image Names",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
       csv += machineHeaders.join(",") + "\n";
 
@@ -2637,7 +2774,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
           for (const machine of machines) {
             const machineObj = machine.toObject ? machine.toObject() : machine;
-            const imageNames = machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+            const imageNames =
+              machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
             const imageUrls = machineObj.machine_image?.map(img => img.file_url).join("; ") || "";
 
             const machineRow = [
@@ -2654,7 +2792,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
               `"${imageUrls.replace(/"/g, '""')}"`,
               `"${imageNames.replace(/"/g, '""')}"`,
               machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
-              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : ""
+              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : "",
             ];
 
             csv += machineRow.join(",") + "\n";
@@ -2664,31 +2802,39 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Add summary
       csv += "\n\n=== EXPORT SUMMARY ===\n";
-      const totalSubLocations = (await Promise.all(
-        locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
-      )).reduce((sum, count) => sum + count, 0);
+      const totalSubLocations = (
+        await Promise.all(
+          locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
+        )
+      ).reduce((sum, count) => sum + count, 0);
 
-      const totalMachines = (await Promise.all(
-        locations.map(async (loc) => {
-          const subLocs = await SubLocationModel.find({ location_id: loc._id });
-          const machineCounts = await Promise.all(
-            subLocs.map(subLoc => MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id }))
-          );
-          return machineCounts.reduce((sum, count) => sum + count, 0);
-        })
-      )).reduce((sum, count) => sum + count, 0);
+      const totalMachines = (
+        await Promise.all(
+          locations.map(async loc => {
+            const subLocs = await SubLocationModel.find({ location_id: loc._id });
+            const machineCounts = await Promise.all(
+              subLocs.map(subLoc =>
+                MachineDetailsModel.countDocuments({ sub_location_id: subLoc._id })
+              )
+            );
+            return machineCounts.reduce((sum, count) => sum + count, 0);
+          })
+        )
+      ).reduce((sum, count) => sum + count, 0);
 
-      const totalImages = (await Promise.all(
-        locations.map(async (loc) => {
-          const subLocs = await SubLocationModel.find({ location_id: loc._id });
-          let imageCount = 0;
-          for (const subLoc of subLocs) {
-            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
-            imageCount += machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
-          }
-          return imageCount;
-        })
-      )).reduce((sum, count) => sum + count, 0);
+      const totalImages = (
+        await Promise.all(
+          locations.map(async loc => {
+            const subLocs = await SubLocationModel.find({ location_id: loc._id });
+            let imageCount = 0;
+            for (const subLoc of subLocs) {
+              const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+              imageCount += machines.reduce((sum, m) => sum + (m.machine_image?.length || 0), 0);
+            }
+            return imageCount;
+          })
+        )
+      ).reduce((sum, count) => sum + count, 0);
 
       csv += "Total Locations," + locations.length + "\n";
       csv += "Total Sub-locations," + totalSubLocations + "\n";
@@ -2863,26 +3009,26 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         search: req.query.search as string,
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 10,
-        sortBy: req.query.sortBy as string || "area_name",
+        sortBy: (req.query.sortBy as string) || "area_name",
         sortOrder: (req.query.sortOrder as "asc" | "desc") || "asc",
       };
 
       // Build location filter
       const locationFilter: any = {};
-      if (params.status && params.status !== 'all') {
+      if (params.status && params.status !== "all") {
         locationFilter.status = params.status;
       }
       if (params.state) {
-        locationFilter.state = new RegExp(params.state, 'i');
+        locationFilter.state = new RegExp(params.state, "i");
       }
       if (params.district) {
-        locationFilter.district = new RegExp(params.district, 'i');
+        locationFilter.district = new RegExp(params.district, "i");
       }
       if (params.search) {
         locationFilter.$or = [
-          { area_name: new RegExp(params.search, 'i') },
-          { state: new RegExp(params.search, 'i') },
-          { district: new RegExp(params.search, 'i') },
+          { area_name: new RegExp(params.search, "i") },
+          { state: new RegExp(params.search, "i") },
+          { district: new RegExp(params.search, "i") },
         ];
       }
 
@@ -2890,7 +3036,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       const skip = (params.page - 1) * params.limit;
       const [locations, total] = await Promise.all([
         LocationModel.find(locationFilter)
-          .sort({ [params.sortBy]: params.sortOrder === 'asc' ? 1 : -1 })
+          .sort({ [params.sortBy]: params.sortOrder === "asc" ? 1 : -1 })
           .skip(skip)
           .limit(params.limit),
         LocationModel.countDocuments(locationFilter),
@@ -2898,20 +3044,20 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
 
       // Get detailed data for each location
       const tableData = await Promise.all(
-        locations.map(async (location) => {
+        locations.map(async location => {
           const subLocations = await SubLocationModel.find({ location_id: location._id });
 
           // Filter sub-locations if campus/tower/floor filter is applied
           let filteredSubLocations = subLocations;
           if (params.campus || params.tower || params.floor) {
             filteredSubLocations = subLocations.filter(subLoc => {
-              if (params.campus && !new RegExp(params.campus, 'i').test(subLoc.campus)) {
+              if (params.campus && !new RegExp(params.campus, "i").test(subLoc.campus)) {
                 return false;
               }
-              if (params.tower && !new RegExp(params.tower, 'i').test(subLoc.tower)) {
+              if (params.tower && !new RegExp(params.tower, "i").test(subLoc.tower)) {
                 return false;
               }
-              if (params.floor && !new RegExp(params.floor, 'i').test(subLoc.floor)) {
+              if (params.floor && !new RegExp(params.floor, "i").test(subLoc.floor)) {
                 return false;
               }
               return true;
@@ -2926,8 +3072,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           for (const subLoc of filteredSubLocations) {
             const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
             totalMachines += machines.length;
-            installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-            notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+            installedMachines += machines.filter(m => m.installed_status === "installed").length;
+            notInstalledMachines += machines.filter(
+              m => m.installed_status === "not_installed"
+            ).length;
           }
 
           return {
@@ -2998,11 +3146,17 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       if (format === "csv") {
         const csv = AreaController.convertDashboardToCSV(tableData);
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", `attachment; filename="dashboard-export-${timestamp}.csv"`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="dashboard-export-${timestamp}.csv"`
+        );
         res.status(200).send(csv);
       } else if (format === "json") {
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename="dashboard-export-${timestamp}.json"`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="dashboard-export-${timestamp}.json"`
+        );
         res.status(200).json({
           success: true,
           data: tableData,
@@ -3037,7 +3191,8 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const locationIds = (ids as string).split(",")
+      const locationIds = (ids as string)
+        .split(",")
         .map(id => id.trim())
         .filter(id => id);
 
@@ -3064,7 +3219,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       });
 
       const summarizedData = await Promise.all(
-        locations.map(async (location) => {
+        locations.map(async location => {
           const subLocations = await SubLocationModel.find({ location_id: location._id });
 
           let totalMachines = 0;
@@ -3074,8 +3229,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           for (const subLoc of subLocations) {
             const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
             totalMachines += machines.length;
-            installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-            notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+            installedMachines += machines.filter(m => m.installed_status === "installed").length;
+            notInstalledMachines += machines.filter(
+              m => m.installed_status === "not_installed"
+            ).length;
           }
 
           const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
@@ -3150,40 +3307,40 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
   private static async getDashboardTableDataForExport(params: any): Promise<any[]> {
     // Similar to getDashboardTableData but returns all data without pagination
     const locationFilter: any = {};
-    if (params.status && params.status !== 'all') {
+    if (params.status && params.status !== "all") {
       locationFilter.status = params.status;
     }
     if (params.state) {
-      locationFilter.state = new RegExp(params.state, 'i');
+      locationFilter.state = new RegExp(params.state, "i");
     }
     if (params.district) {
-      locationFilter.district = new RegExp(params.district, 'i');
+      locationFilter.district = new RegExp(params.district, "i");
     }
     if (params.search) {
       locationFilter.$or = [
-        { area_name: new RegExp(params.search, 'i') },
-        { state: new RegExp(params.search, 'i') },
-        { district: new RegExp(params.search, 'i') },
+        { area_name: new RegExp(params.search, "i") },
+        { state: new RegExp(params.search, "i") },
+        { district: new RegExp(params.search, "i") },
       ];
     }
 
     const locations = await LocationModel.find(locationFilter).limit(params.limit || 10000);
 
     const tableData = await Promise.all(
-      locations.map(async (location) => {
+      locations.map(async location => {
         const subLocations = await SubLocationModel.find({ location_id: location._id });
 
         // Filter sub-locations if campus/tower/floor filter is applied
         let filteredSubLocations = subLocations;
         if (params.campus || params.tower || params.floor) {
           filteredSubLocations = subLocations.filter(subLoc => {
-            if (params.campus && !new RegExp(params.campus, 'i').test(subLoc.campus)) {
+            if (params.campus && !new RegExp(params.campus, "i").test(subLoc.campus)) {
               return false;
             }
-            if (params.tower && !new RegExp(params.tower, 'i').test(subLoc.tower)) {
+            if (params.tower && !new RegExp(params.tower, "i").test(subLoc.tower)) {
               return false;
             }
-            if (params.floor && !new RegExp(params.floor, 'i').test(subLoc.floor)) {
+            if (params.floor && !new RegExp(params.floor, "i").test(subLoc.floor)) {
               return false;
             }
             return true;
@@ -3197,8 +3354,10 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         for (const subLoc of filteredSubLocations) {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          notInstalledMachines += machines.filter(
+            m => m.installed_status === "not_installed"
+          ).length;
         }
 
         return {
@@ -3240,7 +3399,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Longitude",
         "Description",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
 
       let csv = "\ufeff";
@@ -3261,7 +3420,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           locationObj.longitude || "",
           `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
           locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
-          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
         ];
 
         csv += row.join(",") + "\n";
@@ -3301,7 +3460,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Latitude",
         "Longitude",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
 
       csv += headers.join(",") + "\n";
@@ -3321,7 +3480,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           locationObj.latitude || "",
           locationObj.longitude || "",
           locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
-          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : ""
+          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
         ];
 
         csv += row.join(",") + "\n";
@@ -3355,7 +3514,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "User Email",
         "Timestamp",
         "IP Address",
-        "Changes Summary"
+        "Changes Summary",
       ];
 
       let csv = "\ufeff";
@@ -3383,7 +3542,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           `"${logDoc.performed_by?.email?.replace(/"/g, '""') || "Unknown"}"`,
           logDoc.timestamp ? new Date(logDoc.timestamp).toISOString() : "",
           logDoc.ip_address || "Unknown",
-          `"${changesSummary.replace(/"/g, '""')}"`
+          `"${changesSummary.replace(/"/g, '""')}"`,
         ];
 
         csv += row.join(",") + "\n";
@@ -3419,7 +3578,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Performed By",
         "User Email",
         "Timestamp",
-        "IP Address"
+        "IP Address",
       ];
 
       let csv = "\ufeff";
@@ -3438,7 +3597,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           `"${activityDoc.performed_by?.name?.replace(/"/g, '""') || activityDoc.performed_by?.user_id || "Unknown"}"`,
           `"${activityDoc.performed_by?.email?.replace(/"/g, '""') || "Unknown"}"`,
           activityDoc.timestamp ? new Date(activityDoc.timestamp).toISOString() : "",
-          activityDoc.ip_address || "Unknown"
+          activityDoc.ip_address || "Unknown",
         ];
 
         csv += row.join(",") + "\n";
@@ -3476,7 +3635,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
         "Installed Machines",
         "Not Installed Machines",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
 
       let csv = "\ufeff";
@@ -3496,7 +3655,7 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
           item.installed_machines || 0,
           item.not_installed_machines || 0,
           item.created_at ? new Date(item.created_at).toISOString() : "",
-          item.updated_at ? new Date(item.updated_at).toISOString() : ""
+          item.updated_at ? new Date(item.updated_at).toISOString() : "",
         ];
 
         csv += row.join(",") + "\n";
@@ -3506,9 +3665,18 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
       csv += "\n\n";
       csv += "Export Summary\n";
       csv += "Total Rows," + dashboardData.length + "\n";
-      csv += "Total Machines," + dashboardData.reduce((sum, item) => sum + (item.total_machines || 0), 0) + "\n";
-      csv += "Total Installed Machines," + dashboardData.reduce((sum, item) => sum + (item.installed_machines || 0), 0) + "\n";
-      csv += "Total Not Installed Machines," + dashboardData.reduce((sum, item) => sum + (item.not_installed_machines || 0), 0) + "\n";
+      csv +=
+        "Total Machines," +
+        dashboardData.reduce((sum, item) => sum + (item.total_machines || 0), 0) +
+        "\n";
+      csv +=
+        "Total Installed Machines," +
+        dashboardData.reduce((sum, item) => sum + (item.installed_machines || 0), 0) +
+        "\n";
+      csv +=
+        "Total Not Installed Machines," +
+        dashboardData.reduce((sum, item) => sum + (item.not_installed_machines || 0), 0) +
+        "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
 
       return csv;
@@ -3518,164 +3686,155 @@ static async addSubLocation(req: Request, res: Response): Promise<void> {
     }
   }
   // UPDATE MACHINE IMAGES (REPLACE ALL IMAGES)
-static async updateMachineImages(req: Request, res: Response): Promise<void> {
-  try {
-    const { machineDetailsId } = req.params;
-    const files = req.files as Express.Multer.File[] | undefined;
+  static async updateMachineImages(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineDetailsId } = req.params;
+      const files = req.files as Express.Multer.File[] | undefined;
 
-    console.log("=== DEBUG: updateMachineImages called ===");
-    console.log("Machine Details ID:", machineDetailsId);
-    console.log("Files received:", files ? files.length : 0);
+      // Validate machine ID
+      if (!mongoose.Types.ObjectId.isValid(machineDetailsId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid machine details ID",
+        });
+        return;
+      }
 
-    // Validate machine ID
-    if (!mongoose.Types.ObjectId.isValid(machineDetailsId)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid machine details ID",
-      });
-      return;
-    }
+      // Check if files are provided
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "No images provided for update",
+        });
+        return;
+      }
 
-    // Check if files are provided
-    if (!files || files.length === 0) {
-      res.status(400).json({
-        success: false,
-        message: "No images provided for update",
-      });
-      return;
-    }
-
-    // Get current machine details
-    const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
+      // Get current machine details
+      const currentMachine = await MachineDetailsModel.findById(machineDetailsId).populate({
+        path: "sub_location_id",
         populate: {
-          path: 'location_id',
+          path: "location_id",
+        },
+      });
+
+      if (!currentMachine) {
+        res.status(404).json({
+          success: false,
+          message: "Machine details not found",
+        });
+        return;
+      }
+
+      // Store old images for cleanup and audit log
+      const oldImages = [...currentMachine.machine_image];
+      const oldImageCount = oldImages.length;
+      const oldImageNames = oldImages.map(img => img.image_name);
+      const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
+
+      // Process new file uploads
+      const uploadService = new ImageUploadService();
+      const processedFiles = await uploadService.uploadMultipleFiles(
+        files,
+        "machine_images",
+        "areaMachine"
+      );
+
+      // Delete old images from cloud storage
+      if (oldPublicIds.length > 0) {
+        try {
+          await uploadService.deleteMultipleFiles(oldPublicIds);
+        } catch (deleteError) {
+          logger.error("Error deleting old images from cloud:", deleteError);
+          // Continue with update even if deletion fails
         }
+      }
+
+      // Update machine with new images (replace all)
+      const updateData = {
+        machine_image: processedFiles,
+        updatedAt: new Date(),
+      };
+
+      const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+        machineDetailsId,
+        updateData,
+        { new: true }
+      ).populate({
+        path: "sub_location_id",
+        populate: {
+          path: "location_id",
+        },
       });
 
-    if (!currentMachine) {
-      res.status(404).json({
-        success: false,
-        message: "Machine details not found",
+      if (!updatedMachine) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to update machine images",
+        });
+        return;
+      }
+
+      // Get location ID for audit log
+      const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+      const locationId = subLocation?.location_id;
+
+      // Create audit log
+      if (locationId) {
+        const auditParams = AreaController.getAuditParams(req);
+        await AreaController.createAuditLog({
+          location_id: locationId,
+          action: "UPDATE",
+          changes: {
+            machine_images: {
+              old: {
+                count: oldImageCount,
+                names: oldImageNames,
+              },
+              new: {
+                count: processedFiles.length,
+                names: processedFiles.map(f => f.image_name),
+              },
+            },
+          },
+          performed_by: {
+            user_id: auditParams.userId,
+            email: auditParams.userEmail,
+            name: auditParams.userName,
+          },
+          ip_address: auditParams.ipAddress,
+          user_agent: auditParams.userAgent,
+          timestamp: new Date(),
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Machine images replaced successfully. ${oldImageCount} old image(s) removed, ${processedFiles.length} new image(s) added.`,
+        data: {
+          machine: {
+            id: updatedMachine._id,
+            machine_name: updatedMachine.machine_name,
+            images_count: updatedMachine.machine_image.length,
+            images: updatedMachine.machine_image.map(img => ({
+              image_name: img.image_name,
+              file_url: img.file_url,
+              uploaded_at: img.uploaded_at,
+            })),
+          },
+          changes: {
+            old_images_removed: oldImageCount,
+            new_images_added: processedFiles.length,
+            old_image_names: oldImageNames,
+            new_image_names: processedFiles.map(f => f.image_name),
+          },
+        },
       });
-      return;
-    }
-
-    // Store old images for cleanup and audit log
-    const oldImages = [...currentMachine.machine_image];
-    const oldImageCount = oldImages.length;
-    const oldImageNames = oldImages.map(img => img.image_name);
-    const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
-
-    // Process new file uploads
-    const uploadService = new ImageUploadService();
-    const processedFiles = await uploadService.uploadMultipleFiles(
-      files,
-      "machine_images",
-      "areaMachine"
-    );
-
-    console.log("New files processed:", processedFiles.length);
-
-    // Delete old images from cloud storage
-    if (oldPublicIds.length > 0) {
-      console.log("Deleting old images from cloud storage...");
-      try {
-        await uploadService.deleteMultipleFiles(oldPublicIds);
-        console.log(`Successfully deleted ${oldPublicIds.length} old images`);
-      } catch (deleteError) {
-        logger.error("Error deleting old images from cloud:", deleteError);
-        // Continue with update even if deletion fails
-      }
-    }
-
-    // Update machine with new images (replace all)
-    const updateData = {
-      machine_image: processedFiles,
-      updatedAt: new Date()
-    };
-
-    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
-      machineDetailsId,
-      updateData,
-      { new: true }
-    ).populate({
-      path: 'sub_location_id',
-      populate: {
-        path: 'location_id',
-      }
-    });
-
-    if (!updatedMachine) {
+    } catch (error) {
+      logger.error("Error updating machine images:", error);
       res.status(500).json({
         success: false,
-        message: "Failed to update machine images",
-      });
-      return;
-    }
-
-    // Get location ID for audit log
-    const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
-    const locationId = subLocation?.location_id;
-
-    // Create audit log
-    if (locationId) {
-      const auditParams = AreaController.getAuditParams(req);
-      await AreaController.createAuditLog({
-        location_id: locationId,
-        action: "UPDATE",
-        changes: {
-          machine_images: {
-            old: {
-              count: oldImageCount,
-              names: oldImageNames
-            },
-            new: {
-              count: processedFiles.length,
-              names: processedFiles.map(f => f.image_name)
-            }
-          }
-        },
-        performed_by: {
-          user_id: auditParams.userId,
-          email: auditParams.userEmail,
-          name: auditParams.userName,
-        },
-        ip_address: auditParams.ipAddress,
-        user_agent: auditParams.userAgent,
-        timestamp: new Date(),
+        message: error.message || "Internal server error",
       });
     }
-
-    res.status(200).json({
-      success: true,
-      message: `Machine images replaced successfully. ${oldImageCount} old image(s) removed, ${processedFiles.length} new image(s) added.`,
-      data: {
-        machine: {
-          id: updatedMachine._id,
-          machine_name: updatedMachine.machine_name,
-          images_count: updatedMachine.machine_image.length,
-          images: updatedMachine.machine_image.map(img => ({
-            image_name: img.image_name,
-            file_url: img.file_url,
-            uploaded_at: img.uploaded_at
-          }))
-        },
-        changes: {
-          old_images_removed: oldImageCount,
-          new_images_added: processedFiles.length,
-          old_image_names: oldImageNames,
-          new_image_names: processedFiles.map(f => f.image_name)
-        }
-      },
-    });
-  } catch (error) {
-    logger.error("Error updating machine images:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Internal server error",
-    });
   }
-}
 }

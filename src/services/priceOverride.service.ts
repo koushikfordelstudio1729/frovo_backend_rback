@@ -127,9 +127,8 @@ export class PriceOverrideService {
       logger.info("logHistory: Logging action", { action, user_id: user._id || user.id });
 
       // Handle both Mongoose document and plain object
-      const newData = typeof priceOverride.toObject === "function"
-        ? priceOverride.toObject()
-        : priceOverride;
+      const newData =
+        typeof priceOverride.toObject === "function" ? priceOverride.toObject() : priceOverride;
 
       // Extract role name from roles array (populated from auth middleware)
       let roleName = "unknown";
@@ -388,9 +387,7 @@ export class PriceOverrideService {
 
       // Validate dates if provided
       if (data.start_date || data.end_date) {
-        const startDate = data.start_date
-          ? new Date(data.start_date)
-          : existingOverride.start_date;
+        const startDate = data.start_date ? new Date(data.start_date) : existingOverride.start_date;
         const endDate = data.end_date ? new Date(data.end_date) : existingOverride.end_date;
 
         if (startDate >= endDate) {
@@ -407,7 +404,10 @@ export class PriceOverrideService {
       const changes: { field: string; old_value: any; new_value: any }[] = [];
       const updateFields: any = {};
 
-      if (data.override_price !== undefined && data.override_price !== existingOverride.override_price) {
+      if (
+        data.override_price !== undefined &&
+        data.override_price !== existingOverride.override_price
+      ) {
         changes.push({
           field: "override_price",
           old_value: existingOverride.override_price,
@@ -479,7 +479,12 @@ export class PriceOverrideService {
       }
 
       // Log history
-      const action = data.status === "active" ? "ACTIVATE" : data.status === "inactive" ? "DEACTIVATE" : "UPDATE";
+      const action =
+        data.status === "active"
+          ? "ACTIVATE"
+          : data.status === "inactive"
+            ? "DEACTIVATE"
+            : "UPDATE";
       await this.logHistory(action, updatedOverride, oldData, changes);
 
       logger.info("Price override updated:", {
@@ -579,11 +584,7 @@ export class PriceOverrideService {
           override = await PriceOverrideModel.findOne({
             ...baseQuery,
             area_id: areaId,
-            $or: [
-              { machine_id: { $exists: false } },
-              { machine_id: null },
-              { machine_id: "" },
-            ],
+            $or: [{ machine_id: { $exists: false } }, { machine_id: null }, { machine_id: "" }],
           }).lean();
         }
       }
@@ -605,11 +606,7 @@ export class PriceOverrideService {
         override = await PriceOverrideModel.findOne({
           ...baseQuery,
           state: { $regex: new RegExp(`^${state}$`, "i") },
-          $or: [
-            { district: { $exists: false } },
-            { district: null },
-            { district: "" },
-          ],
+          $or: [{ district: { $exists: false } }, { district: null }, { district: "" }],
         }).lean();
       }
 

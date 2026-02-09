@@ -34,8 +34,8 @@ export class VendorController {
   // ============================================
 
   /**
- * Create a new company
- */
+   * Create a new company
+   */
   public static async createCompany(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -65,7 +65,7 @@ export class VendorController {
         "cin_or_msme_number",
         "date_of_incorporation",
         "directory_signature_name",
-        "din"
+        "din",
       ];
 
       const missingFields = requiredFields.filter(field => !req.body[field]);
@@ -230,7 +230,7 @@ export class VendorController {
         sortOrder = "desc",
         company_status,
         registration_type,
-        legal_entity_structure
+        legal_entity_structure,
       } = req.query;
 
       const result = await companyService.getAllCompanies({
@@ -373,7 +373,10 @@ export class VendorController {
         const cinRequiredStructures = ["pvt", "public", "opc"];
         const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-        if (cinRequiredStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "cin") {
+        if (
+          cinRequiredStructures.includes(updateData.legal_entity_structure) &&
+          updateData.registration_type !== "cin"
+        ) {
           res.status(400).json({
             success: false,
             message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'cin'`,
@@ -381,7 +384,10 @@ export class VendorController {
           return;
         }
 
-        if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && updateData.registration_type !== "msme") {
+        if (
+          msmeAllowedStructures.includes(updateData.legal_entity_structure) &&
+          updateData.registration_type !== "msme"
+        ) {
           res.status(400).json({
             success: false,
             message: `For legal entity structure '${updateData.legal_entity_structure}', registration type must be 'msme'`,
@@ -394,7 +400,10 @@ export class VendorController {
         const cinRequiredStructures = ["pvt", "public", "opc"];
         const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-        if (cinRequiredStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "cin") {
+        if (
+          cinRequiredStructures.includes(updateData.legal_entity_structure) &&
+          currentCompany.registration_type !== "cin"
+        ) {
           res.status(400).json({
             success: false,
             message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'cin'`,
@@ -402,7 +411,10 @@ export class VendorController {
           return;
         }
 
-        if (msmeAllowedStructures.includes(updateData.legal_entity_structure) && currentCompany.registration_type !== "msme") {
+        if (
+          msmeAllowedStructures.includes(updateData.legal_entity_structure) &&
+          currentCompany.registration_type !== "msme"
+        ) {
           res.status(400).json({
             success: false,
             message: `Cannot change legal entity structure to '${updateData.legal_entity_structure}' because registration type is '${currentCompany.registration_type}'. First update registration type to 'msme'`,
@@ -415,7 +427,10 @@ export class VendorController {
         const cinRequiredStructures = ["pvt", "public", "opc"];
         const msmeAllowedStructures = ["llp", "proprietorship", "partnership"];
 
-        if (cinRequiredStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "cin") {
+        if (
+          cinRequiredStructures.includes(currentCompany.legal_entity_structure) &&
+          updateData.registration_type !== "cin"
+        ) {
           res.status(400).json({
             success: false,
             message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
@@ -423,7 +438,10 @@ export class VendorController {
           return;
         }
 
-        if (msmeAllowedStructures.includes(currentCompany.legal_entity_structure) && updateData.registration_type !== "msme") {
+        if (
+          msmeAllowedStructures.includes(currentCompany.legal_entity_structure) &&
+          updateData.registration_type !== "msme"
+        ) {
           res.status(400).json({
             success: false,
             message: `Cannot change registration type to '${updateData.registration_type}' because legal entity structure is '${currentCompany.legal_entity_structure}'. First update legal entity structure`,
@@ -615,7 +633,6 @@ export class VendorController {
     }
   }
 
-
   /**
    * Get all company audit trails (for super admin)
    */
@@ -708,11 +725,7 @@ export class VendorController {
       const { format = "csv", filters } = req.query;
       const filterData = filters ? JSON.parse(filters as string) : {};
 
-      const exportData = await companyService.exportCompanies(
-        format as string,
-        filterData,
-        userId
-      );
+      const exportData = await companyService.exportCompanies(format as string, filterData, userId);
 
       // Set headers based on format
       if (format === "csv") {
@@ -722,7 +735,10 @@ export class VendorController {
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Content-Disposition", `attachment; filename=companies_${Date.now()}.json`);
       } else if (format === "excel") {
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
         res.setHeader("Content-Disposition", `attachment; filename=companies_${Date.now()}.xlsx`);
       }
 
@@ -738,8 +754,8 @@ export class VendorController {
   }
 
   /**
- * Get audit trail for a specific company by MongoDB ObjectId
- */
+   * Get audit trail for a specific company by MongoDB ObjectId
+   */
   public static async getCompanyAuditTrail(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params; // Changed from company_id to id
@@ -876,10 +892,16 @@ export class VendorController {
       const timestamp = Date.now();
       if (format === "csv") {
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", `attachment; filename=company_${companyIdForFilename}_${timestamp}.csv`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=company_${companyIdForFilename}_${timestamp}.csv`
+        );
       } else if (format === "json") {
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename=company_${companyIdForFilename}_${timestamp}.json`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=company_${companyIdForFilename}_${timestamp}.json`
+        );
       }
 
       res.status(200).send(exportData);
@@ -904,117 +926,99 @@ export class VendorController {
     }
   }
 
- /**
- * Toggle company status (active/inactive) by MongoDB ObjectId
- */
-public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
-  try {
-    console.log('toggleCompanyStatus called with params:', req.params);
-    
-    const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
-    const userRole = roles[0]?.key || "unknown";
+  /**
+   * Toggle company status (active/inactive) by MongoDB ObjectId
+   */
+  public static async toggleCompanyStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
 
-    console.log('User info:', { userId, userEmail, userRole });
-
-    // Only vendor management roles can toggle company status
-    if (!["super_admin", "vendor_admin"].includes(userRole)) {
-      console.log('Access denied for user role:', userRole);
-      res.status(403).json({
-        success: false,
-        message: "Access denied. Only super admin and vendor admin can toggle company status",
-      });
-      return;
-    }
-
-    const { id } = req.params;
-
-    console.log('Company ID received:', id);
-
-    if (!id || id.trim() === "") {
-      res.status(400).json({
-        success: false,
-        message: "Company ID is required",
-      });
-      return;
-    }
-
-    // Validate MongoDB ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log('Invalid ObjectId:', id);
-      res.status(400).json({
-        success: false,
-        message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
-      });
-      return;
-    }
-
-    console.log('Calling companyService.toggleCompanyStatus with:', { id, userId });
-
-    const updatedCompany = await companyService.toggleCompanyStatus(
-      id,
-      userId,
-      userEmail,
-      userRole,
-      req
-    );
-
-    console.log('Service returned:', updatedCompany);
-
-    if (!updatedCompany) {
-      console.log('No company returned from service');
-      res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `Company status toggled successfully`,
-      data: {
-        _id: updatedCompany._id,
-        company_id: updatedCompany.company_id,
-        company_name: updatedCompany.registered_company_name,
-        previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
-        current_status: updatedCompany.company_status,
-      },
-    });
-  } catch (error) {
-    console.error('Error in toggleCompanyStatus:', error);
-    logger.error("Error toggling company status:", error);
-
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
-      if (error.message.includes("not found")) {
-        res.status(404).json({
+      // Only vendor management roles can toggle company status
+      if (!["super_admin", "vendor_admin"].includes(userRole)) {
+        res.status(403).json({
           success: false,
-          message: error.message,
+          message: "Access denied. Only super admin and vendor admin can toggle company status",
         });
         return;
       }
-      if (error.message.includes("Invalid")) {
+
+      const { id } = req.params;
+
+      if (!id || id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: error.message,
+          message: "Company ID is required",
         });
         return;
       }
-    }
 
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      // Validate MongoDB ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid Company ID format. Must be a valid MongoDB ObjectId",
+        });
+        return;
+      }
+
+      const updatedCompany = await companyService.toggleCompanyStatus(
+        id,
+        userId,
+        userEmail,
+        userRole,
+        req
+      );
+
+      if (!updatedCompany) {
+        res.status(404).json({
+          success: false,
+          message: "Company not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Company status toggled successfully`,
+        data: {
+          _id: updatedCompany._id,
+          company_id: updatedCompany.company_id,
+          company_name: updatedCompany.registered_company_name,
+          previous_status: updatedCompany.company_status === "active" ? "inactive" : "active",
+          current_status: updatedCompany.company_status,
+        },
+      });
+    } catch (error) {
+      logger.error("Error toggling company status:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes("not found")) {
+          res.status(404).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+        if (error.message.includes("Invalid")) {
+          res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
   // ============================================
   // BRAND CONTROLLER METHODS
   // ============================================
-
 
   /**
    * Validate required files based on legal entity structure
@@ -1023,7 +1027,11 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
     const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
 
     for (const field of requiredFields) {
-      if (!brandData[field] || !brandData[field].file_url || !brandData[field].cloudinary_public_id) {
+      if (
+        !brandData[field] ||
+        !brandData[field].file_url ||
+        !brandData[field].cloudinary_public_id
+      ) {
         throw new Error(`Missing or invalid ${field} file upload`);
       }
     }
@@ -1034,51 +1042,47 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
    */
   private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
     const commonFields = [
-      'upload_cancelled_cheque_image',
-      'gst_certificate_image',
-      'PAN_image',
-      'FSSAI_image'
+      "upload_cancelled_cheque_image",
+      "gst_certificate_image",
+      "PAN_image",
+      "FSSAI_image",
     ];
 
     const entitySpecificFields: Record<string, string[]> = {
-      'pvt': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'MOA_image',
-        'AOA_image',
-        'Trademark_certificate_image',
-        'Authorized_Signatory_image'
+      pvt: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
+        "Trademark_certificate_image",
+        "Authorized_Signatory_image",
       ],
-      'opc': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'MOA_image',
-        'AOA_image'
+      opc: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
       ],
-      'llp': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'LLP_agreement_image'
+      llp: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "LLP_agreement_image",
       ],
-      'proprietorship': [
-        'MSME_or_Udyam_certificate_image',
-        'Shop_and_Establishment_certificate_image'
+      proprietorship: [
+        "MSME_or_Udyam_certificate_image",
+        "Shop_and_Establishment_certificate_image",
       ],
-      'partnership': [
-        'Registered_Partnership_deed_image',
-        'MSME_or_Udyam_certificate_image'
+      partnership: ["Registered_Partnership_deed_image", "MSME_or_Udyam_certificate_image"],
+      public: [
+        "certificate_of_incorporation_image",
+        "Board_resolution_image",
+        "MOA_image",
+        "AOA_image",
       ],
-      'public': [
-        'certificate_of_incorporation_image',
-        'Board_resolution_image',
-        'MOA_image',
-        'AOA_image'
-      ]
     };
 
     return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
   }
-
 
   public static async createBrand(req: Request, res: Response): Promise<void> {
     try {
@@ -1163,7 +1167,14 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
       }
 
       // Validate payment_methods
-      const validPaymentMethods = ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"];
+      const validPaymentMethods = [
+        "upi",
+        "bank_transfer",
+        "cheque",
+        "credit_card",
+        "debit_card",
+        "other",
+      ];
       if (!validPaymentMethods.includes(payment_methods)) {
         res.status(400).json({
           success: false,
@@ -1192,9 +1203,11 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         parsedContractEndDate = new Date(contract_end_date);
         parsedContractRenewalDate = new Date(contract_renewal_date);
 
-        if (isNaN(parsedContractStartDate.getTime()) ||
+        if (
+          isNaN(parsedContractStartDate.getTime()) ||
           isNaN(parsedContractEndDate.getTime()) ||
-          isNaN(parsedContractRenewalDate.getTime())) {
+          isNaN(parsedContractRenewalDate.getTime())
+        ) {
           throw new Error("Invalid date");
         }
 
@@ -1261,7 +1274,9 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
       }
 
       // Check which documents are required based on legal entity structure
-      const requiredDocuments = VendorController.getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
+      const requiredDocuments = VendorController.getRequiredDocumentsForLegalEntity(
+        company.legal_entity_structure
+      );
 
       // Check if all required files are uploaded
       if (!req.files) {
@@ -1363,20 +1378,14 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
       };
 
       // Debug: Log what we're sending to the service
-      logger.debug('Brand data to save:', {
+      logger.debug("Brand data to save:", {
         brand_name: brandData.brand_name,
         brand_email: brandData.brand_email,
         company_id: brandData.company_id,
         file_fields: Object.keys(processedFiles),
       });
 
-      const newBrand = await brandService.createBrand(
-        brandData,
-        userId,
-        userEmail,
-        userRole,
-        req
-      );
+      const newBrand = await brandService.createBrand(brandData, userId, userEmail, userRole, req);
 
       res.status(201).json({
         success: true,
@@ -1425,20 +1434,20 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
    */
   private static mapFieldNameToDocumentType(fieldName: string): any {
     const mapping: Record<string, any> = {
-      'upload_cancelled_cheque_image': 'cancelled_cheque',
-      'gst_certificate_image': 'gst_certificate',
-      'PAN_image': 'pan_card',
-      'FSSAI_image': 'fssai_certificate',
-      'certificate_of_incorporation_image': 'certificate_of_incorporation',
-      'MSME_or_Udyam_certificate_image': 'msme_udyam_certificate',
-      'MOA_image': 'moa',
-      'AOA_image': 'aoa',
-      'Trademark_certificate_image': 'trademark_certificate',
-      'Authorized_Signatory_image': 'authorized_signatory',
-      'LLP_agreement_image': 'llp_agreement',
-      'Shop_and_Establishment_certificate_image': 'shop_establishment_certificate',
-      'Registered_Partnership_deed_image': 'partnership_deed',
-      'Board_resolution_image': 'board_resolution',
+      upload_cancelled_cheque_image: "cancelled_cheque",
+      gst_certificate_image: "gst_certificate",
+      PAN_image: "pan_card",
+      FSSAI_image: "fssai_certificate",
+      certificate_of_incorporation_image: "certificate_of_incorporation",
+      MSME_or_Udyam_certificate_image: "msme_udyam_certificate",
+      MOA_image: "moa",
+      AOA_image: "aoa",
+      Trademark_certificate_image: "trademark_certificate",
+      Authorized_Signatory_image: "authorized_signatory",
+      LLP_agreement_image: "llp_agreement",
+      Shop_and_Establishment_certificate_image: "shop_establishment_certificate",
+      Registered_Partnership_deed_image: "partnership_deed",
+      Board_resolution_image: "board_resolution",
     };
 
     return mapping[fieldName] || null;
@@ -1447,7 +1456,10 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   /**
    * Cleanup uploaded files if something goes wrong
    */
-  private static async cleanupUploadedFiles(files: Record<string, any>, imageUploadService: ImageUploadService): Promise<void> {
+  private static async cleanupUploadedFiles(
+    files: Record<string, any>,
+    imageUploadService: ImageUploadService
+  ): Promise<void> {
     try {
       const publicIds = Object.values(files)
         .filter(file => file && file.cloudinary_public_id)
@@ -1467,46 +1479,43 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
    */
   private static getRequiredDocumentsForLegalEntity(legalEntity: string): string[] {
     const commonDocuments = [
-      'upload_cancelled_cheque_image',
-      'gst_certificate_image',
-      'PAN_image',
-      'FSSAI_image'
+      "upload_cancelled_cheque_image",
+      "gst_certificate_image",
+      "PAN_image",
+      "FSSAI_image",
     ];
 
     const legalEntityDocuments: { [key: string]: string[] } = {
-      'pvt': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'MOA_image',
-        'AOA_image',
-        'Trademark_certificate_image',
-        'Authorized_Signatory_image'
+      pvt: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
+        "Trademark_certificate_image",
+        "Authorized_Signatory_image",
       ],
-      'opc': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'MOA_image',
-        'AOA_image'
+      opc: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
       ],
-      'llp': [
-        'certificate_of_incorporation_image',
-        'MSME_or_Udyam_certificate_image',
-        'LLP_agreement_image'
+      llp: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "LLP_agreement_image",
       ],
-      'proprietorship': [
-        'MSME_or_Udyam_certificate_image',
-        'Shop_and_Establishment_certificate_image'
+      proprietorship: [
+        "MSME_or_Udyam_certificate_image",
+        "Shop_and_Establishment_certificate_image",
       ],
-      'partnership': [
-        'Registered_Partnership_deed_image',
-        'MSME_or_Udyam_certificate_image'
+      partnership: ["Registered_Partnership_deed_image", "MSME_or_Udyam_certificate_image"],
+      public: [
+        "certificate_of_incorporation_image",
+        "Board_resolution_image",
+        "MOA_image",
+        "AOA_image",
       ],
-      'public': [
-        'certificate_of_incorporation_image',
-        'Board_resolution_image',
-        'MOA_image',
-        'AOA_image'
-      ]
     };
 
     return [...commonDocuments, ...(legalEntityDocuments[legalEntity] || [])];
@@ -1525,7 +1534,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         verification_status,
         brand_category,
         brand_type,
-        company_id
+        company_id,
       } = req.query;
 
       const result = await brandService.getAllBrands({
@@ -1557,8 +1566,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   }
 
   /**
- * Get brand by MongoDB ObjectId
- */
+   * Get brand by MongoDB ObjectId
+   */
   public static async getBrandById(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -1608,8 +1617,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
     }
   }
   /**
- * Toggle brand verification status
- */
+   * Toggle brand verification status
+   */
   public static async toggleBrandVerificationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -1686,7 +1695,14 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
 
       // Validate payment_methods if provided
       if (updateData.payment_methods) {
-        const validPaymentMethods = ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"];
+        const validPaymentMethods = [
+          "upi",
+          "bank_transfer",
+          "cheque",
+          "credit_card",
+          "debit_card",
+          "other",
+        ];
         if (!validPaymentMethods.includes(updateData.payment_methods)) {
           res.status(400).json({
             success: false,
@@ -1743,8 +1759,10 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
 
             // Additional date validations
             if (field === "contract_start_date" && updateData.contract_end_date) {
-              const endDate = updateData.contract_end_date instanceof Date ?
-                updateData.contract_end_date : new Date(updateData.contract_end_date);
+              const endDate =
+                updateData.contract_end_date instanceof Date
+                  ? updateData.contract_end_date
+                  : new Date(updateData.contract_end_date);
               if (parsedDate >= endDate) {
                 res.status(400).json({
                   success: false,
@@ -1755,8 +1773,10 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
             }
 
             if (field === "contract_renewal_date" && updateData.contract_end_date) {
-              const endDate = updateData.contract_end_date instanceof Date ?
-                updateData.contract_end_date : new Date(updateData.contract_end_date);
+              const endDate =
+                updateData.contract_end_date instanceof Date
+                  ? updateData.contract_end_date
+                  : new Date(updateData.contract_end_date);
               if (parsedDate < endDate) {
                 res.status(400).json({
                   success: false,
@@ -1795,20 +1815,20 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
 
         // List of updatable document fields
         const updatableDocumentFields = [
-          'upload_cancelled_cheque_image',
-          'gst_certificate_image',
-          'PAN_image',
-          'FSSAI_image',
-          'certificate_of_incorporation_image',
-          'MSME_or_Udyam_certificate_image',
-          'MOA_image',
-          'AOA_image',
-          'Trademark_certificate_image',
-          'Authorized_Signatory_image',
-          'LLP_agreement_image',
-          'Shop_and_Establishment_certificate_image',
-          'Registered_Partnership_deed_image',
-          'Board_resolution_image'
+          "upload_cancelled_cheque_image",
+          "gst_certificate_image",
+          "PAN_image",
+          "FSSAI_image",
+          "certificate_of_incorporation_image",
+          "MSME_or_Udyam_certificate_image",
+          "MOA_image",
+          "AOA_image",
+          "Trademark_certificate_image",
+          "Authorized_Signatory_image",
+          "LLP_agreement_image",
+          "Shop_and_Establishment_certificate_image",
+          "Registered_Partnership_deed_image",
+          "Board_resolution_image",
         ];
 
         for (const fieldName of updatableDocumentFields) {
@@ -1829,9 +1849,9 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
                 let folderPath;
                 if (currentBrand) {
                   const company = await CompanyCreate.findById(currentBrand.company_id);
-                  folderPath = company ?
-                    `${company.registered_company_name}/${currentBrand.brand_name}` :
-                    `brands/${currentBrand.brand_id}`;
+                  folderPath = company
+                    ? `${company.registered_company_name}/${currentBrand.brand_name}`
+                    : `brands/${currentBrand.brand_id}`;
                 }
 
                 // Upload to Cloudinary
@@ -1915,8 +1935,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   }
 
   /**
- * Delete brand by brand_id (handles both MongoDB _id and custom brand_id)
- */
+   * Delete brand by brand_id (handles both MongoDB _id and custom brand_id)
+   */
   public static async deleteBrand(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -2070,11 +2090,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   public static async getBrandsByCompanyId(req: Request, res: Response): Promise<void> {
     try {
       const { company_id } = req.params;
-      const {
-        page = 1,
-        limit = 10,
-        verification_status
-      } = req.query;
+      const { page = 1, limit = 10, verification_status } = req.query;
 
       if (!company_id || company_id.trim() === "") {
         res.status(400).json({
@@ -2084,14 +2100,11 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         return;
       }
 
-      const result = await brandService.getBrandsByCompanyId(
-        company_id,
-        {
-          page: Number(page),
-          limit: Number(limit),
-          verification_status: verification_status as string,
-        }
-      );
+      const result = await brandService.getBrandsByCompanyId(company_id, {
+        page: Number(page),
+        limit: Number(limit),
+        verification_status: verification_status as string,
+      });
 
       res.status(200).json({
         success: true,
@@ -2121,8 +2134,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   }
 
   /**
- * Get audit trail for a specific brand by identifier (handles both MongoDB _id and custom brand_id)
- */
+   * Get audit trail for a specific brand by identifier (handles both MongoDB _id and custom brand_id)
+   */
   public static async getBrandAuditTrail(req: Request, res: Response): Promise<void> {
     try {
       const { brand_id } = req.params;
@@ -2176,8 +2189,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
     }
   }
   /**
- * Export brands data
- */
+   * Export brands data
+   */
   public static async exportBrands(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
@@ -2205,11 +2218,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         return;
       }
 
-      const exportData = await brandService.exportBrands(
-        format as string,
-        filterData,
-        userId
-      );
+      const exportData = await brandService.exportBrands(format as string, filterData, userId);
 
       // Set headers based on format
       const timestamp = Date.now();
@@ -2218,10 +2227,19 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.csv`);
       } else if (format === "json") {
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.json`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=brands_export_${timestamp}.json`
+        );
       } else if (format === "excel") {
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", `attachment; filename=brands_export_${timestamp}.xlsx`);
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=brands_export_${timestamp}.xlsx`
+        );
       }
 
       res.status(200).send(exportData);
@@ -2236,8 +2254,8 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
   }
 
   /**
- * Export single brand data by brand_id
- */
+   * Export single brand data by brand_id
+   */
   public static async exportBrandById(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
@@ -2259,7 +2277,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
       if (!brand_id || brand_id.trim() === "") {
         res.status(400).json({
           success: false,
-          message: "Brand ID is required"
+          message: "Brand ID is required",
         });
         return;
       }
@@ -2304,16 +2322,16 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         if (error.message.includes("not found") || error.message.includes("does not exist")) {
           res.status(404).json({
             success: false,
-            message: "Brand not found with the provided ID"
+            message: "Brand not found with the provided ID",
           });
           return;
         }
 
         // Handle MongoDB-specific errors
-        if (error.name === 'CastError' || error.message.includes('Cast to ObjectId failed')) {
+        if (error.name === "CastError" || error.message.includes("Cast to ObjectId failed")) {
           res.status(400).json({
             success: false,
-            message: "Invalid Brand ID format"
+            message: "Invalid Brand ID format",
           });
           return;
         }
@@ -2403,7 +2421,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         company_status,
         legal_entity_structure,
         registration_type,
-        search
+        search,
       } = req.query;
 
       const result = await companyService.getCompanyDashboard({
@@ -2412,7 +2430,7 @@ public static async toggleCompanyStatus(req: Request, res: Response): Promise<vo
         company_status: company_status as string,
         legal_entity_structure: legal_entity_structure as string,
         registration_type: registration_type as string,
-        search: search as string
+        search: search as string,
       });
 
       res.status(200).json({

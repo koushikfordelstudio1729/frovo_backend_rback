@@ -1,7 +1,5 @@
 import { StorageFactory, IStorageProvider, IUploadResult } from "../common/storage";
-import {
-    IMachineImageData
-} from "../models/AreaRoute.model";
+import { IMachineImageData } from "../models/AreaRoute.model";
 
 import { logger } from "../utils/logger.util";
 export interface IImageMetadata {
@@ -80,8 +78,6 @@ export class ImageUploadService {
     };
   }
 
- 
-
   async uploadAreaMachineImage(
     file: Express.Multer.File,
     folder?: string
@@ -91,12 +87,11 @@ export class ImageUploadService {
     return this.createAreaMachineDocumentMetadata(file, result.url, result.publicId);
   }
 
-
   async uploadMultipleFiles(
     files: Express.Multer.File[],
     folder: string,
     type: "areaMachine"
-  ): Promise<(IMachineImageData)[]> {
+  ): Promise<IMachineImageData[]> {
     const uploadPromises = files.map(file => {
       switch (type) {
         case "areaMachine":

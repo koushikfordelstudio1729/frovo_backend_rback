@@ -40,7 +40,6 @@ const machineImageSchema = new Schema<IMachineImageData>(
   { _id: false }
 );
 
-
 export interface ILocation extends Document {
   area_name: string;
   state: string;
@@ -123,7 +122,7 @@ const LocationSchema: Schema = new Schema(
   },
   {
     timestamps: true,
-    collection: "locations"
+    collection: "locations",
   }
 );
 
@@ -176,9 +175,9 @@ const SubLocationSchema: Schema = new Schema(
       required: true,
     },
   },
-  { 
+  {
     timestamps: true,
-    collection: "sublocations"
+    collection: "sublocations",
   }
 );
 
@@ -227,7 +226,7 @@ const MachineDetailsSchema: Schema = new Schema(
   },
   {
     timestamps: true,
-    collection: "machine_details"
+    collection: "machine_details",
   }
 );
 
@@ -235,15 +234,17 @@ const MachineDetailsSchema: Schema = new Schema(
 MachineDetailsSchema.pre("save", async function (next) {
   try {
     const subLocation = await mongoose.model("SubLocation").findById(this.sub_location_id);
-    
+
     if (!subLocation) {
       throw new Error("Sub-location not found");
     }
-    
+
     if (!subLocation.select_machine.includes(this.machine_name)) {
-      throw new Error(`Machine "${this.machine_name}" is not in the selected machines list for this sub-location`);
+      throw new Error(
+        `Machine "${this.machine_name}" is not in the selected machines list for this sub-location`
+      );
     }
-    
+
     next();
   } catch (error) {
     next(error as Error);
@@ -255,8 +256,10 @@ MachineDetailsSchema.index({ sub_location_id: 1 });
 MachineDetailsSchema.index({ status: 1 });
 MachineDetailsSchema.index({ installed_status: 1 });
 
-export const MachineDetailsModel = mongoose.model<IMachineDetails>("MachineDetails", MachineDetailsSchema);
-
+export const MachineDetailsModel = mongoose.model<IMachineDetails>(
+  "MachineDetails",
+  MachineDetailsSchema
+);
 
 export interface IHistoryArea extends Document {
   location_id: Types.ObjectId;
@@ -301,11 +304,14 @@ const HistoryAreaSchema: Schema = new Schema(
       default: null,
     },
     performed_by: {
-      type: new Schema({
-        user_id: { type: String, required: true },
-        email: { type: String, required: true },
-        name: { type: String },
-      }, { _id: false }),
+      type: new Schema(
+        {
+          user_id: { type: String, required: true },
+          email: { type: String, required: true },
+          name: { type: String },
+        },
+        { _id: false }
+      ),
       required: true,
     },
     ip_address: {

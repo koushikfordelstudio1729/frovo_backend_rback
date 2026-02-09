@@ -50,21 +50,21 @@ export const processBrandDocuments = async (req: any, res: any, next: any) => {
     }
 
     const imageUploadService = new ImageUploadService();
-    
+
     // Process each uploaded file
     const processedFiles: any = {};
-    
+
     // Get all file fields
     const fileFields = Object.keys(req.files);
-    
+
     for (const fieldName of fileFields) {
       const files = req.files[fieldName];
       if (files && files.length > 0) {
         const file = files[0];
-        
+
         // Map field name to document type
         const documentType = mapFieldNameToDocumentType(fieldName);
-        
+
         if (documentType) {
           // Upload to Cloudinary using ImageUploadService
           const result = await imageUploadService.uploadDocument(
@@ -73,12 +73,12 @@ export const processBrandDocuments = async (req: any, res: any, next: any) => {
             // Optional: Pass brand/company info for folder organization
             req.body.brand_name || req.body.company_id
           );
-          
+
           processedFiles[fieldName] = result;
         }
       }
     }
-    
+
     // Attach processed files to request
     req.processedFiles = processedFiles;
     next();
@@ -95,22 +95,22 @@ export const processBrandDocuments = async (req: any, res: any, next: any) => {
 // Helper function to map field names to document types
 const mapFieldNameToDocumentType = (fieldName: string): any => {
   const mapping: Record<string, any> = {
-    'upload_cancelled_cheque_image': 'cancelled_cheque',
-    'gst_certificate_image': 'gst_certificate',
-    'PAN_image': 'pan_card',
-    'FSSAI_image': 'fssai_certificate',
-    'certificate_of_incorporation_image': 'certificate_of_incorporation',
-    'MSME_or_Udyam_certificate_image': 'msme_udyam_certificate',
-    'MOA_image': 'moa',
-    'AOA_image': 'aoa',
-    'Trademark_certificate_image': 'trademark_certificate',
-    'Authorized_Signatory_image': 'authorized_signatory',
-    'LLP_agreement_image': 'llp_agreement',
-    'Shop_and_Establishment_certificate_image': 'shop_establishment_certificate',
-    'Registered_Partnership_deed_image': 'partnership_deed',
-    'Board_resolution_image': 'board_resolution',
+    upload_cancelled_cheque_image: "cancelled_cheque",
+    gst_certificate_image: "gst_certificate",
+    PAN_image: "pan_card",
+    FSSAI_image: "fssai_certificate",
+    certificate_of_incorporation_image: "certificate_of_incorporation",
+    MSME_or_Udyam_certificate_image: "msme_udyam_certificate",
+    MOA_image: "moa",
+    AOA_image: "aoa",
+    Trademark_certificate_image: "trademark_certificate",
+    Authorized_Signatory_image: "authorized_signatory",
+    LLP_agreement_image: "llp_agreement",
+    Shop_and_Establishment_certificate_image: "shop_establishment_certificate",
+    Registered_Partnership_deed_image: "partnership_deed",
+    Board_resolution_image: "board_resolution",
   };
-  
+
   return mapping[fieldName] || null;
 };
 
@@ -121,24 +121,24 @@ export const uploadMultiple = upload.array("documents", 5);
 export const uploadBrandDocuments = [
   upload.fields([
     // Common mandatory documents
-    { name: 'upload_cancelled_cheque_image', maxCount: 1 },
-    { name: 'gst_certificate_image', maxCount: 1 },
-    { name: 'PAN_image', maxCount: 1 },
-    { name: 'FSSAI_image', maxCount: 1 },
+    { name: "upload_cancelled_cheque_image", maxCount: 1 },
+    { name: "gst_certificate_image", maxCount: 1 },
+    { name: "PAN_image", maxCount: 1 },
+    { name: "FSSAI_image", maxCount: 1 },
 
     // Legal entity specific documents (all possible documents)
-    { name: 'certificate_of_incorporation_image', maxCount: 1 },
-    { name: 'MSME_or_Udyam_certificate_image', maxCount: 1 },
-    { name: 'MOA_image', maxCount: 1 },
-    { name: 'AOA_image', maxCount: 1 },
-    { name: 'Trademark_certificate_image', maxCount: 1 },
-    { name: 'Authorized_Signatory_image', maxCount: 1 },
-    { name: 'LLP_agreement_image', maxCount: 1 },
-    { name: 'Shop_and_Establishment_certificate_image', maxCount: 1 },
-    { name: 'Registered_Partnership_deed_image', maxCount: 1 },
-    { name: 'Board_resolution_image', maxCount: 1 },
+    { name: "certificate_of_incorporation_image", maxCount: 1 },
+    { name: "MSME_or_Udyam_certificate_image", maxCount: 1 },
+    { name: "MOA_image", maxCount: 1 },
+    { name: "AOA_image", maxCount: 1 },
+    { name: "Trademark_certificate_image", maxCount: 1 },
+    { name: "Authorized_Signatory_image", maxCount: 1 },
+    { name: "LLP_agreement_image", maxCount: 1 },
+    { name: "Shop_and_Establishment_certificate_image", maxCount: 1 },
+    { name: "Registered_Partnership_deed_image", maxCount: 1 },
+    { name: "Board_resolution_image", maxCount: 1 },
   ]),
-  processBrandDocuments
+  processBrandDocuments,
 ];
 
 export const uploadPOImages = upload.any();
