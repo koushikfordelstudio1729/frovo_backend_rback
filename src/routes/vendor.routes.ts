@@ -23,9 +23,6 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.getCompanyDashboard
 );
-// ============================================
-// COMPANY ROUTES
-// ============================================
 
 // Create a new company
 router.post("/companies", authorize(STAFF_MANAGEMENT), VendorController.createCompany);
@@ -79,10 +76,6 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.exportCompanyById
 );
-
-// ============================================
-// BRAND ROUTES
-// ============================================
 
 // Create a new brand with multiple document uploads
 router.post(
@@ -185,10 +178,6 @@ router.put(
   VendorController.updateBrand
 );
 
-router.delete(
-  "/brands/:brand_id", 
-  authorize(STAFF_MANAGEMENT),
-  VendorController.deleteBrand
-);
+router.delete("/brands/:brand_id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
 export default router;

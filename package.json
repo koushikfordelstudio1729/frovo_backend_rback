@@ -31,7 +31,6 @@
   "license": "ISC",
   "dependencies": {
     "@types/nodemailer": "^7.0.2",
-    "@types/pdfkit": "^0.17.4",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
@@ -59,6 +58,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.1",
+    "@types/pdfkit": "^0.17.4",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.0",
