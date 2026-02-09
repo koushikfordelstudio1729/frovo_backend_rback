@@ -23,12 +23,9 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.getCompanyDashboard
 );
-// ============================================
-// COMPANY ROUTES
-// ============================================
 
 // Create a new company
-router.post("/companies", authorize(VENDOR_MANAGEMENT), VendorController.createCompany);
+router.post("/companies", authorize(STAFF_MANAGEMENT), VendorController.createCompany);
 
 // Get all companies with pagination
 router.get("/companies", authorize(STAFF_MANAGEMENT), VendorController.getAllCompanies);
@@ -79,10 +76,6 @@ router.get(
   authorize(STAFF_MANAGEMENT),
   VendorController.exportCompanyById
 );
-
-// ============================================
-// BRAND ROUTES
-// ============================================
 
 // Create a new brand with multiple document uploads
 router.post(
@@ -185,11 +178,6 @@ router.put(
   VendorController.updateBrand
 );
 
-// Delete brand by identifier (handles both types)
-router.delete(
-  "/brands/:brand_id", // This can accept both MongoDB _id and custom brand_id
-  authorize(STAFF_MANAGEMENT),
-  VendorController.deleteBrand
-);
+router.delete("/brands/:brand_id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
 export default router;
