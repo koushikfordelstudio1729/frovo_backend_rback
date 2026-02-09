@@ -1,0 +1,684 @@
+{
+  "info": {
+    "_postman_id": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+    "name": "FROVO Vendor Management",
+    "description": "Complete API collection for FROVO Vendor Management System. Includes Company and Brand CRUD operations, audit trails, exports, statistics, and dashboard endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints - Login with different roles to get auth tokens.",
+      "item": [
+        {
+          "name": "Login - Vendor Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "}",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('auth_token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendorstaff@frovo.com\",\n  \"password\": \"Vstaff@12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/login",
+              "host": ["{{auth_url}}"],
+              "path": ["login"]
+            },
+            "description": "Login as Vendor Staff. Auto-sets auth_token on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "}",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('auth_token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nkoushikpanda123@gmail.com\",\n  \"password\": \"SuperAdmin@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/login",
+              "host": ["{{auth_url}}"],
+              "path": ["login"]
+            },
+            "description": "Login as Super Admin. Auto-sets auth_token on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Vendor Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set('auth_token', jsonData.token);",
+                  "}",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('auth_token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor.admin@frovo.com\",\n  \"password\": \"VendorAdmin@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{auth_url}}/login",
+              "host": ["{{auth_url}}"],
+              "path": ["login"]
+            },
+            "description": "Login as Vendor Manager/Admin. Auto-sets auth_token on success."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Company",
+      "description": "Company management endpoints - CRUD, statistics, audit trails, exports, and dashboard.",
+      "item": [
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\n  \"legal_entity_structure\": \"pvt\",\n  \"registration_type\": \"cin\",\n  \"cin_or_msme_number\": \"U72900HR2024PTC123455\",\n  \"date_of_incorporation\": \"2023-06-15\",\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\n  \"corporate_website\": \"https://frovo.com\",\n  \"official_email\": \"official@frovo.com\",\n  \"directory_signature_name\": \"Jatin Kumar\",\n  \"din\": \"01234565\",\n  \"company_status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies",
+              "host": ["{{base_url}}"],
+              "path": ["companies"]
+            },
+            "description": "Create a new company with registration details, legal entity structure, and contact information."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Companies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies?page=1&limit=10&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{base_url}}"],
+              "path": ["companies"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "sortBy", "value": "createdAt" },
+                { "key": "sortOrder", "value": "desc" },
+                { "key": "company_status", "value": "", "disabled": true },
+                { "key": "registration_type", "value": "", "disabled": true },
+                { "key": "legal_entity_structure", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve a paginated list of all companies with optional filtering by status, registration type, legal entity structure, and search."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}"]
+            },
+            "description": "Retrieve a single company by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registered_company_name\": \"Frovo Technologies Updated Pvt Ltd\",\n  \"registered_office_address\": \"Sector 45, Gurgaon, Haryana, 122004\",\n  \"official_email\": \"updated@frovo.com\",\n  \"corporate_website\": \"https://frovo-updated.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}"]
+            },
+            "description": "Update an existing company's details by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Company",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}"]
+            },
+            "description": "Delete a company by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Company Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/toggle-status",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "toggle-status"]
+            },
+            "description": "Toggle the active/inactive status of a company."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/statistics/overview",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "statistics", "overview"]
+            },
+            "description": "Retrieve statistical overview of all companies."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/audit-trail?page=1&limit=50&format=json",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "audit-trail"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "format", "value": "json" }
+              ]
+            },
+            "description": "Retrieve the audit trail for a specific company by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Company Audit Trails",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audit-trails/companies?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["audit-trails", "companies"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "company_id", "value": "", "disabled": true },
+                { "key": "action", "value": "", "disabled": true },
+                { "key": "date_from", "value": "", "disabled": true },
+                { "key": "date_to", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve audit trails for all companies with optional filtering by company_id, action, and date range."
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Companies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/export/all?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "export", "all"],
+              "query": [
+                { "key": "format", "value": "csv" },
+                { "key": "filters", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Export all companies data in the specified format (CSV by default)."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Company By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/export?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "export"],
+              "query": [
+                { "key": "format", "value": "csv" }
+              ]
+            },
+            "description": "Export a single company's data by its MongoDB ObjectId in the specified format."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/dashboard?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "dashboard"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "company_status", "value": "", "disabled": true },
+                { "key": "legal_entity_structure", "value": "", "disabled": true },
+                { "key": "registration_type", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve the company dashboard with paginated results and optional filtering."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Brand",
+      "description": "Brand management endpoints - CRUD, verification, statistics, audit trails, and exports.",
+      "item": [
+        {
+          "name": "Create Brand",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "registration_type", "value": "cin", "type": "text" },
+                { "key": "cin_or_msme_number", "value": "U72900HR2024PTC123455", "type": "text" },
+                { "key": "company_id", "value": "{{company_id}}", "type": "text" },
+                { "key": "brand_billing_name", "value": "Frovo Ice Cream", "type": "text" },
+                { "key": "brand_name", "value": "Frovo", "type": "text" },
+                { "key": "brand_email", "value": "brand@frovo.com", "type": "text" },
+                { "key": "brand_category", "value": "Ice Cream", "type": "text" },
+                { "key": "brand_type", "value": "Premium", "type": "text" },
+                { "key": "contact_name", "value": "John Doe", "type": "text" },
+                { "key": "contact_phone", "value": "9876543210", "type": "text" },
+                { "key": "address", "value": "Sector 44, Gurgaon", "type": "text" },
+                { "key": "bank_account_of_brand", "value": "1234567890123456", "type": "text" },
+                { "key": "ifsc_code", "value": "HDFC0001234", "type": "text" },
+                { "key": "payment_terms", "value": "Net 30", "type": "text" },
+                { "key": "gst_details", "value": "22AAAAA0000A1Z5", "type": "text" },
+                { "key": "PAN_number", "value": "ABCDE1234F", "type": "text" },
+                { "key": "FSSAI_number", "value": "12345678901234", "type": "text" },
+                { "key": "TDS_rate", "value": "2", "type": "text" },
+                { "key": "billing_cycle", "value": "monthly", "type": "text" },
+                { "key": "brand_status_cycle", "value": "active", "type": "text" },
+                { "key": "contract_start_date", "value": "2024-01-01", "type": "text" },
+                { "key": "contract_end_date", "value": "2025-01-01", "type": "text" },
+                { "key": "contract_renewal_date", "value": "2025-01-01", "type": "text" },
+                { "key": "payment_methods", "value": "bank_transfer", "type": "text" },
+                { "key": "risk_notes", "value": "Low risk vendor", "type": "text" },
+                { "key": "contract_terms", "value": "Standard terms", "type": "text" },
+                { "key": "internal_notes", "value": "Priority vendor", "type": "text" },
+                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "" },
+                { "key": "gst_certificate_image", "type": "file", "src": "" },
+                { "key": "PAN_image", "type": "file", "src": "" },
+                { "key": "FSSAI_image", "type": "file", "src": "" },
+                { "key": "certificate_of_incorporation_image", "type": "file", "src": "" },
+                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "" },
+                { "key": "MOA_image", "type": "file", "src": "" },
+                { "key": "AOA_image", "type": "file", "src": "" },
+                { "key": "Trademark_certificate_image", "type": "file", "src": "" },
+                { "key": "Authorized_Signatory_image", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands",
+              "host": ["{{base_url}}"],
+              "path": ["brands"]
+            },
+            "description": "Create a new brand with registration details, financial information, and document uploads. Uses form-data for file upload support."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Brands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands?page=1&limit=10&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{base_url}}"],
+              "path": ["brands"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "sortBy", "value": "createdAt" },
+                { "key": "sortOrder", "value": "desc" },
+                { "key": "verification_status", "value": "", "disabled": true },
+                { "key": "brand_category", "value": "", "disabled": true },
+                { "key": "brand_type", "value": "", "disabled": true },
+                { "key": "company_id", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve a paginated list of all brands with optional filtering by verification status, category, type, and company."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brand By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}"]
+            },
+            "description": "Retrieve a single brand by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Brand",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "brand_name", "value": "Frovo Updated", "type": "text" },
+                { "key": "brand_email", "value": "updated-brand@frovo.com", "type": "text" },
+                { "key": "contact_name", "value": "Jane Doe", "type": "text" },
+                { "key": "contact_phone", "value": "9876543211", "type": "text" },
+                { "key": "address", "value": "Sector 45, Gurgaon", "type": "text" },
+                { "key": "payment_terms", "value": "Net 45", "type": "text" },
+                { "key": "TDS_rate", "value": "3", "type": "text" },
+                { "key": "billing_cycle", "value": "quarterly", "type": "text" },
+                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "" },
+                { "key": "gst_certificate_image", "type": "file", "src": "" },
+                { "key": "PAN_image", "type": "file", "src": "" },
+                { "key": "FSSAI_image", "type": "file", "src": "" },
+                { "key": "certificate_of_incorporation_image", "type": "file", "src": "" },
+                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "" },
+                { "key": "MOA_image", "type": "file", "src": "" },
+                { "key": "AOA_image", "type": "file", "src": "" },
+                { "key": "Trademark_certificate_image", "type": "file", "src": "" },
+                { "key": "Authorized_Signatory_image", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}"]
+            },
+            "description": "Update an existing brand's details by its MongoDB ObjectId. Supports form-data for document file updates."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Brand",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}"]
+            },
+            "description": "Delete a brand by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Brand Verification",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/toggle-verification",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "toggle-verification"]
+            },
+            "description": "Toggle the verification status of a brand."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Brand Verification Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"All documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/verification",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "verification"]
+            },
+            "description": "Update a brand's verification status and risk notes."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brands By Company ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/brands?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "brands"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "verification_status", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Retrieve all brands belonging to a specific company by the company's MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brand Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/statistics/overview",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "statistics", "overview"]
+            },
+            "description": "Retrieve statistical overview of all brands."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brand Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/audit-trail?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "audit-trail"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Retrieve the audit trail for a specific brand by its MongoDB ObjectId."
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Brands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/export/all?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "export", "all"],
+              "query": [
+                { "key": "format", "value": "csv" },
+                { "key": "filters", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Export all brands data in the specified format (CSV by default)."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Brand By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/export?format=csv",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "export"],
+              "query": [
+                { "key": "format", "value": "csv" }
+              ]
+            },
+            "description": "Export a single brand's data by its MongoDB ObjectId in the specified format."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

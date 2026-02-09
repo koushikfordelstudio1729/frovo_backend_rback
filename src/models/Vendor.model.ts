@@ -1,563 +1,554 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-export interface IVendorDocument {
-  document_name: string;
-  document_type:
-    | "signed_contract"
-    | "gst_certificate"
-    | "msme_certificate"
-    | "tds_exemption"
-    | "pan_card"
-    | "bank_proof"
-    | "other";
-  file_url: string;
-  cloudinary_public_id: string;
-  file_size: number;
-  mime_type: string;
-  expiry_date?: Date;
-  uploaded_at: Date;
-}
-
+// CompanyCreate Schema (unchanged from your code)
 export interface ICompanyCreate extends Document {
+  company_id: string;
+  legal_entity_structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
   registered_company_name: string;
-  company_address: string;
-  office_email: string;
-  legal_entity_structure: string;
-  cin: string;
-  gst_number: string;
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
   date_of_incorporation: Date;
+  registered_office_address: string;
   corporate_website: string;
+  official_email: string;
   directory_signature_name: string;
   din: string;
-  company_status: "active" | "inactive" | "blacklisted" | "under_review";
-  risk_rating: "low" | "medium" | "high";
-}
-const companyCreateSchema = new Schema<ICompanyCreate>(
-  {
-    registered_company_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    company_address: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    office_email: {
-      type: String,
-      required: true,
-      lowercase: true,
-      trim: true,
-      unique: true,
-    },
-    legal_entity_structure: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    cin: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
-    },
-    gst_number: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true,
-      unique: true,
-    },
-    date_of_incorporation: {
-      type: Date,
-      required: true,
-    },
-    corporate_website: {
-      type: String,
-      required: false,
-      trim: true,
-    },
-    directory_signature_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    din: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
-    },
-    company_status: {
-      type: String,
-      enum: ["active", "inactive", "blacklisted", "under_review"],
-      default: "active",
-      required: true,
-    },
-    risk_rating: {
-      type: String,
-      enum: ["low", "medium", "high"],
-      default: "medium",
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
-    collection: "companies",
-  }
-);
-export const CompanyCreate = mongoose.model<ICompanyCreate>("CompanyCreate", companyCreateSchema);
-export interface IVendorCreate extends Document {
-  vendor_name: string;
-  vendor_billing_name: string;
-  vendor_type: string[];
-  vendor_category: string;
-  material_categories_supplied: string[];
-  primary_contact_name: string;
-  contact_phone: string;
-  vendor_email: string;
-  vendor_address: string;
-  vendor_id: string;
-  cin: string;
-  warehouse_id?: Types.ObjectId;
-
-  bank_account_number: string;
-  ifsc_code: string;
-  payment_terms: string;
-  payment_methods: string;
-
-  gst_number: string;
-  pan_number: string;
-  tds_rate: number;
-  billing_cycle: string;
-
-  vendor_status_cycle: string;
-  vendor_status: "active" | "inactive" | "deactivated";
-  verification_status:
-    | "draft"
-    | "pending"
-    | "under_review"
-    | "verified"
-    | "rejected"
-    | "failed"
-    | "suspended"
-    | "contract_expired"
-    | "blacklisted";
-  risk_rating: "low" | "medium" | "high";
-  risk_notes: string;
-  verified_by?: Types.ObjectId;
-
-  contract_terms: string;
-  contract_expiry_date: Date;
-  contract_renewal_date: Date;
-
-  documents: IVendorDocument[];
-
-  internal_notes: string;
-
-  createdBy: Types.ObjectId;
+  company_status: "active" | "inactive";
   createdAt: Date;
   updatedAt: Date;
 }
 
-const vendorDocumentSchema = new Schema<IVendorDocument>(
+const companyCreateSchema = new Schema<ICompanyCreate>(
   {
-    document_name: {
+    company_id: { type: String, unique: true, trim: true },
+    registered_company_name: { type: String, required: true, trim: true },
+    registered_office_address: { type: String, required: true, trim: true },
+    official_email: { type: String, required: true, lowercase: true, trim: true, unique: true },
+    legal_entity_structure: { type: String, required: true, trim: true },
+    registration_type: { type: String, enum: ["cin", "msme"], required: true },
+    cin_or_msme_number: { type: String, required: true, trim: true, unique: true },
+    date_of_incorporation: { type: Date, required: true },
+    corporate_website: { type: String, required: false, trim: true },
+    directory_signature_name: { type: String, required: true, trim: true },
+    din: { type: String, required: true, trim: true, unique: true },
+    company_status: {
       type: String,
-      required: true,
-      trim: true,
-    },
-    document_type: {
-      type: String,
-      enum: [
-        "signed_contract",
-        "gst_certificate",
-        "msme_certificate",
-        "tds_exemption",
-        "pan_card",
-        "bank_proof",
-        "other",
-      ],
+      enum: ["active", "inactive"],
+      default: "active",
       required: true,
     },
-    file_url: {
-      type: String,
-      required: true,
-    },
-    cloudinary_public_id: {
-      type: String,
-      required: true,
-    },
-    file_size: {
-      type: Number,
-      required: true,
-    },
-    mime_type: {
-      type: String,
-      required: true,
-    },
-    expiry_date: {
-      type: Date,
-      required: false,
-    },
-    uploaded_at: {
-      type: Date,
-      default: Date.now,
-    },
+  },
+  { timestamps: true, collection: "companies" }
+);
+
+// Pre-save hook to generate company_id
+companyCreateSchema.pre("save", async function (next) {
+  if (this.isNew && !this.company_id) {
+    let isUnique = false;
+
+    while (!isUnique) {
+      const generatedId = Math.floor(1000000 + Math.random() * 9000000).toString();
+
+      const existingCompany = await mongoose.models.CompanyCreate?.findOne({
+        company_id: generatedId,
+      });
+
+      if (!existingCompany) {
+        isUnique = true;
+        this.company_id = generatedId;
+      }
+    }
+  }
+  next();
+});
+
+export const CompanyCreate = mongoose.model<ICompanyCreate>("CompanyCreate", companyCreateSchema);
+
+export interface ICancelledChequeImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IGstCertificateImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IPANImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IFSSAIImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IAuthorizedSignatoryImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface ILLPAgreementImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IShopAndEstablishmentCertificateImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IRegisteredPartnershipDeedImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IBoardResolutionImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IAuthorizedSignatoryImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface ILLPAgreementImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IShopAndEstablishmentCertificateImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IRegisteredPartnershipDeedImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IBoardResolutionImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface ICertificateOfIncorporationImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IMsmeOrUdyamCertificate {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IMoAImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface IAoAImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+export interface ITrademarkCertificateImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
+
+// BrandCreate Interfaces and Schemas
+const cancelledChequeImageSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
   },
   { _id: true }
 );
 
-const vendorCreateSchema = new Schema<IVendorCreate>(
+const gstCertificateImageSchema = new Schema(
   {
-    vendor_name: {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const PANImageSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const FSSAIImageSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+// Document schemas for different legal entities
+const certificateOfIncorporationSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const msmeOrUdyamCertificateSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const moaImageSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const aoaImageSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const trademarkCertificateSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const authorizedSignatorySchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const llpAgreementSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const shopAndEstablishmentSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const registeredPartnershipDeedSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+const boardResolutionSchema = new Schema(
+  {
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
+export interface IBrandCreate extends Document {
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
+  company_id: Types.ObjectId;
+  brand_billing_name: string;
+  brand_name: string;
+  brand_id: string;
+  brand_email: string;
+  brand_category: string;
+  brand_type: string;
+  contact_name: string;
+  contact_phone: string;
+  address: string;
+  bank_account_of_brand: string;
+  ifsc_code: string;
+  payment_terms: string;
+  upload_cancelled_cheque_image: ICancelledChequeImage;
+  gst_details: string;
+  gst_certificate_image: IGstCertificateImage;
+  PAN_number: string;
+  PAN_image: IPANImage;
+  FSSAI_number: string;
+  FSSAI_image: IFSSAIImage;
+  TDS_rate: number;
+  billing_cycle: string;
+  brand_status_cycle: string;
+  verification_status: "pending" | "verified" | "rejected";
+  risk_notes: string;
+  contract_terms: string;
+  contract_start_date: Date;
+  contract_end_date: Date;
+  contract_renewal_date: Date;
+  payment_methods: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
+  internal_notes: string;
+
+  // Document Uploads
+  certificate_of_incorporation_image: ICertificateOfIncorporationImage;
+  MSME_or_Udyam_certificate_image: IMsmeOrUdyamCertificate;
+  MOA_image: IMoAImage;
+  AOA_image: IAoAImage;
+  Trademark_certificate_image: ITrademarkCertificateImage;
+  Authorized_Signatory_image: IAuthorizedSignatoryImage;
+  LLP_agreement_image: ILLPAgreementImage;
+  Shop_and_Establishment_certificate_image: IShopAndEstablishmentCertificateImage;
+  Registered_Partnership_deed_image: IRegisteredPartnershipDeedImage;
+  Board_resolution_image: IBoardResolutionImage;
+
+  warehouse_id?: Types.ObjectId;
+  verified_by?: Types.ObjectId;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+const brandCreateSchema = new Schema<IBrandCreate>(
+  {
+    registration_type: { type: String, enum: ["cin", "msme"], required: true },
+    cin_or_msme_number: {
       type: String,
       required: true,
       trim: true,
-    },
-    vendor_billing_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    vendor_type: [
-      {
-        type: String,
-        enum: [
-          "snacks",
-          "beverages",
-          "packaging",
-          "services",
-          "raw_materials",
-          "equipment",
-          "maintenance",
-        ],
-        required: true,
-      },
-    ],
-    vendor_category: {
-      type: String,
-      required: true,
-      enum: ["consumables", "packaging", "logistics", "maintenance", "services", "equipment"],
-      trim: true,
-    },
-    material_categories_supplied: [
-      {
-        type: String,
-        required: false,
-        trim: true,
-      },
-    ],
-    primary_contact_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    contact_phone: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    vendor_email: {
-      type: String,
-      required: true,
-      lowercase: true,
-      trim: true,
-      unique: true,
-    },
-    vendor_address: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    vendor_id: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
-    cin: {
-      type: String,
-      required: true,
-      trim: true,
-      references: "CompanyCreate",
       validate: {
         validator: async function (value: string) {
-          const company = await mongoose.model("CompanyCreate").findOne({
-            cin: value,
-          });
+          const company = await CompanyCreate.findOne({ cin_or_msme_number: value });
           return !!company;
         },
         message: "Company with this registration number does not exist",
       },
     },
-    warehouse_id: {
+    company_id: {
       type: Schema.Types.ObjectId,
-      ref: "Warehouse",
-      required: false,
-    },
-
-    bank_account_number: {
-      type: String,
+      ref: "CompanyCreate",
       required: true,
-      trim: true,
+      validate: {
+        validator: async function (value: Types.ObjectId) {
+          const company = await CompanyCreate.findById(value);
+          return !!company;
+        },
+        message: "Company does not exist",
+      },
     },
-    ifsc_code: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true,
-    },
-    payment_terms: {
-      type: String,
-      required: true,
-      enum: ["net_7", "net_15", "net_30", "net_45", "net_60", "immediate"],
-      default: "net_30",
-      trim: true,
-    },
-    payment_methods: {
-      type: String,
-      required: true,
-      enum: ["neft", "imps", "upi", "cheque", "rtgs", "multiple"],
-      default: "neft",
-    },
-
-    gst_number: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true,
-    },
-    pan_number: {
-      type: String,
-      required: true,
-      uppercase: true,
-      trim: true,
-    },
-    tds_rate: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 100,
-      default: 1,
-    },
-    billing_cycle: {
-      type: String,
-      required: true,
-      enum: ["weekly", "monthly", "per_po", "quarterly"],
-      default: "monthly",
-    },
-
-    vendor_status_cycle: {
-      type: String,
-      required: true,
-      enum: ["procurement", "restocking", "finance_reconciliation", "audit"],
-      default: "procurement",
-    },
-    vendor_status: {
-      type: String,
-      enum: ["active", "inactive", "deactivated"],
-      default: "active",
-      required: true,
-    },
+    brand_billing_name: { type: String, required: true, trim: true },
+    brand_name: { type: String, required: true, trim: true },
+    brand_id: { type: String, unique: true, trim: true },
+    brand_email: { type: String, required: true, lowercase: true, trim: true, unique: true },
+    brand_category: { type: String, required: true, trim: true },
+    brand_type: { type: String, required: true, trim: true },
+    contact_name: { type: String, required: true, trim: true },
+    contact_phone: { type: String, required: true, trim: true },
+    address: { type: String, required: true, trim: true },
+    bank_account_of_brand: { type: String, required: true, trim: true },
+    ifsc_code: { type: String, required: true, uppercase: true, trim: true },
+    payment_terms: { type: String, required: true, trim: true },
+    upload_cancelled_cheque_image: cancelledChequeImageSchema,
+    gst_details: { type: String, required: true, uppercase: true, trim: true },
+    gst_certificate_image: gstCertificateImageSchema,
+    PAN_number: { type: String, required: true, uppercase: true, trim: true },
+    PAN_image: PANImageSchema,
+    FSSAI_number: { type: String, required: true, trim: true },
+    FSSAI_image: FSSAIImageSchema,
+    TDS_rate: { type: Number, required: true, min: 0, max: 100, default: 1 },
+    billing_cycle: { type: String, required: true, trim: true },
+    brand_status_cycle: { type: String, required: true, trim: true },
     verification_status: {
       type: String,
-      enum: [
-        "draft",
-        "pending",
-        "under_review",
-        "verified",
-        "rejected",
-        "failed",
-        "suspended",
-        "contract_expired",
-        "blacklisted",
-      ],
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
       required: true,
-      default: "draft",
     },
-    risk_rating: {
+    risk_notes: { type: String, trim: true, default: "" },
+    contract_terms: { type: String, trim: true, default: "" },
+    contract_start_date: { type: Date, required: true },
+    contract_end_date: { type: Date, required: true },
+    contract_renewal_date: { type: Date, required: true },
+    payment_methods: {
       type: String,
-      enum: ["low", "medium", "high"],
-      required: true,
-      default: "medium",
-    },
-    risk_notes: {
-      type: String,
-      required: false,
-      trim: true,
-      default: "",
-    },
-    verified_by: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-    },
-
-    contract_terms: {
-      type: String,
-      required: false,
-      trim: true,
-      default: "",
-    },
-    contract_expiry_date: {
-      type: Date,
+      enum: ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"],
       required: true,
     },
-    contract_renewal_date: {
-      type: Date,
-      required: true,
-    },
+    internal_notes: { type: String, trim: true, default: "" },
 
-    documents: [vendorDocumentSchema],
+    // Document Uploads
+    certificate_of_incorporation_image: certificateOfIncorporationSchema,
+    MSME_or_Udyam_certificate_image: msmeOrUdyamCertificateSchema,
+    MOA_image: moaImageSchema,
+    AOA_image: aoaImageSchema,
+    Trademark_certificate_image: trademarkCertificateSchema,
+    Authorized_Signatory_image: authorizedSignatorySchema,
+    LLP_agreement_image: llpAgreementSchema,
+    Shop_and_Establishment_certificate_image: shopAndEstablishmentSchema,
+    Registered_Partnership_deed_image: registeredPartnershipDeedSchema,
+    Board_resolution_image: boardResolutionSchema,
 
-    internal_notes: {
-      type: String,
-      required: false,
-      trim: true,
-      default: "",
-    },
-
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+    warehouse_id: { type: Schema.Types.ObjectId, ref: "Warehouse" },
+    verified_by: { type: Schema.Types.ObjectId, ref: "User" },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   {
     timestamps: true,
-    collection: "vendors",
+    collection: "brands",
   }
 );
 
-vendorCreateSchema.pre("save", function (next) {
-  if (!this.vendor_id) {
-    const timestamp = new Date().getTime().toString().slice(-6);
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    this.vendor_id = `VEND-${timestamp}-${random}`;
-  }
+// Pre-save hook to generate brand_id
+brandCreateSchema.pre("save", async function (next) {
+  if (this.isNew && !this.brand_id) {
+    let isUnique = false;
 
-  if (this.contract_expiry_date <= this.contract_renewal_date) {
-    return next(new Error("Contract expiry date must be after renewal date"));
-  }
+    while (!isUnique) {
+      // Generate brand ID with BR prefix
+      const generatedId = `BR${Math.floor(100000 + Math.random() * 900000)}`;
 
-  if (
-    this.isModified("verification_status") &&
-    (this.verification_status === "verified" ||
-      this.verification_status === "rejected" ||
-      this.verification_status === "failed")
-  ) {
-    if (!this.verified_by) {
-      return next(new Error("Verified_by field is required when verification status is changed"));
+      const existingBrand = await mongoose.models.BrandCreate?.findOne({
+        brand_id: generatedId,
+      });
+
+      if (!existingBrand) {
+        isUnique = true;
+        this.brand_id = generatedId;
+      }
     }
   }
-
   next();
 });
 
-vendorCreateSchema.index({ verification_status: 1 });
-vendorCreateSchema.index({ risk_rating: 1 });
-vendorCreateSchema.index({ vendor_category: 1 });
-vendorCreateSchema.index({ createdBy: 1 });
-vendorCreateSchema.index({ contract_expiry_date: 1 });
-
-export const VendorCreate = mongoose.model<IVendorCreate>("VendorCreate", vendorCreateSchema);
-
-export interface IVendorDashboard extends Document {
-  total_vendors: number;
-  pending_approvals: number;
-  active_vendors: number;
-  rejected_vendors: number;
-  vendors: {
-    vendor_name: string;
-    vendor_category: string;
-    verification_status: "pending" | "verified" | "failed" | "rejected";
-    risk_level: "low" | "medium" | "high";
-    contract_expiry_date: Date;
-    action: "edit" | "delete" | "view";
-  }[];
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const vendorDashboardSchema = new Schema<IVendorDashboard>(
-  {
-    total_vendors: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0,
-    },
-    pending_approvals: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0,
-    },
-    active_vendors: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0,
-    },
-    rejected_vendors: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0,
-    },
-    vendors: [
-      {
-        vendor_name: {
-          type: String,
-          required: true,
-          trim: true,
-        },
-        vendor_category: {
-          type: String,
-          required: true,
-          trim: true,
-        },
-        verification_status: {
-          type: String,
-          enum: ["pending", "verified", "failed", "rejected"],
-          required: true,
-          default: "pending",
-        },
-        risk_level: {
-          type: String,
-          enum: ["low", "medium", "high"],
-          required: true,
-          default: "medium",
-        },
-        contract_expiry_date: {
-          type: Date,
-          required: true,
-        },
-        action: {
-          type: String,
-          enum: ["edit", "delete"],
-          required: true,
-          default: "edit",
-        },
-      },
-    ],
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
-    collection: "vendordashboards",
-  }
-);
-
-vendorDashboardSchema.index({ createdBy: 1 });
-
-export const VendorDashboard = mongoose.model<IVendorDashboard>(
-  "VendorDashboard",
-  vendorDashboardSchema
-);
+export const BrandCreate = mongoose.model<IBrandCreate>("BrandCreate", brandCreateSchema);

@@ -693,15 +693,15 @@ export class CatalogueController extends BaseController {
 
     // Header
     csvLines.push(`"COMPLETE CATALOGUE EXPORT"`);
-    csvLines.push(`"Export Date: ${new Date().toISOString().split('T')[0]}"`);
-    csvLines.push(`"Export Time: ${new Date().toISOString().split('T')[1].split('.')[0]}"`);
+    csvLines.push(`"Export Date: ${new Date().toISOString().split("T")[0]}"`);
+    csvLines.push(`"Export Time: ${new Date().toISOString().split("T")[1].split(".")[0]}"`);
     csvLines.push(`"Total Products: ${products.length}"`);
     csvLines.push("");
 
     // Process each product
     products.forEach((product, index) => {
       // Product Header
-      csvLines.push(`"PRODUCT ${index + 1}: ${product.product_name || 'Unnamed Product'}"`);
+      csvLines.push(`"PRODUCT ${index + 1}: ${product.product_name || "Unnamed Product"}"`);
       csvLines.push("");
 
       // Basic Information
@@ -711,18 +711,22 @@ export class CatalogueController extends BaseController {
       csvLines.push(`Brand Name - "${(product.brand_name || "").replace(/"/g, '""')}"`);
 
       // Category and Sub-category
-      const categoryName = typeof product.category === 'object'
-        ? product.category.category_name
-        : product.category;
-      const subCategoryName = typeof product.sub_category === 'object'
-        ? product.sub_category.sub_category_name
-        : product.sub_category;
+      const categoryName =
+        typeof product.category === "object" ? product.category.category_name : product.category;
+      const subCategoryName =
+        typeof product.sub_category === "object"
+          ? product.sub_category.sub_category_name
+          : product.sub_category;
 
       csvLines.push(`Category - "${(categoryName || "").replace(/"/g, '""')}"`);
       csvLines.push(`Sub Category -"${(subCategoryName || "").replace(/"/g, '""')}"`);
       csvLines.push(`Description - "${(product.description || "").replace(/"/g, '""')}"`);
-      csvLines.push(`Manufacturer Name - "${(product.manufacturer_name || "").replace(/"/g, '""')}"`);
-      csvLines.push(`Manufacturer Address - "${(product.manufacturer_address || "").replace(/"/g, '""')}"`);
+      csvLines.push(
+        `Manufacturer Name - "${(product.manufacturer_name || "").replace(/"/g, '""')}"`
+      );
+      csvLines.push(
+        `Manufacturer Address - "${(product.manufacturer_address || "").replace(/"/g, '""')}"`
+      );
       csvLines.push(`Shell Life - ${product.shell_life || ""}`);
       csvLines.push(`Expiry Alert Threshold - ${product.expiry_alert_threshold || 0} days`);
       csvLines.push(`Tags Label - ${product.tages_label || ""}`);
@@ -730,11 +734,17 @@ export class CatalogueController extends BaseController {
       csvLines.push(`Base Price - ${product.base_price || 0}`);
       csvLines.push(`Final Price - ${product.final_price || 0}`);
       csvLines.push(`Barcode - ${product.barcode || ""}`);
-      csvLines.push(`Nutrition Information - "${(product.nutrition_information || "").replace(/"/g, '""')}"`);
+      csvLines.push(
+        `Nutrition Information - "${(product.nutrition_information || "").replace(/"/g, '""')}"`
+      );
       csvLines.push(`Ingredients - "${(product.ingredients || "").replace(/"/g, '""')}"`);
       csvLines.push(`Status - ${product.status || "active"}`);
-      csvLines.push(`Created Date - ${product.createdAt ? new Date(product.createdAt).toISOString().split("T")[0] : ""}`);
-      csvLines.push(`Updated Date - ${product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[0] : ""}`);
+      csvLines.push(
+        `Created Date - ${product.createdAt ? new Date(product.createdAt).toISOString().split("T")[0] : ""}`
+      );
+      csvLines.push(
+        `Updated Date - ${product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[0] : ""}`
+      );
 
       // Images Section
       csvLines.push("");
@@ -784,15 +794,25 @@ export class CatalogueController extends BaseController {
     csvLines.push(`Active Products - ${activeProducts}`);
     csvLines.push(`Inactive Products - ${inactiveProducts}`);
     csvLines.push(`Total Images - {totalImages}`);
-    csvLines.push(`Average Images per Product - ${products.length > 0 ? (totalImages / products.length).toFixed(2) : 0}`);
-    csvLines.push(`Products with Images - ${products.filter(p => {
-      if (Array.isArray(p.product_images)) return p.product_images.length > 0;
-      return !!p.product_images;
-    }).length}`);
-    csvLines.push(`Products without Images - ${products.filter(p => {
-      if (Array.isArray(p.product_images)) return p.product_images.length === 0;
-      return !p.product_images;
-    }).length}`);
+    csvLines.push(
+      `Average Images per Product - ${products.length > 0 ? (totalImages / products.length).toFixed(2) : 0}`
+    );
+    csvLines.push(
+      `Products with Images - ${
+        products.filter(p => {
+          if (Array.isArray(p.product_images)) return p.product_images.length > 0;
+          return !!p.product_images;
+        }).length
+      }`
+    );
+    csvLines.push(
+      `Products without Images - ${
+        products.filter(p => {
+          if (Array.isArray(p.product_images)) return p.product_images.length === 0;
+          return !p.product_images;
+        }).length
+      }`
+    );
 
     return csvLines.join("\n");
   }
@@ -826,7 +846,7 @@ export class CatalogueController extends BaseController {
 
     return [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
   }
-async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
+  async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     const catalogueService = createCatalogueService(req);
     const categoryService = createCategoryService(req);
     const subCategoryService = createSubCategoryService(req);
@@ -851,9 +871,8 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
 
       if (product.category) {
         try {
-          const categoryId = typeof product.category === 'object'
-            ? (product.category as any)._id
-            : product.category;
+          const categoryId =
+            typeof product.category === "object" ? (product.category as any)._id : product.category;
           categoryDetails = await categoryService.getCategoryById(categoryId.toString());
         } catch (error) {
           logger.warn(`Could not fetch category details: ${error.message}`);
@@ -862,10 +881,13 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
 
       if (product.sub_category) {
         try {
-          const subCategoryId = typeof product.sub_category === 'object'
-            ? (product.sub_category as any)._id
-            : product.sub_category;
-          subCategoryDetails = await subCategoryService.getSubCategoryById(subCategoryId.toString());
+          const subCategoryId =
+            typeof product.sub_category === "object"
+              ? (product.sub_category as any)._id
+              : product.sub_category;
+          subCategoryDetails = await subCategoryService.getSubCategoryById(
+            subCategoryId.toString()
+          );
         } catch (error) {
           logger.warn(`Could not fetch sub-category details: ${error.message}`);
         }
@@ -889,9 +911,12 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
             base_price: product.base_price || 0,
             final_price: product.final_price || 0,
             price_difference: (product.final_price || 0) - (product.base_price || 0),
-            discount_percentage: product.base_price > 0
-              ? (((product.base_price - product.final_price) / product.base_price) * 100).toFixed(2)
-              : "0.00",
+            discount_percentage:
+              product.base_price > 0
+                ? (((product.base_price - product.final_price) / product.base_price) * 100).toFixed(
+                    2
+                  )
+                : "0.00",
           },
           manufacturer_info: {
             manufacturer_name: product.manufacturer_name || "",
@@ -905,48 +930,69 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
           },
           category_info: {
             category_id: categoryDetails?._id?.toString() || "",
-            category_name: categoryDetails?.category_name ||
-              (typeof product.category === 'object' ? (product.category as any).category_name : ""),
+            category_name:
+              categoryDetails?.category_name ||
+              (typeof product.category === "object" ? (product.category as any).category_name : ""),
             category_status: categoryDetails?.category_status || "",
             category_description: categoryDetails?.description || "",
           },
           sub_category_info: {
             sub_category_id: subCategoryDetails?._id?.toString() || "",
-            sub_category_name: subCategoryDetails?.sub_category_name ||
-              (typeof product.sub_category === 'object' ? (product.sub_category as any).sub_category_name : ""),
+            sub_category_name:
+              subCategoryDetails?.sub_category_name ||
+              (typeof product.sub_category === "object"
+                ? (product.sub_category as any).sub_category_name
+                : ""),
             sub_category_status: subCategoryDetails?.sub_category_status || "",
             sub_category_description: subCategoryDetails?.description || "",
           },
           images: {
-            count: Array.isArray(product.product_images) ? product.product_images.length :
-              (product.product_images ? 1 : 0),
+            count: Array.isArray(product.product_images)
+              ? product.product_images.length
+              : product.product_images
+                ? 1
+                : 0,
             urls: Array.isArray(product.product_images)
               ? product.product_images.map((img: any, index: number) => ({
-                index: index + 1,
-                url: img.file_url || img.url || img.image_url || img || "",
-                filename: img.filename || img.originalname || `image-${index + 1}`,
-                size: img.size ? `${(img.size / 1024).toFixed(2)} KB` : "N/A",
-                format: img.format || img.mimetype?.split('/')[1] || "N/A",
-              }))
+                  index: index + 1,
+                  url: img.file_url || img.url || img.image_url || img || "",
+                  filename: img.filename || img.originalname || `image-${index + 1}`,
+                  size: img.size ? `${(img.size / 1024).toFixed(2)} KB` : "N/A",
+                  format: img.format || img.mimetype?.split("/")[1] || "N/A",
+                }))
               : product.product_images
-                ? [{
-                  index: 1,
-                  url: typeof product.product_images === 'object' && product.product_images !== null
-                    ? (product.product_images as any).file_url || (product.product_images as any).url || ""
-                    : String(product.product_images),
-                  filename: "single-image",
-                  size: "N/A",
-                  format: "N/A",
-                }]
+                ? [
+                    {
+                      index: 1,
+                      url:
+                        typeof product.product_images === "object" &&
+                        product.product_images !== null
+                          ? (product.product_images as any).file_url ||
+                            (product.product_images as any).url ||
+                            ""
+                          : String(product.product_images),
+                      filename: "single-image",
+                      size: "N/A",
+                      format: "N/A",
+                    },
+                  ]
                 : [],
           },
           timestamps: {
-            created_at: product.createdAt ? new Date(product.createdAt).toISOString().split("T")[0] : "",
-            created_time: product.createdAt ? new Date(product.createdAt).toISOString().split("T")[1].split(".")[0] : "",
-            updated_at: product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[0] : "",
-            updated_time: product.updatedAt ? new Date(product.updatedAt).toISOString().split("T")[1].split(".")[0] : "",
+            created_at: product.createdAt
+              ? new Date(product.createdAt).toISOString().split("T")[0]
+              : "",
+            created_time: product.createdAt
+              ? new Date(product.createdAt).toISOString().split("T")[1].split(".")[0]
+              : "",
+            updated_at: product.updatedAt
+              ? new Date(product.updatedAt).toISOString().split("T")[0]
+              : "",
+            updated_time: product.updatedAt
+              ? new Date(product.updatedAt).toISOString().split("T")[1].split(".")[0]
+              : "",
           },
-        }
+        },
       };
 
       const csv = this.convertSKUToCSV(productData);
@@ -956,7 +1002,6 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
       res.status(200).send(csv);
-
     } catch (error: any) {
       logger.error("Error exporting SKU by ID CSV:", error);
 
@@ -981,8 +1026,8 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     // Header with product name
     csvLines.push(`"PRODUCT DETAILS EXPORT - ${product.basic_info.product_name}"`);
     csvLines.push(`"SKU: ${product.basic_info.sku_id}"`);
-    csvLines.push(`"Export Date: ${new Date().toISOString().split('T')[0]}"`);
-    csvLines.push(`"Export Time: ${new Date().toISOString().split('T')[1].split('.')[0]}"`);
+    csvLines.push(`"Export Date: ${new Date().toISOString().split("T")[0]}"`);
+    csvLines.push(`"Export Time: ${new Date().toISOString().split("T")[1].split(".")[0]}"`);
     csvLines.push("");
 
     // SECTION 1: BASIC INFORMATION
@@ -1011,16 +1056,24 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     // SECTION 3: MANUFACTURER INFORMATION
     csvLines.push("SECTION 3: MANUFACTURER INFORMATION");
     csvLines.push("Field,Value");
-    csvLines.push(`Manufacturer Name,"${product.manufacturer_info.manufacturer_name.replace(/"/g, '""')}"`);
-    csvLines.push(`Manufacturer Address,"${product.manufacturer_info.manufacturer_address.replace(/"/g, '""')}"`);
+    csvLines.push(
+      `Manufacturer Name,"${product.manufacturer_info.manufacturer_name.replace(/"/g, '""')}"`
+    );
+    csvLines.push(
+      `Manufacturer Address,"${product.manufacturer_info.manufacturer_address.replace(/"/g, '""')}"`
+    );
     csvLines.push(`Shell Life,${product.manufacturer_info.shell_life}`);
-    csvLines.push(`Expiry Alert Threshold,${product.manufacturer_info.expiry_alert_threshold} days`);
+    csvLines.push(
+      `Expiry Alert Threshold,${product.manufacturer_info.expiry_alert_threshold} days`
+    );
     csvLines.push("");
 
     // SECTION 4: NUTRITIONAL INFORMATION
     csvLines.push("SECTION 4: NUTRITIONAL INFORMATION");
     csvLines.push("Field,Value");
-    csvLines.push(`Nutrition Information,"${product.nutritional_info.nutrition_information.replace(/"/g, '""')}"`);
+    csvLines.push(
+      `Nutrition Information,"${product.nutritional_info.nutrition_information.replace(/"/g, '""')}"`
+    );
     csvLines.push(`Ingredients,"${product.nutritional_info.ingredients.replace(/"/g, '""')}"`);
     csvLines.push("");
 
@@ -1030,16 +1083,22 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     csvLines.push(`Category ID,${product.category_info.category_id}`);
     csvLines.push(`Category Name,"${product.category_info.category_name.replace(/"/g, '""')}"`);
     csvLines.push(`Category Status,${product.category_info.category_status}`);
-    csvLines.push(`Category Description,"${product.category_info.category_description.replace(/"/g, '""')}"`);
+    csvLines.push(
+      `Category Description,"${product.category_info.category_description.replace(/"/g, '""')}"`
+    );
     csvLines.push("");
 
     // SECTION 6: SUB-CATEGORY INFORMATION
     csvLines.push("SECTION 6: SUB-CATEGORY INFORMATION");
     csvLines.push("Field,Value");
     csvLines.push(`Sub-Category ID,${product.sub_category_info.sub_category_id}`);
-    csvLines.push(`Sub-Category Name,"${product.sub_category_info.sub_category_name.replace(/"/g, '""')}"`);
+    csvLines.push(
+      `Sub-Category Name,"${product.sub_category_info.sub_category_name.replace(/"/g, '""')}"`
+    );
     csvLines.push(`Sub-Category Status,${product.sub_category_info.sub_category_status}`);
-    csvLines.push(`Sub-Category Description,"${product.sub_category_info.sub_category_description.replace(/"/g, '""')}"`);
+    csvLines.push(
+      `Sub-Category Description,"${product.sub_category_info.sub_category_description.replace(/"/g, '""')}"`
+    );
     csvLines.push("");
 
     // SECTION 7: IMAGES
@@ -1061,7 +1120,9 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     csvLines.push("SECTION 8: TIMESTAMPS");
     csvLines.push("Field,Date,Time");
     csvLines.push(`Created,${product.timestamps.created_at},${product.timestamps.created_time}`);
-    csvLines.push(`Last Updated,${product.timestamps.updated_at},${product.timestamps.updated_time}`);
+    csvLines.push(
+      `Last Updated,${product.timestamps.updated_at},${product.timestamps.updated_time}`
+    );
     csvLines.push("");
 
     // SECTION 9: EXPORT SUMMARY
@@ -1072,16 +1133,26 @@ async exportSKUByIdCSV(req: Request, res: Response): Promise<void> {
     csvLines.push(`Is Active,${product.basic_info.status === "active" ? "Yes" : "No"}`);
     csvLines.push(`Has Category,${product.category_info.category_name ? "Yes" : "No"}`);
     csvLines.push(`Has Sub-Category,${product.sub_category_info.sub_category_name ? "Yes" : "No"}`);
-    csvLines.push(`Has Manufacturer Info,${product.manufacturer_info.manufacturer_name ? "Yes" : "No"}`);
-    csvLines.push(`Has Nutritional Info,${product.nutritional_info.nutrition_information ? "Yes" : "No"}`);
+    csvLines.push(
+      `Has Manufacturer Info,${product.manufacturer_info.manufacturer_name ? "Yes" : "No"}`
+    );
+    csvLines.push(
+      `Has Nutritional Info,${product.nutritional_info.nutrition_information ? "Yes" : "No"}`
+    );
 
     const daysSinceCreation = product.timestamps.created_at
-      ? Math.floor((new Date().getTime() - new Date(product.timestamps.created_at).getTime()) / (1000 * 60 * 60 * 24))
+      ? Math.floor(
+          (new Date().getTime() - new Date(product.timestamps.created_at).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
       : "N/A";
     csvLines.push(`Days Since Creation,${daysSinceCreation}`);
 
     const daysSinceUpdate = product.timestamps.updated_at
-      ? Math.floor((new Date().getTime() - new Date(product.timestamps.updated_at).getTime()) / (1000 * 60 * 60 * 24))
+      ? Math.floor(
+          (new Date().getTime() - new Date(product.timestamps.updated_at).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
       : "N/A";
     csvLines.push(`Days Since Last Update,${daysSinceUpdate}`);
 
@@ -1603,7 +1674,7 @@ export class CategoryController extends BaseController {
       "Total Products",
       "Total Sub-Categories",
       "Created Date",
-      "Updated Date"
+      "Updated Date",
     ];
 
     let categoryImageUrls = "";
@@ -1619,10 +1690,7 @@ export class CategoryController extends BaseController {
         })
         .filter((url: string) => url.trim() !== "");
       categoryImageUrls = urls.join("\n");
-    } else if (
-      typeof category.category_image === "object" &&
-      category.category_image !== null
-    ) {
+    } else if (typeof category.category_image === "object" && category.category_image !== null) {
       categoryImageCount = 1;
       categoryImageUrls = category.category_image.file_url || "";
     } else if (typeof category.category_image === "string") {
@@ -1656,7 +1724,7 @@ export class CategoryController extends BaseController {
       "Category ID",
       "Category Name",
       "Created Date",
-      "Updated Date"
+      "Updated Date",
     ];
 
     const subCategoryDataRows = sub_categories.map((subCat: any, index: number) => {
@@ -1704,14 +1772,23 @@ export class CategoryController extends BaseController {
     const summaryData = [
       ["Total Sub-Categories:", sub_categories.length],
       ["Total Products in Category:", category.product_count || 0],
-      ["Active Sub-Categories:", sub_categories.filter((sc: any) => sc.sub_category_status === "active").length],
-      ["Inactive Sub-Categories:", sub_categories.filter((sc: any) => sc.sub_category_status === "inactive").length],
+      [
+        "Active Sub-Categories:",
+        sub_categories.filter((sc: any) => sc.sub_category_status === "active").length,
+      ],
+      [
+        "Inactive Sub-Categories:",
+        sub_categories.filter((sc: any) => sc.sub_category_status === "inactive").length,
+      ],
       ["Category Status:", category.category_status || "active"],
       ["Total Category Images:", categoryImageCount],
-      ["Total Sub-Category Images:", sub_categories.reduce((total: number, sc: any) => {
-        if (Array.isArray(sc.sub_category_image)) return total + sc.sub_category_image.length;
-        return total + (sc.sub_category_image ? 1 : 0);
-      }, 0)],
+      [
+        "Total Sub-Category Images:",
+        sub_categories.reduce((total: number, sc: any) => {
+          if (Array.isArray(sc.sub_category_image)) return total + sc.sub_category_image.length;
+          return total + (sc.sub_category_image ? 1 : 0);
+        }, 0),
+      ],
       ["Export Date:", new Date().toISOString().split("T")[0]],
       ["Export Time:", new Date().toISOString().split("T")[1].split(".")[0]],
     ];
@@ -1761,9 +1838,10 @@ export class CategoryController extends BaseController {
 
             // Get product counts for subcategories
             const subCategoryIds = subCategories.map((subCat: any) => subCat._id.toString());
-            const subCategoryProductCounts = subCategoryIds.length > 0
-              ? await subCategoryService.getProductCountsForSubCategories(subCategoryIds)
-              : new Map<string, number>();
+            const subCategoryProductCounts =
+              subCategoryIds.length > 0
+                ? await subCategoryService.getProductCountsForSubCategories(subCategoryIds)
+                : new Map<string, number>();
 
             // Format subcategories with complete details
             const formattedSubCategories = subCategories.map((subCat: any) => {
@@ -1773,7 +1851,10 @@ export class CategoryController extends BaseController {
               let subCategoryImageUrls = "";
               let subCategoryImageCount = 0;
 
-              if (Array.isArray(subCat.sub_category_image) && subCat.sub_category_image.length > 0) {
+              if (
+                Array.isArray(subCat.sub_category_image) &&
+                subCat.sub_category_image.length > 0
+              ) {
                 subCategoryImageCount = subCat.sub_category_image.length;
                 const urls = subCat.sub_category_image
                   .map((img: any) => img.file_url || img.url || "")
@@ -1798,8 +1879,12 @@ export class CategoryController extends BaseController {
                 image_count: subCategoryImageCount,
                 image_urls: subCategoryImageUrls,
                 product_count: productCount,
-                created_date: subCat.createdAt ? new Date(subCat.createdAt).toISOString().split("T")[0] : "",
-                updated_date: subCat.updatedAt ? new Date(subCat.updatedAt).toISOString().split("T")[0] : "",
+                created_date: subCat.createdAt
+                  ? new Date(subCat.createdAt).toISOString().split("T")[0]
+                  : "",
+                updated_date: subCat.updatedAt
+                  ? new Date(subCat.updatedAt).toISOString().split("T")[0]
+                  : "",
               };
             });
 
@@ -1820,7 +1905,10 @@ export class CategoryController extends BaseController {
       const csv = this.convertAllCategoriesToCSV(categoriesWithCompleteSubCategories);
 
       res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=all-categories-with-subcategories.csv");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=all-categories-with-subcategories.csv"
+      );
       res.status(200).send(csv);
     } catch (error: any) {
       logger.error("Error exporting all categories CSV:", error);
@@ -1836,8 +1924,8 @@ export class CategoryController extends BaseController {
 
     // Add header with timestamp
     csvLines.push(`"COMPLETE CATEGORIES AND SUB-CATEGORIES EXPORT"`);
-    csvLines.push(`"Export Date: ${new Date().toISOString().split('T')[0]}"`);
-    csvLines.push(`"Export Time: ${new Date().toISOString().split('T')[1].split('.')[0]}"`);
+    csvLines.push(`"Export Date: ${new Date().toISOString().split("T")[0]}"`);
+    csvLines.push(`"Export Time: ${new Date().toISOString().split("T")[1].split(".")[0]}"`);
     csvLines.push(`"Total Categories: ${categories.length}"`);
     csvLines.push("");
 
@@ -1857,10 +1945,7 @@ export class CategoryController extends BaseController {
           .map((img: any, index: number) => img.file_url || img.url || "")
           .filter((url: string) => url.trim() !== "");
         categoryImageUrls = urls.join(" | ");
-      } else if (
-        typeof category.category_image === "object" &&
-        category.category_image !== null
-      ) {
+      } else if (typeof category.category_image === "object" && category.category_image !== null) {
         categoryImageCount = 1;
         categoryImageUrls = category.category_image.file_url || "";
       } else if (typeof category.category_image === "string") {
@@ -1877,36 +1962,54 @@ export class CategoryController extends BaseController {
       csvLines.push(`Image URLs,"${categoryImageUrls.replace(/"/g, '""')}"`);
       csvLines.push(`Sub Categories Count,${category.sub_categories_count || 0}`);
       csvLines.push(`Product Count,${category.product_count || 0}`);
-      csvLines.push(`Created Date,${category.createdAt ? new Date(category.createdAt).toISOString().split("T")[0] : ""}`);
-      csvLines.push(`Updated Date,${category.updatedAt ? new Date(category.updatedAt).toISOString().split("T")[0] : ""}`);
+      csvLines.push(
+        `Created Date,${category.createdAt ? new Date(category.createdAt).toISOString().split("T")[0] : ""}`
+      );
+      csvLines.push(
+        `Updated Date,${category.updatedAt ? new Date(category.updatedAt).toISOString().split("T")[0] : ""}`
+      );
 
       csvLines.push(""); // Empty line
 
       // SECTION: SUB-CATEGORIES FOR THIS CATEGORY
       if (category.sub_categories && category.sub_categories.length > 0) {
         csvLines.push(`"SUB-CATEGORIES IN ${category.category_name.toUpperCase()}"`);
-        csvLines.push("No.,Sub-Category ID,Sub-Category Name,Description,Status,Image Count,Image URLs,Product Count,Created Date,Updated Date");
+        csvLines.push(
+          "No.,Sub-Category ID,Sub-Category Name,Description,Status,Image Count,Image URLs,Product Count,Created Date,Updated Date"
+        );
 
         category.sub_categories.forEach((subCat: any, subIndex: number) => {
-          csvLines.push([
-            subIndex + 1,
-            subCat.id,
-            `"${(subCat.sub_category_name || "").replace(/"/g, '""')}"`,
-            `"${(subCat.description || "").replace(/"/g, '""')}"`,
-            subCat.sub_category_status || "active",
-            subCat.image_count,
-            `"${subCat.image_urls.replace(/"/g, '""')}"`,
-            subCat.product_count || 0,
-            subCat.created_date,
-            subCat.updated_date,
-          ].join(","));
+          csvLines.push(
+            [
+              subIndex + 1,
+              subCat.id,
+              `"${(subCat.sub_category_name || "").replace(/"/g, '""')}"`,
+              `"${(subCat.description || "").replace(/"/g, '""')}"`,
+              subCat.sub_category_status || "active",
+              subCat.image_count,
+              `"${subCat.image_urls.replace(/"/g, '""')}"`,
+              subCat.product_count || 0,
+              subCat.created_date,
+              subCat.updated_date,
+            ].join(",")
+          );
         });
 
         // Sub-categories summary
-        const activeSubCats = category.sub_categories.filter((sc: any) => sc.sub_category_status === "active").length;
-        const inactiveSubCats = category.sub_categories.filter((sc: any) => sc.sub_category_status === "inactive").length;
-        const totalSubCatImages = category.sub_categories.reduce((sum: number, sc: any) => sum + (sc.image_count || 0), 0);
-        const totalSubCatProducts = category.sub_categories.reduce((sum: number, sc: any) => sum + (sc.product_count || 0), 0);
+        const activeSubCats = category.sub_categories.filter(
+          (sc: any) => sc.sub_category_status === "active"
+        ).length;
+        const inactiveSubCats = category.sub_categories.filter(
+          (sc: any) => sc.sub_category_status === "inactive"
+        ).length;
+        const totalSubCatImages = category.sub_categories.reduce(
+          (sum: number, sc: any) => sum + (sc.image_count || 0),
+          0
+        );
+        const totalSubCatProducts = category.sub_categories.reduce(
+          (sum: number, sc: any) => sum + (sc.product_count || 0),
+          0
+        );
 
         csvLines.push("");
         csvLines.push(`"SUMMARY FOR ${category.category_name.toUpperCase()}"`);
@@ -1932,18 +2035,31 @@ export class CategoryController extends BaseController {
 
     const allSubCategories = categories.flatMap(cat => cat.sub_categories || []);
     const totalSubCategories = allSubCategories.length;
-    const activeSubCategories = allSubCategories.filter(sc => sc.sub_category_status === "active").length;
-    const inactiveSubCategories = allSubCategories.filter(sc => sc.sub_category_status === "inactive").length;
+    const activeSubCategories = allSubCategories.filter(
+      sc => sc.sub_category_status === "active"
+    ).length;
+    const inactiveSubCategories = allSubCategories.filter(
+      sc => sc.sub_category_status === "inactive"
+    ).length;
 
-    const totalProductsInCategories = categories.reduce((sum, cat) => sum + (cat.product_count || 0), 0);
-    const totalProductsInSubCategories = allSubCategories.reduce((sum, sc) => sum + (sc.product_count || 0), 0);
+    const totalProductsInCategories = categories.reduce(
+      (sum, cat) => sum + (cat.product_count || 0),
+      0
+    );
+    const totalProductsInSubCategories = allSubCategories.reduce(
+      (sum, sc) => sum + (sc.product_count || 0),
+      0
+    );
 
     const totalCategoryImages = categories.reduce((sum, cat) => {
       if (Array.isArray(cat.category_image)) return sum + cat.category_image.length;
       return sum + (cat.category_image ? 1 : 0);
     }, 0);
 
-    const totalSubCategoryImages = allSubCategories.reduce((sum, sc) => sum + (sc.image_count || 0), 0);
+    const totalSubCategoryImages = allSubCategories.reduce(
+      (sum, sc) => sum + (sc.image_count || 0),
+      0
+    );
 
     csvLines.push(`Total Categories,${totalCategories}`);
     csvLines.push(`Active Categories,${activeCategories}`);
@@ -1955,7 +2071,9 @@ export class CategoryController extends BaseController {
     csvLines.push(`Total Sub-Category Images,${totalSubCategoryImages}`);
     csvLines.push(`Total Products in Categories,${totalProductsInCategories}`);
     csvLines.push(`Total Products in Sub-Categories,${totalProductsInSubCategories}`);
-    csvLines.push(`Total Products (All),${totalProductsInCategories + totalProductsInSubCategories}`);
+    csvLines.push(
+      `Total Products (All),${totalProductsInCategories + totalProductsInSubCategories}`
+    );
 
     return csvLines.join("\n");
   }
@@ -2490,7 +2608,6 @@ export class SubCategoryController extends BaseController {
 
     return [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
   }
-  
 }
 
 export const catalogueController = new CatalogueController();

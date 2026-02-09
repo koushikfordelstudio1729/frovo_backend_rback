@@ -1,2183 +1,3107 @@
 import mongoose, { Types } from "mongoose";
-import {
-  VendorCreate,
-  IVendorCreate,
-  VendorDashboard,
-  IVendorDashboard,
-  IVendorDocument,
-  ICompanyCreate,
-  CompanyCreate,
-} from "../models/Vendor.model";
+import { Request } from "express";
+import { CompanyCreate, ICompanyCreate, BrandCreate, IBrandCreate } from "../models/Vendor.model";
 import { AuditTrailService } from "./auditTrail.service";
-import { DocumentUploadService } from "./documentUpload.service";
-
 import { logger } from "../utils/logger.util";
-export class VendorService {
-  private auditTrailService = new AuditTrailService();
-  private documentUploadService = new DocumentUploadService();
+import { ImageUploadService } from "./vendorFileUpload.service";
+import { AuditTrail } from "../models/AuditTrail.model";
+import PDFDocument from "pdfkit";
 
-  public static async createCompanyService(
-    data: {
-      registered_company_name: string;
-      company_address: string;
-      office_email: string;
-      legal_entity_structure: string;
-      cin: string;
-      gst_number: string;
-      date_of_incorporation: Date;
-      corporate_website?: string;
-      directory_signature_name: string;
-      din: string;
-      company_status?: "active" | "inactive" | "blacklisted" | "under_review";
-      risk_rating?: "low" | "medium" | "high";
-    },
-    userId: any,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ) {
-    const {
-      registered_company_name,
-      company_address,
-      office_email,
-      legal_entity_structure,
-      cin,
-      gst_number,
-      date_of_incorporation,
-      corporate_website,
-      directory_signature_name,
-      din,
-      company_status,
-      risk_rating,
-    } = data;
+const auditTrailService = new AuditTrailService();
 
-    const requiredFields = [
-      "registered_company_name",
-      "company_address",
-      "office_email",
-      "legal_entity_structure",
-      "cin",
-      "gst_number",
-      "date_of_incorporation",
-      "directory_signature_name",
-      "din",
-    ];
+// ============================================
+// COMPANY SERVICE INTERFACES
+// ============================================
+// Add this interface at the top with other interfaces
+export interface ICompanyDashboardOptions {
+  page: number;
+  limit: number;
+  company_status?: string;
+  legal_entity_structure?: string;
+  registration_type?: string;
+  search?: string;
+}
 
-    const missingFields = requiredFields.filter(field => !data[field as keyof typeof data]);
-    if (missingFields.length > 0) {
-      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
-    }
+export interface ICompanyDashboardResponse {
+  data: Array<{
+    _id: string;
+    company_id: string;
+    registered_company_name: string;
+    cin_or_msme_number: string;
+    legal_entity_structure: string;
+    registration_type: string;
+    company_status: string;
+    brandCount: number;
+    official_email?: string;
+    date_of_incorporation?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
+  statistics: {
+    totalCompanies: number;
+    activeCompanies: number;
+    inactiveCompanies: number;
+    byLegalEntityStructure: Array<{ _id: string; count: number }>;
+    byRegistrationType: Array<{ _id: string; count: number }>;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(office_email)) {
-      throw new Error("Invalid email format");
-    }
+// Type for lean company documents (without Mongoose Document methods)
+export type LeanCompany = {
+  _id: mongoose.Types.ObjectId;
+  company_id: string;
+  legal_entity_structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
+  registered_company_name: string;
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
+  date_of_incorporation: Date;
+  registered_office_address: string;
+  corporate_website: string;
+  official_email: string;
+  directory_signature_name: string;
+  din: string;
+  company_status: "active" | "inactive";
+  createdAt: Date;
+  updatedAt: Date;
+  __v: number;
+};
 
-    const incorporationDate = new Date(date_of_incorporation);
-    if (isNaN(incorporationDate.getTime())) {
-      throw new Error("Invalid date format for date_of_incorporation");
-    }
+export interface ICompanyCreateData {
+  registered_company_name: string;
+  registered_office_address: string;
+  official_email: string;
+  legal_entity_structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
+  date_of_incorporation: Date;
+  corporate_website?: string;
+  directory_signature_name: string;
+  din: string;
+  company_status?: "active" | "inactive";
+}
 
-    const today = new Date();
-    if (incorporationDate > today) {
-      throw new Error("Date of incorporation cannot be in the future");
-    }
+export interface ICompanyUpdateData {
+  registered_company_name?: string;
+  registered_office_address?: string;
+  official_email?: string;
+  legal_entity_structure?: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
+  registration_type?: "cin" | "msme";
+  cin_or_msme_number?: string;
+  date_of_incorporation?: Date;
+  corporate_website?: string;
+  directory_signature_name?: string;
+  din?: string;
+  company_status?: "active" | "inactive";
+}
 
-    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!gstRegex.test(gst_number)) {
-      throw new Error("Invalid GST number format");
-    }
+export interface ICompanyPaginationOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  company_status?: string;
+  registration_type?: string;
+  legal_entity_structure?: string;
+}
 
-    const existingCompanies = await Promise.all([
-      CompanyCreate.findOne({ office_email }),
-      CompanyCreate.findOne({ cin }),
-      CompanyCreate.findOne({ din }),
-      CompanyCreate.findOne({ gst_number }),
-    ]);
+// ============================================
+// BRAND SERVICE INTERFACES
+// ============================================
 
-    const errors = [];
-    if (existingCompanies[0]) errors.push("Company with this email already exists");
-    if (existingCompanies[1]) errors.push("Company with this registration number already exists");
-    if (existingCompanies[2]) errors.push("Company with this DIN already exists");
-    if (existingCompanies[3]) errors.push("Company with this GST number already exists");
+export interface IBrandCreateData {
+  registration_type: "cin" | "msme";
+  cin_or_msme_number: string;
+  company_id: Types.ObjectId;
+  brand_billing_name: string;
+  brand_name: string;
+  brand_email: string;
+  brand_category: string;
+  brand_type: string;
+  contact_name: string;
+  contact_phone: string;
+  address: string;
+  bank_account_of_brand: string;
+  ifsc_code: string;
+  payment_terms: string;
+  upload_cancelled_cheque_image?: any;
+  gst_details: string;
+  gst_certificate_image?: any;
+  PAN_number: string;
+  PAN_image?: any;
+  FSSAI_number: string;
+  FSSAI_image?: any;
+  TDS_rate: number;
+  billing_cycle: string;
+  brand_status_cycle: string;
+  verification_status?: "pending" | "verified" | "rejected";
+  risk_notes?: string;
+  contract_terms?: string;
+  contract_start_date: Date;
+  contract_end_date: Date;
+  contract_renewal_date: Date;
+  payment_methods: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
+  internal_notes?: string;
+  certificate_of_incorporation_image?: any;
+  MSME_or_Udyam_certificate_image?: any;
+  MOA_image?: any;
+  AOA_image?: any;
+  Trademark_certificate_image?: any;
+  Authorized_Signatory_image?: any;
+  LLP_agreement_image?: any;
+  Shop_and_Establishment_certificate_image?: any;
+  Registered_Partnership_deed_image?: any;
+  Board_resolution_image?: any;
+  warehouse_id?: Types.ObjectId;
+  createdBy: Types.ObjectId;
+}
 
-    if (errors.length > 0) {
-      throw new Error(errors.join(", "));
-    }
+export interface IBrandUpdateData {
+  registration_type?: "cin" | "msme";
+  cin_or_msme_number?: string;
+  company_id?: Types.ObjectId;
+  brand_billing_name?: string;
+  brand_name?: string;
+  brand_email?: string;
+  brand_category?: string;
+  brand_type?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  address?: string;
+  bank_account_of_brand?: string;
+  ifsc_code?: string;
+  payment_terms?: string;
+  upload_cancelled_cheque_image?: any;
+  gst_details?: string;
+  gst_certificate_image?: any;
+  PAN_number?: string;
+  PAN_image?: any;
+  FSSAI_number?: string;
+  FSSAI_image?: any;
+  TDS_rate?: number;
+  billing_cycle?: string;
+  brand_status_cycle?: string;
+  verification_status?: "pending" | "verified" | "rejected";
+  risk_notes?: string;
+  contract_terms?: string;
+  contract_start_date?: Date;
+  contract_end_date?: Date;
+  contract_renewal_date?: Date;
+  payment_methods?: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
+  internal_notes?: string;
+  certificate_of_incorporation_image?: any;
+  MSME_or_Udyam_certificate_image?: any;
+  MOA_image?: any;
+  AOA_image?: any;
+  Trademark_certificate_image?: any;
+  Authorized_Signatory_image?: any;
+  LLP_agreement_image?: any;
+  Shop_and_Establishment_certificate_image?: any;
+  Registered_Partnership_deed_image?: any;
+  Board_resolution_image?: any;
+  warehouse_id?: Types.ObjectId;
+  verified_by?: Types.ObjectId;
+}
 
-    if (corporate_website) {
-      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
-      if (!urlRegex.test(corporate_website)) {
-        throw new Error("Invalid website URL format");
-      }
-    }
+export interface IBrandPaginationOptions {
+  page: number;
+  limit: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  verification_status?: string;
+  brand_category?: string;
+  brand_type?: string;
+  company_id?: string;
+}
 
-    const newCompany = new CompanyCreate({
-      registered_company_name,
-      company_address,
-      office_email: office_email.toLowerCase(),
-      legal_entity_structure,
-      cin,
-      gst_number: gst_number.toUpperCase(),
-      date_of_incorporation: incorporationDate,
-      corporate_website,
-      directory_signature_name,
-      din,
-      company_status: company_status || "active",
-      risk_rating: risk_rating || "medium",
-    });
+export interface IBrandByCompanyOptions {
+  page: number;
+  limit: number;
+  verification_status?: string;
+}
 
-    const savedCompany = await newCompany.save();
+// ============================================
+// COMPANY SERVICE
+// ============================================
 
-    const auditTrailService = new AuditTrailService();
+export class CompanyService {
+  // Get company by company_id (7-digit ID)
+  async getCompanyByCompanyId(companyId: string): Promise<ICompanyCreate | null> {
     try {
-      await auditTrailService.createAuditRecord({
-        user: userId,
-        user_email: userEmail,
-        user_role: userRole,
-        action: "create",
-        action_description: `Created new company: ${registered_company_name}`,
-        target_type: "company",
-        target_company: savedCompany._id as Types.ObjectId,
-        target_company_name: registered_company_name,
-        target_company_cin: cin,
-        after_state: savedCompany.toObject(),
-        changed_fields: [],
-        ip_address: req?.ip || req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress,
-        user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
-      });
-    } catch (auditError) {
-      logger.error("Failed to create company audit trail:", auditError);
+      const company = (await CompanyCreate.findOne({
+        company_id: companyId,
+      }).lean()) as unknown as ICompanyCreate | null;
+
+      if (!company) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error fetching company by company_id ${companyId}:`, error);
+      throw error;
     }
-
-    const companyObj = savedCompany.toObject();
-    delete companyObj.__v;
-
-    return companyObj;
   }
 
-  public static async getAllCompaniesService(
-    query: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      sortBy?: string;
-      sortOrder?: "asc" | "desc";
-    } = {}
-  ) {
-    const { page = 1, limit = 10, search, sortBy = "createdAt", sortOrder = "desc" } = query;
-
-    const pageNum = Number(page);
-    const limitNum = Number(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    const filter: any = {};
-
-    if (search) {
-      filter.$or = [
-        { registered_company_name: { $regex: search, $options: "i" } },
-        { office_email: { $regex: search, $options: "i" } },
-        { cin: { $regex: search, $options: "i" } },
-        { din: { $regex: search, $options: "i" } },
-        { directory_signature_name: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    const sort: any = {};
-    sort[String(sortBy)] = sortOrder === "asc" ? 1 : -1;
-
-    const [companies, totalCount] = await Promise.all([
-      CompanyCreate.find(filter).select("-__v").sort(sort).skip(skip).limit(limitNum),
-
-      CompanyCreate.countDocuments(filter),
-    ]);
-
-    const companiesWithVendorCounts = await Promise.all(
-      companies.map(async company => {
-        const vendorCount = await VendorCreate.countDocuments({
-          cin: company.cin,
-        });
-
-        const companyObj = company.toObject();
-        return {
-          ...companyObj,
-          vendorCount,
-        };
-      })
-    );
-
-    const totalPages = Math.ceil(totalCount / limitNum);
-
-    return {
-      data: companiesWithVendorCounts,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalCount,
-        hasNextPage: pageNum < totalPages,
-        hasPreviousPage: pageNum > 1,
-        limit: limitNum,
-      },
-    };
-  }
-
-  public static async getCompanyByIdService(cin: string) {
-    if (!cin || cin.trim() === "") {
-      throw new Error("Company CIN is required");
-    }
-
-    const company = await CompanyCreate.findOne({ cin: cin }).select("-__v");
-
-    if (!company) {
-      throw new Error("Company not found");
-    }
-
-    return company;
-  }
-
-  public static async updateCompanyService(
-    cin: string,
-    data: Partial<{
-      registered_company_name: string;
-      company_address: string;
-      office_email: string;
-      legal_entity_structure: string;
-      cin: string;
-      gst_number: string;
-      date_of_incorporation: Date;
-      corporate_website: string;
-      directory_signature_name: string;
-      din: string;
-      company_status: "active" | "inactive" | "blacklisted" | "under_review";
-      risk_rating: "low" | "medium" | "high";
-    }>,
-    userId: any,
+  // Update company by company_id (7-digit ID)
+  async updateCompanyByCompanyId(
+    companyId: string,
+    updateData: ICompanyUpdateData,
+    updatedBy: Types.ObjectId,
     userEmail: string,
     userRole: string,
-    req?: any
-  ) {
-    if (!cin || cin.trim() === "") {
-      throw new Error("Company CIN is required");
-    }
-
-    const existingCompany = await CompanyCreate.findOne({ cin: cin });
-    if (!existingCompany) {
-      throw new Error("Company not found");
-    }
-
-    const beforeState = existingCompany.toObject();
-
-    if (data.office_email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(data.office_email)) {
-        throw new Error("Invalid email format");
-      }
-
-      const companyWithSameEmail = await CompanyCreate.findOne({
-        office_email: data.office_email.toLowerCase(),
-        cin: { $ne: cin },
-      });
-
-      if (companyWithSameEmail) {
-        throw new Error("Company with this email already exists");
-      }
-
-      data.office_email = data.office_email.toLowerCase();
-    }
-
-    if (data.gst_number) {
-      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-      if (!gstRegex.test(data.gst_number)) {
-        throw new Error("Invalid GST number format");
-      }
-
-      const companyWithSameGST = await CompanyCreate.findOne({
-        gst_number: data.gst_number.toUpperCase(),
-        cin: { $ne: cin },
-      });
-
-      if (companyWithSameGST) {
-        throw new Error("Company with this GST number already exists");
-      }
-
-      data.gst_number = data.gst_number.toUpperCase();
-    }
-
-    if (data.date_of_incorporation) {
-      const incorporationDate = new Date(data.date_of_incorporation);
-      if (isNaN(incorporationDate.getTime())) {
-        throw new Error("Invalid date format for date_of_incorporation");
-      }
-
-      const today = new Date();
-      if (incorporationDate > today) {
-        throw new Error("Date of incorporation cannot be in the future");
-      }
-
-      data.date_of_incorporation = incorporationDate;
-    }
-
-    if (data.cin && data.cin !== cin) {
-      const companyWithSameRegNo = await CompanyCreate.findOne({
-        cin: data.cin,
-      });
-
-      if (companyWithSameRegNo) {
-        throw new Error("Company with this registration number already exists");
-      }
-    }
-
-    if (data.din) {
-      const companyWithSameDIN = await CompanyCreate.findOne({
-        din: data.din,
-        cin: { $ne: cin },
-      });
-
-      if (companyWithSameDIN) {
-        throw new Error("Company with this DIN already exists");
-      }
-    }
-
-    if (data.corporate_website) {
-      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
-      if (!urlRegex.test(data.corporate_website)) {
-        throw new Error("Invalid website URL format");
-      }
-    }
-
-    const updatedCompany = await CompanyCreate.findOneAndUpdate({ cin: cin }, data, {
-      new: true,
-      runValidators: true,
-    }).select("-__v");
-
-    if (updatedCompany) {
-      const auditTrailService = new AuditTrailService();
-
-      const changedFields = Object.keys(data).filter(key => {
-        const oldValue = beforeState[key as keyof typeof beforeState];
-        const newValue = data[key as keyof typeof data];
-        return JSON.stringify(oldValue) !== JSON.stringify(newValue);
-      });
-
-      try {
-        await auditTrailService.createAuditRecord({
-          user: userId,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "update",
-          action_description: `Updated company: ${updatedCompany.registered_company_name}`,
-          target_type: "company",
-          target_company: updatedCompany._id as Types.ObjectId,
-          target_company_name: updatedCompany.registered_company_name,
-          target_company_cin: updatedCompany.cin,
-          before_state: beforeState,
-          after_state: updatedCompany.toObject(),
-          changed_fields: changedFields,
-          ip_address:
-            req?.ip || req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress,
-          user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
-        });
-      } catch (auditError) {
-        logger.error("Failed to create company update audit trail:", auditError);
-      }
-    }
-
-    return updatedCompany;
-  }
-
-  public static async deleteCompanyService(
-    cin: string,
-    userId: any,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ) {
-    if (!cin || cin.trim() === "") {
-      throw new Error("Company CIN is required");
-    }
-
-    const companyToDelete = await CompanyCreate.findOne({ cin: cin });
-
-    if (!companyToDelete) {
-      throw new Error("Company not found");
-    }
-
-    const beforeState = companyToDelete.toObject();
-    const deletedCompany = await CompanyCreate.findOneAndDelete({ cin: cin });
-
-    if (deletedCompany) {
-      const auditTrailService = new AuditTrailService();
-
-      try {
-        await auditTrailService.createAuditRecord({
-          user: userId,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "delete",
-          action_description: `Deleted company: ${deletedCompany.registered_company_name}`,
-          target_type: "company",
-          target_company: deletedCompany._id as Types.ObjectId,
-          target_company_name: deletedCompany.registered_company_name,
-          target_company_cin: deletedCompany.cin,
-          before_state: beforeState,
-          changed_fields: [],
-          ip_address:
-            req?.ip || req?.headers?.["x-forwarded-for"] || req?.connection?.remoteAddress,
-          user_agent: req?.get?.("User-Agent") || req?.headers?.["user-agent"],
-        });
-      } catch (auditError) {
-        logger.error("Failed to create company deletion audit trail:", auditError);
-      }
-    }
-
-    return deletedCompany;
-  }
-
-  public static async checkCompanyExists(cin: string): Promise<boolean> {
-    if (!cin || cin.trim() === "") {
-      return false;
-    }
-    const company = await CompanyCreate.findOne({ cin: cin });
-    return !!company;
-  }
-
-  public static async searchCompaniesService(searchTerm: string, limit: number = 10) {
-    if (!searchTerm || searchTerm.trim() === "") {
-      throw new Error("Search term is required");
-    }
-
-    const companies = await CompanyCreate.find({
-      $or: [
-        { registered_company_name: { $regex: searchTerm, $options: "i" } },
-        { office_email: { $regex: searchTerm, $options: "i" } },
-      ],
-    })
-      .select("registered_company_name office_email company_registration_number")
-      .limit(limit)
-      .sort({ registered_company_name: 1 });
-
-    return companies;
-  }
-  async createCompleteVendor(
-    vendorData: Partial<IVendorCreate>,
-    createdBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ): Promise<IVendorCreate> {
+    req?: Request
+  ): Promise<ICompanyCreate | null> {
     try {
-      VendorValidationService.validateCompleteVendorData(vendorData);
+      // Get current company data for audit
+      const currentCompany = await CompanyCreate.findOne({ company_id: companyId });
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
 
-      if (vendorData.cin) {
-        const companyExists = await CompanyCreate.findOne({
-          cin: vendorData.cin,
+      // Check for duplicate data if provided
+      if (
+        updateData.cin_or_msme_number &&
+        updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
+      ) {
+        const existingCompany = await CompanyCreate.findOne({
+          cin_or_msme_number: updateData.cin_or_msme_number,
+          company_id: { $ne: companyId },
         });
 
-        if (!companyExists) {
+        if (existingCompany) {
           throw new Error(
-            `Company with registration number "${vendorData.cin}" does not exist. Please create the company first.`
+            `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
           );
         }
-      } else {
-        throw new Error("Company registration number is required");
-      }
-
-      let verificationStatus = "pending";
-
-      if (vendorData.verification_status) {
-        if (userRole === "super_admin") {
-          verificationStatus = vendorData.verification_status;
-        } else {
-          if (vendorData.verification_status !== "pending") {
-            throw new Error(
-              "Only Super Admin can set verification status to verified/failed/rejected"
-            );
-          }
-          verificationStatus = vendorData.verification_status;
-        }
-      }
-
-      const existingVendorByEmail = await VendorCreate.findOne({
-        vendor_email: vendorData.vendor_email?.toLowerCase(),
-      });
-
-      if (existingVendorByEmail) {
-        throw new Error("Vendor with this email already exists");
-      }
-
-      if (!vendorData.vendor_id) {
-        vendorData.vendor_id = this.generateVendorId();
-      } else {
-        const existingVendorById = await VendorCreate.findOne({
-          vendor_id: vendorData.vendor_id,
-        });
-
-        if (existingVendorById) {
-          throw new Error("Vendor with this ID already exists");
-        }
-      }
-
-      const completeVendorData = {
-        ...vendorData,
-        createdBy,
-        verification_status: verificationStatus,
-        verified_by: verificationStatus === "verified" ? createdBy : undefined,
-      };
-
-      const vendor = new VendorCreate(completeVendorData);
-      const savedVendor = await vendor.save();
-
-      await this.createVendorAuditRecord(
-        createdBy,
-        userEmail,
-        userRole,
-        "create",
-        `Created new vendor: ${savedVendor.vendor_name}`,
-        savedVendor._id as Types.ObjectId,
-        savedVendor.vendor_name,
-        savedVendor.vendor_id,
-        undefined,
-        savedVendor.toObject(),
-        req
-      );
-
-      return savedVendor;
-    } catch (error: any) {
-      throw new Error(`Error creating vendor: ${error.message}`);
-    }
-  }
-  async updateVendor(
-    id: string,
-    updateData: Partial<IVendorCreate>,
-    userRole: string,
-    userId: Types.ObjectId,
-    userEmail: string,
-    req?: any
-  ): Promise<IVendorCreate | null> {
-    try {
-      const currentVendor = await VendorCreate.findById(id);
-      if (!currentVendor) {
-        throw new Error("Vendor not found");
       }
 
       if (
-        !["super_admin", "vendor_admin"].includes(userRole) &&
-        "verification_status" in updateData
+        updateData.official_email &&
+        updateData.official_email !== currentCompany.official_email
       ) {
-        if (updateData.verification_status !== currentVendor.verification_status) {
-          throw new Error("Only Super Admin or Vendor Admin can modify verification status");
-        }
-        delete updateData.verification_status;
-      }
-
-      if (updateData.vendor_email) {
-        const existingVendor = await VendorCreate.findOne({
-          vendor_email: updateData.vendor_email.toLowerCase(),
-          _id: { $ne: id },
+        const existingEmail = await CompanyCreate.findOne({
+          official_email: updateData.official_email.toLowerCase(),
+          company_id: { $ne: companyId },
         });
 
-        if (existingVendor) {
-          throw new Error("Vendor with this email already exists");
+        if (existingEmail) {
+          throw new Error(`Company with email ${updateData.official_email} already exists`);
         }
       }
 
-      if (updateData.vendor_id) {
-        const existingVendor = await VendorCreate.findOne({
-          vendor_id: updateData.vendor_id,
-          _id: { $ne: id },
+      if (updateData.din && updateData.din !== currentCompany.din) {
+        const existingDIN = await CompanyCreate.findOne({
+          din: updateData.din,
+          company_id: { $ne: companyId },
         });
 
-        if (existingVendor) {
-          throw new Error("Vendor with this ID already exists");
+        if (existingDIN) {
+          throw new Error(`Company with DIN ${updateData.din} already exists`);
         }
       }
 
-      const updatedVendor = await VendorCreate.findByIdAndUpdate(id, updateData, {
-        new: true,
-        runValidators: true,
-      })
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email");
-
-      if (updatedVendor) {
-        await this.createVendorAuditRecord(
-          userId,
-          userEmail,
-          userRole,
-          "update",
-          `Updated vendor: ${updatedVendor.vendor_name}`,
-          updatedVendor._id as Types.ObjectId,
-          updatedVendor.vendor_name,
-          updatedVendor.vendor_id,
-          currentVendor.toObject(),
-          updatedVendor.toObject(),
-          req
-        );
+      // Prepare update data
+      const updateObj: any = { ...updateData };
+      if (updateObj.official_email) {
+        updateObj.official_email = updateObj.official_email.toLowerCase();
       }
 
-      return updatedVendor;
-    } catch (error: any) {
-      throw new Error(`Error updating vendor: ${error.message}`);
-    }
-  }
+      // Update company
+      const updatedCompany = (await CompanyCreate.findOneAndUpdate(
+        { company_id: companyId },
+        { $set: updateObj },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as ICompanyCreate | null;
 
-  async updateVendorVerification(
-    vendorId: string,
-    verificationStatus: "verified" | "rejected" | "pending",
-    verifiedBy: Types.ObjectId,
-    userRole: string,
-    userEmail: string,
-    notes?: string,
-    req?: any
-  ): Promise<IVendorCreate> {
-    try {
-      if (userRole !== "super_admin" && userRole !== "vendor_admin") {
-        throw new Error("Only Super Admin or Vendor Admin can modify vendor verification status");
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
       }
 
-      const currentVendor = await VendorCreate.findById(vendorId);
-      if (!currentVendor) {
-        throw new Error("Vendor not found");
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Updated company: ${currentCompany.registered_company_name}`,
+          target_type: "company",
+          target_company: currentCompany._id,
+          target_company_name: currentCompany.registered_company_name,
+          target_company_cin: currentCompany.cin_or_msme_number,
+          before_state: currentCompany.toObject(),
+          after_state: updateData,
+          changed_fields: Object.keys(updateData),
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
       }
 
-      const updateData: any = {
-        verification_status: verificationStatus,
-        verified_by: verifiedBy,
-        updatedAt: new Date(),
-      };
-
-      if (notes) {
-        updateData.risk_notes = `${verificationStatus.toUpperCase()} - ${notes} (${new Date().toISOString()})`;
-      } else {
-        updateData.risk_notes = `Status changed to ${verificationStatus} by super admin on ${new Date().toISOString()}`;
-      }
-
-      const updatedVendor = await VendorCreate.findByIdAndUpdate(vendorId, updateData, {
-        new: true,
-        runValidators: true,
-      })
-        .populate("verified_by", "name email")
-        .populate("createdBy", "name email");
-
-      if (!updatedVendor) {
-        throw new Error("Vendor not found");
-      }
-
-      await this.createVendorAuditRecord(
-        verifiedBy,
-        userEmail,
-        userRole,
-        "status_change",
-        `Changed vendor status to ${verificationStatus}: ${notes || "No additional notes"}`,
-        updatedVendor._id as Types.ObjectId,
-        updatedVendor.vendor_name,
-        updatedVendor.vendor_id,
-        currentVendor.toObject(),
-        updatedVendor.toObject(),
-        req
+      logger.info(
+        `Company updated: ${updatedCompany.registered_company_name} (Company ID: ${companyId})`
       );
-
-      return updatedVendor;
-    } catch (error: any) {
-      throw new Error(`Error updating vendor verification: ${error.message}`);
+      return updatedCompany;
+    } catch (error) {
+      logger.error(`Error updating company ${companyId}:`, error);
+      throw error;
     }
   }
 
-  async deleteVendor(
-    id: string,
-    userId: Types.ObjectId,
+  // Delete company by company_id (7-digit ID)
+  async deleteCompanyByCompanyId(
+    companyId: string,
+    deletedBy: Types.ObjectId,
     userEmail: string,
     userRole: string,
-    req?: any
-  ): Promise<boolean> {
+    req?: Request
+  ): Promise<ICompanyCreate | null> {
     try {
-      const vendorToDelete = await VendorCreate.findById(id);
-      if (!vendorToDelete) {
-        throw new Error("Vendor not found");
+      const company = (await CompanyCreate.findOneAndDelete({
+        company_id: companyId,
+      }).lean()) as unknown as ICompanyCreate | null;
+
+      if (!company) {
+        throw new Error(`Company with ID ${companyId} not found`);
       }
 
-      const result = await VendorCreate.findByIdAndDelete(id);
-
-      if (result) {
-        await this.createVendorAuditRecord(
-          userId,
-          userEmail,
-          userRole,
-          "delete",
-          `Deleted vendor: ${vendorToDelete.vendor_name}`,
-          vendorToDelete._id as Types.ObjectId,
-          vendorToDelete.vendor_name,
-          vendorToDelete.vendor_id,
-          vendorToDelete.toObject(),
-          undefined,
-          req
-        );
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: deletedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "delete",
+          action_description: `Deleted company: ${company.registered_company_name}`,
+          target_type: "company",
+          target_company: company._id,
+          target_company_name: company.registered_company_name,
+          target_company_cin: company.cin_or_msme_number,
+          before_state: company,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
       }
 
-      return !!result;
-    } catch (error: any) {
-      throw new Error(`Error deleting vendor: ${error.message}`);
+      logger.info(`Company deleted: ${company.registered_company_name} (Company ID: ${companyId})`);
+      return company;
+    } catch (error) {
+      logger.error(`Error deleting company ${companyId}:`, error);
+      throw error;
     }
   }
 
-  private generateVendorId(): string {
-    const timestamp = new Date().getTime().toString().slice(-6);
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    return `VEND-${timestamp}-${random}`;
-  }
-
-  async getCommonDashboard(
-    filters: {
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-      search?: string;
-      company_search?: string;
-      page?: number;
-      limit?: number;
-    } = {}
-  ): Promise<{
-    total_companies: number;
-    total_vendors: number;
-    pending_vendors: number;
-    verified_vendors: number;
-    rejected_vendors: number;
-    companies: any[];
-    vendors: any[];
-    pagination?: {
-      currentPage: number;
-      totalPages: number;
-      totalCount: number;
-      hasNextPage: boolean;
-      hasPreviousPage: boolean;
-      limit: number;
-    };
-  }> {
+  // Export companies data
+  async exportCompanies(format: string, filters: any, userId: Types.ObjectId): Promise<any> {
     try {
-      logger.info("📊 COMMON DASHBOARD (Accessible by Super Admin & Vendor Admin)");
-      logger.info("🔍 Filters:", filters);
+      const query: any = {};
 
-      const totalCompanies = await CompanyCreate.countDocuments();
-
-      const [totalVendors, pendingVendors, verifiedVendors, rejectedVendors] = await Promise.all([
-        VendorCreate.countDocuments(),
-        VendorCreate.countDocuments({ verification_status: "pending" }),
-        VendorCreate.countDocuments({ verification_status: "verified" }),
-        VendorCreate.countDocuments({ verification_status: "rejected" }),
-      ]);
-
-      logger.info("📈 Statistics:", {
-        totalCompanies,
-        totalVendors,
-        pendingVendors,
-        verifiedVendors,
-        rejectedVendors,
-      });
-
-      const companyQuery: any = {};
-      if (filters.company_search) {
-        companyQuery.$or = [
-          { registered_company_name: { $regex: filters.company_search, $options: "i" } },
-          { office_email: { $regex: filters.company_search, $options: "i" } },
-          { cin: { $regex: filters.company_search, $options: "i" } },
+      // Apply filters if provided
+      if (filters.company_status) {
+        query.company_status = filters.company_status;
+      }
+      if (filters.registration_type) {
+        query.registration_type = filters.registration_type;
+      }
+      if (filters.legal_entity_structure) {
+        query.legal_entity_structure = filters.legal_entity_structure;
+      }
+      if (filters.search) {
+        query.$or = [
+          { registered_company_name: { $regex: filters.search, $options: "i" } },
+          { cin_or_msme_number: { $regex: filters.search, $options: "i" } },
+          { official_email: { $regex: filters.search, $options: "i" } },
         ];
       }
 
-      const companies = await CompanyCreate.find(companyQuery)
-        .select("registered_company_name office_email cin date_of_incorporation createdAt")
-        .sort({ createdAt: -1 })
-        .limit(5)
+      const companies = await CompanyCreate.find(query).sort({ createdAt: -1 }).lean();
+
+      // For CSV/Excel export, you would convert companies to CSV/Excel format
+      // For JSON export, return as is
+      if (format === "json") {
+        return JSON.stringify(companies, null, 2);
+      } else if (format === "csv") {
+        // Convert to CSV format
+        const headers = [
+          "Company ID",
+          "Registered Company Name",
+          "Official Email",
+          "Legal Entity Structure",
+          "Registration Type",
+          "CIN/MSME Number",
+          "Date of Incorporation",
+          "Company Status",
+          "Created At",
+        ];
+
+        const csvRows = companies.map(company =>
+          [
+            company.company_id,
+            company.registered_company_name,
+            company.official_email,
+            company.legal_entity_structure,
+            company.registration_type,
+            company.cin_or_msme_number,
+            new Date(company.date_of_incorporation).toISOString().split("T")[0],
+            company.company_status,
+            new Date(company.createdAt).toISOString(),
+          ].join(",")
+        );
+
+        return [headers.join(","), ...csvRows].join("\n");
+      }
+
+      return companies;
+    } catch (error) {
+      logger.error("Error exporting companies:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get audit trails for a company by MongoDB ObjectId
+   */
+  async getCompanyAuditTrails(
+    companyId: string, // MongoDB ObjectId
+    page: number = 1,
+    limit: number = 50
+  ): Promise<any> {
+    try {
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Query audit trails by company MongoDB ObjectId
+      const query = { target_company: new mongoose.Types.ObjectId(companyId) };
+
+      const total = await AuditTrail.countDocuments(query);
+
+      const auditTrails = await AuditTrail.find(query)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
         .lean();
 
-      const companiesWithVendorCount = await Promise.all(
-        companies.map(async company => {
-          const vendorCount = await VendorCreate.countDocuments({ cin: company.cin });
-          return {
-            ...company,
-            vendor_count: vendorCount,
-          };
-        })
-      );
-
-      const vendorQuery: any = {};
-
-      if (filters.verification_status) {
-        vendorQuery.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_rating) {
-        vendorQuery.risk_rating = filters.risk_rating;
-      }
-
-      if (filters.vendor_category) {
-        vendorQuery.vendor_category = filters.vendor_category;
-      }
-
-      if (filters.search) {
-        vendorQuery.$or = [
-          { vendor_name: { $regex: filters.search, $options: "i" } },
-          { vendor_email: { $regex: filters.search, $options: "i" } },
-          { vendor_id: { $regex: filters.search, $options: "i" } },
-          { primary_contact_name: { $regex: filters.search, $options: "i" } },
-          { vendor_category: { $regex: filters.search, $options: "i" } },
-        ];
-      }
-
-      logger.info("🔍 Vendor Query:", JSON.stringify(vendorQuery, null, 2));
-
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
-      const skip = (page - 1) * limit;
-
-      const [vendors, totalCount] = await Promise.all([
-        VendorCreate.find(vendorQuery)
-          .populate("createdBy", "name email")
-          .populate("verified_by", "name email")
-          .select(
-            "vendor_name vendor_category vendor_id cin risk_rating contract_expiry_date verification_status createdBy verified_by createdAt updatedAt"
-          )
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        VendorCreate.countDocuments(vendorQuery),
-      ]);
-
-      logger.info("✅ Vendors found:", vendors.length);
-      logger.info("📊 Total vendor count with filters:", totalCount);
-
-      const dashboardVendors = vendors.map(vendor => ({
-        _id: vendor._id,
-        vendor_id: vendor.vendor_id,
-        vendor_name: vendor.vendor_name,
-        vendor_category: vendor.vendor_category,
-        cin: vendor.cin,
-        verification_status: vendor.verification_status,
-        risk_rating: vendor.risk_rating,
-        contract_expiry_date: vendor.contract_expiry_date,
-        created_by: vendor.createdBy,
-        verified_by: vendor.verified_by,
-        created_at: vendor.createdAt,
-        updated_at: vendor.updatedAt,
-        actions: ["view"],
-      }));
-
-      const totalPages = Math.ceil(totalCount / limit);
-
       return {
-        total_companies: totalCompanies,
-        total_vendors: totalVendors,
-        pending_vendors: pendingVendors,
-        verified_vendors: verifiedVendors,
-        rejected_vendors: rejectedVendors,
-        companies: companiesWithVendorCount,
-        vendors: dashboardVendors,
+        data: auditTrails,
         pagination: {
-          currentPage: page,
-          totalPages,
-          totalCount,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
+          page,
           limit,
+          total,
+          totalPages: Math.ceil(total / limit),
         },
       };
-    } catch (error: any) {
-      logger.error("❌ Error getting common dashboard:", error);
-      throw new Error(`Error getting common dashboard: ${error.message}`);
+    } catch (error) {
+      logger.error(`Error fetching company audit trails for ${companyId}:`, error);
+      throw error;
+    }
+  }
+  // ============================================
+  // All the existing methods from your original service
+  // ============================================
+
+  async createCompany(
+    companyData: ICompanyCreateData,
+    createdBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<ICompanyCreate> {
+    try {
+      // Check if company with same CIN/MSME number already exists
+      const existingCompany = await CompanyCreate.findOne({
+        cin_or_msme_number: companyData.cin_or_msme_number,
+      });
+
+      if (existingCompany) {
+        throw new Error(
+          `Company with CIN/MSME number ${companyData.cin_or_msme_number} already exists`
+        );
+      }
+
+      // Check if official_email already exists
+      const existingEmail = await CompanyCreate.findOne({
+        official_email: companyData.official_email.toLowerCase(),
+      });
+
+      if (existingEmail) {
+        throw new Error(`Company with email ${companyData.official_email} already exists`);
+      }
+
+      // Check if DIN already exists
+      const existingDIN = await CompanyCreate.findOne({
+        din: companyData.din,
+      });
+
+      if (existingDIN) {
+        throw new Error(`Company with DIN ${companyData.din} already exists`);
+      }
+
+      // Create new company
+      const newCompany = new CompanyCreate({
+        ...companyData,
+        company_status: companyData.company_status || "active",
+      });
+
+      await newCompany.save();
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: createdBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "create",
+          action_description: `Created company: ${companyData.registered_company_name}`,
+          target_type: "company",
+          target_company: newCompany._id,
+          target_company_name: companyData.registered_company_name,
+          target_company_cin: companyData.cin_or_msme_number,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Company created: ${newCompany.registered_company_name} (ID: ${newCompany._id})`);
+      return newCompany;
+    } catch (error) {
+      logger.error("Error creating company:", error);
+      throw error;
     }
   }
 
-  async getSuperAdminVendorManagementDashboard(
-    filters: {
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-      search?: string;
-      page?: number;
-      limit?: number;
-    } = {}
-  ): Promise<{
-    total_vendors: number;
-    pending_approvals: number;
-    verified_vendors: number;
-    rejected_vendors: number;
-    failed_vendors: number;
-    vendors: any[];
-    pagination?: {
-      currentPage: number;
-      totalPages: number;
-      totalCount: number;
-      hasNextPage: boolean;
-      hasPreviousPage: boolean;
+  async getAllCompanies(options: ICompanyPaginationOptions): Promise<{
+    data: ICompanyCreate[];
+    pagination: {
+      page: number;
       limit: number;
+      total: number;
+      totalPages: number;
     };
   }> {
     try {
-      logger.info("👑 SUPER ADMIN VENDOR MANAGEMENT DASHBOARD");
-      logger.info("🔍 Filters:", filters);
+      const {
+        page,
+        limit,
+        search,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        company_status,
+        registration_type,
+        legal_entity_structure,
+      } = options;
+      const skip = (page - 1) * limit;
 
-      const [totalVendors, pendingApprovals, verifiedVendors, rejectedVendors, failedVendors] =
-        await Promise.all([
-          VendorCreate.countDocuments(),
-          VendorCreate.countDocuments({ verification_status: "pending" }),
-          VendorCreate.countDocuments({ verification_status: "verified" }),
-          VendorCreate.countDocuments({ verification_status: "rejected" }),
-          VendorCreate.countDocuments({ verification_status: "failed" }),
-        ]);
-
-      logger.info("📈 Vendor Statistics:", {
-        totalVendors,
-        pendingApprovals,
-        verifiedVendors,
-        rejectedVendors,
-        failedVendors,
-      });
-
+      // Build query
       const query: any = {};
 
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_rating) {
-        query.risk_rating = filters.risk_rating;
-      }
-
-      if (filters.vendor_category) {
-        query.vendor_category = filters.vendor_category;
-      }
-
-      if (filters.search) {
+      if (search) {
         query.$or = [
-          { vendor_name: { $regex: filters.search, $options: "i" } },
-          { vendor_email: { $regex: filters.search, $options: "i" } },
-          { vendor_id: { $regex: filters.search, $options: "i" } },
-          { primary_contact_name: { $regex: filters.search, $options: "i" } },
-          { vendor_category: { $regex: filters.search, $options: "i" } },
+          { registered_company_name: { $regex: search, $options: "i" } },
+          { cin_or_msme_number: { $regex: search, $options: "i" } },
+          { official_email: { $regex: search, $options: "i" } },
+          { directory_signature_name: { $regex: search, $options: "i" } },
+          { din: { $regex: search, $options: "i" } },
         ];
       }
 
-      logger.info("🔍 Final Query:", JSON.stringify(query, null, 2));
+      // Apply additional filters
+      if (company_status) {
+        query.company_status = company_status;
+      }
 
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
-      const skip = (page - 1) * limit;
+      if (registration_type) {
+        query.registration_type = registration_type;
+      }
 
-      const [vendors, totalCount] = await Promise.all([
-        VendorCreate.find(query)
-          .populate("createdBy", "name email")
-          .populate("verified_by", "name email")
-          .select(
-            "vendor_name vendor_category vendor_id cin risk_rating contract_expiry_date verification_status createdBy verified_by risk_notes createdAt updatedAt"
-          )
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        VendorCreate.countDocuments(query),
-      ]);
+      if (legal_entity_structure) {
+        query.legal_entity_structure = legal_entity_structure;
+      }
 
-      logger.info("✅ Vendors found:", vendors.length);
-      logger.info("📊 Total count with filters:", totalCount);
+      // Get total count
+      const total = await CompanyCreate.countDocuments(query);
 
-      const managementVendors = vendors.map(vendor => ({
-        _id: vendor._id,
-        vendor_id: vendor.vendor_id,
-        vendor_name: vendor.vendor_name,
-        vendor_category: vendor.vendor_category,
-        cin: vendor.cin,
-        verification_status: vendor.verification_status,
-        risk_rating: vendor.risk_rating,
-        contract_expiry_date: vendor.contract_expiry_date,
-        created_by: vendor.createdBy,
-        verified_by: vendor.verified_by,
-        risk_notes: vendor.risk_notes,
-        created_at: vendor.createdAt,
-        updated_at: vendor.updatedAt,
-        actions: this.getSuperAdminActions(vendor.verification_status),
-      }));
-
-      const totalPages = Math.ceil(totalCount / limit);
+      // Get companies with pagination
+      const companies = (await CompanyCreate.find(query)
+        .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()) as unknown as ICompanyCreate[];
 
       return {
-        total_vendors: totalVendors,
-        pending_approvals: pendingApprovals,
-        verified_vendors: verifiedVendors,
-        rejected_vendors: rejectedVendors,
-        failed_vendors: failedVendors,
-        vendors: managementVendors,
+        data: companies,
         pagination: {
-          currentPage: page,
-          totalPages,
-          totalCount,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
+          page,
           limit,
+          total,
+          totalPages: Math.ceil(total / limit),
         },
       };
-    } catch (error: any) {
-      logger.error("❌ Error getting super admin vendor management dashboard:", error);
-      throw new Error(`Error getting super admin vendor management dashboard: ${error.message}`);
+    } catch (error) {
+      logger.error("Error fetching companies:", error);
+      throw error;
     }
   }
-
-  private getSuperAdminActions(verificationStatus: string): string[] {
-    switch (verificationStatus) {
-      case "pending":
-        return ["verify", "reject", "view", "edit", "delete"];
-      case "verified":
-        return ["reject", "view", "edit", "delete"];
-      case "rejected":
-        return ["verify", "view", "edit", "delete"];
-      case "failed":
-        return ["verify", "reject", "view", "edit", "delete"];
-      default:
-        return ["view", "edit", "delete"];
-    }
-  }
-
-  async toggleVendorVerification(
-    vendorId: string,
-    verifiedBy: Types.ObjectId,
-    userRole: string
-  ): Promise<IVendorCreate> {
+  // In CompanyService class
+  async toggleCompanyStatus(
+    companyId: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<LeanCompany | null> {
     try {
-      if (userRole !== "super_admin") {
-        throw new Error("Only Super Admin can verify or reject vendors");
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
       }
 
-      const vendor = await VendorCreate.findById(vendorId);
-      if (!vendor) {
-        throw new Error("Vendor not found");
+      // Convert to ObjectId
+      const objectId = new mongoose.Types.ObjectId(companyId);
+
+      // Get current company
+      const currentCompany = await CompanyCreate.findById(objectId);
+
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
       }
 
-      let newStatus: "verified" | "rejected";
-      const updateData: any = {
-        verified_by: verifiedBy,
-        updatedAt: new Date(),
-      };
+      // Toggle status
+      const newStatus = currentCompany.company_status === "active" ? "inactive" : "active";
 
-      if (vendor.verification_status === "verified") {
-        newStatus = "rejected";
-        updateData.verification_status = newStatus;
-        updateData.risk_notes = `Vendor rejected by super admin on ${new Date().toISOString()}`;
-      } else if (vendor.verification_status === "rejected") {
-        newStatus = "verified";
-        updateData.verification_status = newStatus;
-        updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
-      } else {
-        newStatus = "verified";
-        updateData.verification_status = newStatus;
-        updateData.risk_notes = `Vendor verified by super admin on ${new Date().toISOString()}`;
+      // Update company
+      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+        objectId,
+        { $set: { company_status: newStatus } },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as LeanCompany | null;
+
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found after update`);
       }
 
-      const updatedVendor = await VendorCreate.findByIdAndUpdate(vendorId, updateData, {
-        new: true,
-        runValidators: true,
-      })
-        .populate("verified_by", "name email")
-        .populate("createdBy", "name email");
-
-      if (!updatedVendor) {
-        throw new Error("Vendor not found");
+      // Create audit trail if request is provided
+      if (req && auditTrailService) {
+        try {
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action: "update",
+            action_description: `Toggled company status from ${currentCompany.company_status} to ${newStatus}: ${currentCompany.registered_company_name}`,
+            target_type: "company",
+            target_company: currentCompany._id,
+            target_company_name: currentCompany.registered_company_name,
+            target_company_cin: currentCompany.cin_or_msme_number,
+            before_state: { company_status: currentCompany.company_status },
+            after_state: { company_status: newStatus },
+            changed_fields: ["company_status"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+        } catch (auditError) {
+          logger.error("Service: Failed to create audit trail:", auditError);
+          // Don't throw error for audit trail failure
+        }
       }
 
-      return updatedVendor;
-    } catch (error: any) {
-      throw new Error(`Error toggling vendor verification: ${error.message}`);
+      return updatedCompany;
+    } catch (error) {
+      logger.error("Service: Error in toggleCompanyStatus:", error);
+      throw error;
     }
   }
-
-  async getAllVendorsForSuperAdmin(
-    filters: {
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-      created_by?: string;
-      search?: string;
-      page?: number;
-      limit?: number;
-      date_from?: string;
-      date_to?: string;
-    } = {}
-  ): Promise<{ vendors: any[]; total: number; page: number; pages: number }> {
+  async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
     try {
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
+      const { page, limit, company_status, legal_entity_structure, registration_type, search } =
+        options;
       const skip = (page - 1) * limit;
 
+      // Build query
       const query: any = {};
 
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_rating) {
-        query.risk_rating = filters.risk_rating;
-      }
-
-      if (filters.vendor_category) {
-        query.vendor_category = filters.vendor_category;
-      }
-
-      if (filters.created_by) {
-        query.createdBy = new Types.ObjectId(filters.created_by);
-      }
-
-      if (filters.date_from || filters.date_to) {
-        query.createdAt = {};
-        if (filters.date_from) {
-          query.createdAt.$gte = new Date(filters.date_from);
-        }
-        if (filters.date_to) {
-          query.createdAt.$lte = new Date(filters.date_to);
-        }
-      }
-
-      if (filters.search) {
+      if (search) {
         query.$or = [
-          { vendor_name: { $regex: filters.search, $options: "i" } },
-          { vendor_email: { $regex: filters.search, $options: "i" } },
-          { vendor_id: { $regex: filters.search, $options: "i" } },
-          { primary_contact_name: { $regex: filters.search, $options: "i" } },
-          { vendor_category: { $regex: filters.search, $options: "i" } },
+          { registered_company_name: { $regex: search, $options: "i" } },
+          { cin_or_msme_number: { $regex: search, $options: "i" } },
+          { official_email: { $regex: search, $options: "i" } },
         ];
       }
 
-      const [vendors, total] = await Promise.all([
-        VendorCreate.find(query)
-          .populate("createdBy", "name email")
-          .populate("verified_by", "name email")
-          .select(
-            "vendor_name vendor_category vendor_email vendor_id risk_rating verification_status contract_expiry_date createdBy verified_by createdAt updatedAt"
-          )
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        VendorCreate.countDocuments(query),
+      if (company_status) {
+        query.company_status = company_status;
+      }
+
+      if (registration_type) {
+        query.registration_type = registration_type;
+      }
+
+      if (legal_entity_structure) {
+        query.legal_entity_structure = legal_entity_structure;
+      }
+
+      // Get total count
+      const total = await CompanyCreate.countDocuments(query);
+
+      // Get companies with aggregation to include brand count
+      const companiesWithBrandCount = await CompanyCreate.aggregate([
+        { $match: query },
+        {
+          $lookup: {
+            from: "brands", // Make sure this matches your BrandCreate collection name
+            localField: "_id",
+            foreignField: "company_id",
+            as: "brands",
+          },
+        },
+        {
+          $project: {
+            _id: { $toString: "$_id" },
+            company_id: 1,
+            registered_company_name: 1,
+            cin_or_msme_number: 1,
+            legal_entity_structure: 1,
+            registration_type: 1,
+            company_status: 1,
+            official_email: 1,
+            date_of_incorporation: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            brandCount: { $size: "$brands" },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
       ]);
 
-      const formattedVendors = vendors.map(vendor => ({
-        _id: vendor._id,
-        vendor_name: vendor.vendor_name,
-        vendor_category: vendor.vendor_category,
-        vendor_email: vendor.vendor_email,
-        vendor_id: vendor.vendor_id,
-        risk_rating: vendor.risk_rating,
-        verification_status: vendor.verification_status,
-        contract_expiry_date: vendor.contract_expiry_date,
-        created_by: vendor.createdBy,
-        verified_by: vendor.verified_by,
-        created_at: vendor.createdAt,
-        updated_at: vendor.updatedAt,
-      }));
+      // Calculate statistics
+      const [
+        totalCompanies,
+        activeCompanies,
+        inactiveCompanies,
+        byLegalEntityStructure,
+        byRegistrationType,
+      ] = await Promise.all([
+        CompanyCreate.countDocuments({}),
+        CompanyCreate.countDocuments({ company_status: "active" }),
+        CompanyCreate.countDocuments({ company_status: "inactive" }),
+        CompanyCreate.aggregate([
+          { $group: { _id: "$legal_entity_structure", count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+        CompanyCreate.aggregate([
+          { $group: { _id: "$registration_type", count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+      ]);
 
       return {
-        vendors: formattedVendors,
-        total,
-        page,
-        pages: Math.ceil(total / limit),
+        data: companiesWithBrandCount,
+        statistics: {
+          totalCompanies,
+          activeCompanies,
+          inactiveCompanies,
+          byLegalEntityStructure,
+          byRegistrationType,
+        },
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       };
-    } catch (error: any) {
-      throw new Error(`Error fetching vendors for super admin: ${error.message}`);
+    } catch (error) {
+      logger.error("Error fetching company dashboard:", error);
+      throw error;
     }
   }
 
-  async bulkUpdateVendorVerification(
-    vendorIds: string[],
-    verificationStatus: "verified" | "rejected",
-    verifiedBy: Types.ObjectId,
-    userRole: string,
-    rejectionReason?: string
-  ): Promise<{ successful: string[]; failed: any[] }> {
+  // Get company by MongoDB ObjectId (should already exist)
+  async getCompanyById(id: string): Promise<ICompanyCreate | null> {
     try {
-      if (userRole !== "super_admin" && userRole !== "vendor_admin") {
-        throw new Error("Only Super Admin or Vendor Admin can verify or reject vendors");
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new Error("Invalid company ID format");
       }
 
-      const successful: string[] = [];
-      const failed: any[] = [];
+      const company = (await CompanyCreate.findById(id).lean()) as unknown as ICompanyCreate | null;
 
-      for (const vendorId of vendorIds) {
+      if (!company) {
+        throw new Error("Company not found");
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error fetching company by ID ${id}:`, error);
+      throw error;
+    }
+  }
+  async getCompanyByRegistrationNumber(registrationNumber: string): Promise<ICompanyCreate | null> {
+    try {
+      const company = (await CompanyCreate.findOne({
+        cin_or_msme_number: registrationNumber,
+      }).lean()) as unknown as ICompanyCreate | null;
+
+      if (!company) {
+        throw new Error(`Company with registration number ${registrationNumber} not found`);
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error fetching company by registration number ${registrationNumber}:`, error);
+      throw error;
+    }
+  }
+
+  async updateCompany(
+    id: string,
+    updateData: ICompanyUpdateData,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<ICompanyCreate | null> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      // Get current company data for audit
+      const currentCompany = await CompanyCreate.findById(id);
+      if (!currentCompany) {
+        throw new Error("Company not found");
+      }
+
+      // Check for duplicate data if provided
+      if (
+        updateData.cin_or_msme_number &&
+        updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
+      ) {
+        const existingCompany = await CompanyCreate.findOne({
+          cin_or_msme_number: updateData.cin_or_msme_number,
+          _id: { $ne: id },
+        });
+
+        if (existingCompany) {
+          throw new Error(
+            `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
+          );
+        }
+      }
+
+      if (
+        updateData.official_email &&
+        updateData.official_email !== currentCompany.official_email
+      ) {
+        const existingEmail = await CompanyCreate.findOne({
+          official_email: updateData.official_email.toLowerCase(),
+          _id: { $ne: id },
+        });
+
+        if (existingEmail) {
+          throw new Error(`Company with email ${updateData.official_email} already exists`);
+        }
+      }
+
+      if (updateData.din && updateData.din !== currentCompany.din) {
+        const existingDIN = await CompanyCreate.findOne({
+          din: updateData.din,
+          _id: { $ne: id },
+        });
+
+        if (existingDIN) {
+          throw new Error(`Company with DIN ${updateData.din} already exists`);
+        }
+      }
+
+      // Prepare update data
+      const updateObj: any = { ...updateData };
+      if (updateObj.official_email) {
+        updateObj.official_email = updateObj.official_email.toLowerCase();
+      }
+
+      // Update company
+      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+        id,
+        { $set: updateObj },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as ICompanyCreate | null;
+
+      if (!updatedCompany) {
+        throw new Error("Company not found");
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Updated company: ${currentCompany.registered_company_name}`,
+          target_type: "company",
+          target_company: currentCompany._id,
+          target_company_name: currentCompany.registered_company_name,
+          target_company_cin: currentCompany.cin_or_msme_number,
+          before_state: currentCompany.toObject(),
+          after_state: updateData,
+          changed_fields: Object.keys(updateData),
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Company updated: ${updatedCompany.registered_company_name} (ID: ${id})`);
+      return updatedCompany;
+    } catch (error) {
+      logger.error(`Error updating company ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteCompany(
+    id: string,
+    deletedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<ICompanyCreate | null> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      const company = (await CompanyCreate.findByIdAndDelete(
+        id
+      ).lean()) as unknown as ICompanyCreate | null;
+
+      if (!company) {
+        throw new Error("Company not found");
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: deletedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "delete",
+          action_description: `Deleted company: ${company.registered_company_name}`,
+          target_type: "company",
+          target_company: company._id,
+          target_company_name: company.registered_company_name,
+          target_company_cin: company.cin_or_msme_number,
+          before_state: company,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Company deleted: ${company.registered_company_name} (ID: ${id})`);
+      return company;
+    } catch (error) {
+      logger.error(`Error deleting company ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async searchCompanies(query: string, limit: number = 10): Promise<ICompanyCreate[]> {
+    try {
+      const companies = (await CompanyCreate.find({
+        $or: [
+          { registered_company_name: { $regex: query, $options: "i" } },
+          { cin_or_msme_number: { $regex: query, $options: "i" } },
+          { official_email: { $regex: query, $options: "i" } },
+          { directory_signature_name: { $regex: query, $options: "i" } },
+          { din: { $regex: query, $options: "i" } },
+        ],
+      })
+        .limit(limit)
+        .lean()) as unknown as ICompanyCreate[];
+
+      return companies;
+    } catch (error) {
+      logger.error(`Error searching companies with query '${query}':`, error);
+      throw error;
+    }
+  }
+
+  async checkCompanyExists(registrationNumber: string): Promise<boolean> {
+    try {
+      const company = await CompanyCreate.findOne({
+        cin_or_msme_number: registrationNumber,
+      });
+
+      return !!company;
+    } catch (error) {
+      logger.error(`Error checking company existence ${registrationNumber}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Export single company data by MongoDB ObjectId
+   */
+  async exportCompanyById(
+    companyId: string, // MongoDB ObjectId
+    format: string,
+    userId: Types.ObjectId
+  ): Promise<any> {
+    try {
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      const company = await CompanyCreate.findById(companyId).lean();
+
+      if (!company) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      if (format === "json") {
+        return JSON.stringify(company, null, 2);
+      } else if (format === "csv") {
+        // Convert single company to CSV format
+        const companyData = company as any;
+
+        // Define CSV headers
+        const headers = ["Field", "Value"];
+
+        // Flatten company data into key-value pairs
+        const csvRows = [];
+
+        // Add basic company info
+        csvRows.push(["Company ID", companyData.company_id || ""]);
+        csvRows.push(["Registered Company Name", companyData.registered_company_name || ""]);
+        csvRows.push(["Official Email", companyData.official_email || ""]);
+        csvRows.push(["Legal Entity Structure", companyData.legal_entity_structure || ""]);
+        csvRows.push(["Registration Type", companyData.registration_type || ""]);
+        csvRows.push(["CIN/MSME Number", companyData.cin_or_msme_number || ""]);
+        csvRows.push([
+          "Date of Incorporation",
+          companyData.date_of_incorporation
+            ? new Date(companyData.date_of_incorporation).toISOString().split("T")[0]
+            : "",
+        ]);
+        csvRows.push(["Registered Office Address", companyData.registered_office_address || ""]);
+        csvRows.push(["Corporate Website", companyData.corporate_website || ""]);
+        csvRows.push(["Directory Signature Name", companyData.directory_signature_name || ""]);
+        csvRows.push(["DIN", companyData.din || ""]);
+        csvRows.push(["Company Status", companyData.company_status || ""]);
+        csvRows.push([
+          "Created At",
+          companyData.createdAt ? new Date(companyData.createdAt).toISOString() : "",
+        ]);
+        csvRows.push([
+          "Updated At",
+          companyData.updatedAt ? new Date(companyData.updatedAt).toISOString() : "",
+        ]);
+
+        // Convert to CSV string
+        const csvContent = [
+          headers.join(","),
+          ...csvRows.map(row =>
+            row
+              .map(cell => {
+                // Escape commas and quotes in cell values
+                const cellStr = String(cell);
+                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+                  return `"${cellStr.replace(/"/g, '""')}"`;
+                }
+                return cellStr;
+              })
+              .join(",")
+          ),
+        ].join("\n");
+
+        return csvContent;
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error exporting company ${companyId}:`, error);
+      throw error;
+    }
+  }
+  async getCompanyStatistics(): Promise<any> {
+    try {
+      const totalCompanies = await CompanyCreate.countDocuments();
+      const activeCompanies = await CompanyCreate.countDocuments({ company_status: "active" });
+      const inactiveCompanies = await CompanyCreate.countDocuments({ company_status: "inactive" });
+
+      // Count by legal entity structure
+      const structureStats = await CompanyCreate.aggregate([
+        {
+          $group: {
+            _id: "$legal_entity_structure",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $sort: { count: -1 },
+        },
+      ]);
+
+      // Count by registration type
+      const registrationTypeStats = await CompanyCreate.aggregate([
+        {
+          $group: {
+            _id: "$registration_type",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      // Recent companies (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentCompanies = await CompanyCreate.countDocuments({
+        createdAt: { $gte: thirtyDaysAgo },
+      });
+
+      return {
+        total: totalCompanies,
+        active: activeCompanies,
+        inactive: inactiveCompanies,
+        recent: recentCompanies,
+        byLegalEntityStructure: structureStats,
+        byRegistrationType: registrationTypeStats,
+      };
+    } catch (error) {
+      logger.error("Error fetching company statistics:", error);
+      throw error;
+    }
+  }
+
+  async getCompaniesByStatus(
+    status: "active" | "inactive",
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    data: ICompanyCreate[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    try {
+      const skip = (page - 1) * limit;
+
+      const query = { company_status: status };
+      const total = await CompanyCreate.countDocuments(query);
+
+      const companies = (await CompanyCreate.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()) as unknown as ICompanyCreate[];
+
+      return {
+        data: companies,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      logger.error(`Error fetching companies by status ${status}:`, error);
+      throw error;
+    }
+  }
+
+  async getCompaniesByLegalStructure(
+    structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership",
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    data: ICompanyCreate[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    try {
+      const skip = (page - 1) * limit;
+
+      const query = { legal_entity_structure: structure };
+      const total = await CompanyCreate.countDocuments(query);
+
+      const companies = (await CompanyCreate.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()) as unknown as ICompanyCreate[];
+
+      return {
+        data: companies,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      logger.error(`Error fetching companies by legal structure ${structure}:`, error);
+      throw error;
+    }
+  }
+
+  async validateCompanyData(data: {
+    cin_or_msme_number?: string;
+    official_email?: string;
+    din?: string;
+  }): Promise<{
+    isValid: boolean;
+    errors: string[];
+    details: {
+      cin_or_msme_number?: { exists: boolean; message: string };
+      official_email?: { exists: boolean; message: string };
+      din?: { exists: boolean; message: string };
+    };
+  }> {
+    try {
+      const errors: string[] = [];
+      const details: any = {};
+
+      // Check CIN/MSME number
+      if (data.cin_or_msme_number) {
+        const existingCIN = await CompanyCreate.findOne({
+          cin_or_msme_number: data.cin_or_msme_number,
+        });
+        details.cin_or_msme_number = {
+          exists: !!existingCIN,
+          message: existingCIN ? "CIN/MSME number already exists" : "CIN/MSME number is available",
+        };
+        if (existingCIN) {
+          errors.push("CIN/MSME number already exists");
+        }
+      }
+
+      // Check official email
+      if (data.official_email) {
+        const existingEmail = await CompanyCreate.findOne({
+          official_email: data.official_email.toLowerCase(),
+        });
+        details.official_email = {
+          exists: !!existingEmail,
+          message: existingEmail ? "Email already exists" : "Email is available",
+        };
+        if (existingEmail) {
+          errors.push("Email already exists");
+        }
+      }
+
+      // Check DIN
+      if (data.din) {
+        const existingDIN = await CompanyCreate.findOne({
+          din: data.din,
+        });
+        details.din = {
+          exists: !!existingDIN,
+          message: existingDIN ? "DIN already exists" : "DIN is available",
+        };
+        if (existingDIN) {
+          errors.push("DIN already exists");
+        }
+      }
+
+      return {
+        isValid: errors.length === 0,
+        errors,
+        details,
+      };
+    } catch (error) {
+      logger.error("Error validating company data:", error);
+      throw error;
+    }
+  }
+
+  async bulkCreateCompanies(
+    companies: ICompanyCreateData[],
+    createdBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<{
+    successful: ICompanyCreate[];
+    failed: Array<{ data: ICompanyCreateData; error: string }>;
+  }> {
+    try {
+      const successful: ICompanyCreate[] = [];
+      const failed: Array<{ data: ICompanyCreateData; error: string }> = [];
+
+      for (const companyData of companies) {
         try {
-          const updateData: any = {
-            verification_status: verificationStatus,
-            verified_by: verifiedBy,
-            updatedAt: new Date(),
-          };
+          // Check for duplicates in this batch
+          const duplicateInBatch =
+            companies.filter(
+              (c, idx) =>
+                c.cin_or_msme_number === companyData.cin_or_msme_number ||
+                c.official_email.toLowerCase() === companyData.official_email.toLowerCase() ||
+                c.din === companyData.din
+            ).length > 1;
 
-          if (verificationStatus === "rejected" && rejectionReason) {
-            updateData.risk_notes = rejectionReason;
+          if (duplicateInBatch) {
+            throw new Error("Duplicate data found within the batch");
           }
 
-          const updatedVendor = await VendorCreate.findByIdAndUpdate(vendorId, updateData, {
-            new: true,
-            runValidators: true,
-          });
-
-          if (updatedVendor) {
-            successful.push(vendorId);
-          } else {
-            failed.push({ vendorId, error: "Vendor not found" });
-          }
+          const newCompany = await this.createCompany(
+            companyData,
+            createdBy,
+            userEmail,
+            userRole,
+            req
+          );
+          successful.push(newCompany);
         } catch (error: any) {
-          failed.push({ vendorId, error: error.message });
+          failed.push({
+            data: companyData,
+            error: error.message,
+          });
         }
       }
 
       return { successful, failed };
-    } catch (error: any) {
-      throw new Error(`Error bulk updating vendor verification: ${error.message}`);
+    } catch (error) {
+      logger.error("Error in bulk company creation:", error);
+      throw error;
     }
   }
+}
 
-  async quickVerifyOrRejectVendor(
-    vendorId: string,
-    verificationStatus: "verified" | "rejected",
-    verifiedBy: Types.ObjectId,
+// ============================================
+// BRAND SERVICE
+// ============================================
+
+export class BrandService {
+  // Create a new brand
+  async createBrand(
+    brandData: IBrandCreateData,
+    createdBy: Types.ObjectId,
     userEmail: string,
     userRole: string,
-    actionDescription: string,
-    req?: any
-  ): Promise<IVendorCreate> {
+    req?: Request
+  ): Promise<IBrandCreate> {
     try {
-      if (userRole !== "super_admin" && userRole !== "vendor_admin") {
-        throw new Error("Only Super Admin or Vendor Admin can verify or reject vendors");
+      // Validate company exists
+      const company = await CompanyCreate.findOne({
+        cin_or_msme_number: brandData.cin_or_msme_number,
+      });
+
+      if (!company) {
+        throw new Error(
+          `Company with registration number ${brandData.cin_or_msme_number} does not exist`
+        );
       }
 
-      const currentVendor = await VendorCreate.findById(vendorId);
-      if (!currentVendor) {
-        throw new Error("Vendor not found");
+      // Check if brand with same email already exists
+      const existingBrand = await BrandCreate.findOne({
+        brand_email: brandData.brand_email.toLowerCase(),
+      });
+
+      if (existingBrand) {
+        throw new Error(`Brand with email ${brandData.brand_email} already exists`);
       }
 
-      const updateData: any = {
-        verification_status: verificationStatus,
-        verified_by: verifiedBy,
-        updatedAt: new Date(),
-      };
-
-      const timestamp = new Date().toISOString();
-      if (verificationStatus === "verified") {
-        updateData.risk_notes = `QUICK VERIFIED via API route on ${timestamp}. ${actionDescription}`;
-      } else {
-        updateData.risk_notes = `QUICK REJECTED via API route on ${timestamp}. ${actionDescription}`;
+      // Check if company_id matches the found company
+      if (!company._id.equals(brandData.company_id)) {
+        throw new Error("Company ID does not match the registration number");
       }
 
-      const updatedVendor = await VendorCreate.findByIdAndUpdate(vendorId, updateData, {
-        new: true,
-        runValidators: true,
-      })
-        .populate("verified_by", "name email")
-        .populate("createdBy", "name email");
+      // Validate required files based on legal entity structure
+      await this.validateBrandFiles(brandData, company.legal_entity_structure);
 
-      if (!updatedVendor) {
-        throw new Error("Vendor not found");
+      // Create new brand
+      const newBrand = new BrandCreate({
+        ...brandData,
+        verification_status: brandData.verification_status || "pending",
+        createdBy: createdBy,
+      });
+
+      await newBrand.save();
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: createdBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "create",
+          action_description: `Created brand: ${brandData.brand_name}`,
+          target_type: "brand",
+          target_brand: newBrand._id,
+          target_brand_name: brandData.brand_name,
+          target_company: brandData.company_id,
+          target_company_name: company.registered_company_name,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
       }
 
-      await this.createVendorAuditRecord(
-        verifiedBy,
-        userEmail,
-        userRole,
-        "quick_status_change",
-        `Quick ${verificationStatus} vendor via API route: ${actionDescription}`,
-        updatedVendor._id as Types.ObjectId,
-        updatedVendor.vendor_name,
-        updatedVendor.vendor_id,
-        currentVendor.toObject(),
-        updatedVendor.toObject(),
-        req
-      );
-
-      return updatedVendor;
-    } catch (error: any) {
-      throw new Error(`Error quick ${verificationStatus} vendor: ${error.message}`);
+      logger.info(`Brand created: ${newBrand.brand_name} (ID: ${newBrand._id})`);
+      return newBrand;
+    } catch (error) {
+      logger.error("Error creating brand:", error);
+      throw error;
     }
   }
-  async getVendorStatistics(): Promise<{
-    total_vendors: number;
-    pending_approvals: number;
-    active_vendors: number;
-    rejected_vendors: number;
-    vendors_by_category: any[];
-    vendors_by_risk: any[];
-    recent_activity: any[];
+
+  /**
+   * Validate required files based on legal entity structure
+   */
+  private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
+    const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
+
+    for (const field of requiredFields) {
+      if (
+        !brandData[field] ||
+        !brandData[field].file_url ||
+        !brandData[field].cloudinary_public_id
+      ) {
+        throw new Error(`Missing or invalid ${field} file upload`);
+      }
+    }
+  }
+
+  /**
+   * Get required file fields based on legal entity
+   */
+  private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
+    const commonFields = [
+      "upload_cancelled_cheque_image",
+      "gst_certificate_image",
+      "PAN_image",
+      "FSSAI_image",
+    ];
+
+    const entitySpecificFields: Record<string, string[]> = {
+      pvt: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
+        "Trademark_certificate_image",
+        "Authorized_Signatory_image",
+      ],
+      opc: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "MOA_image",
+        "AOA_image",
+      ],
+      llp: [
+        "certificate_of_incorporation_image",
+        "MSME_or_Udyam_certificate_image",
+        "LLP_agreement_image",
+      ],
+      proprietorship: [
+        "MSME_or_Udyam_certificate_image",
+        "Shop_and_Establishment_certificate_image",
+      ],
+      partnership: ["Registered_Partnership_deed_image", "MSME_or_Udyam_certificate_image"],
+      public: [
+        "certificate_of_incorporation_image",
+        "Board_resolution_image",
+        "MOA_image",
+        "AOA_image",
+      ],
+    };
+
+    return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
+  }
+
+  // Get all brands with pagination and search
+  async getAllBrands(options: IBrandPaginationOptions): Promise<{
+    data: IBrandCreate[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
   }> {
     try {
-      const [totalVendors, pendingApprovals, activeVendors, rejectedVendors] = await Promise.all([
-        VendorCreate.countDocuments(),
-        VendorCreate.countDocuments({ verification_status: "pending" }),
-        VendorCreate.countDocuments({ verification_status: "verified" }),
-        VendorCreate.countDocuments({ verification_status: "rejected" }),
-      ]);
-
-      const vendorsByCategory = await VendorCreate.aggregate([
-        {
-          $group: {
-            _id: "$vendor_category",
-            count: { $sum: 1 },
-            pending: {
-              $sum: { $cond: [{ $eq: ["$verification_status", "pending"] }, 1, 0] },
-            },
-            verified: {
-              $sum: { $cond: [{ $eq: ["$verification_status", "verified"] }, 1, 0] },
-            },
-            rejected: {
-              $sum: { $cond: [{ $eq: ["$verification_status", "rejected"] }, 1, 0] },
-            },
-          },
-        },
-        { $sort: { count: -1 } },
-      ]);
-
-      const vendorsByRisk = await VendorCreate.aggregate([
-        {
-          $group: {
-            _id: "$risk_rating",
-            count: { $sum: 1 },
-          },
-        },
-      ]);
-
-      const recentActivity = await VendorCreate.find()
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email")
-        .select("vendor_name verification_status createdBy verified_by createdAt")
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
-
-      return {
-        total_vendors: totalVendors,
-        pending_approvals: pendingApprovals,
-        active_vendors: activeVendors,
-        rejected_vendors: rejectedVendors,
-        vendors_by_category: vendorsByCategory,
-        vendors_by_risk: vendorsByRisk,
-        recent_activity: recentActivity,
-      };
-    } catch (error: any) {
-      throw new Error(`Error getting vendor statistics: ${error.message}`);
-    }
-  }
-
-  async getPendingApprovals(): Promise<any[]> {
-    try {
-      return await VendorCreate.find({ verification_status: "pending" })
-        .populate("createdBy", "name email")
-        .select(
-          "vendor_name vendor_category vendor_email vendor_id risk_rating contract_expiry_date createdBy createdAt"
-        )
-        .sort({ createdAt: -1 })
-        .lean();
-    } catch (error: any) {
-      throw new Error(`Error fetching pending approvals: ${error.message}`);
-    }
-  }
-
-  async getVendorById(id: string): Promise<IVendorCreate | null> {
-    try {
-      return await VendorCreate.findById(id)
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email");
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor: ${error.message}`);
-    }
-  }
-
-  async getVendorByVendorId(vendorId: string): Promise<IVendorCreate | null> {
-    try {
-      return await VendorCreate.findOne({ vendor_id: vendorId })
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email");
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor: ${error.message}`);
-    }
-  }
-
-  async getMyVendorProfile(userId: Types.ObjectId): Promise<{
-    user_info: {
-      user_id: Types.ObjectId;
-      total_vendors_created: number;
-    };
-    statistics: {
-      total_vendors: number;
-      pending_vendors: number;
-      verified_vendors: number;
-      rejected_vendors: number;
-      failed_vendors: number;
-    };
-    vendors: IVendorCreate[];
-  }> {
-    try {
-      const vendors = await VendorCreate.find({ createdBy: userId })
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email")
-        .sort({ createdAt: -1 });
-
-      const statistics = {
-        total_vendors: vendors.length,
-        pending_vendors: vendors.filter(v => v.verification_status === "pending").length,
-        verified_vendors: vendors.filter(v => v.verification_status === "verified").length,
-        rejected_vendors: vendors.filter(v => v.verification_status === "rejected").length,
-        failed_vendors: vendors.filter(v => v.verification_status === "failed").length,
-      };
-
-      return {
-        user_info: {
-          user_id: userId,
-          total_vendors_created: vendors.length,
-        },
-        statistics,
-        vendors,
-      };
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor profile: ${error.message}`);
-    }
-  }
-
-  async getAllVendors(
-    filters: {
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-      search?: string;
-      page?: number;
-      limit?: number;
-    } = {}
-  ): Promise<{ vendors: IVendorCreate[]; total: number; page: number; pages: number }> {
-    try {
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
+      const {
+        page,
+        limit,
+        search,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        verification_status,
+        brand_category,
+        brand_type,
+        company_id,
+      } = options;
       const skip = (page - 1) * limit;
 
+      // Build query
       const query: any = {};
 
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
-
-      if (filters.risk_rating) {
-        query.risk_rating = filters.risk_rating;
-      }
-
-      if (filters.vendor_category) {
-        query.vendor_category = filters.vendor_category;
-      }
-
-      if (filters.search) {
+      if (search) {
         query.$or = [
-          { vendor_name: { $regex: filters.search, $options: "i" } },
-          { vendor_email: { $regex: filters.search, $options: "i" } },
-          { vendor_id: { $regex: filters.search, $options: "i" } },
-          { primary_contact_name: { $regex: filters.search, $options: "i" } },
+          { brand_name: { $regex: search, $options: "i" } },
+          { brand_billing_name: { $regex: search, $options: "i" } },
+          { brand_email: { $regex: search, $options: "i" } },
+          { contact_name: { $regex: search, $options: "i" } },
+          { contact_phone: { $regex: search, $options: "i" } },
+          { PAN_number: { $regex: search, $options: "i" } },
+          { gst_details: { $regex: search, $options: "i" } },
         ];
       }
 
-      const [vendors, total] = await Promise.all([
-        VendorCreate.find(query)
-          .populate("createdBy", "name email")
-          .populate("verified_by", "name email")
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        VendorCreate.countDocuments(query),
-      ]);
+      // Apply additional filters
+      if (verification_status) {
+        query.verification_status = verification_status;
+      }
+
+      if (brand_category) {
+        query.brand_category = brand_category;
+      }
+
+      if (brand_type) {
+        query.brand_type = brand_type;
+      }
+
+      if (company_id) {
+        if (mongoose.Types.ObjectId.isValid(company_id)) {
+          query.company_id = new mongoose.Types.ObjectId(company_id);
+        }
+      }
+
+      // Get total count
+      const total = await BrandCreate.countDocuments(query);
+
+      // Get brands with pagination
+      const brands = (await BrandCreate.find(query)
+        .populate("company_id", "company_id registered_company_name official_email")
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()) as unknown as IBrandCreate[];
 
       return {
-        vendors,
-        total,
-        page,
-        pages: Math.ceil(total / limit),
+        data: brands,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       };
-    } catch (error: any) {
-      throw new Error(`Error fetching vendors: ${error.message}`);
+    } catch (error) {
+      logger.error("Error fetching brands:", error);
+      throw error;
     }
   }
+  // In BrandService class
 
-  async createBulkVendors(
-    vendorsData: Partial<IVendorCreate>[],
-    createdBy: Types.ObjectId
-  ): Promise<{
-    successful: any[];
-    failed: any[];
-  }> {
-    const successful: any[] = [];
-    const failed: any[] = [];
+  /**
+   * Update brand by identifier (handles both MongoDB _id and custom brand_id)
+   */
+  async updateBrandById(
+    brandIdentifier: string,
+    updateData: IBrandUpdateData,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      const query: any =
+        mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
+          ? { _id: new mongoose.Types.ObjectId(brandIdentifier) }
+          : { brand_id: brandIdentifier };
 
-    for (let i = 0; i < vendorsData.length; i++) {
-      try {
-        if (vendorsData[i].cin) {
-          const companyExists = await CompanyCreate.findOne({
-            cin: vendorsData[i].cin,
-          });
+      // Get current brand data for audit
+      const currentBrand = await BrandCreate.findOne(query);
+      if (!currentBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
 
-          if (!companyExists) {
-            throw new Error(
-              `Company with identification number "${vendorsData[i].cin}" does not exist`
-            );
-          }
-        } else {
-          throw new Error("Company registration number is required");
+      // Check for duplicate email if provided
+      if (updateData.brand_email && updateData.brand_email !== currentBrand.brand_email) {
+        const existingEmail = await BrandCreate.findOne({
+          brand_email: updateData.brand_email.toLowerCase(),
+          _id: { $ne: currentBrand._id },
+        });
+
+        if (existingEmail) {
+          throw new Error(`Brand with email ${updateData.brand_email} already exists`);
+        }
+      }
+
+      // If updating company registration number, validate the company exists
+      if (updateData.cin_or_msme_number) {
+        const company = await CompanyCreate.findOne({
+          cin_or_msme_number: updateData.cin_or_msme_number,
+        });
+
+        if (!company) {
+          throw new Error(
+            `Company with registration number ${updateData.cin_or_msme_number} does not exist`
+          );
         }
 
-        const result = await this.createCompleteVendor(
-          vendorsData[i],
-          createdBy,
-          "",
-          "vendor_admin"
-        );
-        successful.push({
-          index: i,
-          vendor_name: result.vendor_name,
-          vendor_id: result.vendor_id,
-          cin: result.cin,
-          data: result,
-        });
-      } catch (error: any) {
-        failed.push({
-          index: i,
-          vendor_name: vendorsData[i].vendor_name,
-          cin: vendorsData[i].cin,
-          error: error.message,
+        // Update company_id to match the found company
+        updateData.company_id = company._id;
+      }
+
+      // Prepare update data
+      const updateObj: any = { ...updateData };
+      if (updateObj.brand_email) {
+        updateObj.brand_email = updateObj.brand_email.toLowerCase();
+      }
+      if (updateObj.ifsc_code) {
+        updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
+      }
+      if (updateObj.gst_details) {
+        updateObj.gst_details = updateObj.gst_details.toUpperCase();
+      }
+      if (updateObj.PAN_number) {
+        updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
+      }
+
+      // Update brand
+      const updatedBrand = (await BrandCreate.findOneAndUpdate(
+        query,
+        { $set: updateObj },
+        { new: true, runValidators: true }
+      )
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email cin_or_msme_number"
+        )
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Updated brand: ${currentBrand.brand_name}`,
+          target_type: "brand",
+          target_brand: currentBrand._id,
+          target_brand_name: currentBrand.brand_name,
+          target_company: currentBrand.company_id,
+          before_state: currentBrand.toObject(),
+          after_state: updateData,
+          changed_fields: Object.keys(updateData),
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
         });
       }
-    }
 
-    return { successful, failed };
+      logger.info(`Brand updated: ${updatedBrand.brand_name} (Identifier: ${brandIdentifier})`);
+      return updatedBrand;
+    } catch (error) {
+      logger.error(`Error updating brand ${brandIdentifier}:`, error);
+      throw error;
+    }
   }
 
-  public static async getVendorsByCompanyService(
-    cin: string,
-    query: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      verification_status?: string;
-      risk_rating?: string;
-      vendor_category?: string;
-    } = {}
-  ) {
-    const company = await CompanyCreate.findOne({
-      cin: cin,
-    });
+  /**
+   * Delete brand by identifier (handles both MongoDB _id and custom brand_id)
+   */
+  async deleteBrandById(
+    brandIdentifier: string,
+    deletedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      let query: any;
 
-    if (!company) {
-      throw new Error("Company not found");
+      // Determine query based on identifier type
+      if (
+        mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
+      ) {
+        // It's a MongoDB ObjectId
+        query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
+      } else {
+        // It's a custom brand_id
+        query = { brand_id: brandIdentifier };
+      }
+
+      const brand = (await BrandCreate.findOneAndDelete(query)
+        .populate("company_id", "company_id registered_company_name official_email")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!brand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Clean up Cloudinary files if needed
+      const imageUploadService = new ImageUploadService();
+      const publicIds = imageUploadService.extractPublicIdsFromBrand(brand);
+
+      if (publicIds.length > 0) {
+        try {
+          await imageUploadService.deleteMultipleFiles(publicIds);
+          logger.info(`Deleted ${publicIds.length} Cloudinary files for brand ${brandIdentifier}`);
+        } catch (cloudinaryError) {
+          logger.error(
+            `Failed to delete Cloudinary files for brand ${brandIdentifier}:`,
+            cloudinaryError
+          );
+          // Don't throw error here, continue with deletion
+        }
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: deletedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "delete",
+          action_description: `Deleted brand: ${brand.brand_name}`,
+          target_type: "brand",
+          target_brand: brand._id,
+          target_brand_name: brand.brand_name,
+          target_company: brand.company_id,
+          before_state: brand,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand deleted: ${brand.brand_name} (Identifier: ${brandIdentifier})`);
+      return brand;
+    } catch (error) {
+      logger.error(`Error deleting brand ${brandIdentifier}:`, error);
+      throw error;
     }
+  }
+  // Get brand by brand_id
+  async getBrandByBrandId(brandId: string): Promise<IBrandCreate | null> {
+    try {
+      const brand = (await BrandCreate.findOne({ brand_id: brandId })
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email cin_or_msme_number"
+        )
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
 
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      verification_status,
-      risk_rating,
-      vendor_category,
-    } = query;
+      if (!brand) {
+        throw new Error(`Brand with ID ${brandId} not found`);
+      }
 
-    const pageNum = Number(page);
-    const limitNum = Number(limit);
-    const skip = (pageNum - 1) * limitNum;
+      return brand;
+    } catch (error) {
+      logger.error(`Error fetching brand by brand_id ${brandId}:`, error);
+      throw error;
+    }
+  }
 
-    const filter: any = {
-      cin: cin,
+  // Get brand by MongoDB ID
+  async getBrandById(id: string): Promise<IBrandCreate | null> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new Error("Invalid brand ID format");
+      }
+
+      const brand = (await BrandCreate.findById(id)
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email cin_or_msme_number"
+        )
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!brand) {
+        throw new Error("Brand not found");
+      }
+
+      return brand;
+    } catch (error) {
+      logger.error(`Error fetching brand by ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Update brand by brand_id
+  async updateBrandByBrandId(
+    brandId: string,
+    updateData: IBrandUpdateData,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      // Get current brand data for audit
+      const currentBrand = await BrandCreate.findOne({ brand_id: brandId });
+      if (!currentBrand) {
+        throw new Error(`Brand with ID ${brandId} not found`);
+      }
+
+      // Check for duplicate email if provided
+      if (updateData.brand_email && updateData.brand_email !== currentBrand.brand_email) {
+        const existingEmail = await BrandCreate.findOne({
+          brand_email: updateData.brand_email.toLowerCase(),
+          brand_id: { $ne: brandId },
+        });
+
+        if (existingEmail) {
+          throw new Error(`Brand with email ${updateData.brand_email} already exists`);
+        }
+      }
+
+      // If updating company registration number, validate the company exists
+      if (updateData.cin_or_msme_number) {
+        const company = await CompanyCreate.findOne({
+          cin_or_msme_number: updateData.cin_or_msme_number,
+        });
+
+        if (!company) {
+          throw new Error(
+            `Company with registration number ${updateData.cin_or_msme_number} does not exist`
+          );
+        }
+
+        // Update company_id to match the found company
+        updateData.company_id = company._id;
+      }
+
+      // Prepare update data
+      const updateObj: any = { ...updateData };
+      if (updateObj.brand_email) {
+        updateObj.brand_email = updateObj.brand_email.toLowerCase();
+      }
+      if (updateObj.ifsc_code) {
+        updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
+      }
+      if (updateObj.gst_details) {
+        updateObj.gst_details = updateObj.gst_details.toUpperCase();
+      }
+      if (updateObj.PAN_number) {
+        updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
+      }
+
+      // Update brand
+      const updatedBrand = (await BrandCreate.findOneAndUpdate(
+        { brand_id: brandId },
+        { $set: updateObj },
+        { new: true, runValidators: true }
+      )
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email cin_or_msme_number"
+        )
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with ID ${brandId} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Updated brand: ${currentBrand.brand_name}`,
+          target_type: "brand",
+          target_brand: currentBrand._id,
+          target_brand_name: currentBrand.brand_name,
+          target_company: currentBrand.company_id,
+          before_state: currentBrand.toObject(),
+          after_state: updateData,
+          changed_fields: Object.keys(updateData),
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand updated: ${updatedBrand.brand_name} (Brand ID: ${brandId})`);
+      return updatedBrand;
+    } catch (error) {
+      logger.error(`Error updating brand ${brandId}:`, error);
+      throw error;
+    }
+  }
+
+  // Delete brand by brand_id
+  async deleteBrandByBrandId(
+    brandId: string,
+    deletedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      const brand = (await BrandCreate.findOneAndDelete({ brand_id: brandId })
+        .populate("company_id", "company_id registered_company_name official_email")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!brand) {
+        throw new Error(`Brand with ID ${brandId} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: deletedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "delete",
+          action_description: `Deleted brand: ${brand.brand_name}`,
+          target_type: "brand",
+          target_brand: brand._id,
+          target_brand_name: brand.brand_name,
+          target_company: brand.company_id,
+          before_state: brand,
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(`Brand deleted: ${brand.brand_name} (Brand ID: ${brandId})`);
+      return brand;
+    } catch (error) {
+      logger.error(`Error deleting brand ${brandId}:`, error);
+      throw error;
+    }
+  }
+
+  // Get brands by company ID
+  async getBrandsByCompanyId(
+    companyId: string,
+    options: IBrandByCompanyOptions
+  ): Promise<{
+    data: IBrandCreate[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
     };
+  }> {
+    try {
+      const { page, limit, verification_status } = options;
+      const skip = (page - 1) * limit;
 
-    if (verification_status) {
-      filter.verification_status = verification_status;
-    }
+      // Build query
+      const query: any = {};
 
-    if (risk_rating) {
-      filter.risk_rating = risk_rating;
-    }
+      // Check if companyId is MongoDB ObjectId or company_id (7-digit)
+      if (mongoose.Types.ObjectId.isValid(companyId)) {
+        query.company_id = new mongoose.Types.ObjectId(companyId);
+      } else {
+        // Find company by company_id to get its MongoDB ObjectId
+        const company = await CompanyCreate.findOne({ company_id: companyId });
+        if (!company) {
+          throw new Error(`Company with ID ${companyId} not found`);
+        }
+        query.company_id = company._id;
+      }
 
-    if (vendor_category) {
-      filter.vendor_category = vendor_category;
-    }
+      // Apply verification status filter
+      if (verification_status) {
+        query.verification_status = verification_status;
+      }
 
-    if (search) {
-      filter.$or = [
-        { vendor_name: { $regex: search, $options: "i" } },
-        { vendor_email: { $regex: search, $options: "i" } },
-        { vendor_id: { $regex: search, $options: "i" } },
-        { primary_contact_name: { $regex: search, $options: "i" } },
-        { vendor_category: { $regex: search, $options: "i" } },
-      ];
-    }
+      // Get total count
+      const total = await BrandCreate.countDocuments(query);
 
-    const [vendors, totalCount] = await Promise.all([
-      VendorCreate.find(filter)
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email")
-        .select("-__v")
+      // Get brands with pagination
+      const brands = (await BrandCreate.find(query)
+        .populate("company_id", "company_id registered_company_name official_email")
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limitNum),
+        .limit(limit)
+        .lean()) as unknown as IBrandCreate[];
 
-      VendorCreate.countDocuments(filter),
-    ]);
-
-    const totalPages = Math.ceil(totalCount / limitNum);
-
-    return {
-      company: {
-        _id: company._id,
-        registered_company_name: company.registered_company_name,
-        cin: company.cin,
-        office_email: company.office_email,
-      },
-      vendors: vendors,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalCount,
-        hasNextPage: pageNum < totalPages,
-        hasPreviousPage: pageNum > 1,
-        limit: limitNum,
-      },
-    };
+      return {
+        data: brands,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      logger.error(`Error fetching brands by company ${companyId}:`, error);
+      throw error;
+    }
   }
 
-  public static async getCompanyWithVendorStatsService(cin: string) {
-    const company = await CompanyCreate.findOne({
-      cin: cin,
-    }).select("-__v");
+  // Search brands
+  async searchBrands(query: string, limit: number = 10): Promise<IBrandCreate[]> {
+    try {
+      const brands = (await BrandCreate.find({
+        $or: [
+          { brand_name: { $regex: query, $options: "i" } },
+          { brand_billing_name: { $regex: query, $options: "i" } },
+          { brand_email: { $regex: query, $options: "i" } },
+          { contact_name: { $regex: query, $options: "i" } },
+          { contact_phone: { $regex: query, $options: "i" } },
+          { PAN_number: { $regex: query, $options: "i" } },
+          { gst_details: { $regex: query, $options: "i" } },
+          { brand_id: { $regex: query, $options: "i" } },
+        ],
+      })
+        .populate("company_id", "company_id registered_company_name")
+        .limit(limit)
+        .lean()) as unknown as IBrandCreate[];
 
-    if (!company) {
-      throw new Error("Company not found");
+      return brands;
+    } catch (error) {
+      logger.error(`Error searching brands with query '${query}':`, error);
+      throw error;
     }
+  }
 
-    const [vendorStats, vendorsByCategory, vendorsByRisk, recentVendors, totalVendors] =
-      await Promise.all([
-        VendorCreate.aggregate([
-          {
-            $match: {
-              cin: company.cin,
-            },
+  // Get brand statistics
+  async getBrandStatistics(): Promise<any> {
+    try {
+      const totalBrands = await BrandCreate.countDocuments();
+      const pendingBrands = await BrandCreate.countDocuments({ verification_status: "pending" });
+      const verifiedBrands = await BrandCreate.countDocuments({ verification_status: "verified" });
+      const rejectedBrands = await BrandCreate.countDocuments({ verification_status: "rejected" });
+
+      // Count by brand category
+      const categoryStats = await BrandCreate.aggregate([
+        {
+          $group: {
+            _id: "$brand_category",
+            count: { $sum: 1 },
           },
+        },
+        {
+          $sort: { count: -1 },
+        },
+      ]);
+
+      // Count by brand type
+      const typeStats = await BrandCreate.aggregate([
+        {
+          $group: {
+            _id: "$brand_type",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $sort: { count: -1 },
+        },
+      ]);
+
+      // Recent brands (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentBrands = await BrandCreate.countDocuments({
+        createdAt: { $gte: thirtyDaysAgo },
+      });
+
+      return {
+        total: totalBrands,
+        pending: pendingBrands,
+        verified: verifiedBrands,
+        rejected: rejectedBrands,
+        recent: recentBrands,
+        byCategory: categoryStats,
+        byType: typeStats,
+      };
+    } catch (error) {
+      logger.error("Error fetching brand statistics:", error);
+      throw error;
+    }
+  }
+
+  // In BrandService class
+  async exportBrands(format: string, filters: any, userId: Types.ObjectId): Promise<any> {
+    try {
+      const query: any = {};
+
+      // Apply filters if provided
+      if (filters.verification_status) {
+        query.verification_status = filters.verification_status;
+      }
+      if (filters.brand_category) {
+        query.brand_category = filters.brand_category;
+      }
+      if (filters.brand_type) {
+        query.brand_type = filters.brand_type;
+      }
+      if (filters.company_id) {
+        if (mongoose.Types.ObjectId.isValid(filters.company_id)) {
+          query.company_id = new mongoose.Types.ObjectId(filters.company_id);
+        }
+      }
+      if (filters.search) {
+        query.$or = [
+          { brand_name: { $regex: filters.search, $options: "i" } },
+          { brand_billing_name: { $regex: filters.search, $options: "i" } },
+          { brand_email: { $regex: filters.search, $options: "i" } },
+          { brand_id: { $regex: filters.search, $options: "i" } },
+          { contact_name: { $regex: filters.search, $options: "i" } },
+          { contact_phone: { $regex: filters.search, $options: "i" } },
+          { PAN_number: { $regex: filters.search, $options: "i" } },
+          { gst_details: { $regex: filters.search, $options: "i" } },
+          { cin_or_msme_number: { $regex: filters.search, $options: "i" } },
+        ];
+      }
+
+      const brands = await BrandCreate.find(query)
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type"
+        )
+        .populate("warehouse_id", "warehouse_name warehouse_code address")
+        .populate("verified_by", "email name role")
+        .populate("createdBy", "email name role")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      if (format === "json") {
+        return JSON.stringify(brands, null, 2);
+      } else if (format === "csv") {
+        // Convert to CSV format with ALL details
+        const headers = [
+          "Brand ID",
+          "Brand Name",
+          "Brand Billing Name",
+          "Brand Email",
+          "Brand Category",
+          "Brand Type",
+          "Registration Type",
+          "CIN/MSME Number",
+          "Company Name",
+          "Company ID",
+          "Company Email",
+          "Company Legal Entity",
+          "Contact Name",
+          "Contact Phone",
+          "Address",
+          "Bank Account",
+          "IFSC Code",
+          "Payment Terms",
+          "GST Details",
+          "PAN Number",
+          "FSSAI Number",
+          "TDS Rate (%)",
+          "Billing Cycle",
+          "Brand Status Cycle",
+          "Verification Status",
+          "Risk Notes",
+          "Contract Terms",
+          "Contract Start Date",
+          "Contract End Date",
+          "Contract Renewal Date",
+          "Payment Methods",
+          "Internal Notes",
+          "Warehouse Name",
+          "Warehouse Code",
+          "Verified By",
+          "Verified By Email",
+          "Created By",
+          "Created By Email",
+          "Created At",
+          "Updated At",
+          // Document URLs
+          "Cancelled Cheque URL",
+          "GST Certificate URL",
+          "PAN Image URL",
+          "FSSAI Certificate URL",
+          "Certificate of Incorporation URL",
+          "MSME/Udyam Certificate URL",
+          "MOA Document URL",
+          "AOA Document URL",
+          "Trademark Certificate URL",
+          "Authorized Signatory URL",
+          "LLP Agreement URL",
+          "Shop & Establishment Certificate URL",
+          "Registered Partnership Deed URL",
+          "Board Resolution URL",
+        ];
+
+        const csvRows = brands.map(brand => {
+          const brandData = brand as any;
+
+          return [
+            brandData.brand_id || "",
+            brandData.brand_name || "",
+            brandData.brand_billing_name || "",
+            brandData.brand_email || "",
+            brandData.brand_category || "",
+            brandData.brand_type || "",
+            brandData.registration_type || "",
+            brandData.cin_or_msme_number || "",
+            brandData.company_id?.registered_company_name || "",
+            brandData.company_id?.company_id || "",
+            brandData.company_id?.official_email || "",
+            brandData.company_id?.legal_entity_structure || "",
+            brandData.contact_name || "",
+            brandData.contact_phone || "",
+            brandData.address || "",
+            brandData.bank_account_of_brand || "",
+            brandData.ifsc_code || "",
+            brandData.payment_terms || "",
+            brandData.gst_details || "",
+            brandData.PAN_number || "",
+            brandData.FSSAI_number || "",
+            brandData.TDS_rate || "",
+            brandData.billing_cycle || "",
+            brandData.brand_status_cycle || "",
+            brandData.verification_status || "",
+            brandData.risk_notes || "",
+            brandData.contract_terms || "",
+            brandData.contract_start_date
+              ? new Date(brandData.contract_start_date).toISOString().split("T")[0]
+              : "",
+            brandData.contract_end_date
+              ? new Date(brandData.contract_end_date).toISOString().split("T")[0]
+              : "",
+            brandData.contract_renewal_date
+              ? new Date(brandData.contract_renewal_date).toISOString().split("T")[0]
+              : "",
+            brandData.payment_methods || "",
+            brandData.internal_notes || "",
+            brandData.warehouse_id?.warehouse_name || "",
+            brandData.warehouse_id?.warehouse_code || "",
+            brandData.verified_by?.name || "",
+            brandData.verified_by?.email || "",
+            brandData.createdBy?.name || "",
+            brandData.createdBy?.email || "",
+            brandData.createdAt ? new Date(brandData.createdAt).toISOString() : "",
+            brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : "",
+            // Document URLs
+            brandData.upload_cancelled_cheque_image?.file_url || "",
+            brandData.gst_certificate_image?.file_url || "",
+            brandData.PAN_image?.file_url || "",
+            brandData.FSSAI_image?.file_url || "",
+            brandData.certificate_of_incorporation_image?.file_url || "",
+            brandData.MSME_or_Udyam_certificate_image?.file_url || "",
+            brandData.MOA_image?.file_url || "",
+            brandData.AOA_image?.file_url || "",
+            brandData.Trademark_certificate_image?.file_url || "",
+            brandData.Authorized_Signatory_image?.file_url || "",
+            brandData.LLP_agreement_image?.file_url || "",
+            brandData.Shop_and_Establishment_certificate_image?.file_url || "",
+            brandData.Registered_Partnership_deed_image?.file_url || "",
+            brandData.Board_resolution_image?.file_url || "",
+          ]
+            .map(cell => {
+              // Escape commas and quotes in cell values
+              const cellStr = String(cell);
+              if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+                return `"${cellStr.replace(/"/g, '""')}"`;
+              }
+              return cellStr;
+            })
+            .join(",");
+        });
+
+        return [headers.join(","), ...csvRows].join("\n");
+      }
+
+      return brands;
+    } catch (error) {
+      logger.error("Error exporting brands:", error);
+      throw error;
+    }
+  }
+
+  // In CompanyService class
+  async exportCompanyById(companyId: string, format: string, userId: Types.ObjectId): Promise<any> {
+    try {
+      const company = await CompanyCreate.findOne({ company_id: companyId }).lean();
+
+      if (!company) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      if (format === "json") {
+        return JSON.stringify(company, null, 2);
+      } else if (format === "csv") {
+        // Convert single company to CSV format
+        const companyData = company as any;
+
+        // Define CSV headers
+        const headers = ["Field", "Value"];
+
+        // Flatten company data into key-value pairs
+        const csvRows = [];
+
+        // Add basic company info
+        csvRows.push(["Company ID", companyData.company_id || ""]);
+        csvRows.push(["Registered Company Name", companyData.registered_company_name || ""]);
+        csvRows.push(["Official Email", companyData.official_email || ""]);
+        csvRows.push(["Legal Entity Structure", companyData.legal_entity_structure || ""]);
+        csvRows.push(["Registration Type", companyData.registration_type || ""]);
+        csvRows.push(["CIN/MSME Number", companyData.cin_or_msme_number || ""]);
+        csvRows.push([
+          "Date of Incorporation",
+          companyData.date_of_incorporation
+            ? new Date(companyData.date_of_incorporation).toISOString().split("T")[0]
+            : "",
+        ]);
+        csvRows.push(["Registered Office Address", companyData.registered_office_address || ""]);
+        csvRows.push(["Corporate Website", companyData.corporate_website || ""]);
+        csvRows.push(["Directory Signature Name", companyData.directory_signature_name || ""]);
+        csvRows.push(["DIN", companyData.din || ""]);
+        csvRows.push(["Company Status", companyData.company_status || ""]);
+        csvRows.push([
+          "Created At",
+          companyData.createdAt ? new Date(companyData.createdAt).toISOString() : "",
+        ]);
+        csvRows.push([
+          "Updated At",
+          companyData.updatedAt ? new Date(companyData.updatedAt).toISOString() : "",
+        ]);
+
+        // Convert to CSV string
+        const csvContent = [
+          headers.join(","),
+          ...csvRows.map(row =>
+            row
+              .map(cell => {
+                // Escape commas and quotes in cell values
+                const cellStr = String(cell);
+                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+                  return `"${cellStr.replace(/"/g, '""')}"`;
+                }
+                return cellStr;
+              })
+              .join(",")
+          ),
+        ].join("\n");
+
+        return csvContent;
+      }
+
+      return company;
+    } catch (error) {
+      logger.error(`Error exporting company ${companyId}:`, error);
+      throw error;
+    }
+  }
+  // In BrandService class
+  async exportBrandById(
+    brandIdentifier: string | Types.ObjectId,
+    format: string,
+    userId: Types.ObjectId
+  ): Promise<any> {
+    try {
+      let brand;
+
+      // Convert brandIdentifier to string for validation if it's an ObjectId
+      const brandIdStr =
+        typeof brandIdentifier === "string" ? brandIdentifier : brandIdentifier.toString();
+
+      // Check if it's MongoDB ObjectId or custom brand_id
+      if (mongoose.Types.ObjectId.isValid(brandIdStr) && brandIdStr.length === 24) {
+        // If it's already an ObjectId, use it directly, otherwise create new
+        const objectId =
+          typeof brandIdentifier === "string"
+            ? new Types.ObjectId(brandIdentifier)
+            : brandIdentifier;
+
+        brand = await BrandCreate.findById(objectId)
+          .populate(
+            "company_id",
+            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address"
+          )
+          .populate(
+            "warehouse_id",
+            "warehouse_name warehouse_code address contact_person contact_phone"
+          )
+          .populate("verified_by", "email name role department")
+          .populate("createdBy", "email name role department")
+          .lean();
+      } else {
+        // Search by custom brand_id field
+        brand = await BrandCreate.findOne({ brand_id: brandIdStr })
+          .populate(
+            "company_id",
+            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address"
+          )
+          .populate(
+            "warehouse_id",
+            "warehouse_name warehouse_code address contact_person contact_phone"
+          )
+          .populate("verified_by", "email name role department")
+          .populate("createdBy", "email name role department")
+          .lean();
+      }
+
+      if (!brand) {
+        throw new Error(`Brand with identifier ${brandIdStr} not found`);
+      }
+
+      if (format === "json") {
+        return JSON.stringify(brand, null, 2);
+      } else if (format === "csv") {
+        // Convert single brand to detailed CSV format
+        const brandData = brand as any;
+
+        // Define detailed CSV structure
+        const csvRows = [
+          ["FIELD", "VALUE"],
+          ["Brand Information", ""],
+          ["Brand ID", brandData.brand_id || ""],
+          ["Brand Name", brandData.brand_name || ""],
+          ["Brand Billing Name", brandData.brand_billing_name || ""],
+          ["Brand Email", brandData.brand_email || ""],
+          ["Brand Category", brandData.brand_category || ""],
+          ["Brand Type", brandData.brand_type || ""],
+          ["Registration Type", brandData.registration_type || ""],
+          ["CIN/MSME Number", brandData.cin_or_msme_number || ""],
+          ["", ""],
+          ["Company Information", ""],
+          ["Company Name", brandData.company_id?.registered_company_name || ""],
+          ["Company ID", brandData.company_id?.company_id || ""],
+          ["Company Email", brandData.company_id?.official_email || ""],
+          ["Company Legal Entity", brandData.company_id?.legal_entity_structure || ""],
+          ["Company Registration Type", brandData.company_id?.registration_type || ""],
+          [
+            "Date of Incorporation",
+            brandData.company_id?.date_of_incorporation
+              ? new Date(brandData.company_id.date_of_incorporation).toISOString().split("T")[0]
+              : "",
+          ],
+          ["Company Address", brandData.company_id?.registered_office_address || ""],
+          ["", ""],
+          ["Contact Information", ""],
+          ["Contact Name", brandData.contact_name || ""],
+          ["Contact Phone", brandData.contact_phone || ""],
+          ["Brand Address", brandData.address || ""],
+          ["", ""],
+          ["Financial Information", ""],
+          ["Bank Account", brandData.bank_account_of_brand || ""],
+          ["IFSC Code", brandData.ifsc_code || ""],
+          ["Payment Terms", brandData.payment_terms || ""],
+          ["GST Details", brandData.gst_details || ""],
+          ["PAN Number", brandData.PAN_number || ""],
+          ["FSSAI Number", brandData.FSSAI_number || ""],
+          ["TDS Rate (%)", brandData.TDS_rate || ""],
+          ["Billing Cycle", brandData.billing_cycle || ""],
+          ["Brand Status Cycle", brandData.brand_status_cycle || ""],
+          ["Payment Methods", brandData.payment_methods || ""],
+          ["", ""],
+          ["Contract Information", ""],
+          [
+            "Contract Start Date",
+            brandData.contract_start_date
+              ? new Date(brandData.contract_start_date).toISOString().split("T")[0]
+              : "",
+          ],
+          [
+            "Contract End Date",
+            brandData.contract_end_date
+              ? new Date(brandData.contract_end_date).toISOString().split("T")[0]
+              : "",
+          ],
+          [
+            "Contract Renewal Date",
+            brandData.contract_renewal_date
+              ? new Date(brandData.contract_renewal_date).toISOString().split("T")[0]
+              : "",
+          ],
+          ["Contract Terms", brandData.contract_terms || ""],
+          ["", ""],
+          ["Status & Verification", ""],
+          ["Verification Status", brandData.verification_status || ""],
+          ["Risk Notes", brandData.risk_notes || ""],
+          ["Internal Notes", brandData.internal_notes || ""],
+          ["Verified By", brandData.verified_by?.name || ""],
+          ["Verified By Email", brandData.verified_by?.email || ""],
+          ["Verified By Role", brandData.verified_by?.role || ""],
+          ["", ""],
+          ["Warehouse Information", ""],
+          ["Warehouse Name", brandData.warehouse_id?.warehouse_name || ""],
+          ["Warehouse Code", brandData.warehouse_id?.warehouse_code || ""],
+          ["Warehouse Address", brandData.warehouse_id?.address || ""],
+          ["Warehouse Contact", brandData.warehouse_id?.contact_person || ""],
+          ["Warehouse Phone", brandData.warehouse_id?.contact_phone || ""],
+          ["", ""],
+          ["Document URLs", ""],
+          ["Cancelled Cheque", brandData.upload_cancelled_cheque_image?.file_url || ""],
+          ["GST Certificate", brandData.gst_certificate_image?.file_url || ""],
+          ["PAN Image", brandData.PAN_image?.file_url || ""],
+          ["FSSAI Certificate", brandData.FSSAI_image?.file_url || ""],
+          [
+            "Certificate of Incorporation",
+            brandData.certificate_of_incorporation_image?.file_url || "",
+          ],
+          ["MSME/Udyam Certificate", brandData.MSME_or_Udyam_certificate_image?.file_url || ""],
+          ["MOA Document", brandData.MOA_image?.file_url || ""],
+          ["AOA Document", brandData.AOA_image?.file_url || ""],
+          ["Trademark Certificate", brandData.Trademark_certificate_image?.file_url || ""],
+          ["Authorized Signatory", brandData.Authorized_Signatory_image?.file_url || ""],
+          ["LLP Agreement", brandData.LLP_agreement_image?.file_url || ""],
+          [
+            "Shop & Establishment Certificate",
+            brandData.Shop_and_Establishment_certificate_image?.file_url || "",
+          ],
+          [
+            "Registered Partnership Deed",
+            brandData.Registered_Partnership_deed_image?.file_url || "",
+          ],
+          ["Board Resolution", brandData.Board_resolution_image?.file_url || ""],
+          ["", ""],
+          ["Document Details", ""],
+          ["Cancelled Cheque File Name", brandData.upload_cancelled_cheque_image?.image_name || ""],
+          [
+            "Cancelled Cheque Upload Date",
+            brandData.upload_cancelled_cheque_image?.uploaded_at
+              ? new Date(brandData.upload_cancelled_cheque_image.uploaded_at).toISOString()
+              : "",
+          ],
+          ["GST Certificate File Name", brandData.gst_certificate_image?.image_name || ""],
+          [
+            "GST Certificate Upload Date",
+            brandData.gst_certificate_image?.uploaded_at
+              ? new Date(brandData.gst_certificate_image.uploaded_at).toISOString()
+              : "",
+          ],
+          ["", ""],
+          ["System Information", ""],
+          ["Created By", brandData.createdBy?.name || ""],
+          ["Created By Email", brandData.createdBy?.email || ""],
+          ["Created By Role", brandData.createdBy?.role || ""],
+          ["Created At", brandData.createdAt ? new Date(brandData.createdAt).toISOString() : ""],
+          ["Updated At", brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : ""],
+        ];
+
+        // Convert to CSV string
+        const csvContent = csvRows
+          .map(row =>
+            row
+              .map(cell => {
+                const cellStr = String(cell);
+                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+                  return `"${cellStr.replace(/"/g, '""')}"`;
+                }
+                return cellStr;
+              })
+              .join(",")
+          )
+          .join("\n");
+
+        return csvContent;
+      } else if (format === "pdf") {
+        // PDF generation - you'll need a PDF library like pdfkit or puppeteer
+        return this.generateBrandPDF(brand);
+      }
+
+      return brand;
+    } catch (error) {
+      logger.error(`Error exporting brand ${brandIdentifier}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Toggle brand verification status
+   * Cycles through: pending -> verified -> rejected -> pending
+   */
+  async toggleBrandVerificationStatus(
+    brandIdentifier: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      const query: any =
+        mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+        brandIdentifier.length === 24 &&
+        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
+          ? { _id: new mongoose.Types.ObjectId(brandIdentifier) }
+          : { brand_id: brandIdentifier };
+
+      // Get current brand
+      const currentBrand = await BrandCreate.findOne(query);
+
+      if (!currentBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Determine next verification status
+      const currentStatus = currentBrand.verification_status;
+      let nextStatus: "pending" | "verified" | "rejected";
+      let verificationNotes = "";
+
+      // Cycle: pending -> verified -> rejected -> pending
+      switch (currentStatus) {
+        case "pending":
+          nextStatus = "verified";
+          verificationNotes = "Brand verified by system administrator";
+          break;
+        case "verified":
+          nextStatus = "rejected";
+          verificationNotes = "Brand rejected by system administrator";
+          break;
+        case "rejected":
+          nextStatus = "pending";
+          verificationNotes = "Brand status reset to pending";
+          break;
+        default:
+          nextStatus = "pending";
+          verificationNotes = "Brand status set to pending";
+      }
+
+      // Update verification status
+      const updateData = {
+        verification_status: nextStatus,
+        ...(nextStatus === "verified" ? { verified_by: updatedBy } : {}),
+      };
+
+      const updatedBrand = (await BrandCreate.findOneAndUpdate(
+        query,
+        { $set: updateData },
+        { new: true, runValidators: true }
+      )
+        .populate("company_id", "company_id registered_company_name official_email")
+        .populate("verified_by", "email name role")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "toggle_verification",
+          action_description: `Toggled brand verification status from ${currentStatus} to ${nextStatus}: ${currentBrand.brand_name}`,
+          target_type: "brand",
+          target_brand: currentBrand._id,
+          target_brand_name: currentBrand.brand_name,
+          target_company: currentBrand.company_id,
+          before_state: { verification_status: currentStatus },
+          after_state: { verification_status: nextStatus },
+          changed_fields: ["verification_status"],
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(
+        `Brand verification status toggled: ${currentBrand.brand_name} from ${currentStatus} to ${nextStatus}`
+      );
+      return updatedBrand;
+    } catch (error) {
+      logger.error(`Error toggling brand verification status ${brandIdentifier}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Generate PDF for a brand
+   */
+  private async generateBrandPDF(brand: any): Promise<Buffer> {
+    try {
+      // You'll need to install a PDF generation library
+      // Example using pdfkit:
+      const doc = new PDFDocument();
+      const buffers: Buffer[] = [];
+
+      doc.on("data", buffers.push.bind(buffers));
+      doc.on("end", () => {});
+
+      // Brand Information
+      doc.fontSize(16).text("Brand Export Report", { align: "center" });
+      doc.moveDown();
+
+      doc.fontSize(14).text("Brand Information:");
+      doc.fontSize(12).text(`Brand ID: ${brand.brand_id || "N/A"}`);
+      doc.text(`Brand Name: ${brand.brand_name || "N/A"}`);
+      doc.text(`Brand Email: ${brand.brand_email || "N/A"}`);
+      doc.moveDown();
+
+      // Company Information
+      if (brand.company_id) {
+        doc.fontSize(14).text("Company Information:");
+        doc.fontSize(12).text(`Company Name: ${brand.company_id.registered_company_name || "N/A"}`);
+        doc.text(`Company ID: ${brand.company_id.company_id || "N/A"}`);
+        doc.text(`Official Email: ${brand.company_id.official_email || "N/A"}`);
+        doc.moveDown();
+      }
+
+      // Contact Information
+      doc.fontSize(14).text("Contact Information:");
+      doc.fontSize(12).text(`Contact Name: ${brand.contact_name || "N/A"}`);
+      doc.text(`Contact Phone: ${brand.contact_phone || "N/A"}`);
+      doc.text(`Address: ${brand.address || "N/A"}`);
+      doc.moveDown();
+
+      // Financial Information
+      doc.fontSize(14).text("Financial Information:");
+      doc.fontSize(12).text(`Bank Account: ${brand.bank_account_of_brand || "N/A"}`);
+      doc.text(`IFSC Code: ${brand.ifsc_code || "N/A"}`);
+      doc.text(`PAN Number: ${brand.PAN_number || "N/A"}`);
+      doc.text(`GST Details: ${brand.gst_details || "N/A"}`);
+      doc.moveDown();
+
+      // Status Information
+      doc.fontSize(14).text("Status Information:");
+      doc.fontSize(12).text(`Verification Status: ${brand.verification_status || "N/A"}`);
+      doc.text(
+        `Created At: ${brand.createdAt ? new Date(brand.createdAt).toLocaleString() : "N/A"}`
+      );
+      doc.text(
+        `Updated At: ${brand.updatedAt ? new Date(brand.updatedAt).toLocaleString() : "N/A"}`
+      );
+
+      doc.end();
+
+      return new Promise((resolve, reject) => {
+        doc.on("end", () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+        doc.on("error", reject);
+      });
+    } catch (error) {
+      logger.error("Error generating PDF:", error);
+      throw new Error("Failed to generate PDF");
+    }
+  }
+
+  /**
+   * Toggle company status (active/inactive) by MongoDB ObjectId
+   */
+  async toggleCompanyStatus(
+    companyId: string, // MongoDB ObjectId
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<ICompanyCreate> {
+    try {
+      // Validate MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(companyId)) {
+        throw new Error("Invalid company ID format");
+      }
+
+      // Get current company by MongoDB ObjectId
+      const currentCompany = await CompanyCreate.findById(companyId);
+
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      // Toggle the status
+      const newStatus = currentCompany.company_status === "active" ? "inactive" : "active";
+
+      // Update company status
+      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+        companyId,
+        { $set: { company_status: newStatus } },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as ICompanyCreate;
+
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      // Create audit trail
+      if (req) {
+        await auditTrailService.createAuditRecord({
+          user: updatedBy,
+          user_email: userEmail,
+          user_role: userRole,
+          action: "update",
+          action_description: `Toggled company status from ${currentCompany.company_status} to ${newStatus}: ${currentCompany.registered_company_name}`,
+          target_type: "company",
+          target_company: currentCompany._id,
+          target_company_name: currentCompany.registered_company_name,
+          target_company_cin: currentCompany.cin_or_msme_number,
+          before_state: { company_status: currentCompany.company_status },
+          after_state: { company_status: newStatus },
+          changed_fields: ["company_status"],
+          ip_address: req.ip,
+          user_agent: req.get("User-Agent"),
+        });
+      }
+
+      logger.info(
+        `Company status toggled: ${updatedCompany.registered_company_name} (ID: ${companyId}) - ${currentCompany.company_status} -> ${newStatus}`
+      );
+      return updatedCompany;
+    } catch (error) {
+      logger.error(`Error toggling company status ${companyId}:`, error);
+      throw error;
+    }
+  }
+
+  // Validate brand data
+  async validateBrandData(data: { brand_email?: string; cin_or_msme_number?: string }): Promise<{
+    isValid: boolean;
+    errors: string[];
+    details: {
+      brand_email?: { exists: boolean; message: string };
+      company_exists?: { exists: boolean; message: string };
+    };
+  }> {
+    try {
+      const errors: string[] = [];
+      const details: any = {};
+
+      // Check brand email
+      if (data.brand_email) {
+        const existingEmail = await BrandCreate.findOne({
+          brand_email: data.brand_email.toLowerCase(),
+        });
+        details.brand_email = {
+          exists: !!existingEmail,
+          message: existingEmail ? "Brand email already exists" : "Brand email is available",
+        };
+        if (existingEmail) {
+          errors.push("Brand email already exists");
+        }
+      }
+
+      // Check company exists
+      if (data.cin_or_msme_number) {
+        const companyExists = await CompanyCreate.findOne({
+          cin_or_msme_number: data.cin_or_msme_number,
+        });
+        details.company_exists = {
+          exists: !!companyExists,
+          message: companyExists ? "Company exists" : "Company not found",
+        };
+        if (!companyExists) {
+          errors.push("Company with this registration number does not exist");
+        }
+      }
+
+      return {
+        isValid: errors.length === 0,
+        errors,
+        details,
+      };
+    } catch (error) {
+      logger.error("Error validating brand data:", error);
+      throw error;
+    }
+  }
+
+  // Bulk create brands
+  async bulkCreateBrands(
+    brands: IBrandCreateData[],
+    createdBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<{
+    successful: IBrandCreate[];
+    failed: Array<{ data: IBrandCreateData; error: string }>;
+  }> {
+    try {
+      const successful: IBrandCreate[] = [];
+      const failed: Array<{ data: IBrandCreateData; error: string }> = [];
+
+      for (const brandData of brands) {
+        try {
+          // Check for duplicates in this batch
+          const duplicateInBatch =
+            brands.filter(
+              (b, idx) => b.brand_email.toLowerCase() === brandData.brand_email.toLowerCase()
+            ).length > 1;
+
+          if (duplicateInBatch) {
+            throw new Error("Duplicate brand email found within the batch");
+          }
+
+          const newBrand = await this.createBrand(brandData, createdBy, userEmail, userRole, req);
+          successful.push(newBrand);
+        } catch (error: any) {
+          failed.push({
+            data: brandData,
+            error: error.message,
+          });
+        }
+      }
+
+      return { successful, failed };
+    } catch (error) {
+      logger.error("Error in bulk brand creation:", error);
+      throw error;
+    }
+  }
+
+  // Add this method to your existing CompanyService class
+  async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
+    try {
+      const { page, limit, company_status, legal_entity_structure, registration_type, search } =
+        options;
+      const skip = (page - 1) * limit;
+
+      // Build query for companies
+      const companyQuery: any = {};
+
+      if (company_status) {
+        companyQuery.company_status = company_status;
+      }
+
+      if (legal_entity_structure) {
+        companyQuery.legal_entity_structure = legal_entity_structure;
+      }
+
+      if (registration_type) {
+        companyQuery.registration_type = registration_type;
+      }
+
+      if (search) {
+        companyQuery.$or = [
+          { registered_company_name: { $regex: search, $options: "i" } },
+          { company_id: { $regex: search, $options: "i" } },
+          { cin_or_msme_number: { $regex: search, $options: "i" } },
+          { official_email: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      // Get statistics in parallel
+      const [
+        totalCompanies,
+        activeCompanies,
+        inactiveCompanies,
+        legalEntityStats,
+        registrationTypeStats,
+        companies,
+        totalCount,
+      ] = await Promise.all([
+        // Total companies count
+        CompanyCreate.countDocuments(companyQuery),
+
+        // Active companies count
+        CompanyCreate.countDocuments({ ...companyQuery, company_status: "active" }),
+
+        // Inactive companies count
+        CompanyCreate.countDocuments({ ...companyQuery, company_status: "inactive" }),
+
+        // Legal entity structure statistics
+        CompanyCreate.aggregate([
+          { $match: companyQuery },
           {
             $group: {
-              _id: "$verification_status",
-              count: { $sum: 1 },
-            },
-          },
-        ]),
-
-        VendorCreate.aggregate([
-          {
-            $match: {
-              cin: company.cin,
-            },
-          },
-          {
-            $group: {
-              _id: "$vendor_category",
+              _id: "$legal_entity_structure",
               count: { $sum: 1 },
             },
           },
           { $sort: { count: -1 } },
         ]),
 
-        VendorCreate.aggregate([
-          {
-            $match: {
-              cin: company.cin,
-            },
-          },
+        // Registration type statistics
+        CompanyCreate.aggregate([
+          { $match: companyQuery },
           {
             $group: {
-              _id: "$risk_rating",
+              _id: "$registration_type",
               count: { $sum: 1 },
             },
           },
         ]),
 
-        VendorCreate.find({
-          cin: company.cin,
-        })
-          .populate("createdBy", "name email")
-          .select("vendor_name vendor_id vendor_category verification_status risk_rating createdAt")
+        // Get companies with pagination
+        CompanyCreate.find(companyQuery)
+          .select(
+            "company_id registered_company_name cin_or_msme_number legal_entity_structure registration_type company_status official_email date_of_incorporation createdAt updatedAt"
+          )
           .sort({ createdAt: -1 })
-          .limit(5),
+          .skip(skip)
+          .limit(limit)
+          .lean(),
 
-        VendorCreate.countDocuments({
-          cin: company.cin,
-        }),
+        // Get total count for pagination
+        CompanyCreate.countDocuments(companyQuery),
       ]);
 
-    const statsObject = {
-      pending: 0,
-      verified: 0,
-      failed: 0,
-      rejected: 0,
-      "in-review": 0,
-      approved: 0,
-    };
+      // Get brand counts for each company
+      const companiesWithBrandCounts = await Promise.all(
+        companies.map(async (company: any) => {
+          const brandCount = await BrandCreate.countDocuments({
+            company_id: company._id,
+          });
 
-    vendorStats.forEach(stat => {
-      const statusKey = stat._id?.toLowerCase()?.replace(/\s+/g, "-") || stat._id;
-      if (statusKey in statsObject) {
-        statsObject[statusKey] = stat.count;
-      } else {
-        statsObject[stat._id] = stat.count;
-      }
-    });
+          return {
+            _id: company._id.toString(),
+            company_id: company.company_id,
+            registered_company_name: company.registered_company_name,
+            cin_or_msme_number: company.cin_or_msme_number,
+            legal_entity_structure: company.legal_entity_structure,
+            registration_type: company.registration_type,
+            company_status: company.company_status,
+            brandCount,
+            official_email: company.official_email,
+            date_of_incorporation: company.date_of_incorporation,
+            createdAt: company.createdAt,
+            updatedAt: company.updatedAt,
+          };
+        })
+      );
 
-    const verifiedPercentage =
-      totalVendors > 0 ? Math.round((statsObject.verified / totalVendors) * 100) : 0;
-
-    const pendingPercentage =
-      totalVendors > 0 ? Math.round((statsObject.pending / totalVendors) * 100) : 0;
-
-    const riskDistribution = {};
-    vendorsByRisk.forEach(risk => {
-      const riskKey = risk._id || "Not Rated";
-      const percentage = totalVendors > 0 ? Math.round((risk.count / totalVendors) * 100) : 0;
-
-      riskDistribution[riskKey] = {
-        count: risk.count,
-        percentage: percentage,
-      };
-    });
-
-    const topCategories = vendorsByCategory.slice(0, 3).map(cat => ({
-      category: cat._id || "Uncategorized",
-      count: cat.count,
-      percentage: totalVendors > 0 ? Math.round((cat.count / totalVendors) * 100) : 0,
-    }));
-
-    return {
-      company: company,
-      statistics: {
-        total_vendors: totalVendors,
-        by_status: statsObject,
-        by_category: vendorsByCategory,
-        by_risk: riskDistribution,
-        status_percentages: {
-          verified: verifiedPercentage,
-          pending: pendingPercentage,
+      return {
+        data: companiesWithBrandCounts,
+        statistics: {
+          totalCompanies,
+          activeCompanies,
+          inactiveCompanies,
+          byLegalEntityStructure: legalEntityStats,
+          byRegistrationType: registrationTypeStats,
         },
-        top_categories: topCategories,
-        category_count: vendorsByCategory.length,
-        risk_levels_count: vendorsByRisk.length,
-      },
-      recent_vendors: recentVendors,
-      overview: {
-        company_name: company.registered_company_name,
-        cin: company.cin,
-        vendor_summary: `Total ${totalVendors} vendors registered`,
-        verification_summary: `${statsObject.verified} verified (${verifiedPercentage}%)`,
-      },
-    };
-  }
-  async updateVendorForAdmin(
-    id: string,
-    updateData: Partial<IVendorCreate>,
-    userId: Types.ObjectId,
-    userRole: string
-  ): Promise<IVendorCreate | null> {
-    try {
-      const existingVendor = await VendorCreate.findById(id);
-      if (!existingVendor) {
-        throw new Error("Vendor not found");
-      }
-
-      if (userRole === "vendor_admin" && !existingVendor.createdBy.equals(userId)) {
-        throw new Error("You can only update vendors created by you");
-      }
-
-      if (
-        !["super_admin", "vendor_admin"].includes(userRole) &&
-        "verification_status" in updateData
-      ) {
-        if (updateData.verification_status !== existingVendor.verification_status) {
-          throw new Error("Only Super Admin or Vendor Admin can modify verification status");
-        }
-        delete updateData.verification_status;
-      }
-
-      const allowedFields = [
-        "vendor_name",
-        "vendor_billing_name",
-        "primary_contact_name",
-        "vendor_category",
-        "vendor_address",
-        "vendor_contact",
-        "vendor_email",
-        "vendor_phone",
-        "bank_account_number",
-        "ifsc_code",
-        "payment_terms",
-        "gst_number",
-        "pan_number",
-        "tds_rate",
-        "billing_cycle",
-        "risk_rating",
-        "risk_notes",
-        "payment_methods",
-        "internal_notes",
-        "contract_expiry_date",
-        "contract_renewal_date",
-        "document_names",
-        "documents_uploaded",
-      ];
-
-      const filteredUpdateData: Record<string, any> = {};
-      Object.keys(updateData).forEach(key => {
-        if (allowedFields.includes(key)) {
-          filteredUpdateData[key] = updateData[key as keyof IVendorCreate];
-        }
-      });
-
-      if (filteredUpdateData.vendor_email) {
-        const existingVendorWithEmail = await VendorCreate.findOne({
-          vendor_email: filteredUpdateData.vendor_email.toLowerCase(),
-          _id: { $ne: id },
-        });
-
-        if (existingVendorWithEmail) {
-          throw new Error("Vendor with this email already exists");
-        }
-      }
-
-      return await VendorCreate.findByIdAndUpdate(id, filteredUpdateData, {
-        new: true,
-        runValidators: true,
-      })
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email");
-    } catch (error: any) {
-      throw new Error(`Error updating vendor: ${error.message}`);
-    }
-  }
-
-  async getVendorForEdit(
-    id: string,
-    userId: Types.ObjectId,
-    userRole: string
-  ): Promise<IVendorCreate | null> {
-    try {
-      const vendor = await VendorCreate.findById(id)
-        .populate("createdBy", "name email")
-        .populate("verified_by", "name email");
-
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-
-      if (userRole === "vendor_admin" && !vendor.createdBy.equals(userId)) {
-        throw new Error("You can only access vendors created by you");
-      }
-
-      return vendor;
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor: ${error.message}`);
-    }
-  }
-
-  async deleteVendorForAdmin(
-    id: string,
-    userId: Types.ObjectId,
-    userRole: string
-  ): Promise<boolean> {
-    try {
-      const vendor = await VendorCreate.findById(id);
-
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-
-      if (userRole === "vendor_admin" && !vendor.createdBy.equals(userId)) {
-        throw new Error("You can only delete vendors created by you");
-      }
-
-      const result = await VendorCreate.findByIdAndDelete(id);
-      return !!result;
-    } catch (error: any) {
-      throw new Error(`Error deleting vendor: ${error.message}`);
-    }
-  }
-
-  private getChangedFields(before: any, after: any): string[] {
-    const changedFields: string[] = [];
-
-    if (!before || !after) return changedFields;
-
-    const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
-
-    allKeys.forEach(key => {
-      if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
-        changedFields.push(key);
-      }
-    });
-
-    return changedFields;
-  }
-
-  private async createVendorAuditRecord(
-    user: Types.ObjectId,
-    user_email: string,
-    user_role: string,
-    action: string,
-    action_description: string,
-    target_vendor: Types.ObjectId,
-    target_vendor_name: string,
-    target_vendor_id: string,
-    before_state?: any,
-    after_state?: any,
-    req?: any
-  ) {
-    try {
-      await this.auditTrailService.createAuditRecord({
-        user,
-        user_email,
-        user_role,
-        action,
-        action_description,
-        target_vendor,
-        target_vendor_name,
-        target_vendor_id,
-        before_state,
-        after_state,
-        changed_fields:
-          before_state && after_state ? this.getChangedFields(before_state, after_state) : [],
-        ip_address: req?.ip || req?.connection?.remoteAddress,
-        user_agent: req?.get("User-Agent"),
-      });
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+        },
+      };
     } catch (error) {
-      logger.error("Failed to create audit record:", error);
-    }
-  }
-
-  async uploadVendorDocument(
-    vendorId: string,
-    file: Express.Multer.File,
-    documentType: IVendorDocument["document_type"],
-    expiryDate: Date | undefined,
-    userId: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ): Promise<IVendorCreate | null> {
-    try {
-      const vendor = await VendorCreate.findById(vendorId);
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-
-      if (!this.documentUploadService.validateDocumentType(documentType)) {
-        throw new Error("Invalid document type");
-      }
-
-      const { url, publicId } = await this.documentUploadService.uploadToCloudinary(
-        file.buffer,
-        file.originalname,
-        `frovo/vendors/${vendor.vendor_id}`
-      );
-
-      const documentMetadata = this.documentUploadService.createDocumentMetadata(
-        file,
-        documentType,
-        url,
-        publicId,
-        expiryDate
-      );
-
-      const beforeState = vendor.toObject();
-      vendor.documents.push(documentMetadata as any);
-      await vendor.save();
-
-      await this.createVendorAuditRecord(
-        userId,
-        userEmail,
-        userRole,
-        "document_upload",
-        `Uploaded document: ${file.originalname} (${documentType})`,
-        vendor._id as Types.ObjectId,
-        vendor.vendor_name,
-        vendor.vendor_id,
-        beforeState,
-        vendor.toObject(),
-        req
-      );
-
-      return vendor;
-    } catch (error: any) {
-      throw new Error(`Error uploading vendor document: ${error.message}`);
-    }
-  }
-
-  async deleteVendorDocument(
-    vendorId: string,
-    documentId: string,
-    userId: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: any
-  ): Promise<IVendorCreate | null> {
-    try {
-      const vendor = await VendorCreate.findById(vendorId);
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-
-      const documentIndex = vendor.documents.findIndex(
-        (doc: any) => doc._id.toString() === documentId
-      );
-
-      if (documentIndex === -1) {
-        throw new Error("Document not found");
-      }
-
-      const document = vendor.documents[documentIndex];
-
-      await this.documentUploadService.deleteFromCloudinary(document.cloudinary_public_id);
-
-      const beforeState = vendor.toObject();
-      const documentName = document.document_name;
-      const documentType = document.document_type;
-
-      vendor.documents.splice(documentIndex, 1);
-      await vendor.save();
-
-      await this.createVendorAuditRecord(
-        userId,
-        userEmail,
-        userRole,
-        "document_delete",
-        `Deleted document: ${documentName} (${documentType})`,
-        vendor._id as Types.ObjectId,
-        vendor.vendor_name,
-        vendor.vendor_id,
-        beforeState,
-        vendor.toObject(),
-        req
-      );
-
-      return vendor;
-    } catch (error: any) {
-      throw new Error(`Error deleting vendor document: ${error.message}`);
-    }
-  }
-
-  async getVendorDocuments(vendorId: string): Promise<IVendorDocument[]> {
-    try {
-      const vendor = await VendorCreate.findById(vendorId);
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-      return vendor.documents;
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor documents: ${error.message}`);
-    }
-  }
-
-  async getVendorDocument(vendorId: string, documentId: string): Promise<IVendorDocument | null> {
-    try {
-      const vendor = await VendorCreate.findById(vendorId);
-      if (!vendor) {
-        throw new Error("Vendor not found");
-      }
-
-      const document = vendor.documents.find((doc: any) => doc._id.toString() === documentId);
-
-      if (!document) {
-        return null;
-      }
-
-      return document;
-    } catch (error: any) {
-      throw new Error(`Error fetching vendor document: ${error.message}`);
-    }
-  }
-}
-
-class VendorValidationService {
-  static validateCompleteVendorData(data: Partial<IVendorCreate>): void {
-    if (!data.vendor_name) {
-      throw new Error("Vendor name is required");
-    }
-
-    if (!data.vendor_billing_name) {
-      throw new Error("Vendor billing name is required");
-    }
-
-    if (!data.primary_contact_name) {
-      throw new Error("Primary contact name is required");
-    }
-
-    if (!data.vendor_category) {
-      throw new Error("Vendor category is required");
-    }
-
-    if (!data.vendor_address) {
-      throw new Error("Vendor address is required");
-    }
-
-    if (!data.contact_phone) {
-      throw new Error("Contact phone is required");
-    }
-
-    if (!data.vendor_email) {
-      throw new Error("Vendor email is required");
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.vendor_email)) {
-      throw new Error("Invalid vendor email format");
-    }
-
-    if (!data.vendor_type || data.vendor_type.length === 0) {
-      throw new Error("At least one vendor type is required");
-    }
-
-    if (!data.bank_account_number) {
-      throw new Error("Bank account number is required");
-    }
-
-    if (!data.ifsc_code) {
-      throw new Error("IFSC code is required");
-    }
-
-    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-    if (!ifscRegex.test(data.ifsc_code)) {
-      throw new Error("Valid IFSC code is required (format: ABCD0123456)");
-    }
-
-    if (!data.gst_number) {
-      throw new Error("GST number is required");
-    }
-
-    if (!data.pan_number) {
-      throw new Error("PAN number is required");
-    }
-
-    if (data.tds_rate === undefined || data.tds_rate === null) {
-      throw new Error("TDS rate is required");
-    }
-
-    if (data.tds_rate < 0 || data.tds_rate > 100) {
-      throw new Error("TDS rate must be between 0 and 100");
-    }
-
-    if (!data.contract_expiry_date) {
-      throw new Error("Contract expiry date is required");
-    }
-
-    if (!data.contract_renewal_date) {
-      throw new Error("Contract renewal date is required");
-    }
-
-    if (data.contract_expiry_date && data.contract_renewal_date) {
-      const expiryDate = new Date(data.contract_expiry_date);
-      const renewalDate = new Date(data.contract_renewal_date);
-
-      if (expiryDate <= renewalDate) {
-        throw new Error("Contract expiry date must be after renewal date");
-      }
-    }
-
-    if (!data.risk_notes) {
-      throw new Error("Risk notes are required");
+      logger.error("Error generating company dashboard:", error);
+      throw error;
     }
   }
 }

@@ -352,7 +352,8 @@ class PriceOverrideController {
 
       let message = "";
       if (result.expired_count === 0) {
-        message = "No overrides needed to be expired. All active overrides are still within their valid date range.";
+        message =
+          "No overrides needed to be expired. All active overrides are still within their valid date range.";
       } else {
         message = `Successfully expired ${result.expired_count} price override(s) that passed their end date.`;
       }
