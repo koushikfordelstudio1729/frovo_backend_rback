@@ -42,7 +42,14 @@ const auditTrailSchema = new Schema<IAuditTrail>(
     user_role: {
       type: String,
       required: true,
-      enum: ["super_admin", "vendor_admin", "ops_manager", "finance_manager", "user"],
+      enum: [
+        "super_admin",
+        "vendor_admin",
+        "vendor_staff",
+        "ops_manager",
+        "finance_manager",
+        "user",
+      ],
     },
     action: {
       type: String,

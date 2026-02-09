@@ -6,13 +6,19 @@ import { logger } from "../utils/logger.util";
 import { ImageUploadService } from "./vendorFileUpload.service";
 import { AuditTrail } from "../models/AuditTrail.model";
 import PDFDocument from "pdfkit";
+import {
+  validateMongoId,
+  getRequiredDocumentsForLegalEntity,
+  escapeCSVCell,
+  buildCSV,
+} from "../utils/vendor.helpers";
 
 const auditTrailService = new AuditTrailService();
 
 // ============================================
 // COMPANY SERVICE INTERFACES
 // ============================================
-// Add this interface at the top with other interfaces
+
 export interface ICompanyDashboardOptions {
   page: number;
   limit: number;
@@ -52,7 +58,6 @@ export interface ICompanyDashboardResponse {
   };
 }
 
-// Type for lean company documents (without Mongoose Document methods)
 export type LeanCompany = {
   _id: mongoose.Types.ObjectId;
   company_id: string;
@@ -67,6 +72,7 @@ export type LeanCompany = {
   directory_signature_name: string;
   din: string;
   company_status: "active" | "inactive";
+  verification_status: "pending" | "verified" | "rejected";
   createdAt: Date;
   updatedAt: Date;
   __v: number;
@@ -228,191 +234,37 @@ export interface IBrandByCompanyOptions {
 }
 
 // ============================================
+// HELPER: Build brand ID query
+// ============================================
+
+function buildBrandQuery(brandIdentifier: string): any {
+  return mongoose.Types.ObjectId.isValid(brandIdentifier) &&
+    brandIdentifier.length === 24 &&
+    brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
+    ? { _id: new mongoose.Types.ObjectId(brandIdentifier) }
+    : { brand_id: brandIdentifier };
+}
+
+// ============================================
+// HELPER: Paginate result
+// ============================================
+
+function paginationMeta(page: number, limit: number, total: number) {
+  return { page, limit, total, totalPages: Math.ceil(total / limit) };
+}
+
+// ============================================
 // COMPANY SERVICE
 // ============================================
 
 export class CompanyService {
-  // Get company by company_id (7-digit ID)
-  async getCompanyByCompanyId(companyId: string): Promise<ICompanyCreate | null> {
-    try {
-      const company = (await CompanyCreate.findOne({
-        company_id: companyId,
-      }).lean()) as unknown as ICompanyCreate | null;
-
-      if (!company) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      return company;
-    } catch (error) {
-      logger.error(`Error fetching company by company_id ${companyId}:`, error);
-      throw error;
-    }
-  }
-
-  // Update company by company_id (7-digit ID)
-  async updateCompanyByCompanyId(
-    companyId: string,
-    updateData: ICompanyUpdateData,
-    updatedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<ICompanyCreate | null> {
-    try {
-      // Get current company data for audit
-      const currentCompany = await CompanyCreate.findOne({ company_id: companyId });
-      if (!currentCompany) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      // Check for duplicate data if provided
-      if (
-        updateData.cin_or_msme_number &&
-        updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
-      ) {
-        const existingCompany = await CompanyCreate.findOne({
-          cin_or_msme_number: updateData.cin_or_msme_number,
-          company_id: { $ne: companyId },
-        });
-
-        if (existingCompany) {
-          throw new Error(
-            `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
-          );
-        }
-      }
-
-      if (
-        updateData.official_email &&
-        updateData.official_email !== currentCompany.official_email
-      ) {
-        const existingEmail = await CompanyCreate.findOne({
-          official_email: updateData.official_email.toLowerCase(),
-          company_id: { $ne: companyId },
-        });
-
-        if (existingEmail) {
-          throw new Error(`Company with email ${updateData.official_email} already exists`);
-        }
-      }
-
-      if (updateData.din && updateData.din !== currentCompany.din) {
-        const existingDIN = await CompanyCreate.findOne({
-          din: updateData.din,
-          company_id: { $ne: companyId },
-        });
-
-        if (existingDIN) {
-          throw new Error(`Company with DIN ${updateData.din} already exists`);
-        }
-      }
-
-      // Prepare update data
-      const updateObj: any = { ...updateData };
-      if (updateObj.official_email) {
-        updateObj.official_email = updateObj.official_email.toLowerCase();
-      }
-
-      // Update company
-      const updatedCompany = (await CompanyCreate.findOneAndUpdate(
-        { company_id: companyId },
-        { $set: updateObj },
-        { new: true, runValidators: true }
-      ).lean()) as unknown as ICompanyCreate | null;
-
-      if (!updatedCompany) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: updatedBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "update",
-          action_description: `Updated company: ${currentCompany.registered_company_name}`,
-          target_type: "company",
-          target_company: currentCompany._id,
-          target_company_name: currentCompany.registered_company_name,
-          target_company_cin: currentCompany.cin_or_msme_number,
-          before_state: currentCompany.toObject(),
-          after_state: updateData,
-          changed_fields: Object.keys(updateData),
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(
-        `Company updated: ${updatedCompany.registered_company_name} (Company ID: ${companyId})`
-      );
-      return updatedCompany;
-    } catch (error) {
-      logger.error(`Error updating company ${companyId}:`, error);
-      throw error;
-    }
-  }
-
-  // Delete company by company_id (7-digit ID)
-  async deleteCompanyByCompanyId(
-    companyId: string,
-    deletedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<ICompanyCreate | null> {
-    try {
-      const company = (await CompanyCreate.findOneAndDelete({
-        company_id: companyId,
-      }).lean()) as unknown as ICompanyCreate | null;
-
-      if (!company) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: deletedBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "delete",
-          action_description: `Deleted company: ${company.registered_company_name}`,
-          target_type: "company",
-          target_company: company._id,
-          target_company_name: company.registered_company_name,
-          target_company_cin: company.cin_or_msme_number,
-          before_state: company,
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(`Company deleted: ${company.registered_company_name} (Company ID: ${companyId})`);
-      return company;
-    } catch (error) {
-      logger.error(`Error deleting company ${companyId}:`, error);
-      throw error;
-    }
-  }
-
-  // Export companies data
   async exportCompanies(format: string, filters: any, userId: Types.ObjectId): Promise<any> {
     try {
       const query: any = {};
-
-      // Apply filters if provided
-      if (filters.company_status) {
-        query.company_status = filters.company_status;
-      }
-      if (filters.registration_type) {
-        query.registration_type = filters.registration_type;
-      }
-      if (filters.legal_entity_structure) {
+      if (filters.company_status) query.company_status = filters.company_status;
+      if (filters.registration_type) query.registration_type = filters.registration_type;
+      if (filters.legal_entity_structure)
         query.legal_entity_structure = filters.legal_entity_structure;
-      }
       if (filters.search) {
         query.$or = [
           { registered_company_name: { $regex: filters.search, $options: "i" } },
@@ -423,12 +275,9 @@ export class CompanyService {
 
       const companies = await CompanyCreate.find(query).sort({ createdAt: -1 }).lean();
 
-      // For CSV/Excel export, you would convert companies to CSV/Excel format
-      // For JSON export, return as is
-      if (format === "json") {
-        return JSON.stringify(companies, null, 2);
-      } else if (format === "csv") {
-        // Convert to CSV format
+      if (format === "json") return JSON.stringify(companies, null, 2);
+
+      if (format === "csv") {
         const headers = [
           "Company ID",
           "Registered Company Name",
@@ -441,21 +290,19 @@ export class CompanyService {
           "Created At",
         ];
 
-        const csvRows = companies.map(company =>
-          [
-            company.company_id,
-            company.registered_company_name,
-            company.official_email,
-            company.legal_entity_structure,
-            company.registration_type,
-            company.cin_or_msme_number,
-            new Date(company.date_of_incorporation).toISOString().split("T")[0],
-            company.company_status,
-            new Date(company.createdAt).toISOString(),
-          ].join(",")
-        );
+        const rows = companies.map(c => [
+          c.company_id,
+          c.registered_company_name,
+          c.official_email,
+          c.legal_entity_structure,
+          c.registration_type,
+          c.cin_or_msme_number,
+          new Date(c.date_of_incorporation).toISOString().split("T")[0],
+          c.company_status,
+          new Date(c.createdAt).toISOString(),
+        ]);
 
-        return [headers.join(","), ...csvRows].join("\n");
+        return buildCSV(headers, rows);
       }
 
       return companies;
@@ -465,50 +312,28 @@ export class CompanyService {
     }
   }
 
-  /**
-   * Get audit trails for a company by MongoDB ObjectId
-   */
   async getCompanyAuditTrails(
-    companyId: string, // MongoDB ObjectId
+    companyId: string,
     page: number = 1,
     limit: number = 50
   ): Promise<any> {
     try {
-      // Validate MongoDB ObjectId
-      if (!mongoose.Types.ObjectId.isValid(companyId)) {
-        throw new Error("Invalid company ID format");
-      }
-
+      validateMongoId(companyId, "Company ID");
       const skip = (page - 1) * limit;
-
-      // Query audit trails by company MongoDB ObjectId
       const query = { target_company: new mongoose.Types.ObjectId(companyId) };
-
       const total = await AuditTrail.countDocuments(query);
-
       const auditTrails = await AuditTrail.find(query)
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
 
-      return {
-        data: auditTrails,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+      return { data: auditTrails, pagination: paginationMeta(page, limit, total) };
     } catch (error) {
       logger.error(`Error fetching company audit trails for ${companyId}:`, error);
       throw error;
     }
   }
-  // ============================================
-  // All the existing methods from your original service
-  // ============================================
 
   async createCompany(
     companyData: ICompanyCreateData,
@@ -518,44 +343,34 @@ export class CompanyService {
     req?: Request
   ): Promise<ICompanyCreate> {
     try {
-      // Check if company with same CIN/MSME number already exists
-      const existingCompany = await CompanyCreate.findOne({
+      // Check for duplicates
+      const existingCIN = await CompanyCreate.findOne({
         cin_or_msme_number: companyData.cin_or_msme_number,
       });
-
-      if (existingCompany) {
+      if (existingCIN) {
         throw new Error(
           `Company with CIN/MSME number ${companyData.cin_or_msme_number} already exists`
         );
       }
 
-      // Check if official_email already exists
       const existingEmail = await CompanyCreate.findOne({
         official_email: companyData.official_email.toLowerCase(),
       });
-
       if (existingEmail) {
         throw new Error(`Company with email ${companyData.official_email} already exists`);
       }
 
-      // Check if DIN already exists
-      const existingDIN = await CompanyCreate.findOne({
-        din: companyData.din,
-      });
-
+      const existingDIN = await CompanyCreate.findOne({ din: companyData.din });
       if (existingDIN) {
         throw new Error(`Company with DIN ${companyData.din} already exists`);
       }
 
-      // Create new company
       const newCompany = new CompanyCreate({
         ...companyData,
         company_status: companyData.company_status || "active",
       });
-
       await newCompany.save();
 
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: createdBy,
@@ -582,12 +397,7 @@ export class CompanyService {
 
   async getAllCompanies(options: ICompanyPaginationOptions): Promise<{
     data: ICompanyCreate[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    pagination: { page: number; limit: number; total: number; totalPages: number };
   }> {
     try {
       const {
@@ -601,8 +411,6 @@ export class CompanyService {
         legal_entity_structure,
       } = options;
       const skip = (page - 1) * limit;
-
-      // Build query
       const query: any = {};
 
       if (search) {
@@ -615,44 +423,24 @@ export class CompanyService {
         ];
       }
 
-      // Apply additional filters
-      if (company_status) {
-        query.company_status = company_status;
-      }
+      if (company_status) query.company_status = company_status;
+      if (registration_type) query.registration_type = registration_type;
+      if (legal_entity_structure) query.legal_entity_structure = legal_entity_structure;
 
-      if (registration_type) {
-        query.registration_type = registration_type;
-      }
-
-      if (legal_entity_structure) {
-        query.legal_entity_structure = legal_entity_structure;
-      }
-
-      // Get total count
       const total = await CompanyCreate.countDocuments(query);
-
-      // Get companies with pagination
       const companies = (await CompanyCreate.find(query)
         .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
         .skip(skip)
         .limit(limit)
         .lean()) as unknown as ICompanyCreate[];
 
-      return {
-        data: companies,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+      return { data: companies, pagination: paginationMeta(page, limit, total) };
     } catch (error) {
       logger.error("Error fetching companies:", error);
       throw error;
     }
   }
-  // In CompanyService class
+
   async updateCompanyStatus(
     companyId: string,
     company_status: "active" | "inactive",
@@ -663,13 +451,10 @@ export class CompanyService {
     req?: Request
   ): Promise<LeanCompany | null> {
     try {
-      if (!mongoose.Types.ObjectId.isValid(companyId)) {
-        throw new Error("Invalid company ID format");
-      }
+      validateMongoId(companyId, "Company ID");
 
       const objectId = new mongoose.Types.ObjectId(companyId);
       const currentCompany = await CompanyCreate.findById(objectId);
-
       if (!currentCompany) {
         throw new Error(`Company with ID ${companyId} not found`);
       }
@@ -684,7 +469,7 @@ export class CompanyService {
         throw new Error(`Company with ID ${companyId} not found after update`);
       }
 
-      if (req && auditTrailService) {
+      if (req) {
         try {
           await auditTrailService.createAuditRecord({
             user: updatedBy,
@@ -703,13 +488,13 @@ export class CompanyService {
             user_agent: req.get("User-Agent"),
           });
         } catch (auditError) {
-          logger.error("Service: Failed to create audit trail:", auditError);
+          logger.error("Failed to create audit trail:", auditError);
         }
       }
 
       return updatedCompany;
     } catch (error) {
-      logger.error("Service: Error in updateCompanyStatus:", error);
+      logger.error("Error in updateCompanyStatus:", error);
       throw error;
     }
   }
@@ -723,41 +508,126 @@ export class CompanyService {
     userRole: string,
     req?: Request
   ): Promise<{ updated: number; failed: string[] }> {
-    try {
-      const failed: string[] = [];
-      let updated = 0;
+    const failed: string[] = [];
+    let updated = 0;
 
-      for (const companyId of companyIds) {
+    for (const companyId of companyIds) {
+      try {
+        await this.updateCompanyStatus(
+          companyId,
+          company_status,
+          risk_notes,
+          updatedBy,
+          userEmail,
+          userRole,
+          req
+        );
+        updated++;
+      } catch (error) {
+        failed.push(companyId);
+        logger.error(`Failed to update company ${companyId}:`, error);
+      }
+    }
+
+    return { updated, failed };
+  }
+
+  async updateCompanyVerificationStatus(
+    companyId: string,
+    verification_status: "pending" | "verified" | "rejected",
+    risk_notes: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<LeanCompany | null> {
+    try {
+      validateMongoId(companyId, "Company ID");
+
+      const objectId = new mongoose.Types.ObjectId(companyId);
+      const currentCompany = await CompanyCreate.findById(objectId);
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+        objectId,
+        { $set: { verification_status } },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as LeanCompany | null;
+
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found after update`);
+      }
+
+      if (req) {
         try {
-          await this.updateCompanyStatus(
-            companyId,
-            company_status,
-            risk_notes,
-            updatedBy,
-            userEmail,
-            userRole,
-            req
-          );
-          updated++;
-        } catch (error) {
-          failed.push(companyId);
-          logger.error(`Failed to update company ${companyId}:`, error);
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action: "update_verification",
+            action_description: `Updated company verification status from ${currentCompany.verification_status} to ${verification_status}: ${currentCompany.registered_company_name}. Notes: ${risk_notes}`,
+            target_type: "company",
+            target_company: currentCompany._id,
+            target_company_name: currentCompany.registered_company_name,
+            target_company_cin: currentCompany.cin_or_msme_number,
+            before_state: { verification_status: currentCompany.verification_status },
+            after_state: { verification_status, risk_notes },
+            changed_fields: ["verification_status"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+        } catch (auditError) {
+          logger.error("Failed to create audit trail:", auditError);
         }
       }
 
-      return { updated, failed };
+      return updatedCompany;
     } catch (error) {
-      logger.error("Service: Error in bulkUpdateCompanyStatus:", error);
+      logger.error("Error in updateCompanyVerificationStatus:", error);
       throw error;
     }
   }
+
+  async bulkUpdateCompanyVerificationStatus(
+    companyIds: string[],
+    verification_status: "pending" | "verified" | "rejected",
+    risk_notes: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<{ updated: number; failed: string[] }> {
+    const failed: string[] = [];
+    let updated = 0;
+
+    for (const companyId of companyIds) {
+      try {
+        await this.updateCompanyVerificationStatus(
+          companyId,
+          verification_status,
+          risk_notes,
+          updatedBy,
+          userEmail,
+          userRole,
+          req
+        );
+        updated++;
+      } catch (error) {
+        failed.push(companyId);
+        logger.error(`Failed to update company verification ${companyId}:`, error);
+      }
+    }
+
+    return { updated, failed };
+  }
+
   async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
     try {
       const { page, limit, company_status, legal_entity_structure, registration_type, search } =
         options;
       const skip = (page - 1) * limit;
-
-      // Build query
       const query: any = {};
 
       if (search) {
@@ -768,27 +638,17 @@ export class CompanyService {
         ];
       }
 
-      if (company_status) {
-        query.company_status = company_status;
-      }
+      if (company_status) query.company_status = company_status;
+      if (registration_type) query.registration_type = registration_type;
+      if (legal_entity_structure) query.legal_entity_structure = legal_entity_structure;
 
-      if (registration_type) {
-        query.registration_type = registration_type;
-      }
-
-      if (legal_entity_structure) {
-        query.legal_entity_structure = legal_entity_structure;
-      }
-
-      // Get total count
       const total = await CompanyCreate.countDocuments(query);
 
-      // Get companies with aggregation to include brand count
       const companiesWithBrandCount = await CompanyCreate.aggregate([
         { $match: query },
         {
           $lookup: {
-            from: "brands", // Make sure this matches your BrandCreate collection name
+            from: "brands",
             localField: "_id",
             foreignField: "company_id",
             as: "brands",
@@ -815,7 +675,6 @@ export class CompanyService {
         { $limit: limit },
       ]);
 
-      // Calculate statistics
       const [
         totalCompanies,
         activeCompanies,
@@ -845,12 +704,7 @@ export class CompanyService {
           byLegalEntityStructure,
           byRegistrationType,
         },
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: paginationMeta(page, limit, total),
       };
     } catch (error) {
       logger.error("Error fetching company dashboard:", error);
@@ -858,38 +712,14 @@ export class CompanyService {
     }
   }
 
-  // Get company by MongoDB ObjectId (should already exist)
   async getCompanyById(id: string): Promise<ICompanyCreate | null> {
     try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error("Invalid company ID format");
-      }
-
+      validateMongoId(id, "Company ID");
       const company = (await CompanyCreate.findById(id).lean()) as unknown as ICompanyCreate | null;
-
-      if (!company) {
-        throw new Error("Company not found");
-      }
-
+      if (!company) throw new Error("Company not found");
       return company;
     } catch (error) {
       logger.error(`Error fetching company by ID ${id}:`, error);
-      throw error;
-    }
-  }
-  async getCompanyByRegistrationNumber(registrationNumber: string): Promise<ICompanyCreate | null> {
-    try {
-      const company = (await CompanyCreate.findOne({
-        cin_or_msme_number: registrationNumber,
-      }).lean()) as unknown as ICompanyCreate | null;
-
-      if (!company) {
-        throw new Error(`Company with registration number ${registrationNumber} not found`);
-      }
-
-      return company;
-    } catch (error) {
-      logger.error(`Error fetching company by registration number ${registrationNumber}:`, error);
       throw error;
     }
   }
@@ -903,27 +733,21 @@ export class CompanyService {
     req?: Request
   ): Promise<ICompanyCreate | null> {
     try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error("Invalid company ID format");
-      }
+      validateMongoId(id, "Company ID");
 
-      // Get current company data for audit
       const currentCompany = await CompanyCreate.findById(id);
-      if (!currentCompany) {
-        throw new Error("Company not found");
-      }
+      if (!currentCompany) throw new Error("Company not found");
 
-      // Check for duplicate data if provided
+      // Check for duplicates
       if (
         updateData.cin_or_msme_number &&
         updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
       ) {
-        const existingCompany = await CompanyCreate.findOne({
+        const existing = await CompanyCreate.findOne({
           cin_or_msme_number: updateData.cin_or_msme_number,
           _id: { $ne: id },
         });
-
-        if (existingCompany) {
+        if (existing) {
           throw new Error(
             `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
           );
@@ -934,45 +758,34 @@ export class CompanyService {
         updateData.official_email &&
         updateData.official_email !== currentCompany.official_email
       ) {
-        const existingEmail = await CompanyCreate.findOne({
+        const existing = await CompanyCreate.findOne({
           official_email: updateData.official_email.toLowerCase(),
           _id: { $ne: id },
         });
-
-        if (existingEmail) {
+        if (existing) {
           throw new Error(`Company with email ${updateData.official_email} already exists`);
         }
       }
 
       if (updateData.din && updateData.din !== currentCompany.din) {
-        const existingDIN = await CompanyCreate.findOne({
-          din: updateData.din,
-          _id: { $ne: id },
-        });
-
-        if (existingDIN) {
+        const existing = await CompanyCreate.findOne({ din: updateData.din, _id: { $ne: id } });
+        if (existing) {
           throw new Error(`Company with DIN ${updateData.din} already exists`);
         }
       }
 
-      // Prepare update data
       const updateObj: any = { ...updateData };
-      if (updateObj.official_email) {
+      if (updateObj.official_email)
         updateObj.official_email = updateObj.official_email.toLowerCase();
-      }
 
-      // Update company
       const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
         id,
         { $set: updateObj },
         { new: true, runValidators: true }
       ).lean()) as unknown as ICompanyCreate | null;
 
-      if (!updatedCompany) {
-        throw new Error("Company not found");
-      }
+      if (!updatedCompany) throw new Error("Company not found");
 
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: updatedBy,
@@ -1008,19 +821,13 @@ export class CompanyService {
     req?: Request
   ): Promise<ICompanyCreate | null> {
     try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error("Invalid company ID format");
-      }
+      validateMongoId(id, "Company ID");
 
       const company = (await CompanyCreate.findByIdAndDelete(
         id
       ).lean()) as unknown as ICompanyCreate | null;
+      if (!company) throw new Error("Company not found");
 
-      if (!company) {
-        throw new Error("Company not found");
-      }
-
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: deletedBy,
@@ -1046,116 +853,40 @@ export class CompanyService {
     }
   }
 
-  async searchCompanies(query: string, limit: number = 10): Promise<ICompanyCreate[]> {
+  async exportCompanyById(companyId: string, format: string, userId: Types.ObjectId): Promise<any> {
     try {
-      const companies = (await CompanyCreate.find({
-        $or: [
-          { registered_company_name: { $regex: query, $options: "i" } },
-          { cin_or_msme_number: { $regex: query, $options: "i" } },
-          { official_email: { $regex: query, $options: "i" } },
-          { directory_signature_name: { $regex: query, $options: "i" } },
-          { din: { $regex: query, $options: "i" } },
-        ],
-      })
-        .limit(limit)
-        .lean()) as unknown as ICompanyCreate[];
-
-      return companies;
-    } catch (error) {
-      logger.error(`Error searching companies with query '${query}':`, error);
-      throw error;
-    }
-  }
-
-  async checkCompanyExists(registrationNumber: string): Promise<boolean> {
-    try {
-      const company = await CompanyCreate.findOne({
-        cin_or_msme_number: registrationNumber,
-      });
-
-      return !!company;
-    } catch (error) {
-      logger.error(`Error checking company existence ${registrationNumber}:`, error);
-      throw error;
-    }
-  }
-  /**
-   * Export single company data by MongoDB ObjectId
-   */
-  async exportCompanyById(
-    companyId: string, // MongoDB ObjectId
-    format: string,
-    userId: Types.ObjectId
-  ): Promise<any> {
-    try {
-      // Validate MongoDB ObjectId
-      if (!mongoose.Types.ObjectId.isValid(companyId)) {
-        throw new Error("Invalid company ID format");
-      }
+      validateMongoId(companyId, "Company ID");
 
       const company = await CompanyCreate.findById(companyId).lean();
+      if (!company) throw new Error(`Company with ID ${companyId} not found`);
 
-      if (!company) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
+      if (format === "json") return JSON.stringify(company, null, 2);
 
-      if (format === "json") {
-        return JSON.stringify(company, null, 2);
-      } else if (format === "csv") {
-        // Convert single company to CSV format
-        const companyData = company as any;
+      if (format === "csv") {
+        const c = company as any;
+        const rows = [
+          ["Company ID", c.company_id || ""],
+          ["Registered Company Name", c.registered_company_name || ""],
+          ["Official Email", c.official_email || ""],
+          ["Legal Entity Structure", c.legal_entity_structure || ""],
+          ["Registration Type", c.registration_type || ""],
+          ["CIN/MSME Number", c.cin_or_msme_number || ""],
+          [
+            "Date of Incorporation",
+            c.date_of_incorporation
+              ? new Date(c.date_of_incorporation).toISOString().split("T")[0]
+              : "",
+          ],
+          ["Registered Office Address", c.registered_office_address || ""],
+          ["Corporate Website", c.corporate_website || ""],
+          ["Directory Signature Name", c.directory_signature_name || ""],
+          ["DIN", c.din || ""],
+          ["Company Status", c.company_status || ""],
+          ["Created At", c.createdAt ? new Date(c.createdAt).toISOString() : ""],
+          ["Updated At", c.updatedAt ? new Date(c.updatedAt).toISOString() : ""],
+        ];
 
-        // Define CSV headers
-        const headers = ["Field", "Value"];
-
-        // Flatten company data into key-value pairs
-        const csvRows = [];
-
-        // Add basic company info
-        csvRows.push(["Company ID", companyData.company_id || ""]);
-        csvRows.push(["Registered Company Name", companyData.registered_company_name || ""]);
-        csvRows.push(["Official Email", companyData.official_email || ""]);
-        csvRows.push(["Legal Entity Structure", companyData.legal_entity_structure || ""]);
-        csvRows.push(["Registration Type", companyData.registration_type || ""]);
-        csvRows.push(["CIN/MSME Number", companyData.cin_or_msme_number || ""]);
-        csvRows.push([
-          "Date of Incorporation",
-          companyData.date_of_incorporation
-            ? new Date(companyData.date_of_incorporation).toISOString().split("T")[0]
-            : "",
-        ]);
-        csvRows.push(["Registered Office Address", companyData.registered_office_address || ""]);
-        csvRows.push(["Corporate Website", companyData.corporate_website || ""]);
-        csvRows.push(["Directory Signature Name", companyData.directory_signature_name || ""]);
-        csvRows.push(["DIN", companyData.din || ""]);
-        csvRows.push(["Company Status", companyData.company_status || ""]);
-        csvRows.push([
-          "Created At",
-          companyData.createdAt ? new Date(companyData.createdAt).toISOString() : "",
-        ]);
-        csvRows.push([
-          "Updated At",
-          companyData.updatedAt ? new Date(companyData.updatedAt).toISOString() : "",
-        ]);
-
-        // Convert to CSV string
-        const csvContent = [
-          headers.join(","),
-          ...csvRows.map(row =>
-            row
-              .map(cell => {
-                // Escape commas and quotes in cell values
-                const cellStr = String(cell);
-                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-                  return `"${cellStr.replace(/"/g, '""')}"`;
-                }
-                return cellStr;
-              })
-              .join(",")
-          ),
-        ].join("\n");
-
-        return csvContent;
+        return buildCSV(["Field", "Value"], rows);
       }
 
       return company;
@@ -1164,254 +895,34 @@ export class CompanyService {
       throw error;
     }
   }
+
   async getCompanyStatistics(): Promise<any> {
     try {
-      const totalCompanies = await CompanyCreate.countDocuments();
-      const activeCompanies = await CompanyCreate.countDocuments({ company_status: "active" });
-      const inactiveCompanies = await CompanyCreate.countDocuments({ company_status: "inactive" });
-
-      // Count by legal entity structure
-      const structureStats = await CompanyCreate.aggregate([
-        {
-          $group: {
-            _id: "$legal_entity_structure",
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { count: -1 },
-        },
-      ]);
-
-      // Count by registration type
-      const registrationTypeStats = await CompanyCreate.aggregate([
-        {
-          $group: {
-            _id: "$registration_type",
-            count: { $sum: 1 },
-          },
-        },
-      ]);
-
-      // Recent companies (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentCompanies = await CompanyCreate.countDocuments({
-        createdAt: { $gte: thirtyDaysAgo },
-      });
+      const [total, active, inactive, structureStats, registrationTypeStats, recentCompanies] =
+        await Promise.all([
+          CompanyCreate.countDocuments(),
+          CompanyCreate.countDocuments({ company_status: "active" }),
+          CompanyCreate.countDocuments({ company_status: "inactive" }),
+          CompanyCreate.aggregate([
+            { $group: { _id: "$legal_entity_structure", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ]),
+          CompanyCreate.aggregate([{ $group: { _id: "$registration_type", count: { $sum: 1 } } }]),
+          CompanyCreate.countDocuments({
+            createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          }),
+        ]);
 
       return {
-        total: totalCompanies,
-        active: activeCompanies,
-        inactive: inactiveCompanies,
+        total,
+        active,
+        inactive,
         recent: recentCompanies,
         byLegalEntityStructure: structureStats,
         byRegistrationType: registrationTypeStats,
       };
     } catch (error) {
       logger.error("Error fetching company statistics:", error);
-      throw error;
-    }
-  }
-
-  async getCompaniesByStatus(
-    status: "active" | "inactive",
-    page: number = 1,
-    limit: number = 10
-  ): Promise<{
-    data: ICompanyCreate[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }> {
-    try {
-      const skip = (page - 1) * limit;
-
-      const query = { company_status: status };
-      const total = await CompanyCreate.countDocuments(query);
-
-      const companies = (await CompanyCreate.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()) as unknown as ICompanyCreate[];
-
-      return {
-        data: companies,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      logger.error(`Error fetching companies by status ${status}:`, error);
-      throw error;
-    }
-  }
-
-  async getCompaniesByLegalStructure(
-    structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership",
-    page: number = 1,
-    limit: number = 10
-  ): Promise<{
-    data: ICompanyCreate[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }> {
-    try {
-      const skip = (page - 1) * limit;
-
-      const query = { legal_entity_structure: structure };
-      const total = await CompanyCreate.countDocuments(query);
-
-      const companies = (await CompanyCreate.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()) as unknown as ICompanyCreate[];
-
-      return {
-        data: companies,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      logger.error(`Error fetching companies by legal structure ${structure}:`, error);
-      throw error;
-    }
-  }
-
-  async validateCompanyData(data: {
-    cin_or_msme_number?: string;
-    official_email?: string;
-    din?: string;
-  }): Promise<{
-    isValid: boolean;
-    errors: string[];
-    details: {
-      cin_or_msme_number?: { exists: boolean; message: string };
-      official_email?: { exists: boolean; message: string };
-      din?: { exists: boolean; message: string };
-    };
-  }> {
-    try {
-      const errors: string[] = [];
-      const details: any = {};
-
-      // Check CIN/MSME number
-      if (data.cin_or_msme_number) {
-        const existingCIN = await CompanyCreate.findOne({
-          cin_or_msme_number: data.cin_or_msme_number,
-        });
-        details.cin_or_msme_number = {
-          exists: !!existingCIN,
-          message: existingCIN ? "CIN/MSME number already exists" : "CIN/MSME number is available",
-        };
-        if (existingCIN) {
-          errors.push("CIN/MSME number already exists");
-        }
-      }
-
-      // Check official email
-      if (data.official_email) {
-        const existingEmail = await CompanyCreate.findOne({
-          official_email: data.official_email.toLowerCase(),
-        });
-        details.official_email = {
-          exists: !!existingEmail,
-          message: existingEmail ? "Email already exists" : "Email is available",
-        };
-        if (existingEmail) {
-          errors.push("Email already exists");
-        }
-      }
-
-      // Check DIN
-      if (data.din) {
-        const existingDIN = await CompanyCreate.findOne({
-          din: data.din,
-        });
-        details.din = {
-          exists: !!existingDIN,
-          message: existingDIN ? "DIN already exists" : "DIN is available",
-        };
-        if (existingDIN) {
-          errors.push("DIN already exists");
-        }
-      }
-
-      return {
-        isValid: errors.length === 0,
-        errors,
-        details,
-      };
-    } catch (error) {
-      logger.error("Error validating company data:", error);
-      throw error;
-    }
-  }
-
-  async bulkCreateCompanies(
-    companies: ICompanyCreateData[],
-    createdBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<{
-    successful: ICompanyCreate[];
-    failed: Array<{ data: ICompanyCreateData; error: string }>;
-  }> {
-    try {
-      const successful: ICompanyCreate[] = [];
-      const failed: Array<{ data: ICompanyCreateData; error: string }> = [];
-
-      for (const companyData of companies) {
-        try {
-          // Check for duplicates in this batch
-          const duplicateInBatch =
-            companies.filter(
-              (c, idx) =>
-                c.cin_or_msme_number === companyData.cin_or_msme_number ||
-                c.official_email.toLowerCase() === companyData.official_email.toLowerCase() ||
-                c.din === companyData.din
-            ).length > 1;
-
-          if (duplicateInBatch) {
-            throw new Error("Duplicate data found within the batch");
-          }
-
-          const newCompany = await this.createCompany(
-            companyData,
-            createdBy,
-            userEmail,
-            userRole,
-            req
-          );
-          successful.push(newCompany);
-        } catch (error: any) {
-          failed.push({
-            data: companyData,
-            error: error.message,
-          });
-        }
-      }
-
-      return { successful, failed };
-    } catch (error) {
-      logger.error("Error in bulk company creation:", error);
       throw error;
     }
   }
@@ -1422,7 +933,6 @@ export class CompanyService {
 // ============================================
 
 export class BrandService {
-  // Create a new brand
   async createBrand(
     brandData: IBrandCreateData,
     createdBy: Types.ObjectId,
@@ -1431,44 +941,45 @@ export class BrandService {
     req?: Request
   ): Promise<IBrandCreate> {
     try {
-      // Validate company exists
       const company = await CompanyCreate.findOne({
         cin_or_msme_number: brandData.cin_or_msme_number,
       });
-
       if (!company) {
         throw new Error(
           `Company with registration number ${brandData.cin_or_msme_number} does not exist`
         );
       }
 
-      // Check if brand with same email already exists
       const existingBrand = await BrandCreate.findOne({
         brand_email: brandData.brand_email.toLowerCase(),
       });
-
       if (existingBrand) {
         throw new Error(`Brand with email ${brandData.brand_email} already exists`);
       }
 
-      // Check if company_id matches the found company
       if (!company._id.equals(brandData.company_id)) {
         throw new Error("Company ID does not match the registration number");
       }
 
-      // Validate required files based on legal entity structure
-      await this.validateBrandFiles(brandData, company.legal_entity_structure);
+      // Validate required files
+      const requiredFields = getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
+      for (const field of requiredFields) {
+        if (
+          !brandData[field as keyof IBrandCreateData] ||
+          !(brandData as any)[field]?.file_url ||
+          !(brandData as any)[field]?.cloudinary_public_id
+        ) {
+          throw new Error(`Missing or invalid ${field} file upload`);
+        }
+      }
 
-      // Create new brand
       const newBrand = new BrandCreate({
         ...brandData,
         verification_status: brandData.verification_status || "pending",
-        createdBy: createdBy,
+        createdBy,
       });
-
       await newBrand.save();
 
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: createdBy,
@@ -1494,79 +1005,9 @@ export class BrandService {
     }
   }
 
-  /**
-   * Validate required files based on legal entity structure
-   */
-  private async validateBrandFiles(brandData: any, legalEntity: string): Promise<void> {
-    const requiredFields = this.getRequiredFileFieldsForLegalEntity(legalEntity);
-
-    for (const field of requiredFields) {
-      if (
-        !brandData[field] ||
-        !brandData[field].file_url ||
-        !brandData[field].cloudinary_public_id
-      ) {
-        throw new Error(`Missing or invalid ${field} file upload`);
-      }
-    }
-  }
-
-  /**
-   * Get required file fields based on legal entity
-   */
-  private getRequiredFileFieldsForLegalEntity(legalEntity: string): string[] {
-    const commonFields = [
-      "upload_cancelled_cheque_image",
-      "gst_certificate_image",
-      "PAN_image",
-      "FSSAI_image",
-    ];
-
-    const entitySpecificFields: Record<string, string[]> = {
-      pvt: [
-        "certificate_of_incorporation_image",
-        "MSME_or_Udyam_certificate_image",
-        "MOA_image",
-        "AOA_image",
-        "Trademark_certificate_image",
-        "Authorized_Signatory_image",
-      ],
-      opc: [
-        "certificate_of_incorporation_image",
-        "MSME_or_Udyam_certificate_image",
-        "MOA_image",
-        "AOA_image",
-      ],
-      llp: [
-        "certificate_of_incorporation_image",
-        "MSME_or_Udyam_certificate_image",
-        "LLP_agreement_image",
-      ],
-      proprietorship: [
-        "MSME_or_Udyam_certificate_image",
-        "Shop_and_Establishment_certificate_image",
-      ],
-      partnership: ["Registered_Partnership_deed_image", "MSME_or_Udyam_certificate_image"],
-      public: [
-        "certificate_of_incorporation_image",
-        "Board_resolution_image",
-        "MOA_image",
-        "AOA_image",
-      ],
-    };
-
-    return [...commonFields, ...(entitySpecificFields[legalEntity] || [])];
-  }
-
-  // Get all brands with pagination and search
   async getAllBrands(options: IBrandPaginationOptions): Promise<{
     data: IBrandCreate[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    pagination: { page: number; limit: number; total: number; totalPages: number };
   }> {
     try {
       const {
@@ -1581,8 +1022,6 @@ export class BrandService {
         company_id,
       } = options;
       const skip = (page - 1) * limit;
-
-      // Build query
       const query: any = {};
 
       if (search) {
@@ -1597,29 +1036,14 @@ export class BrandService {
         ];
       }
 
-      // Apply additional filters
-      if (verification_status) {
-        query.verification_status = verification_status;
+      if (verification_status) query.verification_status = verification_status;
+      if (brand_category) query.brand_category = brand_category;
+      if (brand_type) query.brand_type = brand_type;
+      if (company_id && mongoose.Types.ObjectId.isValid(company_id)) {
+        query.company_id = new mongoose.Types.ObjectId(company_id);
       }
 
-      if (brand_category) {
-        query.brand_category = brand_category;
-      }
-
-      if (brand_type) {
-        query.brand_type = brand_type;
-      }
-
-      if (company_id) {
-        if (mongoose.Types.ObjectId.isValid(company_id)) {
-          query.company_id = new mongoose.Types.ObjectId(company_id);
-        }
-      }
-
-      // Get total count
       const total = await BrandCreate.countDocuments(query);
-
-      // Get brands with pagination
       const brands = (await BrandCreate.find(query)
         .populate("company_id", "company_id registered_company_name official_email")
         .populate("warehouse_id", "warehouse_name warehouse_code")
@@ -1630,25 +1054,13 @@ export class BrandService {
         .limit(limit)
         .lean()) as unknown as IBrandCreate[];
 
-      return {
-        data: brands,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+      return { data: brands, pagination: paginationMeta(page, limit, total) };
     } catch (error) {
       logger.error("Error fetching brands:", error);
       throw error;
     }
   }
-  // In BrandService class
 
-  /**
-   * Update brand by identifier (handles both MongoDB _id and custom brand_id)
-   */
   async updateBrandById(
     brandIdentifier: string,
     updateData: IBrandUpdateData,
@@ -1658,63 +1070,40 @@ export class BrandService {
     req?: Request
   ): Promise<IBrandCreate | null> {
     try {
-      const query: any =
-        mongoose.Types.ObjectId.isValid(brandIdentifier) &&
-        brandIdentifier.length === 24 &&
-        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
-          ? { _id: new mongoose.Types.ObjectId(brandIdentifier) }
-          : { brand_id: brandIdentifier };
-
-      // Get current brand data for audit
+      const query = buildBrandQuery(brandIdentifier);
       const currentBrand = await BrandCreate.findOne(query);
       if (!currentBrand) {
         throw new Error(`Brand with identifier ${brandIdentifier} not found`);
       }
 
-      // Check for duplicate email if provided
       if (updateData.brand_email && updateData.brand_email !== currentBrand.brand_email) {
-        const existingEmail = await BrandCreate.findOne({
+        const existing = await BrandCreate.findOne({
           brand_email: updateData.brand_email.toLowerCase(),
           _id: { $ne: currentBrand._id },
         });
-
-        if (existingEmail) {
+        if (existing) {
           throw new Error(`Brand with email ${updateData.brand_email} already exists`);
         }
       }
 
-      // If updating company registration number, validate the company exists
       if (updateData.cin_or_msme_number) {
         const company = await CompanyCreate.findOne({
           cin_or_msme_number: updateData.cin_or_msme_number,
         });
-
         if (!company) {
           throw new Error(
             `Company with registration number ${updateData.cin_or_msme_number} does not exist`
           );
         }
-
-        // Update company_id to match the found company
         updateData.company_id = company._id;
       }
 
-      // Prepare update data
       const updateObj: any = { ...updateData };
-      if (updateObj.brand_email) {
-        updateObj.brand_email = updateObj.brand_email.toLowerCase();
-      }
-      if (updateObj.ifsc_code) {
-        updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
-      }
-      if (updateObj.gst_details) {
-        updateObj.gst_details = updateObj.gst_details.toUpperCase();
-      }
-      if (updateObj.PAN_number) {
-        updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
-      }
+      if (updateObj.brand_email) updateObj.brand_email = updateObj.brand_email.toLowerCase();
+      if (updateObj.ifsc_code) updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
+      if (updateObj.gst_details) updateObj.gst_details = updateObj.gst_details.toUpperCase();
+      if (updateObj.PAN_number) updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
 
-      // Update brand
       const updatedBrand = (await BrandCreate.findOneAndUpdate(
         query,
         { $set: updateObj },
@@ -1733,7 +1122,6 @@ export class BrandService {
         throw new Error(`Brand with identifier ${brandIdentifier} not found`);
       }
 
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: updatedBy,
@@ -1761,9 +1149,6 @@ export class BrandService {
     }
   }
 
-  /**
-   * Delete brand by identifier (handles both MongoDB _id and custom brand_id)
-   */
   async deleteBrandById(
     brandIdentifier: string,
     deletedBy: Types.ObjectId,
@@ -1772,21 +1157,7 @@ export class BrandService {
     req?: Request
   ): Promise<IBrandCreate | null> {
     try {
-      let query: any;
-
-      // Determine query based on identifier type
-      if (
-        mongoose.Types.ObjectId.isValid(brandIdentifier) &&
-        brandIdentifier.length === 24 &&
-        brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
-      ) {
-        // It's a MongoDB ObjectId
-        query = { _id: new mongoose.Types.ObjectId(brandIdentifier) };
-      } else {
-        // It's a custom brand_id
-        query = { brand_id: brandIdentifier };
-      }
-
+      const query = buildBrandQuery(brandIdentifier);
       const brand = (await BrandCreate.findOneAndDelete(query)
         .populate("company_id", "company_id registered_company_name official_email")
         .lean()) as unknown as IBrandCreate | null;
@@ -1795,10 +1166,9 @@ export class BrandService {
         throw new Error(`Brand with identifier ${brandIdentifier} not found`);
       }
 
-      // Clean up Cloudinary files if needed
+      // Clean up Cloudinary files
       const imageUploadService = new ImageUploadService();
       const publicIds = imageUploadService.extractPublicIdsFromBrand(brand);
-
       if (publicIds.length > 0) {
         try {
           await imageUploadService.deleteMultipleFiles(publicIds);
@@ -1808,11 +1178,9 @@ export class BrandService {
             `Failed to delete Cloudinary files for brand ${brandIdentifier}:`,
             cloudinaryError
           );
-          // Don't throw error here, continue with deletion
         }
       }
 
-      // Create audit trail
       if (req) {
         await auditTrailService.createAuditRecord({
           user: deletedBy,
@@ -1837,37 +1205,10 @@ export class BrandService {
       throw error;
     }
   }
-  // Get brand by brand_id
-  async getBrandByBrandId(brandId: string): Promise<IBrandCreate | null> {
-    try {
-      const brand = (await BrandCreate.findOne({ brand_id: brandId })
-        .populate(
-          "company_id",
-          "company_id registered_company_name official_email cin_or_msme_number"
-        )
-        .populate("warehouse_id", "warehouse_name warehouse_code")
-        .populate("verified_by", "email name")
-        .populate("createdBy", "email name")
-        .lean()) as unknown as IBrandCreate | null;
 
-      if (!brand) {
-        throw new Error(`Brand with ID ${brandId} not found`);
-      }
-
-      return brand;
-    } catch (error) {
-      logger.error(`Error fetching brand by brand_id ${brandId}:`, error);
-      throw error;
-    }
-  }
-
-  // Get brand by MongoDB ID
   async getBrandById(id: string): Promise<IBrandCreate | null> {
     try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error("Invalid brand ID format");
-      }
-
+      validateMongoId(id, "Brand ID");
       const brand = (await BrandCreate.findById(id)
         .populate(
           "company_id",
@@ -1878,10 +1219,7 @@ export class BrandService {
         .populate("createdBy", "email name")
         .lean()) as unknown as IBrandCreate | null;
 
-      if (!brand) {
-        throw new Error("Brand not found");
-      }
-
+      if (!brand) throw new Error("Brand not found");
       return brand;
     } catch (error) {
       logger.error(`Error fetching brand by ID ${id}:`, error);
@@ -1889,196 +1227,29 @@ export class BrandService {
     }
   }
 
-  // Update brand by brand_id
-  async updateBrandByBrandId(
-    brandId: string,
-    updateData: IBrandUpdateData,
-    updatedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<IBrandCreate | null> {
-    try {
-      // Get current brand data for audit
-      const currentBrand = await BrandCreate.findOne({ brand_id: brandId });
-      if (!currentBrand) {
-        throw new Error(`Brand with ID ${brandId} not found`);
-      }
-
-      // Check for duplicate email if provided
-      if (updateData.brand_email && updateData.brand_email !== currentBrand.brand_email) {
-        const existingEmail = await BrandCreate.findOne({
-          brand_email: updateData.brand_email.toLowerCase(),
-          brand_id: { $ne: brandId },
-        });
-
-        if (existingEmail) {
-          throw new Error(`Brand with email ${updateData.brand_email} already exists`);
-        }
-      }
-
-      // If updating company registration number, validate the company exists
-      if (updateData.cin_or_msme_number) {
-        const company = await CompanyCreate.findOne({
-          cin_or_msme_number: updateData.cin_or_msme_number,
-        });
-
-        if (!company) {
-          throw new Error(
-            `Company with registration number ${updateData.cin_or_msme_number} does not exist`
-          );
-        }
-
-        // Update company_id to match the found company
-        updateData.company_id = company._id;
-      }
-
-      // Prepare update data
-      const updateObj: any = { ...updateData };
-      if (updateObj.brand_email) {
-        updateObj.brand_email = updateObj.brand_email.toLowerCase();
-      }
-      if (updateObj.ifsc_code) {
-        updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
-      }
-      if (updateObj.gst_details) {
-        updateObj.gst_details = updateObj.gst_details.toUpperCase();
-      }
-      if (updateObj.PAN_number) {
-        updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
-      }
-
-      // Update brand
-      const updatedBrand = (await BrandCreate.findOneAndUpdate(
-        { brand_id: brandId },
-        { $set: updateObj },
-        { new: true, runValidators: true }
-      )
-        .populate(
-          "company_id",
-          "company_id registered_company_name official_email cin_or_msme_number"
-        )
-        .populate("warehouse_id", "warehouse_name warehouse_code")
-        .populate("verified_by", "email name")
-        .populate("createdBy", "email name")
-        .lean()) as unknown as IBrandCreate | null;
-
-      if (!updatedBrand) {
-        throw new Error(`Brand with ID ${brandId} not found`);
-      }
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: updatedBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "update",
-          action_description: `Updated brand: ${currentBrand.brand_name}`,
-          target_type: "brand",
-          target_brand: currentBrand._id,
-          target_brand_name: currentBrand.brand_name,
-          target_company: currentBrand.company_id,
-          before_state: currentBrand.toObject(),
-          after_state: updateData,
-          changed_fields: Object.keys(updateData),
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(`Brand updated: ${updatedBrand.brand_name} (Brand ID: ${brandId})`);
-      return updatedBrand;
-    } catch (error) {
-      logger.error(`Error updating brand ${brandId}:`, error);
-      throw error;
-    }
-  }
-
-  // Delete brand by brand_id
-  async deleteBrandByBrandId(
-    brandId: string,
-    deletedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<IBrandCreate | null> {
-    try {
-      const brand = (await BrandCreate.findOneAndDelete({ brand_id: brandId })
-        .populate("company_id", "company_id registered_company_name official_email")
-        .lean()) as unknown as IBrandCreate | null;
-
-      if (!brand) {
-        throw new Error(`Brand with ID ${brandId} not found`);
-      }
-
-      // Create audit trail
-      if (req) {
-        await auditTrailService.createAuditRecord({
-          user: deletedBy,
-          user_email: userEmail,
-          user_role: userRole,
-          action: "delete",
-          action_description: `Deleted brand: ${brand.brand_name}`,
-          target_type: "brand",
-          target_brand: brand._id,
-          target_brand_name: brand.brand_name,
-          target_company: brand.company_id,
-          before_state: brand,
-          ip_address: req.ip,
-          user_agent: req.get("User-Agent"),
-        });
-      }
-
-      logger.info(`Brand deleted: ${brand.brand_name} (Brand ID: ${brandId})`);
-      return brand;
-    } catch (error) {
-      logger.error(`Error deleting brand ${brandId}:`, error);
-      throw error;
-    }
-  }
-
-  // Get brands by company ID
   async getBrandsByCompanyId(
     companyId: string,
     options: IBrandByCompanyOptions
   ): Promise<{
     data: IBrandCreate[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    pagination: { page: number; limit: number; total: number; totalPages: number };
   }> {
     try {
       const { page, limit, verification_status } = options;
       const skip = (page - 1) * limit;
-
-      // Build query
       const query: any = {};
 
-      // Check if companyId is MongoDB ObjectId or company_id (7-digit)
       if (mongoose.Types.ObjectId.isValid(companyId)) {
         query.company_id = new mongoose.Types.ObjectId(companyId);
       } else {
-        // Find company by company_id to get its MongoDB ObjectId
         const company = await CompanyCreate.findOne({ company_id: companyId });
-        if (!company) {
-          throw new Error(`Company with ID ${companyId} not found`);
-        }
+        if (!company) throw new Error(`Company with ID ${companyId} not found`);
         query.company_id = company._id;
       }
 
-      // Apply verification status filter
-      if (verification_status) {
-        query.verification_status = verification_status;
-      }
+      if (verification_status) query.verification_status = verification_status;
 
-      // Get total count
       const total = await BrandCreate.countDocuments(query);
-
-      // Get brands with pagination
       const brands = (await BrandCreate.find(query)
         .populate("company_id", "company_id registered_company_name official_email")
         .populate("warehouse_id", "warehouse_name warehouse_code")
@@ -2088,94 +1259,40 @@ export class BrandService {
         .limit(limit)
         .lean()) as unknown as IBrandCreate[];
 
-      return {
-        data: brands,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+      return { data: brands, pagination: paginationMeta(page, limit, total) };
     } catch (error) {
       logger.error(`Error fetching brands by company ${companyId}:`, error);
       throw error;
     }
   }
 
-  // Search brands
-  async searchBrands(query: string, limit: number = 10): Promise<IBrandCreate[]> {
-    try {
-      const brands = (await BrandCreate.find({
-        $or: [
-          { brand_name: { $regex: query, $options: "i" } },
-          { brand_billing_name: { $regex: query, $options: "i" } },
-          { brand_email: { $regex: query, $options: "i" } },
-          { contact_name: { $regex: query, $options: "i" } },
-          { contact_phone: { $regex: query, $options: "i" } },
-          { PAN_number: { $regex: query, $options: "i" } },
-          { gst_details: { $regex: query, $options: "i" } },
-          { brand_id: { $regex: query, $options: "i" } },
-        ],
-      })
-        .populate("company_id", "company_id registered_company_name")
-        .limit(limit)
-        .lean()) as unknown as IBrandCreate[];
-
-      return brands;
-    } catch (error) {
-      logger.error(`Error searching brands with query '${query}':`, error);
-      throw error;
-    }
-  }
-
-  // Get brand statistics
   async getBrandStatistics(): Promise<any> {
     try {
-      const totalBrands = await BrandCreate.countDocuments();
-      const pendingBrands = await BrandCreate.countDocuments({ verification_status: "pending" });
-      const verifiedBrands = await BrandCreate.countDocuments({ verification_status: "verified" });
-      const rejectedBrands = await BrandCreate.countDocuments({ verification_status: "rejected" });
-
-      // Count by brand category
-      const categoryStats = await BrandCreate.aggregate([
-        {
-          $group: {
-            _id: "$brand_category",
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { count: -1 },
-        },
-      ]);
-
-      // Count by brand type
-      const typeStats = await BrandCreate.aggregate([
-        {
-          $group: {
-            _id: "$brand_type",
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { count: -1 },
-        },
-      ]);
-
-      // Recent brands (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentBrands = await BrandCreate.countDocuments({
-        createdAt: { $gte: thirtyDaysAgo },
-      });
+      const [total, pending, verified, rejected, categoryStats, typeStats, recent] =
+        await Promise.all([
+          BrandCreate.countDocuments(),
+          BrandCreate.countDocuments({ verification_status: "pending" }),
+          BrandCreate.countDocuments({ verification_status: "verified" }),
+          BrandCreate.countDocuments({ verification_status: "rejected" }),
+          BrandCreate.aggregate([
+            { $group: { _id: "$brand_category", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ]),
+          BrandCreate.aggregate([
+            { $group: { _id: "$brand_type", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ]),
+          BrandCreate.countDocuments({
+            createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          }),
+        ]);
 
       return {
-        total: totalBrands,
-        pending: pendingBrands,
-        verified: verifiedBrands,
-        rejected: rejectedBrands,
-        recent: recentBrands,
+        total,
+        pending,
+        verified,
+        rejected,
+        recent,
         byCategory: categoryStats,
         byType: typeStats,
       };
@@ -2185,25 +1302,14 @@ export class BrandService {
     }
   }
 
-  // In BrandService class
   async exportBrands(format: string, filters: any, userId: Types.ObjectId): Promise<any> {
     try {
       const query: any = {};
-
-      // Apply filters if provided
-      if (filters.verification_status) {
-        query.verification_status = filters.verification_status;
-      }
-      if (filters.brand_category) {
-        query.brand_category = filters.brand_category;
-      }
-      if (filters.brand_type) {
-        query.brand_type = filters.brand_type;
-      }
-      if (filters.company_id) {
-        if (mongoose.Types.ObjectId.isValid(filters.company_id)) {
-          query.company_id = new mongoose.Types.ObjectId(filters.company_id);
-        }
+      if (filters.verification_status) query.verification_status = filters.verification_status;
+      if (filters.brand_category) query.brand_category = filters.brand_category;
+      if (filters.brand_type) query.brand_type = filters.brand_type;
+      if (filters.company_id && mongoose.Types.ObjectId.isValid(filters.company_id)) {
+        query.company_id = new mongoose.Types.ObjectId(filters.company_id);
       }
       if (filters.search) {
         query.$or = [
@@ -2212,28 +1318,25 @@ export class BrandService {
           { brand_email: { $regex: filters.search, $options: "i" } },
           { brand_id: { $regex: filters.search, $options: "i" } },
           { contact_name: { $regex: filters.search, $options: "i" } },
-          { contact_phone: { $regex: filters.search, $options: "i" } },
           { PAN_number: { $regex: filters.search, $options: "i" } },
           { gst_details: { $regex: filters.search, $options: "i" } },
-          { cin_or_msme_number: { $regex: filters.search, $options: "i" } },
         ];
       }
 
       const brands = await BrandCreate.find(query)
         .populate(
           "company_id",
-          "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type"
+          "company_id registered_company_name official_email legal_entity_structure"
         )
-        .populate("warehouse_id", "warehouse_name warehouse_code address")
-        .populate("verified_by", "email name role")
-        .populate("createdBy", "email name role")
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
         .sort({ createdAt: -1 })
         .lean();
 
-      if (format === "json") {
-        return JSON.stringify(brands, null, 2);
-      } else if (format === "csv") {
-        // Convert to CSV format with ALL details
+      if (format === "json") return JSON.stringify(brands, null, 2);
+
+      if (format === "csv") {
         const headers = [
           "Brand ID",
           "Brand Name",
@@ -2275,7 +1378,6 @@ export class BrandService {
           "Created By Email",
           "Created At",
           "Updated At",
-          // Document URLs
           "Cancelled Cheque URL",
           "GST Certificate URL",
           "PAN Image URL",
@@ -2292,84 +1394,69 @@ export class BrandService {
           "Board Resolution URL",
         ];
 
-        const csvRows = brands.map(brand => {
-          const brandData = brand as any;
+        const rows = brands.map(b => {
+          const d = b as any;
+          const dateStr = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : "");
 
           return [
-            brandData.brand_id || "",
-            brandData.brand_name || "",
-            brandData.brand_billing_name || "",
-            brandData.brand_email || "",
-            brandData.brand_category || "",
-            brandData.brand_type || "",
-            brandData.registration_type || "",
-            brandData.cin_or_msme_number || "",
-            brandData.company_id?.registered_company_name || "",
-            brandData.company_id?.company_id || "",
-            brandData.company_id?.official_email || "",
-            brandData.company_id?.legal_entity_structure || "",
-            brandData.contact_name || "",
-            brandData.contact_phone || "",
-            brandData.address || "",
-            brandData.bank_account_of_brand || "",
-            brandData.ifsc_code || "",
-            brandData.payment_terms || "",
-            brandData.gst_details || "",
-            brandData.PAN_number || "",
-            brandData.FSSAI_number || "",
-            brandData.TDS_rate || "",
-            brandData.billing_cycle || "",
-            brandData.brand_status_cycle || "",
-            brandData.verification_status || "",
-            brandData.risk_notes || "",
-            brandData.contract_terms || "",
-            brandData.contract_start_date
-              ? new Date(brandData.contract_start_date).toISOString().split("T")[0]
-              : "",
-            brandData.contract_end_date
-              ? new Date(brandData.contract_end_date).toISOString().split("T")[0]
-              : "",
-            brandData.contract_renewal_date
-              ? new Date(brandData.contract_renewal_date).toISOString().split("T")[0]
-              : "",
-            brandData.payment_methods || "",
-            brandData.internal_notes || "",
-            brandData.warehouse_id?.warehouse_name || "",
-            brandData.warehouse_id?.warehouse_code || "",
-            brandData.verified_by?.name || "",
-            brandData.verified_by?.email || "",
-            brandData.createdBy?.name || "",
-            brandData.createdBy?.email || "",
-            brandData.createdAt ? new Date(brandData.createdAt).toISOString() : "",
-            brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : "",
-            // Document URLs
-            brandData.upload_cancelled_cheque_image?.file_url || "",
-            brandData.gst_certificate_image?.file_url || "",
-            brandData.PAN_image?.file_url || "",
-            brandData.FSSAI_image?.file_url || "",
-            brandData.certificate_of_incorporation_image?.file_url || "",
-            brandData.MSME_or_Udyam_certificate_image?.file_url || "",
-            brandData.MOA_image?.file_url || "",
-            brandData.AOA_image?.file_url || "",
-            brandData.Trademark_certificate_image?.file_url || "",
-            brandData.Authorized_Signatory_image?.file_url || "",
-            brandData.LLP_agreement_image?.file_url || "",
-            brandData.Shop_and_Establishment_certificate_image?.file_url || "",
-            brandData.Registered_Partnership_deed_image?.file_url || "",
-            brandData.Board_resolution_image?.file_url || "",
-          ]
-            .map(cell => {
-              // Escape commas and quotes in cell values
-              const cellStr = String(cell);
-              if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-                return `"${cellStr.replace(/"/g, '""')}"`;
-              }
-              return cellStr;
-            })
-            .join(",");
+            d.brand_id || "",
+            d.brand_name || "",
+            d.brand_billing_name || "",
+            d.brand_email || "",
+            d.brand_category || "",
+            d.brand_type || "",
+            d.registration_type || "",
+            d.cin_or_msme_number || "",
+            d.company_id?.registered_company_name || "",
+            d.company_id?.company_id || "",
+            d.company_id?.official_email || "",
+            d.company_id?.legal_entity_structure || "",
+            d.contact_name || "",
+            d.contact_phone || "",
+            d.address || "",
+            d.bank_account_of_brand || "",
+            d.ifsc_code || "",
+            d.payment_terms || "",
+            d.gst_details || "",
+            d.PAN_number || "",
+            d.FSSAI_number || "",
+            d.TDS_rate || "",
+            d.billing_cycle || "",
+            d.brand_status_cycle || "",
+            d.verification_status || "",
+            d.risk_notes || "",
+            d.contract_terms || "",
+            dateStr(d.contract_start_date),
+            dateStr(d.contract_end_date),
+            dateStr(d.contract_renewal_date),
+            d.payment_methods || "",
+            d.internal_notes || "",
+            d.warehouse_id?.warehouse_name || "",
+            d.warehouse_id?.warehouse_code || "",
+            d.verified_by?.name || "",
+            d.verified_by?.email || "",
+            d.createdBy?.name || "",
+            d.createdBy?.email || "",
+            d.createdAt ? new Date(d.createdAt).toISOString() : "",
+            d.updatedAt ? new Date(d.updatedAt).toISOString() : "",
+            d.upload_cancelled_cheque_image?.file_url || "",
+            d.gst_certificate_image?.file_url || "",
+            d.PAN_image?.file_url || "",
+            d.FSSAI_image?.file_url || "",
+            d.certificate_of_incorporation_image?.file_url || "",
+            d.MSME_or_Udyam_certificate_image?.file_url || "",
+            d.MOA_image?.file_url || "",
+            d.AOA_image?.file_url || "",
+            d.Trademark_certificate_image?.file_url || "",
+            d.Authorized_Signatory_image?.file_url || "",
+            d.LLP_agreement_image?.file_url || "",
+            d.Shop_and_Establishment_certificate_image?.file_url || "",
+            d.Registered_Partnership_deed_image?.file_url || "",
+            d.Board_resolution_image?.file_url || "",
+          ];
         });
 
-        return [headers.join(","), ...csvRows].join("\n");
+        return buildCSV(headers, rows);
       }
 
       return brands;
@@ -2379,286 +1466,134 @@ export class BrandService {
     }
   }
 
-  // In CompanyService class
-  async exportCompanyById(companyId: string, format: string, userId: Types.ObjectId): Promise<any> {
-    try {
-      const company = await CompanyCreate.findOne({ company_id: companyId }).lean();
-
-      if (!company) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      if (format === "json") {
-        return JSON.stringify(company, null, 2);
-      } else if (format === "csv") {
-        // Convert single company to CSV format
-        const companyData = company as any;
-
-        // Define CSV headers
-        const headers = ["Field", "Value"];
-
-        // Flatten company data into key-value pairs
-        const csvRows = [];
-
-        // Add basic company info
-        csvRows.push(["Company ID", companyData.company_id || ""]);
-        csvRows.push(["Registered Company Name", companyData.registered_company_name || ""]);
-        csvRows.push(["Official Email", companyData.official_email || ""]);
-        csvRows.push(["Legal Entity Structure", companyData.legal_entity_structure || ""]);
-        csvRows.push(["Registration Type", companyData.registration_type || ""]);
-        csvRows.push(["CIN/MSME Number", companyData.cin_or_msme_number || ""]);
-        csvRows.push([
-          "Date of Incorporation",
-          companyData.date_of_incorporation
-            ? new Date(companyData.date_of_incorporation).toISOString().split("T")[0]
-            : "",
-        ]);
-        csvRows.push(["Registered Office Address", companyData.registered_office_address || ""]);
-        csvRows.push(["Corporate Website", companyData.corporate_website || ""]);
-        csvRows.push(["Directory Signature Name", companyData.directory_signature_name || ""]);
-        csvRows.push(["DIN", companyData.din || ""]);
-        csvRows.push(["Company Status", companyData.company_status || ""]);
-        csvRows.push([
-          "Created At",
-          companyData.createdAt ? new Date(companyData.createdAt).toISOString() : "",
-        ]);
-        csvRows.push([
-          "Updated At",
-          companyData.updatedAt ? new Date(companyData.updatedAt).toISOString() : "",
-        ]);
-
-        // Convert to CSV string
-        const csvContent = [
-          headers.join(","),
-          ...csvRows.map(row =>
-            row
-              .map(cell => {
-                // Escape commas and quotes in cell values
-                const cellStr = String(cell);
-                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-                  return `"${cellStr.replace(/"/g, '""')}"`;
-                }
-                return cellStr;
-              })
-              .join(",")
-          ),
-        ].join("\n");
-
-        return csvContent;
-      }
-
-      return company;
-    } catch (error) {
-      logger.error(`Error exporting company ${companyId}:`, error);
-      throw error;
-    }
-  }
-  // In BrandService class
   async exportBrandById(
     brandIdentifier: string | Types.ObjectId,
     format: string,
     userId: Types.ObjectId
   ): Promise<any> {
     try {
-      let brand;
-
-      // Convert brandIdentifier to string for validation if it's an ObjectId
       const brandIdStr =
         typeof brandIdentifier === "string" ? brandIdentifier : brandIdentifier.toString();
 
-      // Check if it's MongoDB ObjectId or custom brand_id
+      const populateFields = [
+        {
+          path: "company_id",
+          select:
+            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address",
+        },
+        {
+          path: "warehouse_id",
+          select: "warehouse_name warehouse_code address contact_person contact_phone",
+        },
+        { path: "verified_by", select: "email name role department" },
+        { path: "createdBy", select: "email name role department" },
+      ];
+
+      let brand;
       if (mongoose.Types.ObjectId.isValid(brandIdStr) && brandIdStr.length === 24) {
-        // If it's already an ObjectId, use it directly, otherwise create new
         const objectId =
           typeof brandIdentifier === "string"
             ? new Types.ObjectId(brandIdentifier)
             : brandIdentifier;
-
-        brand = await BrandCreate.findById(objectId)
-          .populate(
-            "company_id",
-            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address"
-          )
-          .populate(
-            "warehouse_id",
-            "warehouse_name warehouse_code address contact_person contact_phone"
-          )
-          .populate("verified_by", "email name role department")
-          .populate("createdBy", "email name role department")
-          .lean();
+        brand = await BrandCreate.findById(objectId).populate(populateFields).lean();
       } else {
-        // Search by custom brand_id field
-        brand = await BrandCreate.findOne({ brand_id: brandIdStr })
-          .populate(
-            "company_id",
-            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address"
-          )
-          .populate(
-            "warehouse_id",
-            "warehouse_name warehouse_code address contact_person contact_phone"
-          )
-          .populate("verified_by", "email name role department")
-          .populate("createdBy", "email name role department")
-          .lean();
+        brand = await BrandCreate.findOne({ brand_id: brandIdStr }).populate(populateFields).lean();
       }
 
-      if (!brand) {
-        throw new Error(`Brand with identifier ${brandIdStr} not found`);
-      }
+      if (!brand) throw new Error(`Brand with identifier ${brandIdStr} not found`);
 
-      if (format === "json") {
-        return JSON.stringify(brand, null, 2);
-      } else if (format === "csv") {
-        // Convert single brand to detailed CSV format
-        const brandData = brand as any;
+      if (format === "json") return JSON.stringify(brand, null, 2);
 
-        // Define detailed CSV structure
-        const csvRows = [
+      if (format === "csv") {
+        const d = brand as any;
+        const dateStr = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : "");
+
+        const rows = [
           ["FIELD", "VALUE"],
           ["Brand Information", ""],
-          ["Brand ID", brandData.brand_id || ""],
-          ["Brand Name", brandData.brand_name || ""],
-          ["Brand Billing Name", brandData.brand_billing_name || ""],
-          ["Brand Email", brandData.brand_email || ""],
-          ["Brand Category", brandData.brand_category || ""],
-          ["Brand Type", brandData.brand_type || ""],
-          ["Registration Type", brandData.registration_type || ""],
-          ["CIN/MSME Number", brandData.cin_or_msme_number || ""],
+          ["Brand ID", d.brand_id || ""],
+          ["Brand Name", d.brand_name || ""],
+          ["Brand Billing Name", d.brand_billing_name || ""],
+          ["Brand Email", d.brand_email || ""],
+          ["Brand Category", d.brand_category || ""],
+          ["Brand Type", d.brand_type || ""],
+          ["Registration Type", d.registration_type || ""],
+          ["CIN/MSME Number", d.cin_or_msme_number || ""],
           ["", ""],
           ["Company Information", ""],
-          ["Company Name", brandData.company_id?.registered_company_name || ""],
-          ["Company ID", brandData.company_id?.company_id || ""],
-          ["Company Email", brandData.company_id?.official_email || ""],
-          ["Company Legal Entity", brandData.company_id?.legal_entity_structure || ""],
-          ["Company Registration Type", brandData.company_id?.registration_type || ""],
-          [
-            "Date of Incorporation",
-            brandData.company_id?.date_of_incorporation
-              ? new Date(brandData.company_id.date_of_incorporation).toISOString().split("T")[0]
-              : "",
-          ],
-          ["Company Address", brandData.company_id?.registered_office_address || ""],
+          ["Company Name", d.company_id?.registered_company_name || ""],
+          ["Company ID", d.company_id?.company_id || ""],
+          ["Company Email", d.company_id?.official_email || ""],
+          ["Company Legal Entity", d.company_id?.legal_entity_structure || ""],
+          ["Company Registration Type", d.company_id?.registration_type || ""],
+          ["Date of Incorporation", dateStr(d.company_id?.date_of_incorporation)],
+          ["Company Address", d.company_id?.registered_office_address || ""],
           ["", ""],
           ["Contact Information", ""],
-          ["Contact Name", brandData.contact_name || ""],
-          ["Contact Phone", brandData.contact_phone || ""],
-          ["Brand Address", brandData.address || ""],
+          ["Contact Name", d.contact_name || ""],
+          ["Contact Phone", d.contact_phone || ""],
+          ["Brand Address", d.address || ""],
           ["", ""],
           ["Financial Information", ""],
-          ["Bank Account", brandData.bank_account_of_brand || ""],
-          ["IFSC Code", brandData.ifsc_code || ""],
-          ["Payment Terms", brandData.payment_terms || ""],
-          ["GST Details", brandData.gst_details || ""],
-          ["PAN Number", brandData.PAN_number || ""],
-          ["FSSAI Number", brandData.FSSAI_number || ""],
-          ["TDS Rate (%)", brandData.TDS_rate || ""],
-          ["Billing Cycle", brandData.billing_cycle || ""],
-          ["Brand Status Cycle", brandData.brand_status_cycle || ""],
-          ["Payment Methods", brandData.payment_methods || ""],
+          ["Bank Account", d.bank_account_of_brand || ""],
+          ["IFSC Code", d.ifsc_code || ""],
+          ["Payment Terms", d.payment_terms || ""],
+          ["GST Details", d.gst_details || ""],
+          ["PAN Number", d.PAN_number || ""],
+          ["FSSAI Number", d.FSSAI_number || ""],
+          ["TDS Rate (%)", d.TDS_rate || ""],
+          ["Billing Cycle", d.billing_cycle || ""],
+          ["Brand Status Cycle", d.brand_status_cycle || ""],
+          ["Payment Methods", d.payment_methods || ""],
           ["", ""],
           ["Contract Information", ""],
-          [
-            "Contract Start Date",
-            brandData.contract_start_date
-              ? new Date(brandData.contract_start_date).toISOString().split("T")[0]
-              : "",
-          ],
-          [
-            "Contract End Date",
-            brandData.contract_end_date
-              ? new Date(brandData.contract_end_date).toISOString().split("T")[0]
-              : "",
-          ],
-          [
-            "Contract Renewal Date",
-            brandData.contract_renewal_date
-              ? new Date(brandData.contract_renewal_date).toISOString().split("T")[0]
-              : "",
-          ],
-          ["Contract Terms", brandData.contract_terms || ""],
+          ["Contract Start Date", dateStr(d.contract_start_date)],
+          ["Contract End Date", dateStr(d.contract_end_date)],
+          ["Contract Renewal Date", dateStr(d.contract_renewal_date)],
+          ["Contract Terms", d.contract_terms || ""],
           ["", ""],
           ["Status & Verification", ""],
-          ["Verification Status", brandData.verification_status || ""],
-          ["Risk Notes", brandData.risk_notes || ""],
-          ["Internal Notes", brandData.internal_notes || ""],
-          ["Verified By", brandData.verified_by?.name || ""],
-          ["Verified By Email", brandData.verified_by?.email || ""],
-          ["Verified By Role", brandData.verified_by?.role || ""],
+          ["Verification Status", d.verification_status || ""],
+          ["Risk Notes", d.risk_notes || ""],
+          ["Internal Notes", d.internal_notes || ""],
+          ["Verified By", d.verified_by?.name || ""],
+          ["Verified By Email", d.verified_by?.email || ""],
           ["", ""],
           ["Warehouse Information", ""],
-          ["Warehouse Name", brandData.warehouse_id?.warehouse_name || ""],
-          ["Warehouse Code", brandData.warehouse_id?.warehouse_code || ""],
-          ["Warehouse Address", brandData.warehouse_id?.address || ""],
-          ["Warehouse Contact", brandData.warehouse_id?.contact_person || ""],
-          ["Warehouse Phone", brandData.warehouse_id?.contact_phone || ""],
+          ["Warehouse Name", d.warehouse_id?.warehouse_name || ""],
+          ["Warehouse Code", d.warehouse_id?.warehouse_code || ""],
+          ["Warehouse Address", d.warehouse_id?.address || ""],
           ["", ""],
           ["Document URLs", ""],
-          ["Cancelled Cheque", brandData.upload_cancelled_cheque_image?.file_url || ""],
-          ["GST Certificate", brandData.gst_certificate_image?.file_url || ""],
-          ["PAN Image", brandData.PAN_image?.file_url || ""],
-          ["FSSAI Certificate", brandData.FSSAI_image?.file_url || ""],
-          [
-            "Certificate of Incorporation",
-            brandData.certificate_of_incorporation_image?.file_url || "",
-          ],
-          ["MSME/Udyam Certificate", brandData.MSME_or_Udyam_certificate_image?.file_url || ""],
-          ["MOA Document", brandData.MOA_image?.file_url || ""],
-          ["AOA Document", brandData.AOA_image?.file_url || ""],
-          ["Trademark Certificate", brandData.Trademark_certificate_image?.file_url || ""],
-          ["Authorized Signatory", brandData.Authorized_Signatory_image?.file_url || ""],
-          ["LLP Agreement", brandData.LLP_agreement_image?.file_url || ""],
+          ["Cancelled Cheque", d.upload_cancelled_cheque_image?.file_url || ""],
+          ["GST Certificate", d.gst_certificate_image?.file_url || ""],
+          ["PAN Image", d.PAN_image?.file_url || ""],
+          ["FSSAI Certificate", d.FSSAI_image?.file_url || ""],
+          ["Certificate of Incorporation", d.certificate_of_incorporation_image?.file_url || ""],
+          ["MSME/Udyam Certificate", d.MSME_or_Udyam_certificate_image?.file_url || ""],
+          ["MOA Document", d.MOA_image?.file_url || ""],
+          ["AOA Document", d.AOA_image?.file_url || ""],
+          ["Trademark Certificate", d.Trademark_certificate_image?.file_url || ""],
+          ["Authorized Signatory", d.Authorized_Signatory_image?.file_url || ""],
+          ["LLP Agreement", d.LLP_agreement_image?.file_url || ""],
           [
             "Shop & Establishment Certificate",
-            brandData.Shop_and_Establishment_certificate_image?.file_url || "",
+            d.Shop_and_Establishment_certificate_image?.file_url || "",
           ],
-          [
-            "Registered Partnership Deed",
-            brandData.Registered_Partnership_deed_image?.file_url || "",
-          ],
-          ["Board Resolution", brandData.Board_resolution_image?.file_url || ""],
-          ["", ""],
-          ["Document Details", ""],
-          ["Cancelled Cheque File Name", brandData.upload_cancelled_cheque_image?.image_name || ""],
-          [
-            "Cancelled Cheque Upload Date",
-            brandData.upload_cancelled_cheque_image?.uploaded_at
-              ? new Date(brandData.upload_cancelled_cheque_image.uploaded_at).toISOString()
-              : "",
-          ],
-          ["GST Certificate File Name", brandData.gst_certificate_image?.image_name || ""],
-          [
-            "GST Certificate Upload Date",
-            brandData.gst_certificate_image?.uploaded_at
-              ? new Date(brandData.gst_certificate_image.uploaded_at).toISOString()
-              : "",
-          ],
+          ["Registered Partnership Deed", d.Registered_Partnership_deed_image?.file_url || ""],
+          ["Board Resolution", d.Board_resolution_image?.file_url || ""],
           ["", ""],
           ["System Information", ""],
-          ["Created By", brandData.createdBy?.name || ""],
-          ["Created By Email", brandData.createdBy?.email || ""],
-          ["Created By Role", brandData.createdBy?.role || ""],
-          ["Created At", brandData.createdAt ? new Date(brandData.createdAt).toISOString() : ""],
-          ["Updated At", brandData.updatedAt ? new Date(brandData.updatedAt).toISOString() : ""],
+          ["Created By", d.createdBy?.name || ""],
+          ["Created By Email", d.createdBy?.email || ""],
+          ["Created At", d.createdAt ? new Date(d.createdAt).toISOString() : ""],
+          ["Updated At", d.updatedAt ? new Date(d.updatedAt).toISOString() : ""],
         ];
 
-        // Convert to CSV string
-        const csvContent = csvRows
-          .map(row =>
-            row
-              .map(cell => {
-                const cellStr = String(cell);
-                if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-                  return `"${cellStr.replace(/"/g, '""')}"`;
-                }
-                return cellStr;
-              })
-              .join(",")
-          )
-          .join("\n");
+        return rows.map(row => row.map(escapeCSVCell).join(",")).join("\n");
+      }
 
-        return csvContent;
-      } else if (format === "pdf") {
-        // PDF generation - you'll need a PDF library like pdfkit or puppeteer
+      if (format === "pdf") {
         return this.generateBrandPDF(brand);
       }
 
@@ -2668,10 +1603,7 @@ export class BrandService {
       throw error;
     }
   }
-  /**
-   * Toggle brand verification status
-   * Cycles through: pending -> verified -> rejected -> pending
-   */
+
   async bulkUpdateBrandVerificationStatus(
     brandIds: string[],
     verification_status: "pending" | "verified" | "rejected",
@@ -2681,83 +1613,125 @@ export class BrandService {
     userRole: string,
     req?: Request
   ): Promise<{ updated: number; failed: string[] }> {
-    try {
-      const failed: string[] = [];
-      let updated = 0;
+    const failed: string[] = [];
+    let updated = 0;
 
-      for (const brandId of brandIds) {
-        try {
-          const updateData: any = {
-            verification_status,
-            risk_notes,
-            ...(verification_status === "verified" ? { verified_by: updatedBy } : {}),
-          };
+    for (const brandId of brandIds) {
+      try {
+        const updateData: any = {
+          verification_status,
+          risk_notes,
+          ...(verification_status === "verified" ? { verified_by: updatedBy } : {}),
+        };
 
-          const query: any =
-            mongoose.Types.ObjectId.isValid(brandId) &&
-            brandId.length === 24 &&
-            brandId.match(/^[0-9a-fA-F]{24}$/)
-              ? { _id: new mongoose.Types.ObjectId(brandId) }
-              : { brand_id: brandId };
-
-          const currentBrand = await BrandCreate.findOne(query);
-          if (!currentBrand) {
-            failed.push(brandId);
-            continue;
-          }
-
-          await BrandCreate.findOneAndUpdate(
-            query,
-            { $set: updateData },
-            { new: true, runValidators: true }
-          );
-
-          if (req) {
-            await auditTrailService.createAuditRecord({
-              user: updatedBy,
-              user_email: userEmail,
-              user_role: userRole,
-              action: "update_verification",
-              action_description: `Updated brand verification status from ${currentBrand.verification_status} to ${verification_status}: ${currentBrand.brand_name}. Notes: ${risk_notes}`,
-              target_type: "brand",
-              target_brand: currentBrand._id,
-              target_brand_name: currentBrand.brand_name,
-              target_company: currentBrand.company_id,
-              before_state: { verification_status: currentBrand.verification_status },
-              after_state: { verification_status, risk_notes },
-              changed_fields: ["verification_status", "risk_notes"],
-              ip_address: req.ip,
-              user_agent: req.get("User-Agent"),
-            });
-          }
-
-          updated++;
-        } catch (error) {
+        const query = buildBrandQuery(brandId);
+        const currentBrand = await BrandCreate.findOne(query);
+        if (!currentBrand) {
           failed.push(brandId);
-          logger.error(`Failed to update brand ${brandId}:`, error);
+          continue;
+        }
+
+        await BrandCreate.findOneAndUpdate(
+          query,
+          { $set: updateData },
+          { new: true, runValidators: true }
+        );
+
+        if (req) {
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action: "update_verification",
+            action_description: `Updated brand verification status from ${currentBrand.verification_status} to ${verification_status}: ${currentBrand.brand_name}. Notes: ${risk_notes}`,
+            target_type: "brand",
+            target_brand: currentBrand._id,
+            target_brand_name: currentBrand.brand_name,
+            target_company: currentBrand.company_id,
+            before_state: { verification_status: currentBrand.verification_status },
+            after_state: { verification_status, risk_notes },
+            changed_fields: ["verification_status", "risk_notes"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+        }
+
+        updated++;
+      } catch (error) {
+        failed.push(brandId);
+        logger.error(`Failed to update brand ${brandId}:`, error);
+      }
+    }
+
+    return { updated, failed };
+  }
+
+  async updateBrandStatus(
+    brandIdentifier: string,
+    brand_status: "active" | "inactive",
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<IBrandCreate | null> {
+    try {
+      const query = buildBrandQuery(brandIdentifier);
+      const currentBrand = await BrandCreate.findOne(query);
+      if (!currentBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      const updatedBrand = (await BrandCreate.findOneAndUpdate(
+        query,
+        { $set: { brand_status } },
+        { new: true, runValidators: true }
+      )
+        .populate("company_id", "company_id registered_company_name official_email")
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean()) as unknown as IBrandCreate | null;
+
+      if (!updatedBrand) {
+        throw new Error(`Brand with identifier ${brandIdentifier} not found`);
+      }
+
+      if (req) {
+        try {
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action: "update",
+            action_description: `Updated brand status from ${currentBrand.brand_status} to ${brand_status}: ${currentBrand.brand_name}`,
+            target_type: "brand",
+            target_brand: currentBrand._id,
+            target_brand_name: currentBrand.brand_name,
+            target_company: currentBrand.company_id,
+            before_state: { brand_status: currentBrand.brand_status },
+            after_state: { brand_status },
+            changed_fields: ["brand_status"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+        } catch (auditError) {
+          logger.error("Failed to create audit trail:", auditError);
         }
       }
 
-      return { updated, failed };
+      return updatedBrand;
     } catch (error) {
-      logger.error("Error in bulkUpdateBrandVerificationStatus:", error);
+      logger.error(`Error updating brand status ${brandIdentifier}:`, error);
       throw error;
     }
   }
-  /**
-   * Generate PDF for a brand
-   */
+
   private async generateBrandPDF(brand: any): Promise<Buffer> {
     try {
-      // You'll need to install a PDF generation library
-      // Example using pdfkit:
       const doc = new PDFDocument();
       const buffers: Buffer[] = [];
-
       doc.on("data", buffers.push.bind(buffers));
-      doc.on("end", () => {});
 
-      // Brand Information
       doc.fontSize(16).text("Brand Export Report", { align: "center" });
       doc.moveDown();
 
@@ -2767,7 +1741,6 @@ export class BrandService {
       doc.text(`Brand Email: ${brand.brand_email || "N/A"}`);
       doc.moveDown();
 
-      // Company Information
       if (brand.company_id) {
         doc.fontSize(14).text("Company Information:");
         doc.fontSize(12).text(`Company Name: ${brand.company_id.registered_company_name || "N/A"}`);
@@ -2776,14 +1749,12 @@ export class BrandService {
         doc.moveDown();
       }
 
-      // Contact Information
       doc.fontSize(14).text("Contact Information:");
       doc.fontSize(12).text(`Contact Name: ${brand.contact_name || "N/A"}`);
       doc.text(`Contact Phone: ${brand.contact_phone || "N/A"}`);
       doc.text(`Address: ${brand.address || "N/A"}`);
       doc.moveDown();
 
-      // Financial Information
       doc.fontSize(14).text("Financial Information:");
       doc.fontSize(12).text(`Bank Account: ${brand.bank_account_of_brand || "N/A"}`);
       doc.text(`IFSC Code: ${brand.ifsc_code || "N/A"}`);
@@ -2791,7 +1762,6 @@ export class BrandService {
       doc.text(`GST Details: ${brand.gst_details || "N/A"}`);
       doc.moveDown();
 
-      // Status Information
       doc.fontSize(14).text("Status Information:");
       doc.fontSize(12).text(`Verification Status: ${brand.verification_status || "N/A"}`);
       doc.text(
@@ -2804,244 +1774,12 @@ export class BrandService {
       doc.end();
 
       return new Promise((resolve, reject) => {
-        doc.on("end", () => {
-          const pdfData = Buffer.concat(buffers);
-          resolve(pdfData);
-        });
+        doc.on("end", () => resolve(Buffer.concat(buffers)));
         doc.on("error", reject);
       });
     } catch (error) {
       logger.error("Error generating PDF:", error);
       throw new Error("Failed to generate PDF");
-    }
-  }
-
-  // Validate brand data
-  async validateBrandData(data: { brand_email?: string; cin_or_msme_number?: string }): Promise<{
-    isValid: boolean;
-    errors: string[];
-    details: {
-      brand_email?: { exists: boolean; message: string };
-      company_exists?: { exists: boolean; message: string };
-    };
-  }> {
-    try {
-      const errors: string[] = [];
-      const details: any = {};
-
-      // Check brand email
-      if (data.brand_email) {
-        const existingEmail = await BrandCreate.findOne({
-          brand_email: data.brand_email.toLowerCase(),
-        });
-        details.brand_email = {
-          exists: !!existingEmail,
-          message: existingEmail ? "Brand email already exists" : "Brand email is available",
-        };
-        if (existingEmail) {
-          errors.push("Brand email already exists");
-        }
-      }
-
-      // Check company exists
-      if (data.cin_or_msme_number) {
-        const companyExists = await CompanyCreate.findOne({
-          cin_or_msme_number: data.cin_or_msme_number,
-        });
-        details.company_exists = {
-          exists: !!companyExists,
-          message: companyExists ? "Company exists" : "Company not found",
-        };
-        if (!companyExists) {
-          errors.push("Company with this registration number does not exist");
-        }
-      }
-
-      return {
-        isValid: errors.length === 0,
-        errors,
-        details,
-      };
-    } catch (error) {
-      logger.error("Error validating brand data:", error);
-      throw error;
-    }
-  }
-
-  // Bulk create brands
-  async bulkCreateBrands(
-    brands: IBrandCreateData[],
-    createdBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<{
-    successful: IBrandCreate[];
-    failed: Array<{ data: IBrandCreateData; error: string }>;
-  }> {
-    try {
-      const successful: IBrandCreate[] = [];
-      const failed: Array<{ data: IBrandCreateData; error: string }> = [];
-
-      for (const brandData of brands) {
-        try {
-          // Check for duplicates in this batch
-          const duplicateInBatch =
-            brands.filter(
-              (b, idx) => b.brand_email.toLowerCase() === brandData.brand_email.toLowerCase()
-            ).length > 1;
-
-          if (duplicateInBatch) {
-            throw new Error("Duplicate brand email found within the batch");
-          }
-
-          const newBrand = await this.createBrand(brandData, createdBy, userEmail, userRole, req);
-          successful.push(newBrand);
-        } catch (error: any) {
-          failed.push({
-            data: brandData,
-            error: error.message,
-          });
-        }
-      }
-
-      return { successful, failed };
-    } catch (error) {
-      logger.error("Error in bulk brand creation:", error);
-      throw error;
-    }
-  }
-
-  // Add this method to your existing CompanyService class
-  async getCompanyDashboard(options: ICompanyDashboardOptions): Promise<ICompanyDashboardResponse> {
-    try {
-      const { page, limit, company_status, legal_entity_structure, registration_type, search } =
-        options;
-      const skip = (page - 1) * limit;
-
-      // Build query for companies
-      const companyQuery: any = {};
-
-      if (company_status) {
-        companyQuery.company_status = company_status;
-      }
-
-      if (legal_entity_structure) {
-        companyQuery.legal_entity_structure = legal_entity_structure;
-      }
-
-      if (registration_type) {
-        companyQuery.registration_type = registration_type;
-      }
-
-      if (search) {
-        companyQuery.$or = [
-          { registered_company_name: { $regex: search, $options: "i" } },
-          { company_id: { $regex: search, $options: "i" } },
-          { cin_or_msme_number: { $regex: search, $options: "i" } },
-          { official_email: { $regex: search, $options: "i" } },
-        ];
-      }
-
-      // Get statistics in parallel
-      const [
-        totalCompanies,
-        activeCompanies,
-        inactiveCompanies,
-        legalEntityStats,
-        registrationTypeStats,
-        companies,
-        totalCount,
-      ] = await Promise.all([
-        // Total companies count
-        CompanyCreate.countDocuments(companyQuery),
-
-        // Active companies count
-        CompanyCreate.countDocuments({ ...companyQuery, company_status: "active" }),
-
-        // Inactive companies count
-        CompanyCreate.countDocuments({ ...companyQuery, company_status: "inactive" }),
-
-        // Legal entity structure statistics
-        CompanyCreate.aggregate([
-          { $match: companyQuery },
-          {
-            $group: {
-              _id: "$legal_entity_structure",
-              count: { $sum: 1 },
-            },
-          },
-          { $sort: { count: -1 } },
-        ]),
-
-        // Registration type statistics
-        CompanyCreate.aggregate([
-          { $match: companyQuery },
-          {
-            $group: {
-              _id: "$registration_type",
-              count: { $sum: 1 },
-            },
-          },
-        ]),
-
-        // Get companies with pagination
-        CompanyCreate.find(companyQuery)
-          .select(
-            "company_id registered_company_name cin_or_msme_number legal_entity_structure registration_type company_status official_email date_of_incorporation createdAt updatedAt"
-          )
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-
-        // Get total count for pagination
-        CompanyCreate.countDocuments(companyQuery),
-      ]);
-
-      // Get brand counts for each company
-      const companiesWithBrandCounts = await Promise.all(
-        companies.map(async (company: any) => {
-          const brandCount = await BrandCreate.countDocuments({
-            company_id: company._id,
-          });
-
-          return {
-            _id: company._id.toString(),
-            company_id: company.company_id,
-            registered_company_name: company.registered_company_name,
-            cin_or_msme_number: company.cin_or_msme_number,
-            legal_entity_structure: company.legal_entity_structure,
-            registration_type: company.registration_type,
-            company_status: company.company_status,
-            brandCount,
-            official_email: company.official_email,
-            date_of_incorporation: company.date_of_incorporation,
-            createdAt: company.createdAt,
-            updatedAt: company.updatedAt,
-          };
-        })
-      );
-
-      return {
-        data: companiesWithBrandCounts,
-        statistics: {
-          totalCompanies,
-          activeCompanies,
-          inactiveCompanies,
-          byLegalEntityStructure: legalEntityStats,
-          byRegistrationType: registrationTypeStats,
-        },
-        pagination: {
-          page,
-          limit,
-          total: totalCount,
-          totalPages: Math.ceil(totalCount / limit),
-        },
-      };
-    } catch (error) {
-      logger.error("Error generating company dashboard:", error);
-      throw error;
     }
   }
 }

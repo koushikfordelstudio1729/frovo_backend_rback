@@ -2,18 +2,12 @@ import { Router } from "express";
 import { VendorController } from "../controllers/vendor.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
-import {
-  uploadMultiple,
-  uploadSingle,
-  uploadBrandDocuments,
-} from "../middleware/upload.middleware";
 import { upload } from "../middleware/upload.middleware";
 const router = Router();
 
 router.use(authenticate);
 
 // Role definitions
-const SUPER_ADMIN_ONLY = ["super_admin"];
 const VENDOR_MANAGEMENT = ["super_admin", "vendor_admin"];
 const STAFF_MANAGEMENT = ["super_admin", "vendor_admin", "vendor_staff"];
 
@@ -30,23 +24,30 @@ router.post("/companies", authorize(STAFF_MANAGEMENT), VendorController.createCo
 // Get all companies with pagination
 router.get("/companies", authorize(STAFF_MANAGEMENT), VendorController.getAllCompanies);
 
-// Get company by company_id
+// Get company by id
 router.get("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.getCompanyById);
 
-// Update company by company_id
+// Update company by id
 router.put("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.updateCompany);
 
-// Delete company by company_id
+// Delete company by id
 router.delete("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteCompany);
 
-// Update company status (active/inactive) with payload
+// Update company verification status (approve/reject)
 router.patch(
   "/companies/:id/verification",
   authorize(VENDOR_MANAGEMENT),
   VendorController.updateCompanyVerificationStatus
 );
 
-// Bulk update company status
+// Update company status (active/inactive)
+router.patch(
+  "/companies/:id/status",
+  authorize(VENDOR_MANAGEMENT),
+  VendorController.updateCompanyStatus
+);
+
+// Bulk update company verification status
 router.patch(
   "/companies/bulk-verification",
   authorize(VENDOR_MANAGEMENT),
@@ -112,9 +113,9 @@ router.post(
 // Get all brands with pagination
 router.get("/brands", authorize(STAFF_MANAGEMENT), VendorController.getAllBrands);
 
-// Get brand by brand_id
+// Get brand by id
 router.get("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.getBrandById);
-// Delete brand by brand_id
+// Delete brand by id
 router.delete("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
 // Update brand verification status (only super_admin and vendor_admin)
@@ -122,6 +123,13 @@ router.patch(
   "/brands/:id/verification",
   authorize(VENDOR_MANAGEMENT),
   VendorController.updateBrandVerificationStatus
+);
+
+// Update brand status (active/inactive)
+router.patch(
+  "/brands/:id/status",
+  authorize(VENDOR_MANAGEMENT),
+  VendorController.updateBrandStatus
 );
 
 // Bulk update brand verification status
@@ -147,7 +155,7 @@ router.get(
 
 // Get audit trail for a brand
 router.get(
-  "/brands/:brand_id/audit-trail",
+  "/brands/:id/audit-trail",
   authorize(STAFF_MANAGEMENT),
   VendorController.getBrandAuditTrail
 );
@@ -156,14 +164,10 @@ router.get(
 router.get("/brands/export/all", authorize(STAFF_MANAGEMENT), VendorController.exportBrands);
 
 // Export single brand data
-router.get(
-  "/brands/:brand_id/export",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.exportBrandById
-);
-// Update brand by identifier (handles both types)
+router.get("/brands/:id/export", authorize(STAFF_MANAGEMENT), VendorController.exportBrandById);
+// Update brand by id
 router.put(
-  "/brands/:brand_id", // This can accept both MongoDB _id and custom brand_id
+  "/brands/:id",
   authorize(STAFF_MANAGEMENT),
   upload.fields([
     { name: "upload_cancelled_cheque_image", maxCount: 1 },

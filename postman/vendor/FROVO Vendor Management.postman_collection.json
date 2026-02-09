@@ -267,62 +267,6 @@
           "response": []
         },
         {
-          "name": "Update Company Status",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"company_status\": \"active\",\n  \"risk_notes\": \"All documents verified\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/companies/{{company_id}}/verification",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "{{company_id}}", "verification"]
-            },
-            "description": "Update the active/inactive status of a company. Only super_admin and vendor_admin can access this. Payload: { company_status: 'active' | 'inactive', risk_notes: 'reason' }"
-          },
-          "response": []
-        },
-        {
-          "name": "Bulk Update Company Status",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"company_ids\": [\"{{company_id}}\"],\n  \"company_status\": \"active\",\n  \"risk_notes\": \"Bulk approved - all documents verified\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/companies/bulk-verification",
-              "host": ["{{base_url}}"],
-              "path": ["companies", "bulk-verification"]
-            },
-            "description": "Bulk update company status. Only super_admin and vendor_admin can access this. Payload: { company_ids: [...], company_status: 'active' | 'inactive', risk_notes: 'reason' }"
-          },
-          "response": []
-        },
-        {
           "name": "Get Company Statistics",
           "request": {
             "method": "GET",
@@ -405,16 +349,20 @@
                 { "key": "risk_notes", "value": "Low risk vendor", "type": "text" },
                 { "key": "contract_terms", "value": "Standard terms", "type": "text" },
                 { "key": "internal_notes", "value": "Priority vendor", "type": "text" },
-                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "" },
-                { "key": "gst_certificate_image", "type": "file", "src": "" },
-                { "key": "PAN_image", "type": "file", "src": "" },
-                { "key": "FSSAI_image", "type": "file", "src": "" },
-                { "key": "certificate_of_incorporation_image", "type": "file", "src": "" },
-                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "" },
-                { "key": "MOA_image", "type": "file", "src": "" },
-                { "key": "AOA_image", "type": "file", "src": "" },
-                { "key": "Trademark_certificate_image", "type": "file", "src": "" },
-                { "key": "Authorized_Signatory_image", "type": "file", "src": "" }
+                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "", "description": "Required for ALL entity types" },
+                { "key": "gst_certificate_image", "type": "file", "src": "", "description": "Required for ALL entity types" },
+                { "key": "PAN_image", "type": "file", "src": "", "description": "Required for ALL entity types" },
+                { "key": "FSSAI_image", "type": "file", "src": "", "description": "Required for ALL entity types" },
+                { "key": "certificate_of_incorporation_image", "type": "file", "src": "", "description": "Required for: pvt, opc, llp, public" },
+                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "", "description": "Required for: pvt, opc, llp, proprietorship, partnership" },
+                { "key": "MOA_image", "type": "file", "src": "", "description": "Required for: pvt, opc, public" },
+                { "key": "AOA_image", "type": "file", "src": "", "description": "Required for: pvt, opc, public" },
+                { "key": "Trademark_certificate_image", "type": "file", "src": "", "description": "Required for: pvt" },
+                { "key": "Authorized_Signatory_image", "type": "file", "src": "", "description": "Required for: pvt" },
+                { "key": "LLP_agreement_image", "type": "file", "src": "", "description": "Required for: llp", "disabled": true },
+                { "key": "Shop_and_Establishment_certificate_image", "type": "file", "src": "", "description": "Required for: proprietorship", "disabled": true },
+                { "key": "Registered_Partnership_deed_image", "type": "file", "src": "", "description": "Required for: partnership", "disabled": true },
+                { "key": "Board_resolution_image", "type": "file", "src": "", "description": "Required for: public", "disabled": true }
               ]
             },
             "url": {
@@ -481,16 +429,20 @@
                 { "key": "payment_terms", "value": "Net 45", "type": "text" },
                 { "key": "TDS_rate", "value": "3", "type": "text" },
                 { "key": "billing_cycle", "value": "quarterly", "type": "text" },
-                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "" },
-                { "key": "gst_certificate_image", "type": "file", "src": "" },
-                { "key": "PAN_image", "type": "file", "src": "" },
-                { "key": "FSSAI_image", "type": "file", "src": "" },
-                { "key": "certificate_of_incorporation_image", "type": "file", "src": "" },
-                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "" },
-                { "key": "MOA_image", "type": "file", "src": "" },
-                { "key": "AOA_image", "type": "file", "src": "" },
-                { "key": "Trademark_certificate_image", "type": "file", "src": "" },
-                { "key": "Authorized_Signatory_image", "type": "file", "src": "" }
+                { "key": "upload_cancelled_cheque_image", "type": "file", "src": "", "description": "Common doc - ALL entity types" },
+                { "key": "gst_certificate_image", "type": "file", "src": "", "description": "Common doc - ALL entity types" },
+                { "key": "PAN_image", "type": "file", "src": "", "description": "Common doc - ALL entity types" },
+                { "key": "FSSAI_image", "type": "file", "src": "", "description": "Common doc - ALL entity types" },
+                { "key": "certificate_of_incorporation_image", "type": "file", "src": "", "description": "Required for: pvt, opc, llp, public" },
+                { "key": "MSME_or_Udyam_certificate_image", "type": "file", "src": "", "description": "Required for: pvt, opc, llp, proprietorship, partnership" },
+                { "key": "MOA_image", "type": "file", "src": "", "description": "Required for: pvt, opc, public" },
+                { "key": "AOA_image", "type": "file", "src": "", "description": "Required for: pvt, opc, public" },
+                { "key": "Trademark_certificate_image", "type": "file", "src": "", "description": "Required for: pvt" },
+                { "key": "Authorized_Signatory_image", "type": "file", "src": "", "description": "Required for: pvt" },
+                { "key": "LLP_agreement_image", "type": "file", "src": "", "description": "Required for: llp", "disabled": true },
+                { "key": "Shop_and_Establishment_certificate_image", "type": "file", "src": "", "description": "Required for: proprietorship", "disabled": true },
+                { "key": "Registered_Partnership_deed_image", "type": "file", "src": "", "description": "Required for: partnership", "disabled": true },
+                { "key": "Board_resolution_image", "type": "file", "src": "", "description": "Required for: public", "disabled": true }
               ]
             },
             "url": {
@@ -553,8 +505,92 @@
     },
     {
       "name": "Vendor Verification",
-      "description": "Brand/Vendor verification status management endpoints. Only super_admin and vendor_admin can access these.",
+      "description": "Company and Brand verification & status management endpoints. Only super_admin and vendor_admin can access these. Two independent systems: verification_status (pending/verified/rejected) and active/inactive status.",
       "item": [
+        {
+          "name": "Update Company Verification Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"All documents verified and approved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/verification",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "verification"]
+            },
+            "description": "Update a company's verification status (pending/verified/rejected). Only super_admin and vendor_admin can access this. Payload: { verification_status: 'pending' | 'verified' | 'rejected', risk_notes: 'reason' }"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Company Status (Active/Inactive)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_status\": \"active\",\n  \"risk_notes\": \"Company reactivated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/{{company_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "{{company_id}}", "status"]
+            },
+            "description": "Update the active/inactive status of a company. Only super_admin and vendor_admin can access this. Payload: { company_status: 'active' | 'inactive', risk_notes: 'reason' }"
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Update Company Verification",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_ids\": [\"{{company_id}}\"],\n  \"verification_status\": \"verified\",\n  \"risk_notes\": \"Bulk approved - all documents verified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/bulk-verification",
+              "host": ["{{base_url}}"],
+              "path": ["companies", "bulk-verification"]
+            },
+            "description": "Bulk update company verification status. Only super_admin and vendor_admin can access this. Payload: { company_ids: [...], verification_status: 'pending' | 'verified' | 'rejected', risk_notes: 'reason' }"
+          },
+          "response": []
+        },
         {
           "name": "Update Brand Verification Status",
           "request": {
@@ -579,7 +615,35 @@
               "host": ["{{base_url}}"],
               "path": ["brands", "{{brand_id}}", "verification"]
             },
-            "description": "Update a brand's verification status and risk notes. Only super_admin and vendor_admin can access this. Payload: { verification_status: 'verified' | 'rejected' | 'pending', risk_notes: 'reason' }"
+            "description": "Update a brand's verification status (pending/verified/rejected). Only super_admin and vendor_admin can access this. Payload: { verification_status: 'pending' | 'verified' | 'rejected', risk_notes: 'reason' }"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Brand Status (Active/Inactive)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brand_status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/{{brand_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["brands", "{{brand_id}}", "status"]
+            },
+            "description": "Update a brand's active/inactive status. Only super_admin and vendor_admin can access this. Payload: { brand_status: 'active' | 'inactive' }"
           },
           "response": []
         },
@@ -607,7 +671,7 @@
               "host": ["{{base_url}}"],
               "path": ["brands", "bulk-verification"]
             },
-            "description": "Bulk update brand verification status. Only super_admin and vendor_admin can access this. Payload: { brand_ids: [...], verification_status: 'verified' | 'rejected' | 'pending', risk_notes: 'reason' }"
+            "description": "Bulk update brand verification status. Only super_admin and vendor_admin can access this. Payload: { brand_ids: [...], verification_status: 'pending' | 'verified' | 'rejected', risk_notes: 'reason' }"
           },
           "response": []
         }

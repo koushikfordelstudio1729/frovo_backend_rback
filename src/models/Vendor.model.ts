@@ -14,6 +14,7 @@ export interface ICompanyCreate extends Document {
   directory_signature_name: string;
   din: string;
   company_status: "active" | "inactive";
+  verification_status: "pending" | "verified" | "rejected";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,12 @@ const companyCreateSchema = new Schema<ICompanyCreate>(
       type: String,
       enum: ["active", "inactive"],
       default: "active",
+      required: true,
+    },
+    verification_status: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
       required: true,
     },
   },
@@ -413,6 +420,7 @@ export interface IBrandCreate extends Document {
   TDS_rate: number;
   billing_cycle: string;
   brand_status_cycle: string;
+  brand_status: "active" | "inactive";
   verification_status: "pending" | "verified" | "rejected";
   risk_notes: string;
   contract_terms: string;
@@ -489,6 +497,12 @@ const brandCreateSchema = new Schema<IBrandCreate>(
     TDS_rate: { type: Number, required: true, min: 0, max: 100, default: 1 },
     billing_cycle: { type: String, required: true, trim: true },
     brand_status_cycle: { type: String, required: true, trim: true },
+    brand_status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      required: true,
+    },
     verification_status: {
       type: String,
       enum: ["pending", "verified", "rejected"],
