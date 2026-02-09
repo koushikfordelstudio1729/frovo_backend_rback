@@ -71,22 +71,12 @@ router.get(
 router.get("/sublocation/:subLocationId/machine", authorize(MANAGEMENT), AreaController.getMachineDetailsBySubLocationId);
 router.put("/machine/:machineDetailsId", uploadAreaFiles, authorize(MANAGEMENT), AreaController.updateMachineDetails);
 router.delete("/machine/:machineDetailsId", authorize(MANAGEMENT), AreaController.removeMachine);
-//router.post("/machine/:machineDetailsId/images", authorize(MANAGEMENT), AreaController.addMachineImages);
 router.delete("/machine/:machineDetailsId/images/:imageIndex", authorize(MANAGEMENT), AreaController.removeMachineImage);
 router.patch("/machine/:machineDetailsId/toggle-status", authorize(MANAGEMENT), AreaController.toggleMachineStatus);
 router.patch("/machine/:machineDetailsId/toggle-installed", authorize(MANAGEMENT), AreaController.toggleMachineInstalledStatus);
 router.get("/machine/search", authorize(MANAGEMENT), AreaController.searchMachines);
-// Add this to your routes file, preferably after the other machine routes
-router.put(
-  "/machine/:machineDetailsId/images",
-  uploadAreaFiles, // Make sure this middleware handles multiple files
-  authorize(MANAGEMENT),
-  AreaController.updateMachineImages
-);
-//router.put("/machine/:machineDetailsId/images",uploadAreaFiles, authorize(MANAGEMENT), AreaController.updateMachineImages);
-// ============================================
-// AUDIT LOG ROUTES
-// ============================================
+router.put("/machine/:machineDetailsId/images",uploadAreaFiles,authorize(MANAGEMENT),AreaController.updateMachineImages);
+
 
 router.get("/location/:locationId/audit-logs", authorize(SUPER_ADMIN_ONLY), AreaController.getAuditLogs);
 router.get("/location/:locationId/audit-logs/export", authorize(SUPER_ADMIN_ONLY), AreaController.exportLocationAuditLogs);

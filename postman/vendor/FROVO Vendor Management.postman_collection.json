@@ -1,0 +1,2666 @@
+{
+  "info": {
+    "_postman_id": "f7b3187d-9418-4c47-b77a-4556f85dbac3",
+    "name": "FROVO Vendor Management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "39772168",
+    "_collection_link": "https://go.postman.co/collection/39772168-f7b3187d-9418-4c47-b77a-4556f85dbac3?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Company",
+      "item": [
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123455\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frov.com\",\r\n  \"official_email\": \"official@fro.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234565\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Companies",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Company By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6984aba0be874acdc1e53cb3"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/:company_id/toggle-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                ":company_id",
+                "toggle-status"
+              ],
+              "variable": [
+                {
+                  "key": "company_id",
+                  "value": "5089721"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/:company_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                ":company_id"
+              ],
+              "variable": [
+                {
+                  "key": "company_id",
+                  "value": "5089721"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Trail Company By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/:id/audit-trail",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                ":id",
+                "audit-trail"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6984aba0be874acdc1e53cb3"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Trail Company",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/audit-trails/companies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit-trails",
+                "companies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Companies",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/export/all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                "export",
+                "all"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Companies By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/:id/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                ":id",
+                "export"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "6984aba0be874acdc1e53cb3"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Company",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"registered_company_name\": \"Frovo Technologies Private Limited\",\r\n  \"legal_entity_structure\": \"pvt\",\r\n  \"registration_type\": \"cin\",\r\n  \"cin_or_msme_number\": \"U72900HR2024PTC123456\",\r\n  \"date_of_incorporation\": \"2023-06-15\",\r\n  \"registered_office_address\": \"Sector 44, Gurgaon, Haryana, 122003\",\r\n  \"corporate_website\": \"https://frovo.com\",\r\n  \"official_email\": \"official@frovo.com\",\r\n  \"directory_signature_name\": \"Jatin Kumar\",\r\n  \"din\": \"01234567\",\r\n  \"company_status\": \"active\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/9990570",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                "9990570"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Brand",
+      "item": [
+        {
+          "name": "Create Brand",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "37c0dad6-52a6-4945-8fdc-19b8ff0968f2",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Brands",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "37c0dad6-52a6-4945-8fdc-19b8ff0968f2",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Brands By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f0e0f5a-7588-4110-a9bc-4c21928eb3ac"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "37c0dad6-52a6-4945-8fdc-19b8ff0968f2",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Brand",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:brands_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":brands_id"
+              ],
+              "variable": [
+                {
+                  "key": "brands_id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export All Brands",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/export/all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                "export",
+                "all"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Brands By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:brand_id/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":brand_id",
+                "export"
+              ],
+              "variable": [
+                {
+                  "key": "brand_id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Trail By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:brand_id/audit-trail",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":brand_id",
+                "audit-trail"
+              ],
+              "variable": [
+                {
+                  "key": "brand_id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Trail By ID Copy",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:brand_id/audit-trail",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":brand_id",
+                "audit-trail"
+              ],
+              "variable": [
+                {
+                  "key": "brand_id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Verification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODRiNjBlMTY1MWQxZTM1ZjZkYzI1MSIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzAzMDUxNTQsImV4cCI6MTc3MDM5MTU1NCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.hrmT5xsouPjtdl79o49Ptql8Ik-iFazSMMirvGSZmKI",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/brands/:brand_id/toggle-verification",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "brands",
+                ":brand_id",
+                "toggle-verification"
+              ],
+              "variable": [
+                {
+                  "key": "brand_id",
+                  "value": "69849435a19bc86370ed04b9"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Common",
+      "item": [
+        {
+          "name": "Dashboard",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "registration_type",
+                  "value": "cin",
+                  "type": "text"
+                },
+                {
+                  "key": "cin_or_msme_number",
+                  "value": "U72900HR2024PTC123455",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "3863298",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_billing_name",
+                  "value": " Nike India Private Limited",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_name",
+                  "value": " Nike",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_email",
+                  "value": "accounts@india.com",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_category",
+                  "value": " Apparel & Footwear",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_type",
+                  "value": " Fashion Retail",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_name",
+                  "value": " Rajesh Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "contact_phone",
+                  "value": " +919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": " 123, MG Road, Bangalore, Karnataka - 560001",
+                  "type": "text"
+                },
+                {
+                  "key": "bank_account_of_brand",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "ifsc_code",
+                  "value": " HDFC0001234",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_terms",
+                  "value": " Net 30 days",
+                  "type": "text"
+                },
+                {
+                  "key": "gst_details",
+                  "value": " 29AABCS1429B1Z1",
+                  "type": "text"
+                },
+                {
+                  "key": "PAN_number",
+                  "value": " AABCS1234D",
+                  "type": "text"
+                },
+                {
+                  "key": "FSSAI_number",
+                  "value": " 12345678901235",
+                  "type": "text"
+                },
+                {
+                  "key": "TDS_rate",
+                  "value": " 1",
+                  "type": "text"
+                },
+                {
+                  "key": "billing_cycle",
+                  "value": " Monthly",
+                  "type": "text"
+                },
+                {
+                  "key": "brand_status_cycle",
+                  "value": " Active",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_start_date",
+                  "value": " 2024-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_end_date",
+                  "value": " 2024-12-31",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_renewal_date",
+                  "value": " 2025-01-01",
+                  "type": "text"
+                },
+                {
+                  "key": "payment_methods",
+                  "value": "upi",
+                  "type": "text"
+                },
+                {
+                  "key": "risk_notes",
+                  "value": " Low risk customer",
+                  "type": "text"
+                },
+                {
+                  "key": "contract_terms",
+                  "value": " Standard terms apply",
+                  "type": "text"
+                },
+                {
+                  "key": "internal_notes",
+                  "value": " VIP customer",
+                  "type": "text"
+                },
+                {
+                  "key": "upload_cancelled_cheque_image",
+                  "type": "file",
+                  "uuid": "c040f750-3966-4498-9324-7fa3e9b86f6c",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "gst_certificate_image",
+                  "type": "file",
+                  "uuid": "3e28fd91-54b9-49cf-aaec-1e3b13e834ac",
+                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344"
+                },
+                {
+                  "key": "FSSAI_image",
+                  "type": "file",
+                  "uuid": "7c3690df-de11-4e6f-ae34-4a413dead15e",
+                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547"
+                },
+                {
+                  "key": "PAN_image",
+                  "type": "file",
+                  "uuid": "6d5ecd97-2ad8-45a1-9120-a6ec681ed510",
+                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
+                },
+                {
+                  "key": "certificate_of_incorporation_image",
+                  "type": "file",
+                  "uuid": "4651716e-7349-43f8-9db6-ef1a03be5dad",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MSME_or_Udyam_certificate_image",
+                  "type": "file",
+                  "uuid": "d1718b66-cc52-489f-8188-fc665db52c64",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "AOA_image",
+                  "type": "file",
+                  "uuid": "1bb301cc-eebb-44dc-9728-00684f9fe3b0",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Trademark_certificate_image",
+                  "type": "file",
+                  "uuid": "132a7989-5ace-4976-9f4d-c6a95d64f813",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "Authorized_Signatory_image",
+                  "type": "file",
+                  "uuid": "eaad71b8-3f7d-426f-9293-7f7db91d1fda",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                },
+                {
+                  "key": "MOA_image",
+                  "type": "file",
+                  "uuid": "3f27d204-33a7-4925-a682-a77818a88e71",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/companies/dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "companies",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"vendorstaff@frovo.com\",\r\n  \"password\": \"Vstaff@12345\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": ""
+    }
+  ]
+}

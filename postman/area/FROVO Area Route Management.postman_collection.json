@@ -1,0 +1,818 @@
+{
+  "info": {
+    "_postman_id": "d8e6f11a-650f-4f67-a657-c154c39946d1",
+    "name": "FROVO Area Route Management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "39772168",
+    "_collection_link": "https://go.postman.co/collection/39772168-d8e6f11a-650f-4f67-a657-c154c39946d1?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Location",
+      "item": [
+        {
+          "name": "Create Location",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Locations",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Location By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Karnataka\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560001\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "698245d420f65e837dffdbca"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "698245d420f65e837dffdbca"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Status Change",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId/toggle-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId",
+                "toggle-status"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "69824707ad4c1216f40d3ecc"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Location By ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/export/:ids?format=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                "export",
+                ":ids"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "ids",
+                  "value": "6982e2735db085a88a9964a7"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Locations",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                "export"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Logs For Location ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId/audit-logs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId",
+                "audit-logs"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "69824707ad4c1216f40d3ecc"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Audit Logs For Location ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId/audit-logs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId",
+                "audit-logs"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "69824707ad4c1216f40d3ecc"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Location",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "698244f520f65e837dffdbb2"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sub Location",
+      "item": [
+        {
+          "name": "Create Sub Location",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"campus\": \"Main Campus\",\r\n  \"tower\": \"Tower A\",\r\n  \"floor\": \"3rd Floor\",\r\n  \"select_machine\": [\"VM-001\", \"VM-002\", \"VM-003\"]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId/sublocation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId",
+                "sublocation"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "69824707ad4c1216f40d3ecc"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sub Location By Location ID",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"campus\": \"Main Campus\",\r\n  \"tower\": \"Tower A\",\r\n  \"floor\": \"3rd Floor\",\r\n  \"select_machine\": [\"VM-001\", \"VM-002\", \"VM-003\"]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/location/:locationId/sublocation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "location",
+                ":locationId",
+                "sublocation"
+              ],
+              "variable": [
+                {
+                  "key": "locationId",
+                  "value": "69824707ad4c1216f40d3ecc"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Sublocation",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"campus\": \"Main Campus\",\r\n  \"tower\": \"Tower A\",\r\n  \"floor\": \"3rd Floor\",\r\n  \"select_machine\": [\"VM-001\", \"VM-002\", \"VM-003\"]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/sublocation/:sublocationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sublocation",
+                ":sublocationId"
+              ],
+              "variable": [
+                {
+                  "key": "sublocationId",
+                  "value": "6982cf00b13f5e479fbe19ed"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sub Location By Location ID Copy",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"campus\": \"Main Campus\",\r\n  \"tower\": \"Tower A\",\r\n  \"floor\": \"3rd Floor\",\r\n  \"select_machine\": [\"VM-001\", \"VM-002\", \"VM-003\"]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/sublocation/:sublocationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sublocation",
+                ":sublocationId"
+              ],
+              "variable": [
+                {
+                  "key": "sublocationId",
+                  "value": "6982c8a28e85896e31fb4613"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Machine",
+      "item": [
+        {
+          "name": "Add Machine Details",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineDetailsId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineDetailsId"
+              ],
+              "variable": [
+                {
+                  "key": "machineDetailsId",
+                  "value": "6982cf1cb13f5e479fbe1a0d"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Machine",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineDetailsId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineDetailsId"
+              ],
+              "variable": [
+                {
+                  "key": "machineDetailsId",
+                  "value": "6982cf1cb13f5e479fbe1a0e"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Installed Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineDetailsId/toggle-installed",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineDetailsId",
+                "toggle-installed"
+              ],
+              "variable": [
+                {
+                  "key": "machineDetailsId",
+                  "value": "6982cf1cb13f5e479fbe1a0c"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineDetailsId/toggle-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineDetailsId",
+                "toggle-status"
+              ],
+              "variable": [
+                {
+                  "key": "machineDetailsId",
+                  "value": "6982cf1cb13f5e479fbe1a0c"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "Complete Audit Logs",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/audit/recent-activities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "recent-activities"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Complete Audit Logs",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/audit/recent-activities/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "recent-activities",
+                "export"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Login As Super Admin",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n   \"email\":\"nkoushikpanda123@gmail.com\",\r\n    \"password\":\"SuperAdmin@123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "",
+      "type": "default"
+    }
+  ]
+}
