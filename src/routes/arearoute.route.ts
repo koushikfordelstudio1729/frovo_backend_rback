@@ -26,7 +26,11 @@ router.get("/location/export", authorize(MANAGEMENT), AreaController.exportLocat
 router.get("/location/export/:ids", authorize(MANAGEMENT), AreaController.exportLocationsByIds);
 
 // Bulk operations
-router.get("/location/bulk/summarized", authorize(MANAGEMENT), AreaController.getSummarizedLocationsByIds);
+router.get(
+  "/location/bulk/summarized",
+  authorize(MANAGEMENT),
+  AreaController.getSummarizedLocationsByIds
+);
 
 // Check location exists
 router.get("/location/check-exists", authorize(MANAGEMENT), AreaController.checkLocationExists);
@@ -35,21 +39,33 @@ router.get("/location/check-exists", authorize(MANAGEMENT), AreaController.check
 router.get("/location/:locationId", authorize(MANAGEMENT), AreaController.getLocationById);
 router.put("/location/:locationId", authorize(MANAGEMENT), AreaController.updateLocation);
 router.delete("/location/:locationId", authorize(MANAGEMENT), AreaController.deleteLocation);
-router.patch("/location/:locationId/toggle-status", authorize(MANAGEMENT), AreaController.toggleLocationStatus);
+router.patch(
+  "/location/:locationId/toggle-status",
+  authorize(MANAGEMENT),
+  AreaController.toggleLocationStatus
+);
 
 // ============================================
 // SUB-LOCATION ROUTES
 // ============================================
 
-router.post("/location/:locationId/sublocation", authorize(MANAGEMENT), AreaController.addSubLocation);
-router.get("/location/:locationId/sublocation", authorize(MANAGEMENT), AreaController.getSubLocationsByLocationId);
-router.delete("/sublocation/:subLocationId", authorize(MANAGEMENT), AreaController.deleteSubLocation);
-// Update sub-location
-router.put(
+router.post(
+  "/location/:locationId/sublocation",
+  authorize(MANAGEMENT),
+  AreaController.addSubLocation
+);
+router.get(
+  "/location/:locationId/sublocation",
+  authorize(MANAGEMENT),
+  AreaController.getSubLocationsByLocationId
+);
+router.delete(
   "/sublocation/:subLocationId",
   authorize(MANAGEMENT),
-  AreaController.updateSubLocation
+  AreaController.deleteSubLocation
 );
+// Update sub-location
+router.put("/sublocation/:subLocationId", authorize(MANAGEMENT), AreaController.updateSubLocation);
 
 // Export sub-locations by location ID
 router.get(
@@ -68,20 +84,61 @@ router.get(
 // MACHINE DETAILS ROUTES
 // ============================================
 
-router.get("/sublocation/:subLocationId/machine", authorize(MANAGEMENT), AreaController.getMachineDetailsBySubLocationId);
-router.put("/machine/:machineDetailsId", uploadAreaFiles, authorize(MANAGEMENT), AreaController.updateMachineDetails);
+router.get(
+  "/sublocation/:subLocationId/machine",
+  authorize(MANAGEMENT),
+  AreaController.getMachineDetailsBySubLocationId
+);
+router.put(
+  "/machine/:machineDetailsId",
+  uploadAreaFiles,
+  authorize(MANAGEMENT),
+  AreaController.updateMachineDetails
+);
 router.delete("/machine/:machineDetailsId", authorize(MANAGEMENT), AreaController.removeMachine);
-router.delete("/machine/:machineDetailsId/images/:imageIndex", authorize(MANAGEMENT), AreaController.removeMachineImage);
-router.patch("/machine/:machineDetailsId/toggle-status", authorize(MANAGEMENT), AreaController.toggleMachineStatus);
-router.patch("/machine/:machineDetailsId/toggle-installed", authorize(MANAGEMENT), AreaController.toggleMachineInstalledStatus);
+router.delete(
+  "/machine/:machineDetailsId/images/:imageIndex",
+  authorize(MANAGEMENT),
+  AreaController.removeMachineImage
+);
+router.patch(
+  "/machine/:machineDetailsId/toggle-status",
+  authorize(MANAGEMENT),
+  AreaController.toggleMachineStatus
+);
+router.patch(
+  "/machine/:machineDetailsId/toggle-installed",
+  authorize(MANAGEMENT),
+  AreaController.toggleMachineInstalledStatus
+);
 router.get("/machine/search", authorize(MANAGEMENT), AreaController.searchMachines);
-router.put("/machine/:machineDetailsId/images",uploadAreaFiles,authorize(MANAGEMENT),AreaController.updateMachineImages);
+router.put(
+  "/machine/:machineDetailsId/images",
+  uploadAreaFiles,
+  authorize(MANAGEMENT),
+  AreaController.updateMachineImages
+);
 
-
-router.get("/location/:locationId/audit-logs", authorize(SUPER_ADMIN_ONLY), AreaController.getAuditLogs);
-router.get("/location/:locationId/audit-logs/export", authorize(SUPER_ADMIN_ONLY), AreaController.exportLocationAuditLogs);
-router.get("/audit/recent-activities", authorize(SUPER_ADMIN_ONLY), AreaController.getRecentActivities);
-router.get("/audit/recent-activities/export", authorize(SUPER_ADMIN_ONLY), AreaController.exportRecentAuditActivities);
+router.get(
+  "/location/:locationId/audit-logs",
+  authorize(SUPER_ADMIN_ONLY),
+  AreaController.getAuditLogs
+);
+router.get(
+  "/location/:locationId/audit-logs/export",
+  authorize(SUPER_ADMIN_ONLY),
+  AreaController.exportLocationAuditLogs
+);
+router.get(
+  "/audit/recent-activities",
+  authorize(SUPER_ADMIN_ONLY),
+  AreaController.getRecentActivities
+);
+router.get(
+  "/audit/recent-activities/export",
+  authorize(SUPER_ADMIN_ONLY),
+  AreaController.exportRecentAuditActivities
+);
 
 // ============================================
 // DASHBOARD & ANALYTICS ROUTES

@@ -2,7 +2,11 @@ import { Router } from "express";
 import { VendorController } from "../controllers/vendor.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
-import { uploadMultiple, uploadSingle, uploadBrandDocuments } from "../middleware/upload.middleware";
+import {
+  uploadMultiple,
+  uploadSingle,
+  uploadBrandDocuments,
+} from "../middleware/upload.middleware";
 import { upload } from "../middleware/upload.middleware";
 const router = Router();
 
@@ -24,39 +28,19 @@ router.get(
 // ============================================
 
 // Create a new company
-router.post(
-  "/companies",
-  authorize(VENDOR_MANAGEMENT),
-  VendorController.createCompany
-);
+router.post("/companies", authorize(VENDOR_MANAGEMENT), VendorController.createCompany);
 
 // Get all companies with pagination
-router.get(
-  "/companies",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.getAllCompanies
-);
+router.get("/companies", authorize(STAFF_MANAGEMENT), VendorController.getAllCompanies);
 
 // Get company by company_id
-router.get(
-  "/companies/:id",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.getCompanyById
-);
+router.get("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.getCompanyById);
 
 // Update company by company_id
-router.put(
-  "/companies/:id",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.updateCompany
-);
+router.put("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.updateCompany);
 
 // Delete company by company_id
-router.delete(
-  "/companies/:id",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.deleteCompany
-);
+router.delete("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteCompany);
 
 // Toggle company status (active/inactive)
 router.patch(
@@ -87,11 +71,7 @@ router.get(
 );
 
 // Export companies data
-router.get(
-  "/companies/export/all",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.exportCompanies
-);
+router.get("/companies/export/all", authorize(STAFF_MANAGEMENT), VendorController.exportCompanies);
 
 // Export single company data
 router.get(
@@ -104,47 +84,36 @@ router.get(
 // BRAND ROUTES
 // ============================================
 
-
-
-
 // Create a new brand with multiple document uploads
 router.post(
   "/brands",
   authorize(STAFF_MANAGEMENT),
   upload.fields([
     // Common mandatory documents
-    { name: 'upload_cancelled_cheque_image', maxCount: 1 },
-    { name: 'gst_certificate_image', maxCount: 1 },
-    { name: 'PAN_image', maxCount: 1 },
-    { name: 'FSSAI_image', maxCount: 1 },
+    { name: "upload_cancelled_cheque_image", maxCount: 1 },
+    { name: "gst_certificate_image", maxCount: 1 },
+    { name: "PAN_image", maxCount: 1 },
+    { name: "FSSAI_image", maxCount: 1 },
 
     // Legal entity specific documents (all possible documents)
-    { name: 'certificate_of_incorporation_image', maxCount: 1 },
-    { name: 'MSME_or_Udyam_certificate_image', maxCount: 1 },
-    { name: 'MOA_image', maxCount: 1 },
-    { name: 'AOA_image', maxCount: 1 },
-    { name: 'Trademark_certificate_image', maxCount: 1 },
-    { name: 'Authorized_Signatory_image', maxCount: 1 },
-    { name: 'LLP_agreement_image', maxCount: 1 },
-    { name: 'Shop_and_Establishment_certificate_image', maxCount: 1 },
-    { name: 'Registered_Partnership_deed_image', maxCount: 1 },
-    { name: 'Board_resolution_image', maxCount: 1 },
+    { name: "certificate_of_incorporation_image", maxCount: 1 },
+    { name: "MSME_or_Udyam_certificate_image", maxCount: 1 },
+    { name: "MOA_image", maxCount: 1 },
+    { name: "AOA_image", maxCount: 1 },
+    { name: "Trademark_certificate_image", maxCount: 1 },
+    { name: "Authorized_Signatory_image", maxCount: 1 },
+    { name: "LLP_agreement_image", maxCount: 1 },
+    { name: "Shop_and_Establishment_certificate_image", maxCount: 1 },
+    { name: "Registered_Partnership_deed_image", maxCount: 1 },
+    { name: "Board_resolution_image", maxCount: 1 },
   ]),
   VendorController.createBrand
 );
 // Get all brands with pagination
-router.get(
-  "/brands",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.getAllBrands
-);
+router.get("/brands", authorize(STAFF_MANAGEMENT), VendorController.getAllBrands);
 
 // Get brand by brand_id
-router.get(
-  "/brands/:id",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.getBrandById
-);
+router.get("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.getBrandById);
 // Toggle brand verification status
 router.patch(
   "/brands/:brand_id/toggle-verification",
@@ -152,13 +121,8 @@ router.patch(
   VendorController.toggleBrandVerificationStatus
 );
 
-
 // Delete brand by brand_id
-router.delete(
-  "/brands/:id",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.deleteBrand
-);
+router.delete("/brands/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteBrand);
 
 // Update brand verification status
 router.patch(
@@ -174,7 +138,6 @@ router.get(
   VendorController.getBrandsByCompanyId
 );
 
-
 // Get brand statistics
 router.get(
   "/brands/statistics/overview",
@@ -189,13 +152,8 @@ router.get(
   VendorController.getBrandAuditTrail
 );
 
-
 // Export brands data
-router.get(
-  "/brands/export/all",
-  authorize(STAFF_MANAGEMENT),
-  VendorController.exportBrands
-);
+router.get("/brands/export/all", authorize(STAFF_MANAGEMENT), VendorController.exportBrands);
 
 // Export single brand data
 router.get(
@@ -205,35 +163,33 @@ router.get(
 );
 // Update brand by identifier (handles both types)
 router.put(
-  "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
+  "/brands/:brand_id", // This can accept both MongoDB _id and custom brand_id
   authorize(STAFF_MANAGEMENT),
   upload.fields([
-    { name: 'upload_cancelled_cheque_image', maxCount: 1 },
-    { name: 'gst_certificate_image', maxCount: 1 },
-    { name: 'PAN_image', maxCount: 1 },
-    { name: 'FSSAI_image', maxCount: 1 },
+    { name: "upload_cancelled_cheque_image", maxCount: 1 },
+    { name: "gst_certificate_image", maxCount: 1 },
+    { name: "PAN_image", maxCount: 1 },
+    { name: "FSSAI_image", maxCount: 1 },
     // Add other document fields as needed
-    { name: 'certificate_of_incorporation_image', maxCount: 1 },
-    { name: 'MSME_or_Udyam_certificate_image', maxCount: 1 },
-    { name: 'MOA_image', maxCount: 1 },
-    { name: 'AOA_image', maxCount: 1 },
-    { name: 'Trademark_certificate_image', maxCount: 1 },
-    { name: 'Authorized_Signatory_image', maxCount: 1 },
-    { name: 'LLP_agreement_image', maxCount: 1 },
-    { name: 'Shop_and_Establishment_certificate_image', maxCount: 1 },
-    { name: 'Registered_Partnership_deed_image', maxCount: 1 },
-    { name: 'Board_resolution_image', maxCount: 1 },
+    { name: "certificate_of_incorporation_image", maxCount: 1 },
+    { name: "MSME_or_Udyam_certificate_image", maxCount: 1 },
+    { name: "MOA_image", maxCount: 1 },
+    { name: "AOA_image", maxCount: 1 },
+    { name: "Trademark_certificate_image", maxCount: 1 },
+    { name: "Authorized_Signatory_image", maxCount: 1 },
+    { name: "LLP_agreement_image", maxCount: 1 },
+    { name: "Shop_and_Establishment_certificate_image", maxCount: 1 },
+    { name: "Registered_Partnership_deed_image", maxCount: 1 },
+    { name: "Board_resolution_image", maxCount: 1 },
   ]),
   VendorController.updateBrand
 );
 
 // Delete brand by identifier (handles both types)
 router.delete(
-  "/brands/:brand_id",  // This can accept both MongoDB _id and custom brand_id
+  "/brands/:brand_id", // This can accept both MongoDB _id and custom brand_id
   authorize(STAFF_MANAGEMENT),
   VendorController.deleteBrand
 );
-
-
 
 export default router;

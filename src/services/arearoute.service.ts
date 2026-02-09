@@ -4,7 +4,16 @@ import { ImageUploadService } from "./areaFileUpload.service";
 import { IMachineImageData } from "../models/AreaRoute.model";
 
 // Import the new models
-import { LocationModel, SubLocationModel, MachineDetailsModel, HistoryAreaModel, ILocation, ISubLocation, IMachineDetails, IHistoryArea } from "../models/AreaRoute.model"
+import {
+  LocationModel,
+  SubLocationModel,
+  MachineDetailsModel,
+  HistoryAreaModel,
+  ILocation,
+  ISubLocation,
+  IMachineDetails,
+  IHistoryArea,
+} from "../models/AreaRoute.model";
 export interface UpdateMachineImagesDto {
   files: Express.Multer.File[];
 }
@@ -281,7 +290,10 @@ export class AreaService {
     }
 
     // Validate select_machine array
-    if (!Array.isArray(subLocationData.select_machine) || subLocationData.select_machine.length === 0) {
+    if (
+      !Array.isArray(subLocationData.select_machine) ||
+      subLocationData.select_machine.length === 0
+    ) {
       throw new Error("At least one machine must be selected");
     }
 
@@ -321,8 +333,8 @@ export class AreaService {
             floor: newSubLocation.floor,
             machines_count: subLocationData.select_machine.length,
             machines: subLocationData.select_machine,
-          }
-        }
+          },
+        },
       },
       auditParams
     );
@@ -349,9 +361,9 @@ export class AreaService {
 
     // Get machine details for each sub-location
     const subLocationsWithMachines = await Promise.all(
-      subLocations.map(async (subLoc) => {
+      subLocations.map(async subLoc => {
         const machines = await MachineDetailsModel.find({
-          sub_location_id: subLoc._id
+          sub_location_id: subLoc._id,
         });
         return {
           ...subLoc.toObject(),
@@ -362,17 +374,17 @@ export class AreaService {
 
     // Calculate summary
     const totalMachines = subLocationsWithMachines.reduce(
-      (sum, subLoc) => sum + subLoc.machines.length, 0
+      (sum, subLoc) => sum + subLoc.machines.length,
+      0
     );
     const installedMachines = subLocationsWithMachines.reduce(
-      (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-        m.installed_status === 'installed'
-      ).length, 0
+      (sum, subLoc) =>
+        sum + subLoc.machines.filter((m: any) => m.installed_status === "installed").length,
+      0
     );
     const activeMachines = subLocationsWithMachines.reduce(
-      (sum, subLoc) => sum + subLoc.machines.filter((m: any) =>
-        m.status === 'active'
-      ).length, 0
+      (sum, subLoc) => sum + subLoc.machines.filter((m: any) => m.status === "active").length,
+      0
     );
 
     return {
@@ -389,7 +401,9 @@ export class AreaService {
     };
   }
 
-  static async getAllLocations(queryParams: LocationQueryParams): Promise<LocationPaginationResult> {
+  static async getAllLocations(
+    queryParams: LocationQueryParams
+  ): Promise<LocationPaginationResult> {
     const {
       page = 1,
       limit = 10,
@@ -693,13 +707,12 @@ export class AreaService {
   ): Promise<IMachineDetails | null> {
     this.validateObjectId(machineDetailsId);
 
-    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!machineDetails) {
       return null;
@@ -723,18 +736,11 @@ export class AreaService {
         machine_images: {
           old: oldImages.length,
           new: updatedMachine.machine_image.length,
-          added: images.map(img => img.image_name)
-        }
+          added: images.map(img => img.image_name),
+        },
       };
 
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return updatedMachine;
@@ -748,13 +754,12 @@ export class AreaService {
   ): Promise<IMachineDetails | null> {
     this.validateObjectId(machineDetailsId);
 
-    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!machineDetails) {
       return null;
@@ -787,22 +792,15 @@ export class AreaService {
       const changes = {
         removed_image: {
           old: imageToRemove.image_name,
-          new: null
+          new: null,
         },
         remaining_images: {
           old: oldImages.length,
-          new: updatedMachine.machine_image.length
-        }
+          new: updatedMachine.machine_image.length,
+        },
       };
 
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return updatedMachine;
@@ -817,7 +815,11 @@ export class AreaService {
       select_machine?: string[];
     },
     auditParams?: AuditLogParams
-  ): Promise<{ subLocation: ISubLocation; addedMachines: string[]; removedMachines: string[] } | null> {
+  ): Promise<{
+    subLocation: ISubLocation;
+    addedMachines: string[];
+    removedMachines: string[];
+  } | null> {
     this.validateObjectId(subLocationId);
 
     const existingSubLocation = await SubLocationModel.findById(subLocationId);
@@ -834,11 +836,10 @@ export class AreaService {
     }
 
     // Update sub-location
-    const updatedSubLocation = await SubLocationModel.findByIdAndUpdate(
-      subLocationId,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const updatedSubLocation = await SubLocationModel.findByIdAndUpdate(subLocationId, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!updatedSubLocation) {
       throw new Error("Failed to update sub-location");
@@ -869,7 +870,7 @@ export class AreaService {
     if (removedMachines.length > 0) {
       await MachineDetailsModel.deleteMany({
         sub_location_id: subLocationId,
-        machine_name: { $in: removedMachines }
+        machine_name: { $in: removedMachines },
       });
     }
 
@@ -891,26 +892,19 @@ export class AreaService {
     if (updateData.select_machine) {
       changes["select_machine"] = {
         old: oldMachines,
-        new: newMachines
+        new: newMachines,
       };
     }
 
     if (Object.keys(changes).length > 0) {
       const locationId = updatedSubLocation.location_id;
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return {
       subLocation: updatedSubLocation,
       addedMachines,
-      removedMachines
+      removedMachines,
     };
   }
 
@@ -934,9 +928,9 @@ export class AreaService {
 
     // Get machine details for each sub-location
     const enrichedSubLocations = await Promise.all(
-      subLocations.map(async (subLoc) => {
+      subLocations.map(async subLoc => {
         const machines = await MachineDetailsModel.find({
-          sub_location_id: subLoc._id
+          sub_location_id: subLoc._id,
         });
 
         return {
@@ -950,9 +944,9 @@ export class AreaService {
             images: m.machine_image.map(img => ({
               name: img.image_name,
               url: img.file_url,
-              uploaded_at: img.uploaded_at
-            }))
-          }))
+              uploaded_at: img.uploaded_at,
+            })),
+          })),
         };
       })
     );
@@ -966,7 +960,7 @@ export class AreaService {
       return {
         data: csv,
         filename: `${filename}.csv`,
-        contentType: "text/csv"
+        contentType: "text/csv",
       };
     } else if (format === "json") {
       return {
@@ -975,14 +969,14 @@ export class AreaService {
             id: location._id,
             name: location.area_name,
             state: location.state,
-            district: location.district
+            district: location.district,
           },
           sub_locations: enrichedSubLocations,
           total: enrichedSubLocations.length,
-          export_date: new Date().toISOString()
+          export_date: new Date().toISOString(),
         },
         filename: `${filename}.json`,
-        contentType: "application/json"
+        contentType: "application/json",
       };
     } else {
       throw new Error('Unsupported format. Use "csv" or "json"');
@@ -1014,8 +1008,9 @@ export class AreaService {
     const locationId = subLocation.location_id;
 
     // Get all audit logs for the location
-    const allLogs = await HistoryAreaModel.find({ location_id: locationId })
-      .sort({ timestamp: -1 });
+    const allLogs = await HistoryAreaModel.find({ location_id: locationId }).sort({
+      timestamp: -1,
+    });
 
     // Filter logs that mention this sub-location
     const filteredLogs = allLogs.filter(log => {
@@ -1025,7 +1020,7 @@ export class AreaService {
         const subLocStr = JSON.stringify({
           campus: subLocation.campus,
           tower: subLocation.tower,
-          floor: subLocation.floor
+          floor: subLocation.floor,
         }).toLowerCase();
         return changesStr.includes(subLocStr);
       }
@@ -1033,18 +1028,22 @@ export class AreaService {
       // Check if sub-location is mentioned in old_data or new_data
       if (log.old_data) {
         const oldDataStr = JSON.stringify(log.old_data).toLowerCase();
-        if (oldDataStr.includes(subLocation.campus.toLowerCase()) ||
+        if (
+          oldDataStr.includes(subLocation.campus.toLowerCase()) ||
           oldDataStr.includes(subLocation.tower.toLowerCase()) ||
-          oldDataStr.includes(subLocation.floor.toLowerCase())) {
+          oldDataStr.includes(subLocation.floor.toLowerCase())
+        ) {
           return true;
         }
       }
 
       if (log.new_data) {
         const newDataStr = JSON.stringify(log.new_data).toLowerCase();
-        if (newDataStr.includes(subLocation.campus.toLowerCase()) ||
+        if (
+          newDataStr.includes(subLocation.campus.toLowerCase()) ||
           newDataStr.includes(subLocation.tower.toLowerCase()) ||
-          newDataStr.includes(subLocation.floor.toLowerCase())) {
+          newDataStr.includes(subLocation.floor.toLowerCase())
+        ) {
           return true;
         }
       }
@@ -1091,7 +1090,7 @@ export class AreaService {
         "Inactive Machines",
         "Machine Names",
         "Created At",
-        "Updated At"
+        "Updated At",
       ];
 
       let csv = "\ufeff";
@@ -1100,21 +1099,18 @@ export class AreaService {
       subLocations.forEach(subLoc => {
         const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
 
-        const installedMachines = subLocObj.machines?.filter((m: any) =>
-          m.installed_status === 'installed'
-        ).length || 0;
+        const installedMachines =
+          subLocObj.machines?.filter((m: any) => m.installed_status === "installed").length || 0;
 
-        const notInstalledMachines = subLocObj.machines?.filter((m: any) =>
-          m.installed_status === 'not_installed'
-        ).length || 0;
+        const notInstalledMachines =
+          subLocObj.machines?.filter((m: any) => m.installed_status === "not_installed").length ||
+          0;
 
-        const activeMachines = subLocObj.machines?.filter((m: any) =>
-          m.status === 'active'
-        ).length || 0;
+        const activeMachines =
+          subLocObj.machines?.filter((m: any) => m.status === "active").length || 0;
 
-        const inactiveMachines = subLocObj.machines?.filter((m: any) =>
-          m.status === 'inactive'
-        ).length || 0;
+        const inactiveMachines =
+          subLocObj.machines?.filter((m: any) => m.status === "inactive").length || 0;
 
         const machineNames = subLocObj.machines?.map((m: any) => m.name).join("; ") || "";
 
@@ -1130,7 +1126,7 @@ export class AreaService {
           inactiveMachines,
           `"${machineNames.replace(/"/g, '""')}"`,
           subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
-          subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : ""
+          subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
         ];
 
         csv += row.join(",") + "\n";
@@ -1143,8 +1139,10 @@ export class AreaService {
       csv += "State," + `"${location.state}"` + "\n";
       csv += "District," + `"${location.district}"` + "\n";
       csv += "Total Sub-locations," + subLocations.length + "\n";
-      csv += "Total Machines," + subLocations.reduce((sum, subLoc) =>
-        sum + (subLoc.machines?.length || 0), 0) + "\n";
+      csv +=
+        "Total Machines," +
+        subLocations.reduce((sum, subLoc) => sum + (subLoc.machines?.length || 0), 0) +
+        "\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
 
       return csv;
@@ -1195,7 +1193,7 @@ export class AreaService {
     let filteredLocations = locations;
     if (campus || tower || floor) {
       filteredLocations = await Promise.all(
-        locations.map(async (location) => {
+        locations.map(async location => {
           const subLocationFilter: any = { location_id: location._id };
           if (campus) subLocationFilter.campus = { $regex: campus, $options: "i" };
           if (tower) subLocationFilter.tower = { $regex: tower, $options: "i" };
@@ -1285,17 +1283,15 @@ export class AreaService {
       stateAggregation,
       districtAggregation,
       campusAggregation,
-      machineStats
+      machineStats,
     ] = await Promise.all([
       LocationModel.countDocuments(),
       LocationModel.countDocuments({ status: "active" }),
       LocationModel.countDocuments({ status: "inactive" }),
       LocationModel.aggregate([{ $group: { _id: "$state", count: { $sum: 1 } } }]),
       LocationModel.aggregate([{ $group: { _id: "$district", count: { $sum: 1 } } }]),
-      SubLocationModel.aggregate([
-        { $group: { _id: "$campus", count: { $sum: 1 } } },
-      ]),
-      this.getMachineStatistics()
+      SubLocationModel.aggregate([{ $group: { _id: "$campus", count: { $sum: 1 } } }]),
+      this.getMachineStatistics(),
     ]);
 
     const areasByState: Record<string, number> = {};
@@ -1352,15 +1348,15 @@ export class AreaService {
     allMachineDetails.forEach(machine => {
       totalMachines++;
 
-      if (machine.installed_status === 'installed') {
+      if (machine.installed_status === "installed") {
         installedMachines++;
-      } else if (machine.installed_status === 'not_installed') {
+      } else if (machine.installed_status === "not_installed") {
         notInstalledMachines++;
       }
 
-      if (machine.status === 'active') {
+      if (machine.status === "active") {
         activeMachines++;
-      } else if (machine.status === 'inactive') {
+      } else if (machine.status === "inactive") {
         inactiveMachines++;
       }
     });
@@ -1370,7 +1366,7 @@ export class AreaService {
       installedMachines,
       notInstalledMachines,
       activeMachines,
-      inactiveMachines
+      inactiveMachines,
     };
   }
 
@@ -1399,7 +1395,7 @@ export class AreaService {
     ]);
 
     const tableData = await Promise.all(
-      locations.map(async (location) => {
+      locations.map(async location => {
         // Get sub-locations and machines for this location
         const subLocations = await SubLocationModel.find({ location_id: location._id });
 
@@ -1410,8 +1406,10 @@ export class AreaService {
         for (const subLoc of subLocations) {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          notInstalledMachines += machines.filter(
+            m => m.installed_status === "not_installed"
+          ).length;
         }
 
         const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
@@ -1459,7 +1457,7 @@ export class AreaService {
     const locations = await this.getLocationsByIds(locationIds);
 
     return await Promise.all(
-      locations.map(async (location) => {
+      locations.map(async location => {
         const subLocations = await SubLocationModel.find({ location_id: location._id });
 
         let totalMachines = 0;
@@ -1469,8 +1467,10 @@ export class AreaService {
         for (const subLoc of subLocations) {
           const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
           totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === 'installed').length;
-          notInstalledMachines += machines.filter(m => m.installed_status === 'not_installed').length;
+          installedMachines += machines.filter(m => m.installed_status === "installed").length;
+          notInstalledMachines += machines.filter(
+            m => m.installed_status === "not_installed"
+          ).length;
         }
 
         const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
@@ -1539,7 +1539,10 @@ export class AreaService {
     this.validateObjectId(machineDetailsId);
 
     // Validate update data
-    if (updateData.installed_status && !["installed", "not_installed"].includes(updateData.installed_status)) {
+    if (
+      updateData.installed_status &&
+      !["installed", "not_installed"].includes(updateData.installed_status)
+    ) {
       throw new Error("installed_status must be either 'installed' or 'not_installed'");
     }
 
@@ -1547,13 +1550,12 @@ export class AreaService {
       throw new Error("status must be either 'active' or 'inactive'");
     }
 
-    const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const currentMachine = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!currentMachine) {
       return null;
@@ -1567,10 +1569,10 @@ export class AreaService {
       updateData,
       { new: true }
     ).populate({
-      path: 'sub_location_id',
+      path: "sub_location_id",
       populate: {
-        path: 'location_id',
-      }
+        path: "location_id",
+      },
     });
 
     if (!updatedMachine) {
@@ -1600,14 +1602,7 @@ export class AreaService {
 
     // Create audit log if there are changes
     if (Object.keys(changes).length > 0 && locationId) {
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return updatedMachine;
@@ -1620,13 +1615,12 @@ export class AreaService {
   ): Promise<void> {
     this.validateObjectId(machineDetailsId);
 
-    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!machineDetails) {
       throw new Error("Machine not found");
@@ -1679,21 +1673,28 @@ export class AreaService {
 
     for (const image of images) {
       if (!image.image_name || !image.file_url || !image.cloudinary_public_id) {
-        throw new Error("Each machine image must have image_name, file_url, and cloudinary_public_id");
+        throw new Error(
+          "Each machine image must have image_name, file_url, and cloudinary_public_id"
+        );
       }
 
       if (!image.file_size || image.file_size <= 0) {
         throw new Error("Valid file size is required for machine images");
       }
 
-      if (!image.mime_type || !['image/jpeg', 'image/png', 'image/jpg', 'image/gif'].includes(image.mime_type)) {
+      if (
+        !image.mime_type ||
+        !["image/jpeg", "image/png", "image/jpg", "image/gif"].includes(image.mime_type)
+      ) {
         throw new Error("Only JPEG, PNG, JPG, and GIF images are allowed");
       }
     }
   }
 
   // NEW HELPER METHOD FOR DELETING MACHINE IMAGES
-  private static async deleteMachineImagesFromMachines(machineDetailsIds: Types.ObjectId[]): Promise<void> {
+  private static async deleteMachineImagesFromMachines(
+    machineDetailsIds: Types.ObjectId[]
+  ): Promise<void> {
     const uploadService = new ImageUploadService();
     const machines = await MachineDetailsModel.find({ _id: { $in: machineDetailsIds } });
 
@@ -1717,13 +1718,12 @@ export class AreaService {
   ): Promise<IMachineDetails | null> {
     this.validateObjectId(machineDetailsId);
 
-    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!machineDetails) {
       throw new Error("Machine not found");
@@ -1737,10 +1737,10 @@ export class AreaService {
       { status: newStatus },
       { new: true }
     ).populate({
-      path: 'sub_location_id',
+      path: "sub_location_id",
       populate: {
-        path: 'location_id',
-      }
+        path: "location_id",
+      },
     });
 
     // Get location ID for audit log
@@ -1755,14 +1755,7 @@ export class AreaService {
         },
       };
 
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return updatedMachine;
@@ -1775,13 +1768,12 @@ export class AreaService {
   ): Promise<IMachineDetails | null> {
     this.validateObjectId(machineDetailsId);
 
-    const machineDetails = await MachineDetailsModel.findById(machineDetailsId)
-      .populate({
-        path: 'sub_location_id',
-        populate: {
-          path: 'location_id',
-        }
-      });
+    const machineDetails = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
     if (!machineDetails) {
       throw new Error("Machine not found");
@@ -1795,10 +1787,10 @@ export class AreaService {
       { installed_status: newInstalledStatus },
       { new: true }
     ).populate({
-      path: 'sub_location_id',
+      path: "sub_location_id",
       populate: {
-        path: 'location_id',
-      }
+        path: "location_id",
+      },
     });
 
     // Get location ID for audit log
@@ -1813,14 +1805,7 @@ export class AreaService {
         },
       };
 
-      await this.createAuditLog(
-        locationId,
-        "UPDATE",
-        null,
-        null,
-        changes,
-        auditParams
-      );
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
     }
 
     return updatedMachine;
@@ -1891,120 +1876,112 @@ export class AreaService {
   // SEARCH MACHINES
   static async searchMachines(searchTerm: string): Promise<IMachineDetails[]> {
     return await MachineDetailsModel.find({
-      $or: [
-        { machine_name: { $regex: searchTerm, $options: "i" } },
-      ]
+      $or: [{ machine_name: { $regex: searchTerm, $options: "i" } }],
     }).populate({
-      path: 'sub_location_id',
+      path: "sub_location_id",
       populate: {
-        path: 'location_id',
-      }
+        path: "location_id",
+      },
     });
   }
   // UPDATE MACHINE IMAGES (REPLACE ALL)
-static async updateMachineImages(
-  machineDetailsId: string,
-  files: Express.Multer.File[],
-  auditParams?: AuditLogParams
-): Promise<IMachineDetails> {
-  // Validate machine ID
-  this.validateObjectId(machineDetailsId);
+  static async updateMachineImages(
+    machineDetailsId: string,
+    files: Express.Multer.File[],
+    auditParams?: AuditLogParams
+  ): Promise<IMachineDetails> {
+    // Validate machine ID
+    this.validateObjectId(machineDetailsId);
 
-  // Validate files
-  if (!files || files.length === 0) {
-    throw new Error("No images provided for update");
-  }
+    // Validate files
+    if (!files || files.length === 0) {
+      throw new Error("No images provided for update");
+    }
 
-  // Get current machine details
-  const currentMachine = await MachineDetailsModel.findById(machineDetailsId)
-    .populate({
-      path: 'sub_location_id',
+    // Get current machine details
+    const currentMachine = await MachineDetailsModel.findById(machineDetailsId).populate({
+      path: "sub_location_id",
       populate: {
-        path: 'location_id',
-      }
+        path: "location_id",
+      },
     });
 
-  if (!currentMachine) {
-    throw new Error("Machine details not found");
-  }
-
-  // Store old images for cleanup
-  const oldImages = [...currentMachine.machine_image];
-  const oldImageCount = oldImages.length;
-  const oldImageNames = oldImages.map(img => img.image_name);
-  const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
-
-  // Initialize upload service
-  const uploadService = new ImageUploadService();
-
-  // Process new file uploads
-  const processedFiles = await uploadService.uploadMultipleFiles(
-    files,
-    "machine_images",
-    "areaMachine"
-  );
-
-  // Delete old images from cloud storage
-  if (oldPublicIds.length > 0) {
-    try {
-      await uploadService.deleteMultipleFiles(oldPublicIds);
-      logger.info(`Deleted ${oldPublicIds.length} old images from cloud storage for machine ${machineDetailsId}`);
-    } catch (deleteError) {
-      logger.error(`Failed to delete old images for machine ${machineDetailsId}:`, deleteError);
-      // Continue with update even if deletion fails
+    if (!currentMachine) {
+      throw new Error("Machine details not found");
     }
-  }
 
-  // Update machine with new images (replace all)
-  const updateData = {
-    machine_image: processedFiles,
-    updatedAt: new Date()
-  };
+    // Store old images for cleanup
+    const oldImages = [...currentMachine.machine_image];
+    const oldImageCount = oldImages.length;
+    const oldImageNames = oldImages.map(img => img.image_name);
+    const oldPublicIds = oldImages.map(img => img.cloudinary_public_id);
 
-  const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
-    machineDetailsId,
-    { $set: updateData },
-    { new: true, runValidators: true }
-  ).populate({
-    path: 'sub_location_id',
-    populate: {
-      path: 'location_id',
-    }
-  });
+    // Initialize upload service
+    const uploadService = new ImageUploadService();
 
-  if (!updatedMachine) {
-    throw new Error("Failed to update machine images");
-  }
+    // Process new file uploads
+    const processedFiles = await uploadService.uploadMultipleFiles(
+      files,
+      "machine_images",
+      "areaMachine"
+    );
 
-  // Get location ID for audit log
-  const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
-  const locationId = subLocation?.location_id;
-
-  // Create audit log
-  if (locationId && auditParams) {
-    const changes = {
-      machine_images: {
-        old: {
-          count: oldImageCount,
-          names: oldImageNames
-        },
-        new: {
-          count: processedFiles.length,
-          names: processedFiles.map(f => f.image_name)
-        }
+    // Delete old images from cloud storage
+    if (oldPublicIds.length > 0) {
+      try {
+        await uploadService.deleteMultipleFiles(oldPublicIds);
+        logger.info(
+          `Deleted ${oldPublicIds.length} old images from cloud storage for machine ${machineDetailsId}`
+        );
+      } catch (deleteError) {
+        logger.error(`Failed to delete old images for machine ${machineDetailsId}:`, deleteError);
+        // Continue with update even if deletion fails
       }
+    }
+
+    // Update machine with new images (replace all)
+    const updateData = {
+      machine_image: processedFiles,
+      updatedAt: new Date(),
     };
 
-    await this.createAuditLog(
-      locationId,
-      "UPDATE",
-      null,
-      null,
-      changes,
-      auditParams
-    );
-  }
+    const updatedMachine = await MachineDetailsModel.findByIdAndUpdate(
+      machineDetailsId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
 
-  return updatedMachine;
-}
+    if (!updatedMachine) {
+      throw new Error("Failed to update machine images");
+    }
+
+    // Get location ID for audit log
+    const subLocation = await SubLocationModel.findById(updatedMachine.sub_location_id);
+    const locationId = subLocation?.location_id;
+
+    // Create audit log
+    if (locationId && auditParams) {
+      const changes = {
+        machine_images: {
+          old: {
+            count: oldImageCount,
+            names: oldImageNames,
+          },
+          new: {
+            count: processedFiles.length,
+            names: processedFiles.map(f => f.image_name),
+          },
+        },
+      };
+
+      await this.createAuditLog(locationId, "UPDATE", null, null, changes, auditParams);
+    }
+
+    return updatedMachine;
+  }
 }

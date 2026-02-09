@@ -25,19 +25,24 @@ const companyCreateSchema = new Schema<ICompanyCreate>(
     registered_office_address: { type: String, required: true, trim: true },
     official_email: { type: String, required: true, lowercase: true, trim: true, unique: true },
     legal_entity_structure: { type: String, required: true, trim: true },
-    registration_type: { type: String, enum: ["cin", "msme"], required: true }, 
+    registration_type: { type: String, enum: ["cin", "msme"], required: true },
     cin_or_msme_number: { type: String, required: true, trim: true, unique: true },
     date_of_incorporation: { type: Date, required: true },
     corporate_website: { type: String, required: false, trim: true },
     directory_signature_name: { type: String, required: true, trim: true },
     din: { type: String, required: true, trim: true, unique: true },
-    company_status: { type: String, enum: ["active", "inactive"], default: "active", required: true },
+    company_status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      required: true,
+    },
   },
   { timestamps: true, collection: "companies" }
 );
 
 // Pre-save hook to generate company_id
-companyCreateSchema.pre('save', async function (next) {
+companyCreateSchema.pre("save", async function (next) {
   if (this.isNew && !this.company_id) {
     let isUnique = false;
 
@@ -45,7 +50,7 @@ companyCreateSchema.pre('save', async function (next) {
       const generatedId = Math.floor(1000000 + Math.random() * 9000000).toString();
 
       const existingCompany = await mongoose.models.CompanyCreate?.findOne({
-        company_id: generatedId
+        company_id: generatedId,
       });
 
       if (!existingCompany) {
@@ -484,13 +489,22 @@ const brandCreateSchema = new Schema<IBrandCreate>(
     TDS_rate: { type: Number, required: true, min: 0, max: 100, default: 1 },
     billing_cycle: { type: String, required: true, trim: true },
     brand_status_cycle: { type: String, required: true, trim: true },
-    verification_status: { type: String, enum: ["pending", "verified", "rejected"], default: "pending", required: true },
+    verification_status: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
+      required: true,
+    },
     risk_notes: { type: String, trim: true, default: "" },
     contract_terms: { type: String, trim: true, default: "" },
     contract_start_date: { type: Date, required: true },
     contract_end_date: { type: Date, required: true },
     contract_renewal_date: { type: Date, required: true },
-    payment_methods: { type: String, enum: ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"], required: true },
+    payment_methods: {
+      type: String,
+      enum: ["upi", "bank_transfer", "cheque", "credit_card", "debit_card", "other"],
+      required: true,
+    },
     internal_notes: { type: String, trim: true, default: "" },
 
     // Document Uploads
@@ -516,7 +530,7 @@ const brandCreateSchema = new Schema<IBrandCreate>(
 );
 
 // Pre-save hook to generate brand_id
-brandCreateSchema.pre('save', async function (next) {
+brandCreateSchema.pre("save", async function (next) {
   if (this.isNew && !this.brand_id) {
     let isUnique = false;
 
@@ -525,7 +539,7 @@ brandCreateSchema.pre('save', async function (next) {
       const generatedId = `BR${Math.floor(100000 + Math.random() * 900000)}`;
 
       const existingBrand = await mongoose.models.BrandCreate?.findOne({
-        brand_id: generatedId
+        brand_id: generatedId,
       });
 
       if (!existingBrand) {
