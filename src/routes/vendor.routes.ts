@@ -153,14 +153,12 @@ router.get(
   VendorController.getBrandStatistics
 );
 
-// Get audit trail for a brand
 router.get(
   "/brands/:id/audit-trail",
   authorize(STAFF_MANAGEMENT),
   VendorController.getBrandAuditTrail
 );
 
-// Get all brand audit trails
 router.get(
   "/audit-trails/brands",
   authorize(STAFF_MANAGEMENT),
