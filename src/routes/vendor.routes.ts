@@ -160,6 +160,13 @@ router.get(
   VendorController.getBrandAuditTrail
 );
 
+// Get all brand audit trails (super admin only)
+router.get(
+  "/audit-trails/brands",
+  authorize(STAFF_MANAGEMENT),
+  VendorController.getAllBrandAuditTrails
+);
+
 // Export brands data
 router.get("/brands/export/all", authorize(STAFF_MANAGEMENT), VendorController.exportBrands);
 

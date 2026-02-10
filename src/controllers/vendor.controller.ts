@@ -1108,6 +1108,35 @@ export class VendorController {
     }
   }
 
+  public static async getAllBrandAuditTrails(req: Request, res: Response): Promise<void> {
+    try {
+      const { roles } = VendorController.getLoggedInUser(req);
+      const userRole = roles[0]?.key || "unknown";
+
+      requireRole(userRole, ["super_admin"], "view all brand audit trails");
+
+      const { page = 1, limit = 50, brand_id, action, date_from, date_to } = req.query;
+
+      const auditData = await auditTrailService.getAuditTrails({
+        page: Number(page),
+        limit: Number(limit),
+        target_type: "brand",
+        target_brand: brand_id as string,
+        action: action as string,
+        date_from: date_from as string,
+        date_to: date_to as string,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "All brand audit trails retrieved successfully",
+        data: auditData,
+      });
+    } catch (error) {
+      handleControllerError(res, error, "fetching all brand audit trails");
+    }
+  }
+
   public static async exportBrands(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);

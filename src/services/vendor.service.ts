@@ -434,7 +434,19 @@ export class CompanyService {
         .limit(limit)
         .lean()) as unknown as ICompanyCreate[];
 
-      return { data: companies, pagination: paginationMeta(page, limit, total) };
+      // Get brand counts for all fetched companies
+      const companyIds = companies.map((c: any) => c._id);
+      const brandCounts = await BrandCreate.aggregate([
+        { $match: { company_id: { $in: companyIds } } },
+        { $group: { _id: "$company_id", count: { $sum: 1 } } },
+      ]);
+      const brandCountMap = new Map(brandCounts.map((b: any) => [b._id.toString(), b.count]));
+      const companiesWithBrandCount = companies.map((company: any) => ({
+        ...company,
+        brand_count: brandCountMap.get(company._id.toString()) || 0,
+      }));
+
+      return { data: companiesWithBrandCount, pagination: paginationMeta(page, limit, total) };
     } catch (error) {
       logger.error("Error fetching companies:", error);
       throw error;
