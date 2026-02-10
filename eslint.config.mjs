@@ -15,7 +15,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/triple-slash-reference': ['error', { path: 'always', types: 'always', lib: 'always' }],
       'no-console': 'error',
