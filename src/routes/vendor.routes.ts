@@ -68,7 +68,7 @@ router.get(
   VendorController.getCompanyAuditTrail
 );
 
-// Get all company audit trails (super admin only)
+// Get all company audit trails
 router.get(
   "/audit-trails/companies",
   authorize(STAFF_MANAGEMENT),
@@ -160,7 +160,7 @@ router.get(
   VendorController.getBrandAuditTrail
 );
 
-// Get all brand audit trails (super admin only)
+// Get all brand audit trails
 router.get(
   "/audit-trails/brands",
   authorize(STAFF_MANAGEMENT),

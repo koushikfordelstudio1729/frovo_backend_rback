@@ -295,7 +295,11 @@ export class VendorController {
       const { roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      requireRole(userRole, ["super_admin"], "view all company audit trails");
+      requireRole(
+        userRole,
+        ["super_admin", "vendor_admin", "vendor_staff"],
+        "view all company audit trails"
+      );
 
       const { page = 1, limit = 50, company_id, action, date_from, date_to } = req.query;
 
@@ -1113,7 +1117,11 @@ export class VendorController {
       const { roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      requireRole(userRole, ["super_admin"], "view all brand audit trails");
+      requireRole(
+        userRole,
+        ["super_admin", "vendor_admin", "vendor_staff"],
+        "view all brand audit trails"
+      );
 
       const { page = 1, limit = 50, brand_id, action, date_from, date_to } = req.query;
 
