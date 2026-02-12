@@ -83,7 +83,7 @@ const auditTrailSchema = new Schema<IAuditTrail>(
     },
     target_vendor: {
       type: Schema.Types.ObjectId,
-      ref: "VendorCreate",
+      ref: "BrandCreate",
       required: false,
     },
     target_vendor_name: {

@@ -142,5 +142,8 @@ export const uploadBrandDocuments = [
 ];
 
 export const uploadPOImages = upload.any();
-export const uploadGRN = upload.fields([{ name: "document", maxCount: 1 }]);
+export const uploadGRN = upload.fields([
+  { name: "document", maxCount: 1 },
+  { name: "damageProof", maxCount: 1 },
+]);
 export const uploadAreaFiles = upload.any();
