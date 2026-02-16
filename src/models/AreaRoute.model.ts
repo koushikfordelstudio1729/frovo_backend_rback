@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+// Define interfaces and schemas for Location, SubLocation, MachineDetails, and HistoryArea
 export interface IMachineImageData {
   image_name: string;
   file_url: string;
