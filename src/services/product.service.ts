@@ -94,16 +94,16 @@ class ProductService {
       throw new Error("Invalid product ID");
     }
 
-    const { VendingMachine } = await import("../models/VendingMachine.model");
+    const { Machine } = await import("../models/VendingMachine.model");
 
-    const machinesWithProduct = await VendingMachine.find({
+    const machinesWithProduct = await Machine.find({
       "productSlots.product": productId,
       "productSlots.quantity": { $gt: 0 },
-      status: "Active",
-      isOnline: true,
+      machineStatus: "active",
+      connectivityStatus: "online",
     })
       .populate("productSlots.product")
-      .select("machineId name location productSlots");
+      .select("serialNumber modelNumber machineType productSlots");
 
     const availability = [];
 
@@ -114,9 +114,9 @@ class ProductService {
 
       if (productSlots.length > 0) {
         availability.push({
-          machineId: machine.machineId,
-          machineName: machine.name,
-          location: machine.location,
+          machineId: machine._id,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
           slots: productSlots.map(slot => ({
             slotNumber: slot.slotNumber,
             quantity: slot.quantity,
@@ -132,10 +132,7 @@ class ProductService {
       totalMachines: availability.length,
       totalQuantity: availability.reduce((sum, machine) => sum + machine.totalAvailable, 0),
       availability: availability.sort((a, b) => {
-        if (a.location.city !== b.location.city) {
-          return a.location.city.localeCompare(b.location.city);
-        }
-        return a.machineName.localeCompare(b.machineName);
+        return a.serialNumber.localeCompare(b.serialNumber);
       }),
     };
   }

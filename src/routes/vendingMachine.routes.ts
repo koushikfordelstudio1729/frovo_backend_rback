@@ -1,23 +1,36 @@
-import { Router } from "express";
-import * as vendingMachineController from "../controllers/vendingMachine.controller";
-import { authenticate } from "../middleware/auth.middleware";
+// routes/machine.routes.ts
+import express from "express";
+import {
+  createMachine,
+  getAllMachines,
+  getMachineById,
+  updateMachine,
+  deleteMachine,
+  updateMachineStatus, // This was missing
+  addRacks,
+  getMachineRacks,
+  getRackById,
+  updateRack,
+  deleteRack,
+  getMachineWithRacks,
+} from "../controllers/vendingMachine.controller";
 
-const router = Router();
+const router = express.Router();
 
-router.get("/machines", vendingMachineController.getAllVendingMachines);
-router.get("/machines/locations", vendingMachineController.getVendingMachinesByLocation);
-router.get("/machines/filters/locations", vendingMachineController.getLocationFilters);
-router.get("/machines/:machineId", vendingMachineController.getVendingMachineByMachineId);
-router.get("/machines/:machineId/products", vendingMachineController.getVendingMachineProducts);
-router.get(
-  "/machines/:machineId/slots/:slotNumber/availability",
-  vendingMachineController.checkProductAvailability
-);
-router.get("/search-products", vendingMachineController.searchProductAcrossMachines);
+// Machine routes
+router.post("/machines", createMachine);
+router.get("/machines", getAllMachines);
+router.get("/machines/:machineId", getMachineById);
+router.put("/machines/:machineId", updateMachine);
+router.delete("/machines/:machineId", deleteMachine);
+router.patch("/machines/:machineId/status", updateMachineStatus); // Now it's defined
 
-router.use(authenticate);
-
-router.get("/machines/:machineId/stats", vendingMachineController.getMachineStats);
-router.get("/internal/:id", vendingMachineController.getVendingMachineById);
+// Rack routes
+router.post("/machines/:machineId/racks", addRacks);
+router.get("/machines/:machineId/racks", getMachineRacks);
+router.get("/machines/:machineId/with-racks", getMachineWithRacks);
+router.get("/racks/:rackId", getRackById);
+router.put("/racks/:rackId", updateRack);
+router.delete("/racks/:rackId", deleteRack);
 
 export default router;

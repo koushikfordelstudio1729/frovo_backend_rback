@@ -1,5 +1,5 @@
 import { Cart } from "../models/Cart.model";
-import { VendingMachine } from "../models/VendingMachine.model";
+import { Machine } from "../models/VendingMachine.model";
 import { Order } from "../models/Order.model";
 import { PaymentStatus } from "../models/Order.model";
 import { OrderStatus } from "../models/Order.model";
@@ -27,7 +27,7 @@ class OrderService {
     const orderItems = [];
 
     for (const cartItem of cart.items) {
-      const machine = await VendingMachine.findOne({ machineId: cartItem.machineId });
+      const machine = await Machine.findOne({ machineId: cartItem.machineId });
 
       if (!machine) {
         validationResults.push(`Machine ${cartItem.machineId} not found`);
@@ -81,7 +81,7 @@ class OrderService {
     const tax = Math.round(subtotal * taxRate * 100) / 100;
     const totalAmount = subtotal + tax;
 
-    const firstMachine = await VendingMachine.findOne({ machineId: orderItems[0]?.machineId });
+    const firstMachine = await Machine.findOne({ machineId: orderItems[0]?.machineId });
     if (!firstMachine) {
       throw new Error("Machine not found for delivery info");
     }
@@ -120,7 +120,7 @@ class OrderService {
     await order.save();
 
     for (const item of orderItems) {
-      const machine = await VendingMachine.findOne({ machineId: item.machineId });
+      const machine = await Machine.findOne({ machineId: item.machineId });
       if (machine) {
         const slot = machine.productSlots.find(
           slot =>
@@ -283,7 +283,7 @@ class OrderService {
   private async restoreInventory(order: any) {
     for (const item of order.items) {
       if (!item.dispensed) {
-        const machine = await VendingMachine.findOne({ machineId: item.machineId });
+        const machine = await Machine.findOne({ machineId: item.machineId });
         if (machine) {
           const slot = machine.productSlots.find(
             slot =>

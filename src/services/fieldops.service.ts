@@ -5,7 +5,7 @@ import { MachineSkip } from "../models/MachineSkip.model";
 import { HandoverSummary } from "../models/HandoverSummary.model";
 import { MaintenanceIssue } from "../models/MaintenanceIssue.model";
 import { FieldAgent, DispatchOrder, Warehouse } from "../models/Warehouse.model";
-import { VendingMachine } from "../models/VendingMachine.model";
+import { Machine as VendingMachine } from "../models/VendingMachine.model";
 import { User } from "../models";
 import { LocationModel } from "../models/AreaRoute.model";
 
@@ -431,7 +431,7 @@ export class FieldOpsService {
   }
 
   async verifyMachine(data: { machineId?: string; qrCode?: string }, agentId: string) {
-    let machine;
+    let machine: any;
 
     if (data.machineId) {
       machine = await VendingMachine.findOne({ machineId: data.machineId }).lean();
@@ -475,7 +475,7 @@ export class FieldOpsService {
   }
 
   async getMachineDetails(machineId: string) {
-    const machine = await VendingMachine.findOne({ machineId }).lean();
+    const machine = (await VendingMachine.findOne({ machineId }).lean()) as any;
 
     if (!machine) {
       throw new Error("Machine not found");
@@ -498,7 +498,7 @@ export class FieldOpsService {
   }
 
   async getMachineHealth(machineId: string) {
-    const machine = await VendingMachine.findOne({ machineId }).lean();
+    const machine = (await VendingMachine.findOne({ machineId }).lean()) as any;
 
     if (!machine) {
       throw new Error("Machine not found");
@@ -533,9 +533,9 @@ export class FieldOpsService {
   }
 
   async getMachineRefillData(machineId: string) {
-    const machine = await VendingMachine.findOne({ machineId })
+    const machine = (await VendingMachine.findOne({ machineId })
       .populate("productSlots.product")
-      .lean();
+      .lean()) as any;
 
     if (!machine) {
       throw new Error("Machine not found");
@@ -584,9 +584,9 @@ export class FieldOpsService {
   }
 
   async getSlotDetails(machineId: string, slotId: string) {
-    const machine = await VendingMachine.findOne({ machineId })
+    const machine = (await VendingMachine.findOne({ machineId })
       .populate("productSlots.product")
-      .lean();
+      .lean()) as any;
 
     if (!machine) {
       throw new Error("Machine not found");

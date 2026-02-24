@@ -1,6 +1,6 @@
 import { Cart } from "../models/Cart.model";
 import { Product } from "../models/Product.model";
-import { VendingMachine } from "../models/VendingMachine.model";
+import { Machine } from "../models/VendingMachine.model";
 import { Types } from "mongoose";
 
 export interface AddToCartData {
@@ -40,7 +40,7 @@ class CartService {
       throw new Error("Product not found");
     }
 
-    const machine = await VendingMachine.findOne({ machineId: cartData.machineId });
+    const machine = await Machine.findOne({ machineId: cartData.machineId });
     if (!machine) {
       throw new Error("Vending machine not found");
     }
@@ -92,7 +92,7 @@ class CartService {
       return this.removeFromCart(userId, productId, machineId, slotNumber);
     }
 
-    const machine = await VendingMachine.findOne({ machineId });
+    const machine = await Machine.findOne({ machineId });
     if (!machine) {
       throw new Error("Vending machine not found");
     }
@@ -140,7 +140,7 @@ class CartService {
     const validItems = [];
 
     for (const item of cart.items) {
-      const machine = await VendingMachine.findOne({ machineId: item.machineId });
+      const machine = await Machine.findOne({ machineId: item.machineId });
 
       if (!machine) {
         invalidItems.push({
