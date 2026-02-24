@@ -1,17 +1,15 @@
+import "./env";
 import "./types/express";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
 import { connectDB } from "./config/database";
 import routes from "./routes";
 import { errorHandler, notFound } from "./middleware/errorHandler.middleware";
 import { seedDatabase } from "./seeders";
 import { logger } from "./utils/logger.util";
-
-dotenv.config({ path: ".env" });
 
 const app = express();
 
