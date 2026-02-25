@@ -21,6 +21,7 @@ export interface IGRNnumber extends Document {
   recieved_date: Date;
   remarks?: string;
   scanned_challan?: string;
+  damage_proof?: string;
   qc_status: "bad" | "moderate" | "excellent";
 
   purchase_order: Types.ObjectId;
@@ -67,6 +68,7 @@ const grnNumberSchema = new Schema<IGRNnumber>(
     recieved_date: { type: Date, required: true, default: Date.now },
     remarks: { type: String },
     scanned_challan: { type: String },
+    damage_proof: { type: String },
     qc_status: {
       type: String,
       enum: ["bad", "moderate", "excellent"],
@@ -80,7 +82,7 @@ const grnNumberSchema = new Schema<IGRNnumber>(
     },
     vendor: {
       type: Schema.Types.ObjectId,
-      ref: "VendorCreate",
+      ref: "BrandCreate",
       required: true,
     },
 
@@ -208,7 +210,7 @@ const raisePurchaseOrderSchema = new Schema<IRaisePurchaseOrder>(
 
     vendor: {
       type: Schema.Types.ObjectId,
-      ref: "VendorCreate",
+      ref: "BrandCreate",
       required: true,
     },
     warehouse: {
@@ -501,7 +503,7 @@ const qcTemplateSchema = new Schema<IQCTemplate>(
 const returnOrderSchema = new Schema<IReturnOrder>(
   {
     batchId: { type: String, required: true },
-    vendor: { type: Schema.Types.ObjectId, ref: "VendorCreate", required: true },
+    vendor: { type: Schema.Types.ObjectId, ref: "BrandCreate", required: true },
     warehouse: { type: Schema.Types.ObjectId, ref: "Warehouse", required: true },
     reason: { type: String, required: true },
     quantity: { type: Number, required: true, min: 1 },
@@ -573,7 +575,7 @@ const expenseSchema = new Schema<IExpense>(
     },
 
     amount: { type: Number, required: true, min: 0 },
-    vendor: { type: Schema.Types.ObjectId, ref: "VendorCreate", required: true },
+    vendor: { type: Schema.Types.ObjectId, ref: "BrandCreate", required: true },
 
     date: { type: Date, required: true },
     description: { type: String, maxlength: 200 },

@@ -21,6 +21,7 @@ import {
   IFieldAgent,
   IGRNnumber,
 } from "../models/Warehouse.model";
+import { BrandCreate } from "../models/Vendor.model";
 import { DocumentUploadService } from "./documentUpload.service";
 import { FieldOpsTask } from "../models/FieldOpsTask.model";
 import { User, Role } from "../models";
@@ -500,8 +501,7 @@ class WarehouseService {
         vendor_details_present: data.vendor_details ? "Yes" : "No",
       });
 
-      const VendorModel = mongoose.model("VendorCreate");
-      const vendor = await VendorModel.findById(data.vendor);
+      const vendor = await BrandCreate.findById(data.vendor);
       if (!vendor) {
         throw new Error("Vendor not found");
       }
@@ -523,16 +523,16 @@ class WarehouseService {
       }
 
       const vendorDetails = {
-        vendor_name: vendor.vendor_name,
-        vendor_billing_name: vendor.vendor_billing_name,
-        vendor_email: vendor.vendor_email,
+        vendor_name: vendor.brand_name,
+        vendor_billing_name: vendor.brand_billing_name,
+        vendor_email: vendor.brand_email,
         vendor_phone: vendor.contact_phone,
-        vendor_category: vendor.vendor_category,
-        gst_number: vendor.gst_number,
+        vendor_category: vendor.brand_category,
+        gst_number: vendor.gst_details,
         verification_status: vendor.verification_status,
-        vendor_address: vendor.vendor_address,
-        vendor_contact: vendor.primary_contact_name,
-        vendor_id: vendor.vendor_id,
+        vendor_address: vendor.address,
+        vendor_contact: vendor.contact_name,
+        vendor_id: vendor.brand_id,
       };
 
       const purchaseOrder = await RaisePurchaseOrder.create({
@@ -560,7 +560,8 @@ class WarehouseService {
     purchaseOrderId: string,
     grnData: GRNData,
     createdBy: Types.ObjectId,
-    uploadedFile?: Express.Multer.File
+    uploadedFile?: Express.Multer.File,
+    damageProofFile?: Express.Multer.File
   ): Promise<IGRNnumber> {
     try {
       logger.info("📦 Creating GRN for PO:", purchaseOrderId);
@@ -592,19 +593,6 @@ class WarehouseService {
 
       const grnNumber = await this.generateGRNNumber();
 
-      let scannedChallanUrl = grnData.scanned_challan;
-      if (uploadedFile) {
-        logger.info("📤 Uploading scanned challan to Cloudinary...");
-        const documentUploadService = new DocumentUploadService();
-        const uploadResult = await documentUploadService.uploadToCloudinary(
-          uploadedFile.buffer,
-          uploadedFile.originalname,
-          "frovo/grn_challans"
-        );
-        scannedChallanUrl = uploadResult.url;
-        logger.info("✅ Scanned challan uploaded:", uploadResult.url);
-      }
-
       const grnPayload = {
         grn_number: grnNumber,
         purchase_order: purchaseOrderId,
@@ -613,7 +601,7 @@ class WarehouseService {
         vehicle_number: grnData.vehicle_number,
         recieved_date: grnData.recieved_date,
         remarks: grnData.remarks,
-        scanned_challan: scannedChallanUrl,
+        scanned_challan: grnData.scanned_challan,
         qc_status: grnData.qc_status,
 
         vendor: purchaseOrder.vendor,
@@ -646,6 +634,54 @@ class WarehouseService {
       const grn = await GRNnumber.create(grnPayload);
 
       await RaisePurchaseOrder.findByIdAndUpdate(purchaseOrderId, { po_status: "received" });
+
+      // Upload files to Cloudinary in the background (don't block the response)
+      if (uploadedFile || damageProofFile) {
+        const grnId = grn._id;
+        const documentUploadService = new DocumentUploadService();
+
+        setImmediate(async () => {
+          try {
+            const updateFields: Record<string, string> = {};
+
+            const uploadPromises: Promise<void>[] = [];
+
+            if (uploadedFile) {
+              uploadPromises.push(
+                documentUploadService
+                  .uploadToCloudinary(
+                    uploadedFile.buffer,
+                    uploadedFile.originalname,
+                    "frovo/grn_challans"
+                  )
+                  .then(result => {
+                    updateFields.scanned_challan = result.url;
+                  })
+              );
+            }
+
+            if (damageProofFile) {
+              uploadPromises.push(
+                documentUploadService
+                  .uploadToCloudinary(
+                    damageProofFile.buffer,
+                    damageProofFile.originalname,
+                    "frovo/grn_damage_proofs"
+                  )
+                  .then(result => {
+                    updateFields.damage_proof = result.url;
+                  })
+              );
+            }
+
+            await Promise.all(uploadPromises);
+            await GRNnumber.findByIdAndUpdate(grnId, { $set: updateFields });
+            logger.info("✅ GRN file uploads completed and saved:", updateFields);
+          } catch (error) {
+            logger.error(`❌ Background file upload failed for GRN: ${grnId} ${error}`);
+          }
+        });
+      }
 
       logger.info("✅ GRN created successfully:", grn.delivery_challan);
 

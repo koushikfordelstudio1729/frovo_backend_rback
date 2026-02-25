@@ -196,12 +196,14 @@ export const createGRN = asyncHandler(async (req: Request, res: Response) => {
 
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const uploadedFile = files?.document?.[0];
+    const damageProofFile = files?.damageProof?.[0];
 
     const result = await warehouseService.createGRN(
       purchaseOrderId,
       req.body,
       req.user._id,
-      uploadedFile
+      uploadedFile,
+      damageProofFile
     );
     return sendCreated(res, result, "GRN created successfully");
   } catch (error) {
