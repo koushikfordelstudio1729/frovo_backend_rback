@@ -32,6 +32,8 @@ export enum SystemRole {
   SUPER_ADMIN = "super_admin",
   VENDOR_ADMIN = "vendor_admin",
   OPS_MANAGER = "ops_manager",
+  AREA_MANAGER = "area_manager",
+  AREA_STAFF = "area_staff",
   FIELD_AGENT = "field_agent",
   TECHNICIAN = "technician",
   FINANCE_MANAGER = "finance_manager",
@@ -58,6 +60,7 @@ export enum DepartmentName {
 export enum PermissionModule {
   MACHINES = "machines",
   VENDORS = "vendors",
+  AREA = "area",
   PLANOGRAM = "planogram",
   ORDERS = "orders",
   FINANCE = "finance",

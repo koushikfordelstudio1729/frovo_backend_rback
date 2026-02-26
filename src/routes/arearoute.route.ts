@@ -4,101 +4,72 @@ import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
 import { uploadAreaFiles } from "../middleware/upload.middleware";
 
-const SUPER_ADMIN_ONLY = ["super_admin"];
-const MANAGEMENT = ["super_admin", "ops_manager", ""];
+const MANAGEMENT = ["super_admin", "area_manager"];
+const STAFF = ["super_admin", "area_manager", "area_staff"];
 
 const router = express.Router();
 
 router.use(authenticate);
 
-// ============================================
-// LOCATION ROUTES (SPECIFIC ROUTES FIRST)
-// ============================================
-
-// Create location
-router.post("/location", authorize(MANAGEMENT), AreaController.createLocation);
+router.post("/location", authorize(STAFF), AreaController.createLocation);
 
 // Get all locations
-router.get("/location", authorize(MANAGEMENT), AreaController.getAllLocations);
+router.get("/location", authorize(STAFF), AreaController.getAllLocations);
 
 // Export routes MUST come before parameterized routes
-router.get("/location/export", authorize(MANAGEMENT), AreaController.exportLocations);
-router.get("/location/export/:ids", authorize(MANAGEMENT), AreaController.exportLocationsByIds);
-
-// Bulk operations
-router.get(
-  "/location/bulk/summarized",
-  authorize(MANAGEMENT),
-  AreaController.getSummarizedLocationsByIds
-);
+router.get("/location/export", authorize(STAFF), AreaController.exportLocations);
+router.get("/location/export/:ids", authorize(STAFF), AreaController.exportLocationsByIds);
 
 // Check location exists
-router.get("/location/check-exists", authorize(MANAGEMENT), AreaController.checkLocationExists);
+router.get("/location/check-exists", authorize(STAFF), AreaController.checkLocationExists);
 
 // PARAMETERIZED ROUTES (come after specific routes)
-router.get("/location/:locationId", authorize(MANAGEMENT), AreaController.getLocationById);
-router.put("/location/:locationId", authorize(MANAGEMENT), AreaController.updateLocation);
-router.delete("/location/:locationId", authorize(MANAGEMENT), AreaController.deleteLocation);
+router.get("/location/:locationId", authorize(STAFF), AreaController.getLocationById);
+router.put("/location/:locationId", authorize(STAFF), AreaController.updateLocation);
+router.delete("/location/:locationId", authorize(STAFF), AreaController.deleteLocation);
 router.patch(
   "/location/:locationId/toggle-status",
   authorize(MANAGEMENT),
   AreaController.toggleLocationStatus
 );
 
-// ============================================
-// SUB-LOCATION ROUTES
-// ============================================
-
-router.post(
-  "/location/:locationId/sublocation",
-  authorize(MANAGEMENT),
-  AreaController.addSubLocation
-);
+router.post("/location/:locationId/sublocation", authorize(STAFF), AreaController.addSubLocation);
 router.get(
   "/location/:locationId/sublocation",
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.getSubLocationsByLocationId
 );
-router.delete(
-  "/sublocation/:subLocationId",
-  authorize(MANAGEMENT),
-  AreaController.deleteSubLocation
-);
+router.delete("/sublocation/:subLocationId", authorize(STAFF), AreaController.deleteSubLocation);
 // Update sub-location
-router.put("/sublocation/:subLocationId", authorize(MANAGEMENT), AreaController.updateSubLocation);
+router.put("/sublocation/:subLocationId", authorize(STAFF), AreaController.updateSubLocation);
 
-// Export sub-locations by location ID
 router.get(
   "/location/:locationId/sublocation/export",
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.exportSubLocationsByLocationId
 );
 
-// Get audit logs by sub-location ID
 router.get(
   "/sublocation/:subLocationId/audit-logs",
-  authorize(SUPER_ADMIN_ONLY),
+  authorize(STAFF),
   AreaController.getAuditLogsBySubLocationId
 );
-// ============================================
-// MACHINE DETAILS ROUTES
-// ============================================
 
 router.get(
   "/sublocation/:subLocationId/machine",
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.getMachineDetailsBySubLocationId
 );
 router.put(
   "/machine/:machineDetailsId",
   uploadAreaFiles,
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.updateMachineDetails
 );
-router.delete("/machine/:machineDetailsId", authorize(MANAGEMENT), AreaController.removeMachine);
+router.delete("/machine/:machineDetailsId", authorize(STAFF), AreaController.removeMachine);
 router.delete(
   "/machine/:machineDetailsId/images/:imageIndex",
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.removeMachineImage
 );
 router.patch(
@@ -111,42 +82,30 @@ router.patch(
   authorize(MANAGEMENT),
   AreaController.toggleMachineInstalledStatus
 );
-router.get("/machine/search", authorize(MANAGEMENT), AreaController.searchMachines);
+router.get("/machine/search", authorize(STAFF), AreaController.searchMachines);
 router.put(
   "/machine/:machineDetailsId/images",
   uploadAreaFiles,
-  authorize(MANAGEMENT),
+  authorize(STAFF),
   AreaController.updateMachineImages
 );
 
-router.get(
-  "/location/:locationId/audit-logs",
-  authorize(SUPER_ADMIN_ONLY),
-  AreaController.getAuditLogs
-);
+router.get("/location/:locationId/audit-logs", authorize(STAFF), AreaController.getAuditLogs);
 router.get(
   "/location/:locationId/audit-logs/export",
-  authorize(SUPER_ADMIN_ONLY),
+  authorize(STAFF),
   AreaController.exportLocationAuditLogs
 );
-router.get(
-  "/audit/recent-activities",
-  authorize(SUPER_ADMIN_ONLY),
-  AreaController.getRecentActivities
-);
+router.get("/audit/recent-activities", authorize(STAFF), AreaController.getRecentActivities);
 router.get(
   "/audit/recent-activities/export",
-  authorize(SUPER_ADMIN_ONLY),
+  authorize(STAFF),
   AreaController.exportRecentAuditActivities
 );
 
-// ============================================
-// DASHBOARD & ANALYTICS ROUTES
-// ============================================
-
-router.get("/dashboard/data", authorize(MANAGEMENT), AreaController.getDashboardData);
-router.get("/dashboard/table", authorize(MANAGEMENT), AreaController.getDashboardTableData);
-router.get("/dashboard/export", authorize(MANAGEMENT), AreaController.exportDashboardData);
-router.get("/filter/options", authorize(MANAGEMENT), AreaController.getFilterOptions);
+router.get("/dashboard/data", authorize(STAFF), AreaController.getDashboardData);
+router.get("/dashboard/table", authorize(STAFF), AreaController.getDashboardTableData);
+router.get("/dashboard/export", authorize(STAFF), AreaController.exportDashboardData);
+router.get("/filter/options", authorize(STAFF), AreaController.getFilterOptions);
 
 export default router;

@@ -3,6 +3,34 @@ import { logger } from "../utils/logger.util";
 
 const permissions = [
   {
+    key: "area:view",
+    module: PermissionModule.AREA,
+    action: PermissionAction.VIEW,
+    description: "View all area",
+    group: "Area",
+  },
+  {
+    key: "area:edit",
+    module: PermissionModule.AREA,
+    action: PermissionAction.VIEW,
+    description: "Edit area",
+    group: "Area",
+  },
+  {
+    key: "area:delete",
+    module: PermissionModule.AREA,
+    action: PermissionAction.VIEW,
+    description: "Delete",
+    group: "Area",
+  },
+  {
+    key: "area:create",
+    module: PermissionModule.AREA,
+    action: PermissionAction.VIEW,
+    description: "create view",
+    group: "Area",
+  },
+  {
     key: "vendors:view",
     module: PermissionModule.VENDORS,
     action: PermissionAction.VIEW,

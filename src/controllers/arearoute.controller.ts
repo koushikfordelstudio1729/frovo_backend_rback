@@ -2074,7 +2074,7 @@ export class AreaController {
     }
   }
 
-  // NEW HELPER: Generate detailed CSV export
+  // NEW HELPER: Generate detailed CSV export with flattened structure
   private static async generateDetailedCSVExport(
     locations: any[],
     includeImages: boolean
@@ -2086,173 +2086,169 @@ export class AreaController {
     try {
       let csv = "\ufeff"; // BOM for UTF-8
 
-      // Sheet 1: Locations Summary
-      csv += "=== LOCATIONS SUMMARY ===\n";
-      const locationHeaders = [
+      // Create headers for flattened structure
+      const headers = [
+        // Location Information
         "Location ID",
         "Area Name",
         "State",
         "District",
         "Pincode",
-        "Status",
+        "Location Status",
         "Address",
         "Description",
-        "Sub-locations Count",
-        "Total Machines",
-        "Installed Machines",
-        "Not Installed Machines",
-        "Active Machines",
-        "Inactive Machines",
-        "Created At",
-        "Updated At",
-      ];
-      csv += locationHeaders.join(",") + "\n";
+        "Location Created At",
+        "Location Updated At",
 
+        // Sub-location Information
+        "Sub-location ID",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Selected Machines (Original)",
+        "Sub-location Created At",
+        "Sub-location Updated At",
+
+        // Machine Information
+        "Machine ID",
+        "Machine Name",
+        "Installed Status",
+        "Machine Status",
+        "Images Count",
+        "Image Names",
+        "Image URLs",
+        "Machine Created At",
+        "Machine Updated At",
+      ];
+
+      csv += headers.join(",") + "\n";
+
+      // Process each location
       for (const location of locations) {
         const locationObj = location.toObject ? location.toObject() : location;
 
-        // Get sub-locations for statistics
-        const subLocations = await SubLocationModel.find({ location_id: location._id });
-        let totalMachines = 0;
-        let installedMachines = 0;
-        let activeMachines = 0;
-
-        for (const subLoc of subLocations) {
-          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
-          totalMachines += machines.length;
-          installedMachines += machines.filter(m => m.installed_status === "installed").length;
-          activeMachines += machines.filter(m => m.status === "active").length;
-        }
-
-        const notInstalledMachines = totalMachines - installedMachines;
-        const inactiveMachines = totalMachines - activeMachines;
-
-        const locationRow = [
-          locationObj._id?.toString() || "",
-          `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
-          `"${(locationObj.state || "").replace(/"/g, '""')}"`,
-          `"${(locationObj.district || "").replace(/"/g, '""')}"`,
-          locationObj.pincode || "",
-          locationObj.status || "",
-          `"${(locationObj.address || "").replace(/"/g, '""')}"`,
-          `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
-          subLocations.length,
-          totalMachines,
-          installedMachines,
-          notInstalledMachines,
-          activeMachines,
-          inactiveMachines,
-          locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
-          locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
-        ];
-
-        csv += locationRow.join(",") + "\n";
-      }
-
-      csv += "\n\n";
-
-      // Sheet 2: Sub-locations
-      csv += "=== SUB-LOCATIONS ===\n";
-      const subLocationHeaders = [
-        "Sub-location ID",
-        "Location ID",
-        "Location Name",
-        "Campus",
-        "Tower",
-        "Floor",
-        "Selected Machines",
-        "Total Machines",
-        "Installed Machines",
-        "Active Machines",
-        "Created At",
-        "Updated At",
-      ];
-      csv += subLocationHeaders.join(",") + "\n";
-
-      for (const location of locations) {
+        // Get sub-locations for this location
         const subLocations = await SubLocationModel.find({ location_id: location._id });
 
-        for (const subLoc of subLocations) {
-          const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
-          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
-
-          const installedMachines = machines.filter(m => m.installed_status === "installed").length;
-          const activeMachines = machines.filter(m => m.status === "active").length;
-
-          const subLocationRow = [
-            subLocObj._id?.toString() || "",
-            location._id?.toString() || "",
-            `"${location.area_name?.replace(/"/g, '""') || ""}"`,
-            `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
-            `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
-            `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
-            `"${(subLocObj.select_machine || []).join(", ").replace(/"/g, '""')}"`,
-            machines.length,
-            installedMachines,
-            activeMachines,
-            subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
-            subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
+        if (subLocations.length === 0) {
+          // Location has no sub-locations - still output a row with empty sub-location and machine fields
+          const baseLocationFields = [
+            locationObj._id?.toString() || "",
+            `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+            `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+            `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+            locationObj.pincode || "",
+            locationObj.status || "",
+            `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+            `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+            locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+            locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
           ];
 
-          csv += subLocationRow.join(",") + "\n";
-        }
-      }
+          // Add empty sub-location fields
+          const emptySubLocationFields = ["", "", "", "", "", "", ""];
 
-      csv += "\n\n";
+          // Add empty machine fields
+          const emptyMachineFields = ["", "", "", "", "", "", "", "", ""];
 
-      // Sheet 3: Machines
-      csv += "=== MACHINES ===\n";
-      const machineHeaders = [
-        "Machine ID",
-        "Sub-location ID",
-        "Location Name",
-        "Campus",
-        "Tower",
-        "Floor",
-        "Machine Name",
-        "Installed Status",
-        "Status",
-        "Images Count",
-        "Image Names",
-        "Created At",
-        "Updated At",
-      ];
-      csv += machineHeaders.join(",") + "\n";
+          csv +=
+            [...baseLocationFields, ...emptySubLocationFields, ...emptyMachineFields].join(",") +
+            "\n";
+        } else {
+          // Location has sub-locations - process each sub-location and its machines
+          for (const subLoc of subLocations) {
+            const subLocObj = subLoc.toObject ? subLoc.toObject() : subLoc;
 
-      for (const location of locations) {
-        const subLocations = await SubLocationModel.find({ location_id: location._id });
+            // Get machines for this sub-location
+            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
 
-        for (const subLoc of subLocations) {
-          const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
+            if (machines.length === 0) {
+              // Sub-location has no machines - output a row with empty machine fields
+              const baseLocationFields = [
+                locationObj._id?.toString() || "",
+                `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+                `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+                `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+                locationObj.pincode || "",
+                locationObj.status || "",
+                `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+                `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+                locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+                locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
+              ];
 
-          for (const machine of machines) {
-            const machineObj = machine.toObject ? machine.toObject() : machine;
-            const imageNames =
-              machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+              const subLocationFields = [
+                subLocObj._id?.toString() || "",
+                `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
+                `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
+                `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
+                `"${(subLocObj.select_machine || []).join(", ").replace(/"/g, '""')}"`,
+                subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
+                subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
+              ];
 
-            const machineRow = [
-              machineObj._id?.toString() || "",
-              subLoc._id?.toString() || "",
-              `"${location.area_name?.replace(/"/g, '""') || ""}"`,
-              `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
-              `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
-              `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
-              `"${(machineObj.machine_name || "").replace(/"/g, '""')}"`,
-              machineObj.installed_status || "",
-              machineObj.status || "",
-              machineObj.machine_image?.length || 0,
-              `"${imageNames.replace(/"/g, '""')}"`,
-              machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
-              machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : "",
-            ];
+              const emptyMachineFields = ["", "", "", "", "", "", "", "", ""];
 
-            csv += machineRow.join(",") + "\n";
+              csv +=
+                [...baseLocationFields, ...subLocationFields, ...emptyMachineFields].join(",") +
+                "\n";
+            } else {
+              // Sub-location has machines - output a row for each machine
+              for (const machine of machines) {
+                const machineObj = machine.toObject ? machine.toObject() : machine;
+
+                // Prepare image data
+                const imageNames =
+                  machineObj.machine_image?.map(img => img.image_name).join("; ") || "";
+                const imageUrls =
+                  machineObj.machine_image?.map(img => img.file_url).join("; ") || "";
+
+                const baseLocationFields = [
+                  locationObj._id?.toString() || "",
+                  `"${(locationObj.area_name || "").replace(/"/g, '""')}"`,
+                  `"${(locationObj.state || "").replace(/"/g, '""')}"`,
+                  `"${(locationObj.district || "").replace(/"/g, '""')}"`,
+                  locationObj.pincode || "",
+                  locationObj.status || "",
+                  `"${(locationObj.address || "").replace(/"/g, '""')}"`,
+                  `"${(locationObj.area_description || "").replace(/"/g, '""')}"`,
+                  locationObj.createdAt ? new Date(locationObj.createdAt).toISOString() : "",
+                  locationObj.updatedAt ? new Date(locationObj.updatedAt).toISOString() : "",
+                ];
+
+                const subLocationFields = [
+                  subLocObj._id?.toString() || "",
+                  `"${(subLocObj.campus || "").replace(/"/g, '""')}"`,
+                  `"${(subLocObj.tower || "").replace(/"/g, '""')}"`,
+                  `"${(subLocObj.floor || "").replace(/"/g, '""')}"`,
+                  `"${(subLocObj.select_machine || []).join(", ").replace(/"/g, '""')}"`,
+                  subLocObj.createdAt ? new Date(subLocObj.createdAt).toISOString() : "",
+                  subLocObj.updatedAt ? new Date(subLocObj.updatedAt).toISOString() : "",
+                ];
+
+                const machineFields = [
+                  machineObj._id?.toString() || "",
+                  `"${(machineObj.machine_name || "").replace(/"/g, '""')}"`,
+                  machineObj.installed_status || "",
+                  machineObj.status || "",
+                  machineObj.machine_image?.length || 0,
+                  `"${imageNames.replace(/"/g, '""')}"`,
+                  `"${imageUrls.replace(/"/g, '""')}"`,
+                  machineObj.createdAt ? new Date(machineObj.createdAt).toISOString() : "",
+                  machineObj.updatedAt ? new Date(machineObj.updatedAt).toISOString() : "",
+                ];
+
+                csv +=
+                  [...baseLocationFields, ...subLocationFields, ...machineFields].join(",") + "\n";
+              }
+            }
           }
         }
       }
 
-      // Add summary
+      // Add summary at the end
       csv += "\n\n=== EXPORT SUMMARY ===\n";
+
       const totalSubLocations = (
         await Promise.all(
           locations.map(loc => SubLocationModel.countDocuments({ location_id: loc._id }))
@@ -2276,7 +2272,8 @@ export class AreaController {
       csv += "Total Locations," + locations.length + "\n";
       csv += "Total Sub-locations," + totalSubLocations + "\n";
       csv += "Total Machines," + totalMachines + "\n";
-      csv += "Export Format,Detailed CSV (3 sheets)\n";
+      csv += "Total Rows in Export," + (csv.split("\n").length - 10) + "\n"; // Subtract headers and summary
+      csv += "Export Format,Flattened CSV (All data in rows)\n";
       csv += "Export Date," + new Date().toISOString() + "\n";
       csv += "Includes Images," + includeImages + "\n";
 
@@ -2285,7 +2282,8 @@ export class AreaController {
       logger.error("Error generating detailed CSV:", error);
       return "Error generating detailed CSV export";
     }
-  } // ENHANCED EXPORT LOCATIONS BY IDS - WITH IMAGE URLS AND COMPREHENSIVE DATA
+  }
+  // ENHANCED EXPORT LOCATIONS BY IDS - WITH IMAGE URLS AND COMPREHENSIVE DATA
   static async exportLocationsByIds(req: Request, res: Response): Promise<void> {
     try {
       const { ids } = req.params; // This comes from /location/export/:ids
@@ -3171,98 +3169,6 @@ export class AreaController {
       }
     } catch (error) {
       logger.error("Error exporting dashboard data:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-      });
-    }
-  }
-
-  // GET SUMMARIZED LOCATIONS BY IDS
-  static async getSummarizedLocationsByIds(req: Request, res: Response): Promise<void> {
-    try {
-      const { ids } = req.query;
-
-      if (!ids) {
-        res.status(400).json({
-          success: false,
-          message: "Location IDs are required",
-        });
-        return;
-      }
-
-      const locationIds = (ids as string)
-        .split(",")
-        .map(id => id.trim())
-        .filter(id => id);
-
-      if (locationIds.length === 0) {
-        res.status(400).json({
-          success: false,
-          message: "Please provide location IDs",
-        });
-        return;
-      }
-
-      const invalidIds = locationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-      if (invalidIds.length > 0) {
-        res.status(400).json({
-          success: false,
-          message: `Invalid location IDs: ${invalidIds.join(", ")}`,
-          invalidIds,
-        });
-        return;
-      }
-
-      const locations = await LocationModel.find({
-        _id: { $in: locationIds },
-      });
-
-      const summarizedData = await Promise.all(
-        locations.map(async location => {
-          const subLocations = await SubLocationModel.find({ location_id: location._id });
-
-          let totalMachines = 0;
-          let installedMachines = 0;
-          let notInstalledMachines = 0;
-
-          for (const subLoc of subLocations) {
-            const machines = await MachineDetailsModel.find({ sub_location_id: subLoc._id });
-            totalMachines += machines.length;
-            installedMachines += machines.filter(m => m.installed_status === "installed").length;
-            notInstalledMachines += machines.filter(
-              m => m.installed_status === "not_installed"
-            ).length;
-          }
-
-          const uniqueCampuses = [...new Set(subLocations.map(sl => sl.campus).filter(Boolean))];
-
-          return {
-            id: location._id,
-            area_name: location.area_name,
-            state: location.state,
-            district: location.district,
-            pincode: location.pincode,
-            status: location.status,
-            address: location.address,
-            sub_locations_count: subLocations.length,
-            total_machines: totalMachines,
-            installed_machines: installedMachines,
-            not_installed_machines: notInstalledMachines,
-            campuses: uniqueCampuses,
-            created_at: location.createdAt,
-            updated_at: location.updatedAt,
-          };
-        })
-      );
-
-      res.status(200).json({
-        success: true,
-        data: summarizedData,
-        total: summarizedData.length,
-      });
-    } catch (error) {
-      logger.error("Error fetching summarized locations:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Internal server error",
