@@ -6,17 +6,44 @@ import { MachineService } from "../services/vendingMachine.service";
 
 export const createMachine = async (req: Request, res: Response) => {
   try {
-    const machine = await MachineService.createMachine(req.body);
+    // Auto-generate rack names before creating
+    const machineData = { ...req.body };
+
+    if (machineData.racks && machineData.racks.length > 0) {
+      machineData.racks = machineData.racks.map((rack: any, index: number) => ({
+        ...rack,
+        rackName: rack.rackName || String.fromCharCode(65 + index),
+      }));
+    }
+    const machine = await MachineService.createMachine(machineData);
 
     res.status(201).json({
       success: true,
       message: "Machine created successfully",
       data: {
         id: machine._id,
+        machineId: machine.machineId,
         serialNumber: machine.serialNumber,
         modelNumber: machine.modelNumber,
         machineType: machine.machineType,
         status: machine.machineStatus,
+        doorStatus: machine.doorStatus,
+        connectivityStatus: machine.connectivityStatus,
+        machineStatus: machine.machineStatus,
+        underMaintenance: machine.underMaintenance,
+        decommissioned: machine.decommissioned,
+        racks:
+          machine.racks?.map((rack: any) => ({
+            id: rack._id,
+            rackName: rack.rackName,
+            slots: rack.slots,
+            capacity: rack.capacity,
+            slotsList: rack.slotsList?.map((slot: any) => ({
+              id: slot._id,
+              slotNumber: slot.slotNumber,
+              status: slot.status,
+            })),
+          })) || [],
       },
     });
   } catch (error: any) {
@@ -32,35 +59,34 @@ export const getAllMachines = async (req: Request, res: Response) => {
   try {
     const machines = await MachineService.getAllMachines();
 
-    // Fetch racks for each machine
-    const machinesWithRacks = await Promise.all(
-      machines.map(async m => {
-        const racks = await MachineService.getMachineRacks(m._id.toString());
-        return {
-          id: m._id,
-          machineId: m.machineId,
-          serialNumber: m.serialNumber,
-          modelNumber: m.modelNumber,
-          dimensions: {
-            height: m.height,
-            width: m.width,
-            length: m.length,
-          },
-          machineType: m.machineType,
-          firmwareVersion: m.firmwareVersion,
-          status: m.machineStatus,
-          machine_status: m.machineStatus,
-          door_status: m.doorStatus,
-          connectivity_status: m.connectivityStatus,
-          under_maintenance: m.underMaintenance,
-          decommissioned: m.decommissioned,
-          racks: racks, // Add racks here
-          totalRacks: racks.length,
-          totalSlots: racks.reduce((sum, rack) => sum + rack.slots, 0),
-          totalCapacity: racks.reduce((sum, rack) => sum + rack.capacity, 0),
-        };
-      })
-    );
+    const machinesWithRacks = machines.map(m => ({
+      id: m._id,
+      machineId: m.machineId,
+      serialNumber: m.serialNumber,
+      modelNumber: m.modelNumber,
+      dimensions: {
+        height: m.height,
+        width: m.width,
+        length: m.length,
+      },
+      machineType: m.machineType,
+      firmwareVersion: m.firmwareVersion,
+      status: m.machineStatus,
+      machine_status: m.machineStatus,
+      door_status: m.doorStatus,
+      connectivity_status: m.connectivityStatus,
+      under_maintenance: m.underMaintenance,
+      decommissioned: m.decommissioned,
+      internalTemperature: m.internalTemperature,
+      racks:
+        m.racks?.map((rack: any) => ({
+          id: rack._id,
+          name: rack.rackName,
+          slots: rack.slots,
+          capacity: rack.capacity,
+          slotsCount: rack.slotsList?.length || 0,
+        })) || [],
+    }));
 
     res.status(200).json({
       success: true,
@@ -88,9 +114,6 @@ export const getMachineById = async (req: Request, res: Response) => {
       });
     }
 
-    // Fetch racks for this machine
-    const racks = await MachineService.getMachineRacks(machineId);
-
     res.status(200).json({
       success: true,
       data: {
@@ -112,10 +135,22 @@ export const getMachineById = async (req: Request, res: Response) => {
           maintenance: machine.underMaintenance,
           decommissioned: machine.decommissioned,
         },
-        racks: racks, // Add racks here
-        totalRacks: racks.length,
-        totalSlots: racks.reduce((sum, rack) => sum + rack.slots, 0),
-        totalCapacity: racks.reduce((sum, rack) => sum + rack.capacity, 0),
+        internalTemperature: machine.internalTemperature,
+        racks:
+          machine.racks?.map((rack: any) => ({
+            id: rack._id,
+            name: rack.rackName,
+            slots: rack.slots,
+            capacity: rack.capacity,
+            slotsList: rack.slotsList?.map((slot: any) => ({
+              id: slot._id,
+              slotNumber: slot.slotNumber,
+              status: slot.status,
+              productId: slot.productId,
+              productName: slot.productName,
+              price: slot.price,
+            })),
+          })) || [],
       },
     });
   } catch (error: any) {
@@ -126,6 +161,7 @@ export const getMachineById = async (req: Request, res: Response) => {
     });
   }
 };
+
 export const updateMachine = async (req: Request, res: Response) => {
   try {
     const { machineId } = req.params;
@@ -172,7 +208,7 @@ export const deleteMachine = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: "Machine and its racks deleted successfully",
+      message: "Machine deleted successfully",
     });
   } catch (error: any) {
     res.status(500).json({
@@ -216,22 +252,18 @@ export const updateMachineStatus = async (req: Request, res: Response) => {
 
 // ========== RACK CONTROLLERS ==========
 
-// ========== RACK CONTROLLERS ==========
-
 export const addRacks = async (req: Request, res: Response) => {
   try {
     const { machineId } = req.params;
     const body = req.body;
 
-    // SIMPLE: Just check if it's an array
     if (!Array.isArray(body)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid format. Send array like: [{slots:5, capacity:10}]',
+        message: "Invalid format. Send array like: [{slots:5, capacity:10}]",
       });
     }
 
-    // Validate each rack
     for (const rack of body) {
       if (!rack.slots || !rack.capacity || rack.slots <= 0 || rack.capacity <= 0) {
         return res.status(400).json({
@@ -264,7 +296,7 @@ export const getMachineRacks = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: racks, // SIMPLE array of racks
+      data: racks,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -289,7 +321,7 @@ export const getRackById = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: rack, // SIMPLE rack object
+      data: rack,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -315,7 +347,7 @@ export const updateRack = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: "Rack updated successfully",
-      data: rack, // SIMPLE rack object
+      data: rack,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -351,6 +383,167 @@ export const deleteRack = async (req: Request, res: Response) => {
   }
 };
 
+// ========== SLOT CONTROLLERS ==========
+
+export const getMachineSlots = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const slots = await MachineService.getMachineSlots(machineId);
+
+    res.status(200).json({
+      success: true,
+      data: slots,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch slots",
+      error: error.message,
+    });
+  }
+};
+
+export const getSlotById = async (req: Request, res: Response) => {
+  try {
+    const { slotId } = req.params;
+    const slot = await MachineService.getSlotById(slotId);
+
+    if (!slot) {
+      return res.status(404).json({
+        success: false,
+        message: "Slot not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: slot,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch slot",
+      error: error.message,
+    });
+  }
+};
+
+export const occupySlot = async (req: Request, res: Response) => {
+  try {
+    const { slotId } = req.params;
+    const { productId, productName, price, expiryDate } = req.body;
+
+    if (!productId || !productName || !price) {
+      return res.status(400).json({
+        success: false,
+        message: "Product ID, name, and price are required",
+      });
+    }
+
+    const slot = await MachineService.occupySlot(slotId, {
+      productId,
+      productName,
+      price,
+      expiryDate,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Slot occupied successfully",
+      data: slot,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to occupy slot",
+      error: error.message,
+    });
+  }
+};
+
+export const freeSlot = async (req: Request, res: Response) => {
+  try {
+    const { slotId } = req.params;
+    const slot = await MachineService.freeSlot(slotId);
+
+    res.status(200).json({
+      success: true,
+      message: "Slot freed successfully",
+      data: slot,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to free slot",
+      error: error.message,
+    });
+  }
+};
+
+export const updateSlotStatus = async (req: Request, res: Response) => {
+  try {
+    const { slotId } = req.params;
+    const { status } = req.body;
+
+    if (!status || !["available", "occupied", "maintenance"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid status (available, occupied, maintenance) is required",
+      });
+    }
+
+    const slot = await MachineService.updateSlotStatus(slotId, status);
+
+    res.status(200).json({
+      success: true,
+      message: "Slot status updated successfully",
+      data: slot,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update slot status",
+      error: error.message,
+    });
+  }
+};
+
+export const getAvailableSlots = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const slots = await MachineService.getAvailableSlots(machineId);
+
+    res.status(200).json({
+      success: true,
+      data: slots,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch available slots",
+      error: error.message,
+    });
+  }
+};
+
+export const getOccupiedSlots = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const slots = await MachineService.getOccupiedSlots(machineId);
+
+    res.status(200).json({
+      success: true,
+      data: slots,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch occupied slots",
+      error: error.message,
+    });
+  }
+};
+
 // ========== COMBINED CONTROLLERS ==========
 
 export const getMachineWithRacks = async (req: Request, res: Response) => {
@@ -367,12 +560,79 @@ export const getMachineWithRacks = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: result, // SIMPLE combined object
+      data: result,
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
       message: "Failed to fetch machine details",
+      error: error.message,
+    });
+  }
+};
+
+// ========== ADDITIONAL CONTROLLERS ==========
+
+export const getMachinesByType = async (req: Request, res: Response) => {
+  try {
+    const { machineType } = req.params;
+    const machines = await MachineService.getMachinesByType(machineType);
+
+    res.status(200).json({
+      success: true,
+      count: machines.length,
+      data: machines,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch machines by type",
+      error: error.message,
+    });
+  }
+};
+
+export const getActiveMachines = async (req: Request, res: Response) => {
+  try {
+    const machines = await MachineService.getActiveMachines();
+
+    res.status(200).json({
+      success: true,
+      count: machines.length,
+      data: machines,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch active machines",
+      error: error.message,
+    });
+  }
+};
+
+export const updateRacksBatch = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const { racks } = req.body;
+
+    if (!Array.isArray(racks)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid format. Send { racks: [...] }",
+      });
+    }
+
+    const updatedRacks = await MachineService.updateRacksBatch(machineId, racks);
+
+    res.status(200).json({
+      success: true,
+      message: "Racks updated successfully",
+      data: updatedRacks,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update racks",
       error: error.message,
     });
   }

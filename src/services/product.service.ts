@@ -107,26 +107,6 @@ class ProductService {
 
     const availability = [];
 
-    for (const machine of machinesWithProduct) {
-      const productSlots = machine.productSlots.filter(
-        slot => slot.product._id.toString() === productId && slot.quantity > 0
-      );
-
-      if (productSlots.length > 0) {
-        availability.push({
-          machineId: machine._id,
-          serialNumber: machine.serialNumber,
-          modelNumber: machine.modelNumber,
-          slots: productSlots.map(slot => ({
-            slotNumber: slot.slotNumber,
-            quantity: slot.quantity,
-            price: slot.price,
-          })),
-          totalAvailable: productSlots.reduce((sum, slot) => sum + slot.quantity, 0),
-        });
-      }
-    }
-
     return {
       productId,
       totalMachines: availability.length,
