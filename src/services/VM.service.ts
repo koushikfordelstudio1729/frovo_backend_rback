@@ -1516,4 +1516,309 @@ export class MachineService {
       machine: machineData,
     };
   }
+  // Add this method to the MachineService class
+
+  // ========== DASHBOARD SERVICES ==========
+
+  /**
+   * Get machine dashboard data with pagination and statistics
+   */
+  static async getMachineDashboard(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    machineType?: string;
+    status?: string;
+    connectivityStatus?: string;
+    doorStatus?: string;
+    underMaintenance?: string;
+    decommissioned?: string;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  }) {
+    const page = Math.max(1, options?.page || 1);
+    const limit = Math.min(100, Math.max(1, options?.limit || 10));
+    const skip = (page - 1) * limit;
+
+    // Build filter query
+    const filter: any = {};
+
+    if (options?.search) {
+      filter.$or = [
+        { machineId: { $regex: options.search, $options: "i" } },
+        { serialNumber: { $regex: options.search, $options: "i" } },
+        { modelNumber: { $regex: options.search, $options: "i" } },
+      ];
+    }
+
+    if (options?.machineType) filter.machineType = options.machineType;
+    if (options?.status) filter.machineStatus = options.status;
+    if (options?.connectivityStatus) filter.connectivityStatus = options.connectivityStatus;
+    if (options?.doorStatus) filter.doorStatus = options.doorStatus;
+    if (options?.underMaintenance) filter.underMaintenance = options.underMaintenance;
+    if (options?.decommissioned) filter.decommissioned = options.decommissioned;
+
+    // Build sort
+    const sort: any = {};
+    const sortBy = options?.sortBy || "createdAt";
+    const sortOrder = options?.sortOrder === "asc" ? 1 : -1;
+    sort[sortBy] = sortOrder;
+
+    // Get all machines for statistics (without pagination)
+    const allMachines = await Machine.find(filter);
+
+    // Calculate statistics
+    let totalActive = 0;
+    let totalInactive = 0;
+    let totalOnline = 0;
+    let totalOffline = 0;
+    let totalUnderMaintenance = 0;
+    let totalDecommissioned = 0;
+    let totalMachinesWithDoorOpen = 0;
+    let totalMachinesWithDoorClosed = 0;
+
+    allMachines.forEach(machine => {
+      // Machine status
+      if (machine.machineStatus === "active") totalActive++;
+      else if (machine.machineStatus === "inactive") totalInactive++;
+
+      // Connectivity status
+      if (machine.connectivityStatus === "online") totalOnline++;
+      else if (machine.connectivityStatus === "offline") totalOffline++;
+
+      // Under maintenance
+      if (machine.underMaintenance === "yes") totalUnderMaintenance++;
+
+      // Decommissioned
+      if (machine.decommissioned === "yes") totalDecommissioned++;
+
+      // Door status
+      if (machine.doorStatus === "open") totalMachinesWithDoorOpen++;
+      else if (machine.doorStatus === "closed") totalMachinesWithDoorClosed++;
+    });
+
+    // Get paginated machines
+    const machines = await Machine.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select(
+        "machineId serialNumber modelNumber machineType doorStatus internalTemperature connectivityStatus machineStatus underMaintenance decommissioned installed_status createdAt updatedAt"
+      );
+
+    const total = allMachines.length;
+    const totalPages = Math.ceil(total / limit);
+
+    // Format machines data for table
+    const machineTableData = machines.map(machine => ({
+      id: machine._id,
+      machineId: machine.machineId || `MACH-${machine.serialNumber}`,
+      serialNumber: machine.serialNumber,
+      modelNumber: machine.modelNumber,
+      machineType: machine.machineType,
+      doorStatus: machine.doorStatus || "closed",
+      internalTemperature: machine.internalTemperature || "N/A",
+      connectivityStatus: machine.connectivityStatus || "offline",
+      machineStatus: machine.machineStatus,
+      underMaintenance: machine.underMaintenance || "no",
+      decommissioned: machine.decommissioned || "no",
+      installed_status: machine.installed_status || "no",
+      createdAt: machine.createdAt,
+      updatedAt: machine.updatedAt,
+    }));
+
+    return {
+      success: true,
+      data: {
+        statistics: {
+          totalMachines: total,
+          activeMachines: totalActive,
+          inactiveMachines: totalInactive,
+          onlineMachines: totalOnline,
+          offlineMachines: totalOffline,
+          underMaintenance: totalUnderMaintenance,
+          decommissioned: totalDecommissioned,
+          doorOpen: totalMachinesWithDoorOpen,
+          doorClosed: totalMachinesWithDoorClosed,
+          machineStatusBreakdown: {
+            active: totalActive,
+            inactive: totalInactive,
+          },
+          connectivityBreakdown: {
+            online: totalOnline,
+            offline: totalOffline,
+          },
+        },
+        machines: machineTableData,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        filters: {
+          search: options?.search || null,
+          machineType: options?.machineType || null,
+          status: options?.status || null,
+          connectivityStatus: options?.connectivityStatus || null,
+          doorStatus: options?.doorStatus || null,
+          underMaintenance: options?.underMaintenance || null,
+          decommissioned: options?.decommissioned || null,
+        },
+      },
+    };
+  }
+
+  /**
+   * Get machine dashboard statistics only (for quick stats cards)
+   */
+  static async getMachineDashboardStats() {
+    const allMachines = await Machine.find();
+
+    let totalMachines = 0;
+    let totalActive = 0;
+    let totalInactive = 0;
+    let totalOnline = 0;
+    let totalOffline = 0;
+    let totalUnderMaintenance = 0;
+    let totalDecommissioned = 0;
+    let totalInstalled = 0;
+    let totalNotInstalled = 0;
+    let totalDoorOpen = 0;
+    let totalDoorClosed = 0;
+
+    // Calculate temperature stats
+    const temperatures: number[] = [];
+
+    allMachines.forEach(machine => {
+      totalMachines++;
+
+      if (machine.machineStatus === "active") totalActive++;
+      else if (machine.machineStatus === "inactive") totalInactive++;
+
+      if (machine.connectivityStatus === "online") totalOnline++;
+      else if (machine.connectivityStatus === "offline") totalOffline++;
+
+      if (machine.underMaintenance === "yes") totalUnderMaintenance++;
+      if (machine.decommissioned === "yes") totalDecommissioned++;
+      if (machine.installed_status === "yes") totalInstalled++;
+      else if (machine.installed_status === "no") totalNotInstalled++;
+
+      if (machine.doorStatus === "open") totalDoorOpen++;
+      else if (machine.doorStatus === "closed") totalDoorClosed++;
+
+      if (machine.internalTemperature) {
+        temperatures.push(machine.internalTemperature);
+      }
+    });
+
+    // Calculate temperature statistics
+    const avgTemperature =
+      temperatures.length > 0
+        ? temperatures.reduce((a, b) => a + b, 0) / temperatures.length
+        : null;
+
+    const minTemperature = temperatures.length > 0 ? Math.min(...temperatures) : null;
+    const maxTemperature = temperatures.length > 0 ? Math.max(...temperatures) : null;
+
+    return {
+      totalMachines,
+      activeMachines: totalActive,
+      inactiveMachines: totalInactive,
+      onlineMachines: totalOnline,
+      offlineMachines: totalOffline,
+      underMaintenance: totalUnderMaintenance,
+      decommissioned: totalDecommissioned,
+      installed: totalInstalled,
+      notInstalled: totalNotInstalled,
+      doorOpen: totalDoorOpen,
+      doorClosed: totalDoorClosed,
+      temperatureStats: {
+        average: avgTemperature ? avgTemperature.toFixed(1) : null,
+        min: minTemperature,
+        max: maxTemperature,
+      },
+      utilization: {
+        machineUtilization:
+          totalMachines > 0 ? ((totalActive / totalMachines) * 100).toFixed(1) : 0,
+        connectivityUtilization:
+          totalMachines > 0 ? ((totalOnline / totalMachines) * 100).toFixed(1) : 0,
+      },
+    };
+  }
+
+  /**
+   * Export machine dashboard data
+   */
+  static async exportMachineDashboard(
+    format: "json" | "csv" = "csv",
+    options?: {
+      search?: string;
+      machineType?: string;
+      status?: string;
+      connectivityStatus?: string;
+    }
+  ) {
+    const filter: any = {};
+
+    if (options?.search) {
+      filter.$or = [
+        { machineId: { $regex: options.search, $options: "i" } },
+        { serialNumber: { $regex: options.search, $options: "i" } },
+      ];
+    }
+    if (options?.machineType) filter.machineType = options.machineType;
+    if (options?.status) filter.machineStatus = options.status;
+    if (options?.connectivityStatus) filter.connectivityStatus = options.connectivityStatus;
+
+    const machines = await Machine.find(filter)
+      .sort({ createdAt: -1 })
+      .select(
+        "machineId serialNumber modelNumber machineType doorStatus internalTemperature connectivityStatus machineStatus underMaintenance decommissioned installed_status createdAt"
+      );
+
+    const exportData = machines.map(machine => ({
+      "Machine ID": machine.machineId || `MACH-${machine.serialNumber}`,
+      "Serial Number": machine.serialNumber,
+      "Model Number": machine.modelNumber,
+      "Machine Type": machine.machineType,
+      "Door Status": machine.doorStatus || "closed",
+      "Internal Temperature (°C)": machine.internalTemperature || "N/A",
+      "Connectivity Status": machine.connectivityStatus || "offline",
+      "Machine Status": machine.machineStatus,
+      "Under Maintenance": machine.underMaintenance || "no",
+      Decommissioned: machine.decommissioned || "no",
+      "Installed Status": machine.installed_status || "no",
+      "Created At": machine.createdAt ? new Date(machine.createdAt).toISOString() : "",
+    }));
+
+    if (format === "csv") {
+      if (exportData.length === 0) {
+        return "No data available for export";
+      }
+
+      const headers = Object.keys(exportData[0]);
+      const csvRows = [headers];
+
+      exportData.forEach(row => {
+        const values = headers.map(header => {
+          const value = row[header as keyof typeof row];
+          const stringValue = String(value || "").replace(/"/g, '""');
+          return `"${stringValue}"`;
+        });
+        csvRows.push(values);
+      });
+
+      return csvRows.map(row => row.join(",")).join("\n");
+    }
+
+    return {
+      exportDate: new Date().toISOString(),
+      totalRecords: exportData.length,
+      filters: options || {},
+      data: exportData,
+    };
+  }
 }

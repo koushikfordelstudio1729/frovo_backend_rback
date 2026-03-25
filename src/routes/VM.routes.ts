@@ -38,6 +38,9 @@ import {
   exportAllMachinesAuditTrails,
   exportAllMachines,
   exportMachineById,
+  getMachineDashboard,
+  getMachineDashboardStats,
+  exportMachineDashboard,
 } from "../controllers/VM.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
@@ -232,49 +235,22 @@ router.delete(
   deleteRack
 );
 
-// ========== SLOT ROUTES ==========
-
 router.get(
-  "/machines/:machineId/slots",
+  "/dashboard",
   authenticate,
   authorize(["super_admin", "area_manager", "area_staff"]),
-  getMachineSlots
+  getMachineDashboard
 );
 router.get(
-  "/machines/:machineId/slots/available",
+  "/dashboard/stats",
   authenticate,
   authorize(["super_admin", "area_manager", "area_staff"]),
-  getAvailableSlots
+  getMachineDashboardStats
 );
 router.get(
-  "/machines/:machineId/slots/occupied",
+  "/dashboard/export",
   authenticate,
   authorize(["super_admin", "area_manager", "area_staff"]),
-  getOccupiedSlots
+  exportMachineDashboard
 );
-router.get(
-  "/slots/:slotId",
-  authenticate,
-  authorize(["super_admin", "area_manager", "area_staff"]),
-  getSlotById
-);
-router.post(
-  "/slots/:slotId/occupy",
-  authenticate,
-  authorize(["super_admin", "area_manager", "area_staff"]),
-  occupySlot
-);
-router.post(
-  "/slots/:slotId/free",
-  authenticate,
-  authorize(["super_admin", "area_manager", "area_staff"]),
-  freeSlot
-);
-router.patch(
-  "/slots/:slotId/status",
-  authenticate,
-  authorize(["super_admin", "area_manager", "area_staff"]),
-  updateSlotStatus
-);
-
 export default router;

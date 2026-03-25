@@ -1480,6 +1480,135 @@ export class VendingMachineController {
       });
     }
   }
+  // Add these methods to the VendingMachineController class
+
+  // ========== DASHBOARD CONTROLLERS ==========
+
+  /**
+   * Get machine dashboard data with pagination and statistics
+   * Query params:
+   *   - page: number (default: 1)
+   *   - limit: number (default: 10, max: 100)
+   *   - search: string (search by machineId, serialNumber, modelNumber)
+   *   - machineType: string (snacks, beverages, combo, smart_fridge)
+   *   - status: string (active, inactive)
+   *   - connectivityStatus: string (online, offline)
+   *   - doorStatus: string (open, closed)
+   *   - underMaintenance: string (yes, no)
+   *   - decommissioned: string (yes, no)
+   *   - sortBy: string (default: createdAt)
+   *   - sortOrder: string (asc, desc)
+   */
+  static async getMachineDashboard(req: Request, res: Response) {
+    try {
+      const {
+        page,
+        limit,
+        search,
+        machineType,
+        status,
+        connectivityStatus,
+        doorStatus,
+        underMaintenance,
+        decommissioned,
+        sortBy,
+        sortOrder,
+      } = req.query;
+
+      const options: any = {};
+
+      if (page) options.page = parseInt(page as string);
+      if (limit) options.limit = parseInt(limit as string);
+      if (search) options.search = search as string;
+      if (machineType) options.machineType = machineType as string;
+      if (status) options.status = status as string;
+      if (connectivityStatus) options.connectivityStatus = connectivityStatus as string;
+      if (doorStatus) options.doorStatus = doorStatus as string;
+      if (underMaintenance) options.underMaintenance = underMaintenance as string;
+      if (decommissioned) options.decommissioned = decommissioned as string;
+      if (sortBy) options.sortBy = sortBy as string;
+      if (sortOrder && (sortOrder === "asc" || sortOrder === "desc"))
+        options.sortOrder = sortOrder as "asc" | "desc";
+
+      const result = await MachineService.getMachineDashboard(options);
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machine dashboard:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch machine dashboard",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get machine dashboard statistics only (for stats cards)
+   */
+  static async getMachineDashboardStats(req: Request, res: Response) {
+    try {
+      const stats = await MachineService.getMachineDashboardStats();
+
+      res.status(200).json({
+        success: true,
+        data: stats,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machine dashboard stats:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch machine dashboard statistics",
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Export machine dashboard data
+   * Query params:
+   *   - format: 'json' or 'csv' (default: 'csv')
+   *   - search: string
+   *   - machineType: string
+   *   - status: string
+   *   - connectivityStatus: string
+   */
+  static async exportMachineDashboard(req: Request, res: Response) {
+    try {
+      const { format = "csv", search, machineType, status, connectivityStatus } = req.query;
+
+      const options: any = {};
+
+      if (search) options.search = search as string;
+      if (machineType) options.machineType = machineType as string;
+      if (status) options.status = status as string;
+      if (connectivityStatus) options.connectivityStatus = connectivityStatus as string;
+
+      const result = await MachineService.exportMachineDashboard(format as "json" | "csv", options);
+
+      if (format === "csv") {
+        const filename = `machine_dashboard_export_${new Date().toISOString().split("T")[0]}.csv`;
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+        res.status(200).send(result);
+      } else {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting machine dashboard:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to export machine dashboard",
+        error: error.message,
+      });
+    }
+  }
 }
 
 // ========== EXPORT ALL CONTROLLER METHODS ==========
@@ -1521,3 +1650,6 @@ export const exportAuditTrails = VendingMachineController.exportAuditTrails;
 export const exportAllMachinesAuditTrails = VendingMachineController.exportAllMachinesAuditTrails;
 export const exportAllMachines = VendingMachineController.exportAllMachines;
 export const exportMachineById = VendingMachineController.exportMachineById;
+export const getMachineDashboard = VendingMachineController.getMachineDashboard;
+export const getMachineDashboardStats = VendingMachineController.getMachineDashboardStats;
+export const exportMachineDashboard = VendingMachineController.exportMachineDashboard;
