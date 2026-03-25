@@ -78,13 +78,14 @@ export const getAllMachines = async (req: Request, res: Response) => {
       },
       machineType: m.machineType,
       firmwareVersion: m.firmwareVersion,
-      status: m.machineStatus,
       machine_status: m.machineStatus,
       door_status: m.doorStatus,
       connectivity_status: m.connectivityStatus,
       under_maintenance: m.underMaintenance,
       decommissioned: m.decommissioned,
       internalTemperature: m.internalTemperature,
+      installed_status: m.installed_status,
+
       racks:
         m.racks?.map((rack: any) => ({
           id: rack._id,
@@ -152,6 +153,7 @@ export const getMachineById = async (req: Request, res: Response) => {
           machine: machine.machineStatus,
           maintenance: machine.underMaintenance,
           decommissioned: machine.decommissioned,
+          installed_status: machine.installed_status,
         },
         internalTemperature: machine.internalTemperature,
         racks:
@@ -230,37 +232,6 @@ export const deleteMachine = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete machine",
-      error: error.message,
-    });
-  }
-};
-
-export const updateMachineStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const machine = await MachineService.updateMachineStatus(machineId, req.body);
-
-    if (!machine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Machine status updated successfully",
-      data: {
-        id: machine._id,
-        status: machine.machineStatus,
-        doorStatus: machine.doorStatus,
-        connectivityStatus: machine.connectivityStatus,
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update machine status",
       error: error.message,
     });
   }
@@ -746,6 +717,520 @@ export const updateDoorStatus = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Failed to update door status",
+      error: error.message,
+    });
+  }
+};
+
+// controllers/vendingMachine.controller.ts
+
+// ========== CONNECTIVITY STATUS CONTROLLERS ==========
+
+/**
+ * Toggle connectivity status - Switches between online and offline
+ * No body required
+ */
+export const toggleConnectivityStatus = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+
+    // Get current machine to check current connectivity status
+    const currentMachine = await MachineService.getMachineById(machineId);
+    if (!currentMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Toggle connectivity status
+    const newConnectivityStatus =
+      currentMachine.connectivityStatus === "online" ? "offline" : "online";
+
+    const machine = await MachineService.updateMachineStatus(machineId, {
+      connectivityStatus: newConnectivityStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Connectivity status toggled to ${newConnectivityStatus} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        connectivityStatus: machine.connectivityStatus,
+        previousStatus: currentMachine.connectivityStatus,
+        newStatus: machine.connectivityStatus,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle connectivity status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update connectivity status with body JSON
+ * Expects connectivityStatus in request body
+ */
+export const updateConnectivityStatus = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const { connectivityStatus } = req.body;
+
+    // Validate connectivityStatus
+    if (!connectivityStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "connectivityStatus is required in request body",
+      });
+    }
+
+    if (!["online", "offline"].includes(connectivityStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connectivityStatus. Must be either 'online' or 'offline'",
+      });
+    }
+
+    // Check if machine exists
+    const existingMachine = await MachineService.getMachineById(machineId);
+    if (!existingMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Update connectivity status
+    const machine = await MachineService.updateMachineStatus(machineId, {
+      connectivityStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Connectivity status updated to ${connectivityStatus} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        connectivityStatus: machine.connectivityStatus,
+        previousStatus: existingMachine.connectivityStatus,
+        updatedBy: req.user?.id || "system",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update connectivity status",
+      error: error.message,
+    });
+  }
+};
+
+// controllers/vendingMachine.controller.ts
+
+// ========== MACHINE STATUS CONTROLLERS ==========
+
+/**
+ * Toggle machine status - Switches between active and inactive
+ * No body required
+ */
+export const toggleMachineStatus = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+
+    // Get current machine to check current machine status
+    const currentMachine = await MachineService.getMachineById(machineId);
+    if (!currentMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Toggle machine status
+    const newMachineStatus = currentMachine.machineStatus === "active" ? "inactive" : "active";
+
+    const machine = await MachineService.updateMachineStatus(machineId, {
+      machineStatus: newMachineStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Machine status toggled to ${newMachineStatus} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        machineStatus: machine.machineStatus,
+        previousStatus: currentMachine.machineStatus,
+        newStatus: machine.machineStatus,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle machine status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update machine status with body JSON
+ * Expects machineStatus in request body
+ */
+export const updateMachineStatusWithBody = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const { machineStatus } = req.body;
+
+    // Validate machineStatus
+    if (!machineStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "machineStatus is required in request body",
+      });
+    }
+
+    if (!["active", "inactive"].includes(machineStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid machineStatus. Must be either 'active' or 'inactive'",
+      });
+    }
+
+    // Check if machine exists
+    const existingMachine = await MachineService.getMachineById(machineId);
+    if (!existingMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Update machine status
+    const machine = await MachineService.updateMachineStatus(machineId, {
+      machineStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Machine status updated to ${machineStatus} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        machineStatus: machine.machineStatus,
+        previousStatus: existingMachine.machineStatus,
+        updatedBy: req.user?.id || "system",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update machine status",
+      error: error.message,
+    });
+  }
+};
+// controllers/vendingMachine.controller.ts
+
+// ========== UNDER MAINTENANCE STATUS CONTROLLERS ==========
+
+/**
+ * Toggle under maintenance status - Switches between yes and no
+ * No body required
+ */
+export const toggleUnderMaintenance = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+
+    // Get current machine to check current under maintenance status
+    const currentMachine = await MachineService.getMachineById(machineId);
+    if (!currentMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Toggle under maintenance status
+    const newUnderMaintenance = currentMachine.underMaintenance === "yes" ? "no" : "yes";
+
+    // If setting to "yes", automatically set machine status to inactive
+    // If setting to "no", automatically set machine status to active
+    const updateData: any = {
+      underMaintenance: newUnderMaintenance,
+    };
+
+    if (newUnderMaintenance === "yes") {
+      updateData.machineStatus = "inactive";
+    } else {
+      updateData.machineStatus = "active";
+    }
+
+    const machine = await MachineService.updateMachineStatus(machineId, updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `Under maintenance status toggled to ${newUnderMaintenance} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        underMaintenance: machine.underMaintenance,
+        machineStatus: machine.machineStatus,
+        previousStatus: currentMachine.underMaintenance,
+        newStatus: machine.underMaintenance,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle under maintenance status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update under maintenance status with body JSON
+ * Expects underMaintenance in request body
+ */
+export const updateUnderMaintenance = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const { underMaintenance } = req.body;
+
+    // Validate underMaintenance
+    if (!underMaintenance) {
+      return res.status(400).json({
+        success: false,
+        message: "underMaintenance is required in request body",
+      });
+    }
+
+    if (!["yes", "no"].includes(underMaintenance)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid underMaintenance value. Must be either 'yes' or 'no'",
+      });
+    }
+
+    // Check if machine exists
+    const existingMachine = await MachineService.getMachineById(machineId);
+    if (!existingMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      underMaintenance,
+    };
+
+    // If setting under maintenance to "yes", automatically set machine status to inactive
+    // If setting under maintenance to "no", automatically set machine status to active
+    if (underMaintenance === "yes") {
+      updateData.machineStatus = "inactive";
+    } else {
+      updateData.machineStatus = "active";
+    }
+
+    // Update under maintenance status
+    const machine = await MachineService.updateMachineStatus(machineId, updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `Under maintenance status updated to ${underMaintenance} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        underMaintenance: machine.underMaintenance,
+        machineStatus: machine.machineStatus,
+        previousStatus: existingMachine.underMaintenance,
+        updatedBy: req.user?.id || "system",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update under maintenance status",
+      error: error.message,
+    });
+  }
+};
+// controllers/vendingMachine.controller.ts
+
+// ========== DECOMMISSIONED STATUS CONTROLLERS ==========
+
+/**
+ * Toggle decommissioned status - Switches between yes and no
+ * No body required
+ */
+export const toggleDecommissioned = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+
+    // Get current machine to check current decommissioned status
+    const currentMachine = await MachineService.getMachineById(machineId);
+    if (!currentMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Toggle decommissioned status
+    const newDecommissioned = currentMachine.decommissioned === "yes" ? "no" : "yes";
+
+    // Prepare update data
+    const updateData: any = {
+      decommissioned: newDecommissioned,
+    };
+
+    // If decommissioning the machine, automatically set:
+    // - machineStatus to inactive
+    // - connectivityStatus to offline
+    // - underMaintenance to no (since it's decommissioned, not under maintenance)
+    if (newDecommissioned === "yes") {
+      updateData.machineStatus = "inactive";
+      updateData.connectivityStatus = "offline";
+      updateData.underMaintenance = "no";
+    } else {
+      // If reactivating a decommissioned machine, set to active but let user update other statuses
+      updateData.machineStatus = "active";
+      updateData.connectivityStatus = "online";
+    }
+
+    const machine = await MachineService.updateMachineStatus(machineId, updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `Decommissioned status toggled to ${newDecommissioned} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        decommissioned: machine.decommissioned,
+        machineStatus: machine.machineStatus,
+        connectivityStatus: machine.connectivityStatus,
+        underMaintenance: machine.underMaintenance,
+        previousStatus: currentMachine.decommissioned,
+        newStatus: machine.decommissioned,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle decommissioned status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update decommissioned status with body JSON
+ * Expects decommissioned in request body
+ */
+export const updateDecommissioned = async (req: Request, res: Response) => {
+  try {
+    const { machineId } = req.params;
+    const { decommissioned } = req.body;
+
+    // Validate decommissioned
+    if (!decommissioned) {
+      return res.status(400).json({
+        success: false,
+        message: "decommissioned is required in request body",
+      });
+    }
+
+    if (!["yes", "no"].includes(decommissioned)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid decommissioned value. Must be either 'yes' or 'no'",
+      });
+    }
+
+    // Check if machine exists
+    const existingMachine = await MachineService.getMachineById(machineId);
+    if (!existingMachine) {
+      return res.status(404).json({
+        success: false,
+        message: "Machine not found",
+      });
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      decommissioned,
+    };
+
+    // If decommissioning the machine, automatically set:
+    // - machineStatus to inactive
+    // - connectivityStatus to offline
+    // - underMaintenance to no (since it's decommissioned, not under maintenance)
+    if (decommissioned === "yes") {
+      updateData.machineStatus = "inactive";
+      updateData.connectivityStatus = "offline";
+      updateData.underMaintenance = "no";
+    } else {
+      // If reactivating a decommissioned machine, set to active but let user update other statuses
+      updateData.machineStatus = "active";
+      updateData.connectivityStatus = "online";
+    }
+
+    // Update decommissioned status
+    const machine = await MachineService.updateMachineStatus(machineId, updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `Decommissioned status updated to ${decommissioned} successfully`,
+      data: {
+        id: machine._id,
+        machineId: machine.machineId,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        decommissioned: machine.decommissioned,
+        machineStatus: machine.machineStatus,
+        connectivityStatus: machine.connectivityStatus,
+        underMaintenance: machine.underMaintenance,
+        previousStatus: existingMachine.decommissioned,
+        updatedBy: req.user?.id || "system",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update decommissioned status",
       error: error.message,
     });
   }

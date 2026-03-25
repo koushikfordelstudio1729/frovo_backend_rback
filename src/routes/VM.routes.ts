@@ -6,7 +6,6 @@ import {
   getMachineById,
   updateMachine,
   deleteMachine,
-  updateMachineStatus,
   addRacks,
   getMachineRacks,
   getRackById,
@@ -24,6 +23,14 @@ import {
   getOccupiedSlots,
   toggleDoorStatus,
   updateDoorStatus,
+  toggleConnectivityStatus,
+  updateConnectivityStatus,
+  toggleMachineStatus,
+  updateMachineStatusWithBody,
+  toggleUnderMaintenance,
+  updateUnderMaintenance,
+  toggleDecommissioned,
+  updateDecommissioned,
 } from "../controllers/VM.controller";
 
 const router = express.Router();
@@ -36,12 +43,18 @@ router.get("/machines/active", getActiveMachines);
 router.get("/machines/type/:machineType", getMachinesByType);
 router.get("/machines/:machineId", getMachineById);
 router.put("/machines/:machineId", updateMachine);
-router.patch("/machines/:machineId/status", updateMachineStatus);
 router.delete("/machines/:machineId", deleteMachine);
 //Status routes
 router.patch("/machines/:machineId/door/toggle", toggleDoorStatus);
 router.patch("/machines/:machineId/door", updateDoorStatus);
-
+router.patch("/machines/:machineId/connectivity/toggle", toggleConnectivityStatus);
+router.patch("/machines/:machineId/connectivity", updateConnectivityStatus);
+router.patch("/machines/:machineId/status/toggle", toggleMachineStatus);
+router.patch("/machines/:machineId/status", updateMachineStatusWithBody);
+router.patch("/machines/:machineId/maintenance/toggle", toggleUnderMaintenance);
+router.patch("/machines/:machineId/maintenance", updateUnderMaintenance);
+router.patch("/machines/:machineId/decommissioned/toggle", toggleDecommissioned);
+router.patch("/machines/:machineId/decommissioned", updateDecommissioned);
 // ========== RACK ROUTES ==========
 
 router.post("/machines/:machineId/racks", addRacks);
