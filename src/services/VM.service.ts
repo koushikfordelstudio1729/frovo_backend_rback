@@ -126,13 +126,18 @@ export class MachineService {
       machineId: machine._id,
     };
   }
-
-  static async updateRack(rackId: string, updateData: any) {
-    const machine = await Machine.findOne({ "racks._id": rackId });
-    if (!machine) return null;
+  // services/vendingMachine.service.ts
+  static async updateRack(machineId: string, rackId: string, updateData: any) {
+    // Find machine by ID
+    const machine = await Machine.findById(machineId);
+    if (!machine) {
+      throw new Error("Machine not found");
+    }
 
     const rack = machine.racks.id(rackId);
-    if (!rack) return null;
+    if (!rack) {
+      throw new Error("Rack not found in this machine");
+    }
 
     // Update rack fields
     if (updateData.rackName) rack.rackName = updateData.rackName;
@@ -157,13 +162,16 @@ export class MachineService {
       machineId: machine._id,
     };
   }
-
-  static async deleteRack(rackId: string) {
-    const machine = await Machine.findOne({ "racks._id": rackId });
-    if (!machine) return null;
+  static async deleteRack(machineId: string, rackId: string) {
+    const machine = await Machine.findById(machineId);
+    if (!machine) {
+      throw new Error("Machine not found");
+    }
 
     const rack = machine.racks.id(rackId);
-    if (!rack) return null;
+    if (!rack) {
+      throw new Error("Rack not found in this machine");
+    }
 
     // Remove rack
     machine.racks.pull(rack._id as any);

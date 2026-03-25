@@ -1,4 +1,4 @@
-import { Machine as VendingMachine } from "../models/VendingMachine.model";
+import { VendingMachine } from "../models/VendingMachine.model";
 import { logger } from "../utils/logger.util";
 import { Types } from "mongoose";
 

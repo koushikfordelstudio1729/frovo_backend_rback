@@ -12,7 +12,6 @@ import {
   getRackById,
   updateRack,
   deleteRack,
-  getMachineWithRacks,
   getMachinesByType,
   getActiveMachines,
   updateRacksBatch,
@@ -23,6 +22,8 @@ import {
   updateSlotStatus,
   getAvailableSlots,
   getOccupiedSlots,
+  toggleDoorStatus,
+  updateDoorStatus,
 } from "../controllers/VM.controller";
 
 const router = express.Router();
@@ -33,11 +34,13 @@ router.post("/machines", createMachine);
 router.get("/machines", getAllMachines);
 router.get("/machines/active", getActiveMachines);
 router.get("/machines/type/:machineType", getMachinesByType);
-router.get("/machines/:machineId/with-racks", getMachineWithRacks);
 router.get("/machines/:machineId", getMachineById);
 router.put("/machines/:machineId", updateMachine);
 router.patch("/machines/:machineId/status", updateMachineStatus);
 router.delete("/machines/:machineId", deleteMachine);
+//Status routes
+router.patch("/machines/:machineId/door/toggle", toggleDoorStatus);
+router.patch("/machines/:machineId/door", updateDoorStatus);
 
 // ========== RACK ROUTES ==========
 
@@ -45,8 +48,8 @@ router.post("/machines/:machineId/racks", addRacks);
 router.get("/machines/:machineId/racks", getMachineRacks);
 router.put("/machines/:machineId/racks/batch", updateRacksBatch);
 router.get("/racks/:rackId", getRackById);
-router.put("/racks/:rackId", updateRack);
-router.delete("/racks/:rackId", deleteRack);
+router.put("/machines/:machineId/racks/:rackId", updateRack);
+router.delete("/machines/:machineId/racks/:rackId", deleteRack);
 
 // ========== SLOT ROUTES ==========
 
