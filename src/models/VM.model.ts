@@ -1,6 +1,44 @@
 // models/machine.model.ts
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+// ==================== AUDIT LOG SUB-SCHEMA ====================
+export interface IAuditLog {
+  action: string;
+  entityType: string;
+  entityId?: string;
+  changes?: any;
+  performedBy: {
+    userId: string;
+    userEmail: string;
+    userName?: string;
+    ipAddress: string;
+    userAgent: string;
+  };
+  timestamp: Date;
+  previousData?: any;
+  newData?: any;
+}
+
+const AuditLogSubSchema = new Schema<IAuditLog>(
+  {
+    action: { type: String, required: true },
+    entityType: { type: String, required: true },
+    entityId: { type: String },
+    changes: { type: Schema.Types.Mixed },
+    performedBy: {
+      userId: { type: String, required: true },
+      userEmail: { type: String, required: true },
+      userName: { type: String },
+      ipAddress: { type: String, required: true },
+      userAgent: { type: String, required: true },
+    },
+    timestamp: { type: Date, default: Date.now },
+    previousData: { type: Schema.Types.Mixed },
+    newData: { type: Schema.Types.Mixed },
+  },
+  { _id: true }
+);
+
 // ==================== SLOT SUB-SCHEMA ====================
 export interface ISlot {
   _id?: Types.ObjectId;
@@ -74,6 +112,9 @@ export interface IMachine extends Document {
   internalTemperature?: number;
   installed_status?: "yes" | "no";
   racks: Types.DocumentArray<IRack>;
+  auditLogs: Types.DocumentArray<IAuditLog>;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // Helper function to generate slot numbers
@@ -107,6 +148,7 @@ const MachineSchema = new Schema<IMachine>(
     internalTemperature: { type: Number },
     installed_status: { type: String, enum: ["yes", "no"], default: "no" },
     racks: { type: [RackSubSchema], default: [] },
+    auditLogs: { type: [AuditLogSubSchema], default: [] },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

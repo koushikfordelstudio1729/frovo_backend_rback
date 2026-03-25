@@ -1,39 +1,108 @@
 // controllers/vendingMachine.controller.ts
 import { Request, Response } from "express";
-import { MachineService } from "../services/VM.service";
+import { MachineService, AuditLogParams } from "../services/VM.service";
+import { logger } from "../utils/logger.util";
 
 // ========== MACHINE CONTROLLERS ==========
-export const createMachine = async (req: Request, res: Response) => {
-  try {
-    // Auto-generate rack names before creating
-    const machineData = { ...req.body };
 
-    if (machineData.racks && machineData.racks.length > 0) {
-      machineData.racks = machineData.racks.map((rack: any, index: number) => ({
-        ...rack,
-        rackName: rack.rackName || String.fromCharCode(65 + index),
-      }));
+export class VendingMachineController {
+  private static getAuditParams(req: Request): AuditLogParams {
+    const user = (req as any).user || {};
+
+    return {
+      userId: user.id || user._id || user.userId || "unknown",
+      userEmail: user.email || user.userEmail || "unknown@example.com",
+      userName: user.name || user.userName || user.username,
+      ipAddress: req.ip || (req.headers["x-forwarded-for"] as string) || "unknown",
+      userAgent: req.headers["user-agent"] || "unknown",
+    };
+  }
+
+  static async createMachine(req: Request, res: Response) {
+    try {
+      // Auto-generate rack names before creating
+      const machineData = { ...req.body };
+
+      if (machineData.racks && machineData.racks.length > 0) {
+        machineData.racks = machineData.racks.map((rack: any, index: number) => ({
+          ...rack,
+          rackName: rack.rackName || String.fromCharCode(65 + index),
+        }));
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.createMachine(machineData, auditParams);
+
+      res.status(201).json({
+        success: true,
+        message: "Machine created successfully",
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          installed_status: machine.installed_status,
+          doorStatus: machine.doorStatus,
+          connectivityStatus: machine.connectivityStatus,
+          machineStatus: machine.machineStatus,
+          underMaintenance: machine.underMaintenance,
+          decommissioned: machine.decommissioned,
+          racks:
+            machine.racks?.map((rack: any) => ({
+              id: rack._id,
+              rackName: rack.rackName,
+              slots: rack.slots,
+              capacity: rack.capacity,
+              slotsList: rack.slotsList?.map((slot: any) => ({
+                id: slot._id,
+                slotNumber: slot.slotNumber,
+                product: slot.product
+                  ? {
+                      id: slot.product._id || slot.product,
+                      productName: slot.product.product_name,
+                      skuId: slot.product.sku_id,
+                    }
+                  : null,
+              })),
+            })) || [],
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error creating machine:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to create machine",
+        error: error.message,
+      });
     }
+  }
 
-    const machine = await MachineService.createMachine(machineData);
+  static async getAllMachines(req: Request, res: Response) {
+    try {
+      const machines = await MachineService.getAllMachines();
 
-    res.status(201).json({
-      success: true,
-      message: "Machine created successfully",
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        installed_status: machine.installed_status,
-        doorStatus: machine.doorStatus,
-        connectivityStatus: machine.connectivityStatus,
-        machineStatus: machine.machineStatus,
-        underMaintenance: machine.underMaintenance,
-        decommissioned: machine.decommissioned,
+      const machinesWithRacks = machines.map(m => ({
+        id: m._id,
+        machineId: m.machineId,
+        serialNumber: m.serialNumber,
+        modelNumber: m.modelNumber,
+        dimensions: {
+          height: m.height,
+          width: m.width,
+          length: m.length,
+        },
+        machineType: m.machineType,
+        firmwareVersion: m.firmwareVersion,
+        machine_status: m.machineStatus,
+        door_status: m.doorStatus,
+        connectivity_status: m.connectivityStatus,
+        under_maintenance: m.underMaintenance,
+        decommissioned: m.decommissioned,
+        internalTemperature: m.internalTemperature,
+        installed_status: m.installed_status,
         racks:
-          machine.racks?.map((rack: any) => ({
+          m.racks?.map((rack: any) => ({
             id: rack._id,
             rackName: rack.rackName,
             slots: rack.slots,
@@ -46,1192 +115,1409 @@ export const createMachine = async (req: Request, res: Response) => {
                     id: slot.product._id || slot.product,
                     productName: slot.product.product_name,
                     skuId: slot.product.sku_id,
-                    // Add other product fields as needed
                   }
                 : null,
             })),
           })) || [],
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create machine",
-      error: error.message,
-    });
-  }
-};
+      }));
 
-export const getAllMachines = async (req: Request, res: Response) => {
-  try {
-    const machines = await MachineService.getAllMachines();
-
-    const machinesWithRacks = machines.map(m => ({
-      id: m._id,
-      machineId: m.machineId,
-      serialNumber: m.serialNumber,
-      modelNumber: m.modelNumber,
-      dimensions: {
-        height: m.height,
-        width: m.width,
-        length: m.length,
-      },
-      machineType: m.machineType,
-      firmwareVersion: m.firmwareVersion,
-      machine_status: m.machineStatus,
-      door_status: m.doorStatus,
-      connectivity_status: m.connectivityStatus,
-      under_maintenance: m.underMaintenance,
-      decommissioned: m.decommissioned,
-      internalTemperature: m.internalTemperature,
-      installed_status: m.installed_status,
-
-      racks:
-        m.racks?.map((rack: any) => ({
-          id: rack._id,
-          rackName: rack.rackName,
-          slots: rack.slots,
-          capacity: rack.capacity,
-          slotsList: rack.slotsList?.map((slot: any) => ({
-            id: slot._id,
-            slotNumber: slot.slotNumber,
-            product: slot.product
-              ? {
-                  id: slot.product._id || slot.product,
-                  productName: slot.product.product_name,
-                  skuId: slot.product.sku_id,
-                  // Add other product fields as needed
-                }
-              : null,
-          })),
-        })) || [],
-    }));
-
-    res.status(200).json({
-      success: true,
-      count: machinesWithRacks.length,
-      data: machinesWithRacks,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch machines",
-      error: error.message,
-    });
-  }
-};
-
-export const getMachineById = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const machine = await MachineService.getMachineById(machineId);
-
-    if (!machine) {
-      return res.status(404).json({
+      res.status(200).json({
+        success: true,
+        count: machinesWithRacks.length,
+        data: machinesWithRacks,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching all machines:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to fetch machines",
+        error: error.message,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        firmwareVersion: machine.firmwareVersion,
-        dimensions: {
-          height: machine.height,
-          width: machine.width,
-          length: machine.length,
-        },
-        status: {
-          door: machine.doorStatus,
-          connectivity: machine.connectivityStatus,
-          machine: machine.machineStatus,
-          maintenance: machine.underMaintenance,
-          decommissioned: machine.decommissioned,
-          installed_status: machine.installed_status,
-        },
-        internalTemperature: machine.internalTemperature,
-        racks:
-          machine.racks?.map((rack: any) => ({
-            id: rack._id,
-            name: rack.rackName,
-            slots: rack.slots,
-            capacity: rack.capacity,
-            slotsList: rack.slotsList?.map((slot: any) => ({
-              id: slot._id,
-              slotNumber: slot.slotNumber,
-              status: slot.status,
-              product: slot.product,
-            })),
-          })) || [],
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch machine",
-      error: error.message,
-    });
   }
-};
 
-export const updateMachine = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const machine = await MachineService.updateMachine(machineId, req.body);
+  static async getMachineById(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const machine = await MachineService.getMachineById(machineId);
 
-    if (!machine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Machine updated successfully",
-      data: {
-        id: machine._id,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        status: machine.machineStatus,
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update machine",
-      error: error.message,
-    });
-  }
-};
-
-export const deleteMachine = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const machine = await MachineService.deleteMachine(machineId);
-
-    if (!machine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Machine deleted successfully",
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete machine",
-      error: error.message,
-    });
-  }
-};
-
-// ========== RACK CONTROLLERS ==========
-
-export const addRacks = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const body = req.body;
-
-    if (!Array.isArray(body)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid format. Send array like: [{slots:5, capacity:10}]",
-      });
-    }
-
-    for (const rack of body) {
-      if (!rack.slots || !rack.capacity || rack.slots <= 0 || rack.capacity <= 0) {
-        return res.status(400).json({
+      if (!machine) {
+        return res.status(404).json({
           success: false,
-          message: "Each rack must have positive slots and capacity",
+          message: "Machine not found",
         });
       }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          firmwareVersion: machine.firmwareVersion,
+          dimensions: {
+            height: machine.height,
+            width: machine.width,
+            length: machine.length,
+          },
+          status: {
+            door: machine.doorStatus,
+            connectivity: machine.connectivityStatus,
+            machine: machine.machineStatus,
+            maintenance: machine.underMaintenance,
+            decommissioned: machine.decommissioned,
+            installed_status: machine.installed_status,
+          },
+          internalTemperature: machine.internalTemperature,
+          racks:
+            machine.racks?.map((rack: any) => ({
+              id: rack._id,
+              name: rack.rackName,
+              slots: rack.slots,
+              capacity: rack.capacity,
+              slotsList: rack.slotsList?.map((slot: any) => ({
+                id: slot._id,
+                slotNumber: slot.slotNumber,
+                status: slot.status,
+                product: slot.product,
+              })),
+            })) || [],
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machine by ID:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch machine",
+        error: error.message,
+      });
     }
-
-    const createdRacks = await MachineService.addRacks(machineId, body);
-
-    res.status(201).json({
-      success: true,
-      message: "Racks added successfully",
-      data: createdRacks,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to add racks",
-      error: error.message,
-    });
   }
-};
 
-export const getMachineRacks = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const racks = await MachineService.getMachineRacks(machineId);
+  static async updateMachine(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachine(machineId, req.body, auditParams);
 
-    res.status(200).json({
-      success: true,
-      data: racks,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch racks",
-      error: error.message,
-    });
+      if (!machine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Machine updated successfully",
+        data: {
+          id: machine._id,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          status: machine.machineStatus,
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating machine:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update machine",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const getRackById = async (req: Request, res: Response) => {
-  try {
-    const { rackId } = req.params;
-    const rack = await MachineService.getRackById(rackId);
+  static async deleteMachine(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.deleteMachine(machineId, auditParams);
 
-    if (!rack) {
-      return res.status(404).json({
+      if (!machine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Machine deleted successfully",
+      });
+    } catch (error: any) {
+      logger.error("Error deleting machine:", error);
+      res.status(500).json({
         success: false,
-        message: "Rack not found",
+        message: "Failed to delete machine",
+        error: error.message,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: rack,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch rack",
-      error: error.message,
-    });
   }
-};
-// controllers/vendingMachine.controller.ts
-export const updateRack = async (req: Request, res: Response) => {
-  try {
-    const { machineId, rackId } = req.params;
 
-    if (!machineId || !rackId) {
-      return res.status(400).json({
+  // ========== RACK CONTROLLERS ==========
+
+  static async addRacks(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const body = req.body;
+
+      if (!Array.isArray(body)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid format. Send array like: [{slots:5, capacity:10}]",
+        });
+      }
+
+      for (const rack of body) {
+        if (!rack.slots || !rack.capacity || rack.slots <= 0 || rack.capacity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Each rack must have positive slots and capacity",
+          });
+        }
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const createdRacks = await MachineService.addRacks(machineId, body, auditParams);
+
+      res.status(201).json({
+        success: true,
+        message: "Racks added successfully",
+        data: createdRacks,
+      });
+    } catch (error: any) {
+      logger.error("Error adding racks:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine ID and Rack ID are required",
+        message: "Failed to add racks",
+        error: error.message,
       });
     }
-
-    const rack = await MachineService.updateRack(machineId, rackId, req.body);
-
-    res.status(200).json({
-      success: true,
-      message: "Rack updated successfully",
-      data: rack,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update rack",
-      error: error.message,
-    });
   }
-};
-// controllers/vendingMachine.controller.ts
-export const deleteRack = async (req: Request, res: Response) => {
-  try {
-    const { machineId, rackId } = req.params;
 
-    if (!machineId || !rackId) {
-      return res.status(400).json({
+  static async getMachineRacks(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const racks = await MachineService.getMachineRacks(machineId);
+
+      res.status(200).json({
+        success: true,
+        data: racks,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machine racks:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine ID and Rack ID are required",
+        message: "Failed to fetch racks",
+        error: error.message,
       });
     }
-
-    const rack = await MachineService.deleteRack(machineId, rackId);
-
-    if (!rack) {
-      return res.status(404).json({
-        success: false,
-        message: "Rack not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Rack deleted successfully",
-      data: {
-        id: rack._id,
-        name: rack.rackName,
-        slots: rack.slots,
-        capacity: rack.capacity,
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete rack",
-      error: error.message,
-    });
   }
-};
-// ========== SLOT CONTROLLERS ==========
 
-export const getMachineSlots = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const slots = await MachineService.getMachineSlots(machineId);
+  static async getRackById(req: Request, res: Response) {
+    try {
+      const { rackId } = req.params;
+      const rack = await MachineService.getRackById(rackId);
 
-    res.status(200).json({
-      success: true,
-      data: slots,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch slots",
-      error: error.message,
-    });
+      if (!rack) {
+        return res.status(404).json({
+          success: false,
+          message: "Rack not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: rack,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching rack by ID:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch rack",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const getSlotById = async (req: Request, res: Response) => {
-  try {
-    const { slotId } = req.params;
-    const slot = await MachineService.getSlotById(slotId);
+  static async updateRack(req: Request, res: Response) {
+    try {
+      const { machineId, rackId } = req.params;
 
-    if (!slot) {
-      return res.status(404).json({
+      if (!machineId || !rackId) {
+        return res.status(400).json({
+          success: false,
+          message: "Machine ID and Rack ID are required",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const rack = await MachineService.updateRack(machineId, rackId, req.body, auditParams);
+
+      res.status(200).json({
+        success: true,
+        message: "Rack updated successfully",
+        data: rack,
+      });
+    } catch (error: any) {
+      logger.error("Error updating rack:", error);
+      res.status(500).json({
         success: false,
-        message: "Slot not found",
+        message: "Failed to update rack",
+        error: error.message,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: slot,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch slot",
-      error: error.message,
-    });
   }
-};
 
-export const occupySlot = async (req: Request, res: Response) => {
-  try {
-    const { slotId } = req.params;
-    const { productId, productName, price, expiryDate } = req.body;
+  static async deleteRack(req: Request, res: Response) {
+    try {
+      const { machineId, rackId } = req.params;
 
-    if (!productId || !productName || !price) {
-      return res.status(400).json({
+      if (!machineId || !rackId) {
+        return res.status(400).json({
+          success: false,
+          message: "Machine ID and Rack ID are required",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const rack = await MachineService.deleteRack(machineId, rackId, auditParams);
+
+      if (!rack) {
+        return res.status(404).json({
+          success: false,
+          message: "Rack not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Rack deleted successfully",
+        data: {
+          id: rack._id,
+          name: rack.rackName,
+          slots: rack.slots,
+          capacity: rack.capacity,
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error deleting rack:", error);
+      res.status(500).json({
         success: false,
-        message: "Product ID, name, and price are required",
+        message: "Failed to delete rack",
+        error: error.message,
       });
     }
-
-    const slot = await MachineService.occupySlot(slotId, {
-      productId,
-      productName,
-      price,
-      expiryDate,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Slot occupied successfully",
-      data: slot,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to occupy slot",
-      error: error.message,
-    });
   }
-};
 
-export const freeSlot = async (req: Request, res: Response) => {
-  try {
-    const { slotId } = req.params;
-    const slot = await MachineService.freeSlot(slotId);
+  // ========== SLOT CONTROLLERS ==========
 
-    res.status(200).json({
-      success: true,
-      message: "Slot freed successfully",
-      data: slot,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to free slot",
-      error: error.message,
-    });
+  static async getMachineSlots(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const slots = await MachineService.getMachineSlots(machineId);
+
+      res.status(200).json({
+        success: true,
+        data: slots,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machine slots:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch slots",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const updateSlotStatus = async (req: Request, res: Response) => {
-  try {
-    const { slotId } = req.params;
-    const { status } = req.body;
+  static async getSlotById(req: Request, res: Response) {
+    try {
+      const { slotId } = req.params;
+      const slot = await MachineService.getSlotById(slotId);
 
-    if (!status || !["available", "occupied", "maintenance"].includes(status)) {
-      return res.status(400).json({
+      if (!slot) {
+        return res.status(404).json({
+          success: false,
+          message: "Slot not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: slot,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching slot by ID:", error);
+      res.status(500).json({
         success: false,
-        message: "Valid status (available, occupied, maintenance) is required",
+        message: "Failed to fetch slot",
+        error: error.message,
       });
     }
-
-    const slot = await MachineService.updateSlotStatus(slotId, status);
-
-    res.status(200).json({
-      success: true,
-      message: "Slot status updated successfully",
-      data: slot,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update slot status",
-      error: error.message,
-    });
   }
-};
 
-export const getAvailableSlots = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const slots = await MachineService.getAvailableSlots(machineId);
+  static async occupySlot(req: Request, res: Response) {
+    try {
+      const { slotId } = req.params;
+      const { productId, productName, price, expiryDate } = req.body;
 
-    res.status(200).json({
-      success: true,
-      data: slots,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch available slots",
-      error: error.message,
-    });
+      if (!productId || !productName || !price) {
+        return res.status(400).json({
+          success: false,
+          message: "Product ID, name, and price are required",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const slot = await MachineService.occupySlot(
+        slotId,
+        {
+          productId,
+          productName,
+          price,
+          expiryDate,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Slot occupied successfully",
+        data: slot,
+      });
+    } catch (error: any) {
+      logger.error("Error occupying slot:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to occupy slot",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const getOccupiedSlots = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const slots = await MachineService.getOccupiedSlots(machineId);
+  static async freeSlot(req: Request, res: Response) {
+    try {
+      const { slotId } = req.params;
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const slot = await MachineService.freeSlot(slotId, auditParams);
 
-    res.status(200).json({
-      success: true,
-      data: slots,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch occupied slots",
-      error: error.message,
-    });
+      res.status(200).json({
+        success: true,
+        message: "Slot freed successfully",
+        data: slot,
+      });
+    } catch (error: any) {
+      logger.error("Error freeing slot:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to free slot",
+        error: error.message,
+      });
+    }
   }
-};
 
-// ========== COMBINED CONTROLLERS ==========
+  static async updateSlotStatus(req: Request, res: Response) {
+    try {
+      const { slotId } = req.params;
+      const { status } = req.body;
 
-// ========== ADDITIONAL CONTROLLERS ==========
+      if (!status || !["available", "occupied", "maintenance"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid status (available, occupied, maintenance) is required",
+        });
+      }
 
-export const getMachinesByType = async (req: Request, res: Response) => {
-  try {
-    const { machineType } = req.params;
-    const machines = await MachineService.getMachinesByType(machineType);
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const slot = await MachineService.updateSlotStatus(slotId, status, auditParams);
 
-    res.status(200).json({
-      success: true,
-      count: machines.length,
-      data: machines,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch machines by type",
-      error: error.message,
-    });
+      res.status(200).json({
+        success: true,
+        message: "Slot status updated successfully",
+        data: slot,
+      });
+    } catch (error: any) {
+      logger.error("Error updating slot status:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update slot status",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const getActiveMachines = async (req: Request, res: Response) => {
-  try {
-    const machines = await MachineService.getActiveMachines();
+  static async getAvailableSlots(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const slots = await MachineService.getAvailableSlots(machineId);
 
-    res.status(200).json({
-      success: true,
-      count: machines.length,
-      data: machines,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch active machines",
-      error: error.message,
-    });
+      res.status(200).json({
+        success: true,
+        data: slots,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching available slots:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch available slots",
+        error: error.message,
+      });
+    }
   }
-};
 
-export const updateRacksBatch = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { racks } = req.body;
+  static async getOccupiedSlots(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const slots = await MachineService.getOccupiedSlots(machineId);
 
-    if (!Array.isArray(racks)) {
-      return res.status(400).json({
+      res.status(200).json({
+        success: true,
+        data: slots,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching occupied slots:", error);
+      res.status(500).json({
         success: false,
-        message: "Invalid format. Send { racks: [...] }",
+        message: "Failed to fetch occupied slots",
+        error: error.message,
       });
     }
-
-    const updatedRacks = await MachineService.updateRacksBatch(machineId, racks);
-
-    res.status(200).json({
-      success: true,
-      message: "Racks updated successfully",
-      data: updatedRacks,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update racks",
-      error: error.message,
-    });
   }
-};
-// controllers/vendingMachine.controller.ts
 
-// ========== DOOR STATUS CONTROLLERS ==========
+  // ========== ADDITIONAL CONTROLLERS ==========
 
-/**
- * Toggle door status - Switches between open and closed
- * No body required
- */
-export const toggleDoorStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
+  static async getMachinesByType(req: Request, res: Response) {
+    try {
+      const { machineType } = req.params;
+      const machines = await MachineService.getMachinesByType(machineType);
 
-    // Get current machine to check current door status
-    const currentMachine = await MachineService.getMachineById(machineId);
-    if (!currentMachine) {
-      return res.status(404).json({
+      res.status(200).json({
+        success: true,
+        count: machines.length,
+        data: machines,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching machines by type:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to fetch machines by type",
+        error: error.message,
       });
     }
-
-    // Toggle door status
-    const newDoorStatus = currentMachine.doorStatus === "open" ? "closed" : "open";
-
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      doorStatus: newDoorStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Door status toggled to ${newDoorStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        doorStatus: machine.doorStatus,
-        previousStatus: currentMachine.doorStatus,
-        newStatus: machine.doorStatus,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to toggle door status",
-      error: error.message,
-    });
   }
-};
 
-/**
- * Update door status with body JSON
- * Expects doorStatus in request body
- */
-export const updateDoorStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { doorStatus } = req.body;
+  static async getActiveMachines(req: Request, res: Response) {
+    try {
+      const machines = await MachineService.getActiveMachines();
 
-    // Validate doorStatus
-    if (!doorStatus) {
-      return res.status(400).json({
+      res.status(200).json({
+        success: true,
+        count: machines.length,
+        data: machines,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching active machines:", error);
+      res.status(500).json({
         success: false,
-        message: "doorStatus is required in request body",
+        message: "Failed to fetch active machines",
+        error: error.message,
       });
     }
-
-    if (!["open", "closed"].includes(doorStatus)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid doorStatus. Must be either 'open' or 'closed'",
-      });
-    }
-
-    // Check if machine exists
-    const existingMachine = await MachineService.getMachineById(machineId);
-    if (!existingMachine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    // Update door status
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      doorStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Door status updated to ${doorStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        doorStatus: machine.doorStatus,
-        previousStatus: existingMachine.doorStatus,
-        updatedBy: req.user?.id || "system", // if you have user context
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update door status",
-      error: error.message,
-    });
   }
-};
 
-// controllers/vendingMachine.controller.ts
+  static async updateRacksBatch(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { racks } = req.body;
 
-// ========== CONNECTIVITY STATUS CONTROLLERS ==========
+      if (!Array.isArray(racks)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid format. Send { racks: [...] }",
+        });
+      }
 
-/**
- * Toggle connectivity status - Switches between online and offline
- * No body required
- */
-export const toggleConnectivityStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const updatedRacks = await MachineService.updateRacksBatch(machineId, racks, auditParams);
 
-    // Get current machine to check current connectivity status
-    const currentMachine = await MachineService.getMachineById(machineId);
-    if (!currentMachine) {
-      return res.status(404).json({
+      res.status(200).json({
+        success: true,
+        message: "Racks updated successfully",
+        data: updatedRacks,
+      });
+    } catch (error: any) {
+      logger.error("Error updating racks batch:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to update racks",
+        error: error.message,
       });
     }
-
-    // Toggle connectivity status
-    const newConnectivityStatus =
-      currentMachine.connectivityStatus === "online" ? "offline" : "online";
-
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      connectivityStatus: newConnectivityStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Connectivity status toggled to ${newConnectivityStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        connectivityStatus: machine.connectivityStatus,
-        previousStatus: currentMachine.connectivityStatus,
-        newStatus: machine.connectivityStatus,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to toggle connectivity status",
-      error: error.message,
-    });
   }
-};
 
-/**
- * Update connectivity status with body JSON
- * Expects connectivityStatus in request body
- */
-export const updateConnectivityStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { connectivityStatus } = req.body;
+  // ========== DOOR STATUS CONTROLLERS ==========
 
-    // Validate connectivityStatus
-    if (!connectivityStatus) {
-      return res.status(400).json({
+  static async toggleDoorStatus(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const currentMachine = await MachineService.getMachineById(machineId);
+      if (!currentMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const newDoorStatus = currentMachine.doorStatus === "open" ? "closed" : "open";
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          doorStatus: newDoorStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Door status toggled to ${newDoorStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          doorStatus: machine.doorStatus,
+          previousStatus: currentMachine.doorStatus,
+          newStatus: machine.doorStatus,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error toggling door status:", error);
+      res.status(500).json({
         success: false,
-        message: "connectivityStatus is required in request body",
+        message: "Failed to toggle door status",
+        error: error.message,
       });
     }
-
-    if (!["online", "offline"].includes(connectivityStatus)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid connectivityStatus. Must be either 'online' or 'offline'",
-      });
-    }
-
-    // Check if machine exists
-    const existingMachine = await MachineService.getMachineById(machineId);
-    if (!existingMachine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    // Update connectivity status
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      connectivityStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Connectivity status updated to ${connectivityStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        connectivityStatus: machine.connectivityStatus,
-        previousStatus: existingMachine.connectivityStatus,
-        updatedBy: req.user?.id || "system",
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update connectivity status",
-      error: error.message,
-    });
   }
-};
 
-// controllers/vendingMachine.controller.ts
+  static async updateDoorStatus(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { doorStatus } = req.body;
 
-// ========== MACHINE STATUS CONTROLLERS ==========
+      if (!doorStatus) {
+        return res.status(400).json({
+          success: false,
+          message: "doorStatus is required in request body",
+        });
+      }
 
-/**
- * Toggle machine status - Switches between active and inactive
- * No body required
- */
-export const toggleMachineStatus = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
+      if (!["open", "closed"].includes(doorStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid doorStatus. Must be either 'open' or 'closed'",
+        });
+      }
 
-    // Get current machine to check current machine status
-    const currentMachine = await MachineService.getMachineById(machineId);
-    if (!currentMachine) {
-      return res.status(404).json({
+      const existingMachine = await MachineService.getMachineById(machineId);
+      if (!existingMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          doorStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Door status updated to ${doorStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          doorStatus: machine.doorStatus,
+          previousStatus: existingMachine.doorStatus,
+          updatedBy: req.user?.id || "system",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating door status:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to update door status",
+        error: error.message,
       });
     }
-
-    // Toggle machine status
-    const newMachineStatus = currentMachine.machineStatus === "active" ? "inactive" : "active";
-
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      machineStatus: newMachineStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Machine status toggled to ${newMachineStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        machineStatus: machine.machineStatus,
-        previousStatus: currentMachine.machineStatus,
-        newStatus: machine.machineStatus,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to toggle machine status",
-      error: error.message,
-    });
   }
-};
 
-/**
- * Update machine status with body JSON
- * Expects machineStatus in request body
- */
-export const updateMachineStatusWithBody = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { machineStatus } = req.body;
+  // ========== CONNECTIVITY STATUS CONTROLLERS ==========
 
-    // Validate machineStatus
-    if (!machineStatus) {
-      return res.status(400).json({
+  static async toggleConnectivityStatus(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const currentMachine = await MachineService.getMachineById(machineId);
+      if (!currentMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const newConnectivityStatus =
+        currentMachine.connectivityStatus === "online" ? "offline" : "online";
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          connectivityStatus: newConnectivityStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Connectivity status toggled to ${newConnectivityStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          connectivityStatus: machine.connectivityStatus,
+          previousStatus: currentMachine.connectivityStatus,
+          newStatus: machine.connectivityStatus,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error toggling connectivity status:", error);
+      res.status(500).json({
         success: false,
-        message: "machineStatus is required in request body",
+        message: "Failed to toggle connectivity status",
+        error: error.message,
       });
     }
-
-    if (!["active", "inactive"].includes(machineStatus)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid machineStatus. Must be either 'active' or 'inactive'",
-      });
-    }
-
-    // Check if machine exists
-    const existingMachine = await MachineService.getMachineById(machineId);
-    if (!existingMachine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    // Update machine status
-    const machine = await MachineService.updateMachineStatus(machineId, {
-      machineStatus,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Machine status updated to ${machineStatus} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        machineStatus: machine.machineStatus,
-        previousStatus: existingMachine.machineStatus,
-        updatedBy: req.user?.id || "system",
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update machine status",
-      error: error.message,
-    });
   }
-};
-// controllers/vendingMachine.controller.ts
 
-// ========== UNDER MAINTENANCE STATUS CONTROLLERS ==========
+  static async updateConnectivityStatus(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { connectivityStatus } = req.body;
 
-/**
- * Toggle under maintenance status - Switches between yes and no
- * No body required
- */
-export const toggleUnderMaintenance = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
+      if (!connectivityStatus) {
+        return res.status(400).json({
+          success: false,
+          message: "connectivityStatus is required in request body",
+        });
+      }
 
-    // Get current machine to check current under maintenance status
-    const currentMachine = await MachineService.getMachineById(machineId);
-    if (!currentMachine) {
-      return res.status(404).json({
+      if (!["online", "offline"].includes(connectivityStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid connectivityStatus. Must be either 'online' or 'offline'",
+        });
+      }
+
+      const existingMachine = await MachineService.getMachineById(machineId);
+      if (!existingMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          connectivityStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Connectivity status updated to ${connectivityStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          connectivityStatus: machine.connectivityStatus,
+          previousStatus: existingMachine.connectivityStatus,
+          updatedBy: req.user?.id || "system",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating connectivity status:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to update connectivity status",
+        error: error.message,
       });
     }
-
-    // Toggle under maintenance status
-    const newUnderMaintenance = currentMachine.underMaintenance === "yes" ? "no" : "yes";
-
-    // If setting to "yes", automatically set machine status to inactive
-    // If setting to "no", automatically set machine status to active
-    const updateData: any = {
-      underMaintenance: newUnderMaintenance,
-    };
-
-    if (newUnderMaintenance === "yes") {
-      updateData.machineStatus = "inactive";
-    } else {
-      updateData.machineStatus = "active";
-    }
-
-    const machine = await MachineService.updateMachineStatus(machineId, updateData);
-
-    res.status(200).json({
-      success: true,
-      message: `Under maintenance status toggled to ${newUnderMaintenance} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        underMaintenance: machine.underMaintenance,
-        machineStatus: machine.machineStatus,
-        previousStatus: currentMachine.underMaintenance,
-        newStatus: machine.underMaintenance,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to toggle under maintenance status",
-      error: error.message,
-    });
   }
-};
 
-/**
- * Update under maintenance status with body JSON
- * Expects underMaintenance in request body
- */
-export const updateUnderMaintenance = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { underMaintenance } = req.body;
+  // ========== MACHINE STATUS CONTROLLERS ==========
 
-    // Validate underMaintenance
-    if (!underMaintenance) {
-      return res.status(400).json({
+  static async toggleMachineStatus(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const currentMachine = await MachineService.getMachineById(machineId);
+      if (!currentMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const newMachineStatus = currentMachine.machineStatus === "active" ? "inactive" : "active";
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          machineStatus: newMachineStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Machine status toggled to ${newMachineStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          machineStatus: machine.machineStatus,
+          previousStatus: currentMachine.machineStatus,
+          newStatus: machine.machineStatus,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error toggling machine status:", error);
+      res.status(500).json({
         success: false,
-        message: "underMaintenance is required in request body",
+        message: "Failed to toggle machine status",
+        error: error.message,
       });
     }
-
-    if (!["yes", "no"].includes(underMaintenance)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid underMaintenance value. Must be either 'yes' or 'no'",
-      });
-    }
-
-    // Check if machine exists
-    const existingMachine = await MachineService.getMachineById(machineId);
-    if (!existingMachine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    // Prepare update data
-    const updateData: any = {
-      underMaintenance,
-    };
-
-    // If setting under maintenance to "yes", automatically set machine status to inactive
-    // If setting under maintenance to "no", automatically set machine status to active
-    if (underMaintenance === "yes") {
-      updateData.machineStatus = "inactive";
-    } else {
-      updateData.machineStatus = "active";
-    }
-
-    // Update under maintenance status
-    const machine = await MachineService.updateMachineStatus(machineId, updateData);
-
-    res.status(200).json({
-      success: true,
-      message: `Under maintenance status updated to ${underMaintenance} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        underMaintenance: machine.underMaintenance,
-        machineStatus: machine.machineStatus,
-        previousStatus: existingMachine.underMaintenance,
-        updatedBy: req.user?.id || "system",
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update under maintenance status",
-      error: error.message,
-    });
   }
-};
-// controllers/vendingMachine.controller.ts
 
-// ========== DECOMMISSIONED STATUS CONTROLLERS ==========
+  static async updateMachineStatusWithBody(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { machineStatus } = req.body;
 
-/**
- * Toggle decommissioned status - Switches between yes and no
- * No body required
- */
-export const toggleDecommissioned = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
+      if (!machineStatus) {
+        return res.status(400).json({
+          success: false,
+          message: "machineStatus is required in request body",
+        });
+      }
 
-    // Get current machine to check current decommissioned status
-    const currentMachine = await MachineService.getMachineById(machineId);
-    if (!currentMachine) {
-      return res.status(404).json({
+      if (!["active", "inactive"].includes(machineStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid machineStatus. Must be either 'active' or 'inactive'",
+        });
+      }
+
+      const existingMachine = await MachineService.getMachineById(machineId);
+      if (!existingMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(
+        machineId,
+        {
+          machineStatus,
+        },
+        auditParams
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Machine status updated to ${machineStatus} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          machineStatus: machine.machineStatus,
+          previousStatus: existingMachine.machineStatus,
+          updatedBy: req.user?.id || "system",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating machine status:", error);
+      res.status(500).json({
         success: false,
-        message: "Machine not found",
+        message: "Failed to update machine status",
+        error: error.message,
       });
     }
-
-    // Toggle decommissioned status
-    const newDecommissioned = currentMachine.decommissioned === "yes" ? "no" : "yes";
-
-    // Prepare update data
-    const updateData: any = {
-      decommissioned: newDecommissioned,
-    };
-
-    // If decommissioning the machine, automatically set:
-    // - machineStatus to inactive
-    // - connectivityStatus to offline
-    // - underMaintenance to no (since it's decommissioned, not under maintenance)
-    if (newDecommissioned === "yes") {
-      updateData.machineStatus = "inactive";
-      updateData.connectivityStatus = "offline";
-      updateData.underMaintenance = "no";
-    } else {
-      // If reactivating a decommissioned machine, set to active but let user update other statuses
-      updateData.machineStatus = "active";
-      updateData.connectivityStatus = "online";
-    }
-
-    const machine = await MachineService.updateMachineStatus(machineId, updateData);
-
-    res.status(200).json({
-      success: true,
-      message: `Decommissioned status toggled to ${newDecommissioned} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        decommissioned: machine.decommissioned,
-        machineStatus: machine.machineStatus,
-        connectivityStatus: machine.connectivityStatus,
-        underMaintenance: machine.underMaintenance,
-        previousStatus: currentMachine.decommissioned,
-        newStatus: machine.decommissioned,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to toggle decommissioned status",
-      error: error.message,
-    });
   }
-};
 
-/**
- * Update decommissioned status with body JSON
- * Expects decommissioned in request body
- */
-export const updateDecommissioned = async (req: Request, res: Response) => {
-  try {
-    const { machineId } = req.params;
-    const { decommissioned } = req.body;
+  // ========== UNDER MAINTENANCE STATUS CONTROLLERS ==========
 
-    // Validate decommissioned
-    if (!decommissioned) {
-      return res.status(400).json({
+  static async toggleUnderMaintenance(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const currentMachine = await MachineService.getMachineById(machineId);
+      if (!currentMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const newUnderMaintenance = currentMachine.underMaintenance === "yes" ? "no" : "yes";
+
+      const updateData: any = {
+        underMaintenance: newUnderMaintenance,
+      };
+
+      if (newUnderMaintenance === "yes") {
+        updateData.machineStatus = "inactive";
+      } else {
+        updateData.machineStatus = "active";
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(machineId, updateData, auditParams);
+
+      res.status(200).json({
+        success: true,
+        message: `Under maintenance status toggled to ${newUnderMaintenance} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          underMaintenance: machine.underMaintenance,
+          machineStatus: machine.machineStatus,
+          previousStatus: currentMachine.underMaintenance,
+          newStatus: machine.underMaintenance,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error toggling under maintenance status:", error);
+      res.status(500).json({
         success: false,
-        message: "decommissioned is required in request body",
+        message: "Failed to toggle under maintenance status",
+        error: error.message,
       });
     }
-
-    if (!["yes", "no"].includes(decommissioned)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid decommissioned value. Must be either 'yes' or 'no'",
-      });
-    }
-
-    // Check if machine exists
-    const existingMachine = await MachineService.getMachineById(machineId);
-    if (!existingMachine) {
-      return res.status(404).json({
-        success: false,
-        message: "Machine not found",
-      });
-    }
-
-    // Prepare update data
-    const updateData: any = {
-      decommissioned,
-    };
-
-    // If decommissioning the machine, automatically set:
-    // - machineStatus to inactive
-    // - connectivityStatus to offline
-    // - underMaintenance to no (since it's decommissioned, not under maintenance)
-    if (decommissioned === "yes") {
-      updateData.machineStatus = "inactive";
-      updateData.connectivityStatus = "offline";
-      updateData.underMaintenance = "no";
-    } else {
-      // If reactivating a decommissioned machine, set to active but let user update other statuses
-      updateData.machineStatus = "active";
-      updateData.connectivityStatus = "online";
-    }
-
-    // Update decommissioned status
-    const machine = await MachineService.updateMachineStatus(machineId, updateData);
-
-    res.status(200).json({
-      success: true,
-      message: `Decommissioned status updated to ${decommissioned} successfully`,
-      data: {
-        id: machine._id,
-        machineId: machine.machineId,
-        serialNumber: machine.serialNumber,
-        modelNumber: machine.modelNumber,
-        machineType: machine.machineType,
-        decommissioned: machine.decommissioned,
-        machineStatus: machine.machineStatus,
-        connectivityStatus: machine.connectivityStatus,
-        underMaintenance: machine.underMaintenance,
-        previousStatus: existingMachine.decommissioned,
-        updatedBy: req.user?.id || "system",
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update decommissioned status",
-      error: error.message,
-    });
   }
-};
+
+  static async updateUnderMaintenance(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { underMaintenance } = req.body;
+
+      if (!underMaintenance) {
+        return res.status(400).json({
+          success: false,
+          message: "underMaintenance is required in request body",
+        });
+      }
+
+      if (!["yes", "no"].includes(underMaintenance)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid underMaintenance value. Must be either 'yes' or 'no'",
+        });
+      }
+
+      const existingMachine = await MachineService.getMachineById(machineId);
+      if (!existingMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const updateData: any = {
+        underMaintenance,
+      };
+
+      if (underMaintenance === "yes") {
+        updateData.machineStatus = "inactive";
+      } else {
+        updateData.machineStatus = "active";
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(machineId, updateData, auditParams);
+
+      res.status(200).json({
+        success: true,
+        message: `Under maintenance status updated to ${underMaintenance} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          underMaintenance: machine.underMaintenance,
+          machineStatus: machine.machineStatus,
+          previousStatus: existingMachine.underMaintenance,
+          updatedBy: req.user?.id || "system",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating under maintenance status:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update under maintenance status",
+        error: error.message,
+      });
+    }
+  }
+
+  // ========== DECOMMISSIONED STATUS CONTROLLERS ==========
+
+  static async toggleDecommissioned(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const currentMachine = await MachineService.getMachineById(machineId);
+      if (!currentMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const newDecommissioned = currentMachine.decommissioned === "yes" ? "no" : "yes";
+
+      const updateData: any = {
+        decommissioned: newDecommissioned,
+      };
+
+      if (newDecommissioned === "yes") {
+        updateData.machineStatus = "inactive";
+        updateData.connectivityStatus = "offline";
+        updateData.underMaintenance = "no";
+      } else {
+        updateData.machineStatus = "active";
+        updateData.connectivityStatus = "online";
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(machineId, updateData, auditParams);
+
+      res.status(200).json({
+        success: true,
+        message: `Decommissioned status toggled to ${newDecommissioned} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          decommissioned: machine.decommissioned,
+          machineStatus: machine.machineStatus,
+          connectivityStatus: machine.connectivityStatus,
+          underMaintenance: machine.underMaintenance,
+          previousStatus: currentMachine.decommissioned,
+          newStatus: machine.decommissioned,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error toggling decommissioned status:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to toggle decommissioned status",
+        error: error.message,
+      });
+    }
+  }
+
+  static async updateDecommissioned(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { decommissioned } = req.body;
+
+      if (!decommissioned) {
+        return res.status(400).json({
+          success: false,
+          message: "decommissioned is required in request body",
+        });
+      }
+
+      if (!["yes", "no"].includes(decommissioned)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid decommissioned value. Must be either 'yes' or 'no'",
+        });
+      }
+
+      const existingMachine = await MachineService.getMachineById(machineId);
+      if (!existingMachine) {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+        });
+      }
+
+      const updateData: any = {
+        decommissioned,
+      };
+
+      if (decommissioned === "yes") {
+        updateData.machineStatus = "inactive";
+        updateData.connectivityStatus = "offline";
+        updateData.underMaintenance = "no";
+      } else {
+        updateData.machineStatus = "active";
+        updateData.connectivityStatus = "online";
+      }
+
+      const auditParams = VendingMachineController.getAuditParams(req);
+      const machine = await MachineService.updateMachineStatus(machineId, updateData, auditParams);
+
+      res.status(200).json({
+        success: true,
+        message: `Decommissioned status updated to ${decommissioned} successfully`,
+        data: {
+          id: machine._id,
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          decommissioned: machine.decommissioned,
+          machineStatus: machine.machineStatus,
+          connectivityStatus: machine.connectivityStatus,
+          underMaintenance: machine.underMaintenance,
+          previousStatus: existingMachine.decommissioned,
+          updatedBy: req.user?.id || "system",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error updating decommissioned status:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update decommissioned status",
+        error: error.message,
+      });
+    }
+  }
+
+  // ========== AUDIT TRAIL CONTROLLERS ==========
+
+  static async getAllMachinesAuditTrails(req: Request, res: Response) {
+    try {
+      const { limit, skip, startDate, endDate, action, entityType, userId, machineId, sortBy } =
+        req.query;
+
+      const options: any = {};
+
+      if (limit) options.limit = parseInt(limit as string);
+      if (skip) options.skip = parseInt(skip as string);
+      if (startDate) options.startDate = new Date(startDate as string);
+      if (endDate) options.endDate = new Date(endDate as string);
+      if (action) options.action = action as string;
+      if (entityType) options.entityType = entityType as string;
+      if (userId) options.userId = userId as string;
+      if (machineId) options.machineId = machineId as string;
+      if (sortBy && (sortBy === "asc" || sortBy === "desc"))
+        options.sortBy = sortBy as "asc" | "desc";
+
+      const result = await MachineService.getAllMachinesAuditTrails(options);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching all machines audit trails:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch all machines audit trails",
+        error: error.message,
+      });
+    }
+  }
+
+  static async getAuditTrailsByMachineId(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { limit, skip, startDate, endDate, action, entityType } = req.query;
+
+      const options: any = {};
+
+      if (limit) options.limit = parseInt(limit as string);
+      if (skip) options.skip = parseInt(skip as string);
+      if (startDate) options.startDate = new Date(startDate as string);
+      if (endDate) options.endDate = new Date(endDate as string);
+      if (action) options.action = action as string;
+      if (entityType) options.entityType = entityType as string;
+
+      const result = await MachineService.getAuditTrailsByMachineId(machineId, options);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching audit trails by machine ID:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch audit trails",
+        error: error.message,
+      });
+    }
+  }
+
+  static async getAuditTrailsSummary(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      const result = await MachineService.getAuditTrailsSummary(machineId);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching audit trails summary:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch audit trails summary",
+        error: error.message,
+      });
+    }
+  }
+
+  static async exportAuditTrails(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { format = "csv", startDate, endDate, action, entityType } = req.query;
+
+      const options: any = {};
+
+      if (startDate) options.startDate = new Date(startDate as string);
+      if (endDate) options.endDate = new Date(endDate as string);
+      if (action) options.action = action as string;
+      if (entityType) options.entityType = entityType as string;
+
+      const result = await MachineService.exportAuditTrails(
+        machineId,
+        format as "json" | "csv",
+        options
+      );
+
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=audit_trails_${machineId}_${new Date().toISOString()}.csv`
+        );
+        res.status(200).send(result);
+      } else {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting audit trails:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to export audit trails",
+        error: error.message,
+      });
+    }
+  }
+
+  static async exportAllMachinesAuditTrails(req: Request, res: Response) {
+    try {
+      const {
+        format = "csv",
+        startDate,
+        endDate,
+        action,
+        entityType,
+        userId,
+        machineId,
+      } = req.query;
+
+      const options: any = {};
+
+      if (startDate) options.startDate = new Date(startDate as string);
+      if (endDate) options.endDate = new Date(endDate as string);
+      if (action) options.action = action as string;
+      if (entityType) options.entityType = entityType as string;
+      if (userId) options.userId = userId as string;
+      if (machineId) options.machineId = machineId as string;
+
+      const result = await MachineService.exportAllMachinesAuditTrails(
+        format as "json" | "csv",
+        options
+      );
+
+      if (format === "csv") {
+        const filename = `audit_trails_all_machines_${new Date().toISOString().split("T")[0]}.csv`;
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+        res.status(200).send(result);
+      } else {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting all machines audit trails:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to export all machines audit trails",
+        error: error.message,
+      });
+    }
+  }
+
+  // ========== MACHINE EXPORT CONTROLLERS ==========
+
+  static async exportAllMachines(req: Request, res: Response) {
+    try {
+      const { format = "csv", machineType, status, installed_status, decommissioned } = req.query;
+
+      const options: any = {};
+
+      if (machineType) options.machineType = machineType as string;
+      if (status) options.status = status as string;
+      if (installed_status) options.installed_status = installed_status as string;
+      if (decommissioned) options.decommissioned = decommissioned as string;
+
+      const result = await MachineService.exportAllMachines(format as "json" | "csv", options);
+
+      if (format === "csv") {
+        const filename = `machines_export_${new Date().toISOString().split("T")[0]}.csv`;
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+        res.status(200).send(result);
+      } else {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting all machines:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to export machines",
+        error: error.message,
+      });
+    }
+  }
+
+  static async exportMachineById(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+      const { format = "csv" } = req.query;
+
+      const result = await MachineService.exportMachineById(machineId, format as "json" | "csv");
+
+      if (format === "csv") {
+        const filename = `machine_${machineId}_export_${new Date().toISOString().split("T")[0]}.csv`;
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+        res.status(200).send(result);
+      } else {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      }
+    } catch (error: any) {
+      if (error.message === "Machine not found") {
+        return res.status(404).json({
+          success: false,
+          message: "Machine not found",
+          error: error.message,
+        });
+      }
+      logger.error("Error exporting machine by ID:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to export machine",
+        error: error.message,
+      });
+    }
+  }
+}
+
+// ========== EXPORT ALL CONTROLLER METHODS ==========
+
+export const createMachine = VendingMachineController.createMachine;
+export const getAllMachines = VendingMachineController.getAllMachines;
+export const getMachineById = VendingMachineController.getMachineById;
+export const updateMachine = VendingMachineController.updateMachine;
+export const deleteMachine = VendingMachineController.deleteMachine;
+export const addRacks = VendingMachineController.addRacks;
+export const getMachineRacks = VendingMachineController.getMachineRacks;
+export const getRackById = VendingMachineController.getRackById;
+export const updateRack = VendingMachineController.updateRack;
+export const deleteRack = VendingMachineController.deleteRack;
+export const getMachineSlots = VendingMachineController.getMachineSlots;
+export const getSlotById = VendingMachineController.getSlotById;
+export const occupySlot = VendingMachineController.occupySlot;
+export const freeSlot = VendingMachineController.freeSlot;
+export const updateSlotStatus = VendingMachineController.updateSlotStatus;
+export const getAvailableSlots = VendingMachineController.getAvailableSlots;
+export const getOccupiedSlots = VendingMachineController.getOccupiedSlots;
+export const getMachinesByType = VendingMachineController.getMachinesByType;
+export const getActiveMachines = VendingMachineController.getActiveMachines;
+export const updateRacksBatch = VendingMachineController.updateRacksBatch;
+export const toggleDoorStatus = VendingMachineController.toggleDoorStatus;
+export const updateDoorStatus = VendingMachineController.updateDoorStatus;
+export const toggleConnectivityStatus = VendingMachineController.toggleConnectivityStatus;
+export const updateConnectivityStatus = VendingMachineController.updateConnectivityStatus;
+export const toggleMachineStatus = VendingMachineController.toggleMachineStatus;
+export const updateMachineStatusWithBody = VendingMachineController.updateMachineStatusWithBody;
+export const toggleUnderMaintenance = VendingMachineController.toggleUnderMaintenance;
+export const updateUnderMaintenance = VendingMachineController.updateUnderMaintenance;
+export const toggleDecommissioned = VendingMachineController.toggleDecommissioned;
+export const updateDecommissioned = VendingMachineController.updateDecommissioned;
+export const getAllMachinesAuditTrails = VendingMachineController.getAllMachinesAuditTrails;
+export const getAuditTrailsByMachineId = VendingMachineController.getAuditTrailsByMachineId;
+export const getAuditTrailsSummary = VendingMachineController.getAuditTrailsSummary;
+export const exportAuditTrails = VendingMachineController.exportAuditTrails;
+export const exportAllMachinesAuditTrails = VendingMachineController.exportAllMachinesAuditTrails;
+export const exportAllMachines = VendingMachineController.exportAllMachines;
+export const exportMachineById = VendingMachineController.exportMachineById;
