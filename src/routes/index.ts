@@ -11,13 +11,14 @@ import warehouseRoutes from "./warehouse.routes";
 import vendorRoutes from "./vendor.routes";
 import auditTrailRoutes from "./auditTrail.routes";
 import vendingMachineRoutes from "./vendingMachine.routes";
-//import cartRoutes from "./cart.routes";
+import cartRoutes from "./cart.routes";
 import productRoutes from "./product.routes";
 import areaRouteRoutes from "./arearoute.route";
 import catalogueRoute from "./catalogue.routes";
 import historyCatalogueRoutes from "./historyCatalogue.routes";
 import fieldOpsRoutes from "./fieldops.routes";
 import priceOverrideRoutes from "./priceOverride.routes";
+import VMroutes from "./VM.routes";
 
 const router = Router();
 
@@ -42,12 +43,13 @@ router.use("/warehouse", warehouseRoutes);
 router.use("/vendors", vendorRoutes);
 router.use("/audit-trails", auditTrailRoutes);
 router.use("/vending", vendingMachineRoutes);
-//router.use("/cart", cartRoutes);
+router.use("/cart", cartRoutes);
 router.use("/area-route", areaRouteRoutes);
 router.use("/catalogue", catalogueRoute);
 router.use("/history-catalogue", historyCatalogueRoutes);
 router.use("/field-ops", fieldOpsRoutes);
 router.use("/price-override", priceOverrideRoutes);
 router.use("/", productRoutes);
+router.use("/vm", VMroutes);
 
 export default router;

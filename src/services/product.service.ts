@@ -94,25 +94,48 @@ class ProductService {
       throw new Error("Invalid product ID");
     }
 
-    const { Machine } = await import("../models/VendingMachine.model");
+    const { VendingMachine } = await import("../models/VendingMachine.model");
 
-    const machinesWithProduct = await Machine.find({
+    const machinesWithProduct = await VendingMachine.find({
       "productSlots.product": productId,
       "productSlots.quantity": { $gt: 0 },
-      machineStatus: "active",
-      connectivityStatus: "online",
+      status: "Active",
+      isOnline: true,
     })
       .populate("productSlots.product")
-      .select("serialNumber modelNumber machineType productSlots");
+      .select("machineId name location productSlots");
 
     const availability = [];
+
+    for (const machine of machinesWithProduct) {
+      const productSlots = machine.productSlots.filter(
+        slot => slot.product._id.toString() === productId && slot.quantity > 0
+      );
+
+      if (productSlots.length > 0) {
+        availability.push({
+          machineId: machine.machineId,
+          machineName: machine.name,
+          location: machine.location,
+          slots: productSlots.map(slot => ({
+            slotNumber: slot.slotNumber,
+            quantity: slot.quantity,
+            price: slot.price,
+          })),
+          totalAvailable: productSlots.reduce((sum, slot) => sum + slot.quantity, 0),
+        });
+      }
+    }
 
     return {
       productId,
       totalMachines: availability.length,
       totalQuantity: availability.reduce((sum, machine) => sum + machine.totalAvailable, 0),
       availability: availability.sort((a, b) => {
-        return a.serialNumber.localeCompare(b.serialNumber);
+        if (a.location.city !== b.location.city) {
+          return a.location.city.localeCompare(b.location.city);
+        }
+        return a.machineName.localeCompare(b.machineName);
       }),
     };
   }

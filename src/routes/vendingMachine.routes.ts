@@ -1,61 +1,23 @@
-// routes/machine.routes.ts
-import express from "express";
-import {
-  createMachine,
-  getAllMachines,
-  getMachineById,
-  updateMachine,
-  deleteMachine,
-  updateMachineStatus,
-  addRacks,
-  getMachineRacks,
-  getRackById,
-  updateRack,
-  deleteRack,
-  getMachineWithRacks,
-  getMachinesByType,
-  getActiveMachines,
-  updateRacksBatch,
-  getMachineSlots,
-  getSlotById,
-  occupySlot,
-  freeSlot,
-  updateSlotStatus,
-  getAvailableSlots,
-  getOccupiedSlots,
-} from "../controllers/vendingMachine.controller";
+import { Router } from "express";
+import * as vendingMachineController from "../controllers/vendingMachine.controller";
+import { authenticate } from "../middleware/auth.middleware";
 
-const router = express.Router();
+const router = Router();
 
-// ========== MACHINE ROUTES ==========
+router.get("/machines", vendingMachineController.getAllVendingMachines);
+router.get("/machines/locations", vendingMachineController.getVendingMachinesByLocation);
+router.get("/machines/filters/locations", vendingMachineController.getLocationFilters);
+router.get("/machines/:machineId", vendingMachineController.getVendingMachineByMachineId);
+router.get("/machines/:machineId/products", vendingMachineController.getVendingMachineProducts);
+router.get(
+  "/machines/:machineId/slots/:slotNumber/availability",
+  vendingMachineController.checkProductAvailability
+);
+router.get("/search-products", vendingMachineController.searchProductAcrossMachines);
 
-router.post("/machines", createMachine);
-router.get("/machines", getAllMachines);
-router.get("/machines/active", getActiveMachines);
-router.get("/machines/type/:machineType", getMachinesByType);
-router.get("/machines/:machineId/with-racks", getMachineWithRacks);
-router.get("/machines/:machineId", getMachineById);
-router.put("/machines/:machineId", updateMachine);
-router.patch("/machines/:machineId/status", updateMachineStatus);
-router.delete("/machines/:machineId", deleteMachine);
+router.use(authenticate);
 
-// ========== RACK ROUTES ==========
-
-router.post("/machines/:machineId/racks", addRacks);
-router.get("/machines/:machineId/racks", getMachineRacks);
-router.put("/machines/:machineId/racks/batch", updateRacksBatch);
-router.get("/racks/:rackId", getRackById);
-router.put("/racks/:rackId", updateRack);
-router.delete("/racks/:rackId", deleteRack);
-
-// ========== SLOT ROUTES ==========
-
-router.get("/machines/:machineId/slots", getMachineSlots);
-router.get("/machines/:machineId/slots/available", getAvailableSlots);
-router.get("/machines/:machineId/slots/occupied", getOccupiedSlots);
-router.get("/slots/:slotId", getSlotById);
-router.post("/slots/:slotId/occupy", occupySlot);
-router.post("/slots/:slotId/free", freeSlot);
-router.patch("/slots/:slotId/status", updateSlotStatus);
+router.get("/machines/:machineId/stats", vendingMachineController.getMachineStats);
+router.get("/internal/:id", vendingMachineController.getVendingMachineById);
 
 export default router;
