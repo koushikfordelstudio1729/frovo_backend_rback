@@ -1,0 +1,929 @@
+{
+  "info": {
+    "_postman_id": "83f9a5fa-1fdd-4f27-8298-25b07cc6ba50",
+    "name": "Vending Machine FROVO",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "39772168",
+    "_collection_link": "https://go.postman.co/collection/39772168-83f9a5fa-1fdd-4f27-8298-25b07cc6ba50?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Status",
+      "item": [
+        {
+          "name": "Door Status Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/door/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "door",
+                "toggle"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Door Status Body JSON",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"doorStatus\": \"closed\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/door",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "door"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Connectivity Status Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"doorStatus\": \"closed\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/connectivity/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "connectivity",
+                "toggle"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Connectivity Status Body JSON",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"connectivityStatus\": \"offline\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/connectivity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "connectivity"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Machine Status Body JSON",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"machineStatus\": \"active\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Machine Status Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"connectivityStatus\": \"offline\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/status/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "status",
+                "toggle"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Maintenance Status Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"machineStatus\": \"active\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/maintenance/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "maintenance",
+                "toggle"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Maintenance Status Body JSON",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"underMaintenance\": \"no\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/maintenance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "maintenance"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Decommissioned Status Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"underMaintenance\": \"no\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/decommissioned/toggle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "decommissioned",
+                "toggle"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Decommissioned Status Body  JSON",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"decommissioned\": \"yes\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/machines/:machineId/decommissioned",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machines",
+                ":machineId",
+                "decommissioned"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "69c3634624068b6f68aa4f57"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Login As Admin",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n   \"email\":\"nkoushikpanda123@gmail.com\",\r\n    \"password\":\"SuperAdmin@123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create VM",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"serialNumber\": \"SN001\",\r\n  \"machineId\":\"123445\",\r\n  \"modelNumber\": \"MODEL-X\",\r\n  \"machineType\": \"snacks\",\r\n  \"firmwareVersion\": \"1.0.0\",\r\n  \"height\": 180,\r\n  \"width\": 80,\r\n  \"length\": 60,\r\n  \"machine_status\":\"active\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get All VM",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"serialNumber\": \"SN001\",\r\n  \"machineId\":\"123445\",\r\n  \"modelNumber\": \"MODEL-X\",\r\n  \"machineType\": \"snacks\",\r\n  \"firmwareVersion\": \"1.0.0\",\r\n  \"height\": 180,\r\n  \"width\": 80,\r\n  \"length\": 60,\r\n  \"machine_status\":\"active\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Dashboard",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"serialNumber\": \"SN001\",\r\n  \"machineId\":\"123445\",\r\n  \"modelNumber\": \"MODEL-X\",\r\n  \"machineType\": \"snacks\",\r\n  \"firmwareVersion\": \"1.0.0\",\r\n  \"height\": 180,\r\n  \"width\": 80,\r\n  \"length\": 60,\r\n  \"machine_status\":\"active\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/dashboard",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get VM by ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"serialNumber\": \"SN001\",\r\n  \"machineId\":\"123445\",\r\n  \"modelNumber\": \"MODEL-X\",\r\n  \"machineType\": \"snacks\",\r\n  \"firmwareVersion\": \"1.0.0\",\r\n  \"height\": 180,\r\n  \"width\": 80,\r\n  \"length\": 60,\r\n  \"machine_status\":\"active\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c3634624068b6f68aa4f57"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update VM by ID",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"machineId\": \"VM-103\",\r\n  \"serialNumber\": \"VN023456713\",\r\n  \"modelNumber\": \"VM-2000\",\r\n  \"machineType\": \"combo\",\r\n  \"firmwareVersion\": \"1.2.0\",\r\n  \"height\": 280,\r\n  \"width\": 80,\r\n  \"length\": 80\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c3634624068b6f68aa4f57"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete rack by ID by VM ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"machineId\": \"VM-103\",\r\n  \"serialNumber\": \"VN023456713\",\r\n  \"modelNumber\": \"VM-2000\",\r\n  \"machineType\": \"combo\",\r\n  \"firmwareVersion\": \"1.2.0\",\r\n  \"height\": 280,\r\n  \"width\": 80,\r\n  \"length\": 80\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId/racks/:rackId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId",
+            "racks",
+            ":rackId"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c37c76e4d190e3d6e622b9"
+            },
+            {
+              "key": "rackId",
+              "value": "69c37d4ae4d190e3d6e62301"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update rack by ID by VM ID",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"slots\": 5, \"capacity\": 10 }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId/racks/:rackId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId",
+            "racks",
+            ":rackId"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c37c76e4d190e3d6e622b9"
+            },
+            {
+              "key": "rackId",
+              "value": "69c37d4ae4d190e3d6e62302"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Add Racks in VM",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId/racks",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId",
+            "racks"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c37c76e4d190e3d6e622b9"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete VM by ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c37c76e4d190e3d6e622b9"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Trails By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/:machineId/audit-trails",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            ":machineId",
+            "audit-trails"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c3c396e7d4c3299349cef9"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Complete Audit Trails",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/audit-trails/all",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "audit-trails",
+            "all"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export By VM ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/:machineId/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            ":machineId",
+            "export"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c3d10d91246cb863d39294"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export All Machines",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/export/all",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "export",
+            "all"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export Complete Audit Trails",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/audit-trails/all/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "audit-trails",
+            "all",
+            "export"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export Audit Trails By ID",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/:machineId/audit-trails/export",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            ":machineId",
+            "audit-trails",
+            "export"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "69c3c396e7d4c3299349cef9"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzQ0NDI1OTYsImV4cCI6MTc3NDUyODk5NiwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.7TPKv9doTCKnFzJa__HepkEYj5PJ6GpmYjDKdao7kiM",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": ""
+    }
+  ]
+}
