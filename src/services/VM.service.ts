@@ -1250,7 +1250,6 @@ export class MachineService {
       data: formattedLogs,
     };
   }
-
   static async exportAllMachines(
     format: "json" | "csv" = "json",
     options?: {
@@ -1266,82 +1265,143 @@ export class MachineService {
     if (options?.installed_status) query.installed_status = options.installed_status;
     if (options?.decommissioned) query.decommissioned = options.decommissioned;
 
-    const machines = await Machine.find(query).sort({ createdAt: -1 }).lean();
+    const machines = await Machine.aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          machineId: 1,
+          serialNumber: 1,
+          modelNumber: 1,
+          machineType: 1,
+          firmwareVersion: 1,
+          height: 1,
+          width: 1,
+          length: 1,
+          doorStatus: 1,
+          connectivityStatus: 1,
+          machineStatus: 1,
+          underMaintenance: 1,
+          decommissioned: 1,
+          installed_status: 1,
+          internalTemperature: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          // Compute rack/slot stats inside MongoDB — no JS loops
+          totalRacks: { $size: { $ifNull: ["$racks", []] } },
+          totalSlots: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ["$racks", []] },
+                as: "r",
+                in: { $ifNull: ["$$r.slots", 0] },
+              },
+            },
+          },
+          totalCapacity: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ["$racks", []] },
+                as: "r",
+                in: { $ifNull: ["$$r.capacity", 0] },
+              },
+            },
+          },
+          occupiedSlots: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ["$racks", []] },
+                as: "r",
+                in: {
+                  $size: {
+                    $filter: {
+                      input: { $ifNull: ["$$r.slotsList", []] },
+                      as: "s",
+                      cond: { $eq: ["$$s.status", "occupied"] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          availableSlots: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ["$racks", []] },
+                as: "r",
+                in: {
+                  $size: {
+                    $filter: {
+                      input: { $ifNull: ["$$r.slotsList", []] },
+                      as: "s",
+                      cond: { $eq: ["$$s.status", "available"] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          maintenanceSlots: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ["$racks", []] },
+                as: "r",
+                in: {
+                  $size: {
+                    $filter: {
+                      input: { $ifNull: ["$$r.slotsList", []] },
+                      as: "s",
+                      cond: { $eq: ["$$s.status", "maintenance"] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
 
-    const formattedMachines = machines.map(machine => {
-      let totalSlots = 0;
-      let occupiedSlots = 0;
-      let availableSlots = 0;
-      let maintenanceSlots = 0;
-      let totalCapacity = 0;
-
-      machine.racks.forEach((rack: any) => {
-        totalSlots += rack.slots;
-        totalCapacity += rack.capacity;
-
-        rack.slotsList?.forEach((slot: any) => {
-          if (slot.status === "occupied") occupiedSlots++;
-          else if (slot.status === "available") availableSlots++;
-          else if (slot.status === "maintenance") maintenanceSlots++;
-        });
-      });
-
-      return {
-        "Machine ID": machine._id?.toString() || "",
-        "Machine Identifier": machine.machineId || "",
-        "Serial Number": machine.serialNumber || "",
-        "Model Number": machine.modelNumber || "",
-        "Machine Type": machine.machineType || "",
-        "Firmware Version": machine.firmwareVersion || "",
-        "Dimensions (H x W x L)": `${machine.height || 0} x ${machine.width || 0} x ${machine.length || 0}`,
-        "Door Status": machine.doorStatus || "closed",
-        "Connectivity Status": machine.connectivityStatus || "offline",
-        "Machine Status": machine.machineStatus || "inactive",
-        "Under Maintenance": machine.underMaintenance || "no",
-        Decommissioned: machine.decommissioned || "no",
-        "Installed Status": machine.installed_status || "no",
-        "Internal Temperature": machine.internalTemperature || "",
-        "Total Racks": machine.racks?.length || 0,
-        "Total Slots": totalSlots,
-        "Occupied Slots": occupiedSlots,
-        "Available Slots": availableSlots,
-        "Maintenance Slots": maintenanceSlots,
-        "Slot Utilization":
-          totalSlots > 0 ? `${((occupiedSlots / totalSlots) * 100).toFixed(2)}%` : "0%",
-        "Total Capacity": totalCapacity,
-        "Created At": machine.createdAt ? new Date(machine.createdAt).toISOString() : "",
-        "Last Updated": machine.updatedAt ? new Date(machine.updatedAt).toISOString() : "",
-      };
-    });
+    const formattedMachines = machines.map(machine => ({
+      "Machine ID": machine._id?.toString() || "",
+      "Machine Identifier": machine.machineId || "",
+      "Serial Number": machine.serialNumber || "",
+      "Model Number": machine.modelNumber || "",
+      "Machine Type": machine.machineType || "",
+      "Firmware Version": machine.firmwareVersion || "",
+      "Dimensions (H x W x L)": `${machine.height || 0} x ${machine.width || 0} x ${machine.length || 0}`,
+      "Door Status": machine.doorStatus || "closed",
+      "Connectivity Status": machine.connectivityStatus || "offline",
+      "Machine Status": machine.machineStatus || "inactive",
+      "Under Maintenance": machine.underMaintenance || "no",
+      Decommissioned: machine.decommissioned || "no",
+      "Installed Status": machine.installed_status || "no",
+      "Internal Temperature": machine.internalTemperature || "",
+      "Total Racks": machine.totalRacks,
+      "Total Slots": machine.totalSlots,
+      "Occupied Slots": machine.occupiedSlots,
+      "Available Slots": machine.availableSlots,
+      "Maintenance Slots": machine.maintenanceSlots,
+      "Slot Utilization":
+        machine.totalSlots > 0
+          ? `${((machine.occupiedSlots / machine.totalSlots) * 100).toFixed(2)}%`
+          : "0%",
+      "Total Capacity": machine.totalCapacity,
+      "Created At": machine.createdAt ? new Date(machine.createdAt).toISOString() : "",
+      "Last Updated": machine.updatedAt ? new Date(machine.updatedAt).toISOString() : "",
+    }));
 
     if (format === "csv") {
-      if (formattedMachines.length === 0) {
-        return "";
-      }
-
+      if (formattedMachines.length === 0) return "";
       const headers = Object.keys(formattedMachines[0]);
-      const csvRows = [headers];
-
-      formattedMachines.forEach(row => {
-        const values = headers.map(header => {
-          const value = row[header as keyof typeof row];
-          const stringValue = String(value || "").replace(/"/g, '""');
-          return `"${stringValue}"`;
-        });
-        csvRows.push(values);
-      });
-
-      return csvRows.map(row => row.join(",")).join("\n");
+      const rows = formattedMachines.map(m =>
+        headers.map(h => `"${String((m as any)[h]).replace(/"/g, '""')}"`).join(",")
+      );
+      return [headers.join(","), ...rows].join("\n");
     }
 
-    return {
-      exportDate: new Date().toISOString(),
-      totalRecords: formattedMachines.length,
-      filters: options || {},
-      data: formattedMachines,
-    };
+    return formattedMachines;
   }
-
   static async exportMachineById(machineId: string, format: "json" | "csv" = "json") {
     const machine = await Machine.findById(machineId).lean();
 

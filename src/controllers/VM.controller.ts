@@ -1282,12 +1282,18 @@ export class VendingMachineController {
   static async getAuditTrailsByMachineId(req: Request, res: Response) {
     try {
       const { machineId } = req.params;
-      const { limit, skip, startDate, endDate, action, entityType } = req.query;
+      const { page = 1, limit = 10, skip, startDate, endDate, action, entityType } = req.query;
 
-      const options: any = {};
+      // Calculate skip based on page and limit if skip is not provided
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const skipNum = skip ? parseInt(skip as string) : (pageNum - 1) * limitNum;
 
-      if (limit) options.limit = parseInt(limit as string);
-      if (skip) options.skip = parseInt(skip as string);
+      const options: any = {
+        limit: limitNum,
+        skip: skipNum,
+      };
+
       if (startDate) options.startDate = new Date(startDate as string);
       if (endDate) options.endDate = new Date(endDate as string);
       if (action) options.action = action as string;
@@ -1295,9 +1301,28 @@ export class VendingMachineController {
 
       const result = await MachineService.getAuditTrailsByMachineId(machineId, options);
 
+      // Calculate pagination metadata
+      const total = result.total;
+      const totalPages = Math.ceil(total / limitNum);
+
       res.status(200).json({
         success: true,
-        data: result,
+        data: {
+          auditLogs: result.auditLogs,
+          machineInfo: {
+            machineId: result.machineId,
+            machineSerialNumber: result.machineSerialNumber,
+            machineModelNumber: result.machineModelNumber,
+          },
+          pagination: {
+            currentPage: pageNum,
+            totalPages: totalPages,
+            totalItems: total,
+            itemsPerPage: limitNum,
+            hasNextPage: pageNum < totalPages,
+            hasPrevPage: pageNum > 1,
+          },
+        },
       });
     } catch (error: any) {
       logger.error("Error fetching audit trails by machine ID:", error);
@@ -1308,7 +1333,6 @@ export class VendingMachineController {
       });
     }
   }
-
   static async getAuditTrailsSummary(req: Request, res: Response) {
     try {
       const { machineId } = req.params;
