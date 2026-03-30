@@ -77,10 +77,12 @@ export class VendingMachineController {
       });
     }
   }
-
   static async getAllMachines(req: Request, res: Response) {
     try {
-      const machines = await MachineService.getAllMachines();
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+
+      const { machines, total } = await MachineService.getAllMachines(page, limit);
 
       const machinesWithRacks = machines.map(m => ({
         id: m._id,
@@ -107,23 +109,28 @@ export class VendingMachineController {
             rackName: rack.rackName,
             slots: rack.slots,
             capacity: rack.capacity,
-            slotsList: rack.slotsList?.map((slot: any) => ({
-              id: slot._id,
-              slotNumber: slot.slotNumber,
-              product: slot.product
-                ? {
-                    id: slot.product._id || slot.product,
-                    productName: slot.product.product_name,
-                    skuId: slot.product.sku_id,
-                  }
-                : null,
-            })),
+            slotsList:
+              rack.slotsList?.map((slot: any) => ({
+                id: slot._id,
+                slotNumber: slot.slotNumber,
+                product: slot.product
+                  ? {
+                      id: slot.product._id,
+                      productName: slot.product.product_name,
+                      skuId: slot.product.sku_id,
+                    }
+                  : null,
+              })) || [],
           })) || [],
       }));
 
       res.status(200).json({
         success: true,
         count: machinesWithRacks.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
         data: machinesWithRacks,
       });
     } catch (error: any) {
@@ -1480,25 +1487,7 @@ export class VendingMachineController {
       });
     }
   }
-  // Add these methods to the VendingMachineController class
 
-  // ========== DASHBOARD CONTROLLERS ==========
-
-  /**
-   * Get machine dashboard data with pagination and statistics
-   * Query params:
-   *   - page: number (default: 1)
-   *   - limit: number (default: 10, max: 100)
-   *   - search: string (search by machineId, serialNumber, modelNumber)
-   *   - machineType: string (snacks, beverages, combo, smart_fridge)
-   *   - status: string (active, inactive)
-   *   - connectivityStatus: string (online, offline)
-   *   - doorStatus: string (open, closed)
-   *   - underMaintenance: string (yes, no)
-   *   - decommissioned: string (yes, no)
-   *   - sortBy: string (default: createdAt)
-   *   - sortOrder: string (asc, desc)
-   */
   static async getMachineDashboard(req: Request, res: Response) {
     try {
       const {

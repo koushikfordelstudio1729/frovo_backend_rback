@@ -394,7 +394,7 @@
         "header": [],
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"serialNumber\": \"SN001\",\r\n  \"machineId\":\"123445\",\r\n  \"modelNumber\": \"MODEL-X\",\r\n  \"machineType\": \"snacks\",\r\n  \"firmwareVersion\": \"1.0.0\",\r\n  \"height\": 180,\r\n  \"width\": 80,\r\n  \"length\": 60,\r\n  \"machine_status\":\"active\"\r\n}",
+          "raw": "{\r\n  \"machineId\": \"MACH-303\",\r\n  \"serialNumber\": \"RN223555613\",\r\n  \"modelNumber\": \"VM-2204\",\r\n  \"machineType\": \"combo\",\r\n  \"firmwareVersion\": \"1.5.0\",\r\n  \"height\": 190,\r\n  \"width\": 70,\r\n  \"length\": 40,\r\n  \"racks\": [\r\n    {\r\n      \"slots\": 5,\r\n      \"capacity\": 50\r\n    },\r\n    {\r\n      \"slots\": 3,\r\n      \"capacity\": 40\r\n    }\r\n  ]\r\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -891,7 +891,7 @@
     "bearer": [
       {
         "key": "token",
-        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzQ0NDI1OTYsImV4cCI6MTc3NDUyODk5NiwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.7TPKv9doTCKnFzJa__HepkEYj5PJ6GpmYjDKdao7kiM",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzQ4NDE2NjIsImV4cCI6MTc3NDkyODA2MiwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.aFTHEQt4Z55JhxJee9ZQUwzZVGxbbyxFEXu1_dh_56s",
         "type": "string"
       }
     ]

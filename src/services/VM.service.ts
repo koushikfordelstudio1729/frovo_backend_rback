@@ -93,8 +93,40 @@ export class MachineService {
     }
   }
 
-  static async getAllMachines() {
-    return await Machine.find().sort({ createdAt: -1 });
+  static async getAllMachines(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const [machines, total] = await Promise.all([
+      Machine.find()
+        .populate({
+          path: "racks",
+          select: "rackName slots capacity slotsList",
+          populate: {
+            path: "slotsList",
+            select: "slotNumber product",
+            populate: {
+              path: "product",
+              select: "product_name sku_id",
+            },
+          },
+        })
+        .select(
+          "machineId serialNumber modelNumber height width length machineType " +
+            "firmwareVersion machineStatus doorStatus connectivityStatus " +
+            "underMaintenance decommissioned internalTemperature installed_status racks"
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(), // ← converts Mongoose docs to plain JS objects (big speed boost)
+
+      Machine.countDocuments(),
+    ]);
+
+    return { machines, total, page, limit };
+  }
+  static async countMachines() {
+    return Machine.countDocuments();
   }
 
   static async getMachineById(machineId: string) {
@@ -1516,13 +1548,6 @@ export class MachineService {
       machine: machineData,
     };
   }
-  // Add this method to the MachineService class
-
-  // ========== DASHBOARD SERVICES ==========
-
-  /**
-   * Get machine dashboard data with pagination and statistics
-   */
   static async getMachineDashboard(options?: {
     page?: number;
     limit?: number;
@@ -1540,7 +1565,6 @@ export class MachineService {
     const limit = Math.min(100, Math.max(1, options?.limit || 10));
     const skip = (page - 1) * limit;
 
-    // Build filter query
     const filter: any = {};
 
     if (options?.search) {
@@ -1558,98 +1582,106 @@ export class MachineService {
     if (options?.underMaintenance) filter.underMaintenance = options.underMaintenance;
     if (options?.decommissioned) filter.decommissioned = options.decommissioned;
 
-    // Build sort
-    const sort: any = {};
     const sortBy = options?.sortBy || "createdAt";
     const sortOrder = options?.sortOrder === "asc" ? 1 : -1;
-    sort[sortBy] = sortOrder;
+    const sort: any = { [sortBy]: sortOrder };
 
-    // Get all machines for statistics (without pagination)
-    const allMachines = await Machine.find(filter);
+    const [result] = await Machine.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          statistics: [
+            {
+              $group: {
+                _id: null,
+                totalMachines: { $sum: 1 },
+                totalActive: { $sum: { $cond: [{ $eq: ["$machineStatus", "active"] }, 1, 0] } },
+                totalInactive: { $sum: { $cond: [{ $eq: ["$machineStatus", "inactive"] }, 1, 0] } },
+                totalOnline: {
+                  $sum: { $cond: [{ $eq: ["$connectivityStatus", "online"] }, 1, 0] },
+                },
+                totalOffline: {
+                  $sum: { $cond: [{ $eq: ["$connectivityStatus", "offline"] }, 1, 0] },
+                },
+                totalMaintenance: {
+                  $sum: { $cond: [{ $eq: ["$underMaintenance", "yes"] }, 1, 0] },
+                },
+                totalDecommissioned: {
+                  $sum: { $cond: [{ $eq: ["$decommissioned", "yes"] }, 1, 0] },
+                },
+                totalDoorOpen: { $sum: { $cond: [{ $eq: ["$doorStatus", "open"] }, 1, 0] } },
+                totalDoorClosed: { $sum: { $cond: [{ $eq: ["$doorStatus", "closed"] }, 1, 0] } },
+              },
+            },
+          ],
+          machines: [
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                machineId: 1,
+                serialNumber: 1,
+                modelNumber: 1,
+                machineType: 1,
+                doorStatus: 1,
+                internalTemperature: 1,
+                connectivityStatus: 1,
+                machineStatus: 1,
+                underMaintenance: 1,
+                decommissioned: 1,
+                installed_status: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
 
-    // Calculate statistics
-    let totalActive = 0;
-    let totalInactive = 0;
-    let totalOnline = 0;
-    let totalOffline = 0;
-    let totalUnderMaintenance = 0;
-    let totalDecommissioned = 0;
-    let totalMachinesWithDoorOpen = 0;
-    let totalMachinesWithDoorClosed = 0;
-
-    allMachines.forEach(machine => {
-      // Machine status
-      if (machine.machineStatus === "active") totalActive++;
-      else if (machine.machineStatus === "inactive") totalInactive++;
-
-      // Connectivity status
-      if (machine.connectivityStatus === "online") totalOnline++;
-      else if (machine.connectivityStatus === "offline") totalOffline++;
-
-      // Under maintenance
-      if (machine.underMaintenance === "yes") totalUnderMaintenance++;
-
-      // Decommissioned
-      if (machine.decommissioned === "yes") totalDecommissioned++;
-
-      // Door status
-      if (machine.doorStatus === "open") totalMachinesWithDoorOpen++;
-      else if (machine.doorStatus === "closed") totalMachinesWithDoorClosed++;
-    });
-
-    // Get paginated machines
-    const machines = await Machine.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .select(
-        "machineId serialNumber modelNumber machineType doorStatus internalTemperature connectivityStatus machineStatus underMaintenance decommissioned installed_status createdAt updatedAt"
-      );
-
-    const total = allMachines.length;
+    const stats = result.statistics[0] ?? {};
+    const total = stats.totalMachines ?? 0;
     const totalPages = Math.ceil(total / limit);
-
-    // Format machines data for table
-    const machineTableData = machines.map(machine => ({
-      id: machine._id,
-      machineId: machine.machineId || `MACH-${machine.serialNumber}`,
-      serialNumber: machine.serialNumber,
-      modelNumber: machine.modelNumber,
-      machineType: machine.machineType,
-      doorStatus: machine.doorStatus || "closed",
-      internalTemperature: machine.internalTemperature || "N/A",
-      connectivityStatus: machine.connectivityStatus || "offline",
-      machineStatus: machine.machineStatus,
-      underMaintenance: machine.underMaintenance || "no",
-      decommissioned: machine.decommissioned || "no",
-      installed_status: machine.installed_status || "no",
-      createdAt: machine.createdAt,
-      updatedAt: machine.updatedAt,
-    }));
 
     return {
       success: true,
       data: {
         statistics: {
           totalMachines: total,
-          activeMachines: totalActive,
-          inactiveMachines: totalInactive,
-          onlineMachines: totalOnline,
-          offlineMachines: totalOffline,
-          underMaintenance: totalUnderMaintenance,
-          decommissioned: totalDecommissioned,
-          doorOpen: totalMachinesWithDoorOpen,
-          doorClosed: totalMachinesWithDoorClosed,
+          activeMachines: stats.totalActive ?? 0,
+          inactiveMachines: stats.totalInactive ?? 0,
+          onlineMachines: stats.totalOnline ?? 0,
+          offlineMachines: stats.totalOffline ?? 0,
+          underMaintenance: stats.totalMaintenance ?? 0,
+          decommissioned: stats.totalDecommissioned ?? 0,
+          doorOpen: stats.totalDoorOpen ?? 0,
+          doorClosed: stats.totalDoorClosed ?? 0,
           machineStatusBreakdown: {
-            active: totalActive,
-            inactive: totalInactive,
+            active: stats.totalActive ?? 0,
+            inactive: stats.totalInactive ?? 0,
           },
           connectivityBreakdown: {
-            online: totalOnline,
-            offline: totalOffline,
+            online: stats.totalOnline ?? 0,
+            offline: stats.totalOffline ?? 0,
           },
         },
-        machines: machineTableData,
+        machines: result.machines.map((machine: any) => ({
+          id: machine._id,
+          machineId: machine.machineId || `MACH-${machine.serialNumber}`,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          doorStatus: machine.doorStatus || "closed",
+          internalTemperature: machine.internalTemperature || "N/A",
+          connectivityStatus: machine.connectivityStatus || "offline",
+          machineStatus: machine.machineStatus,
+          underMaintenance: machine.underMaintenance || "no",
+          decommissioned: machine.decommissioned || "no",
+          installed_status: machine.installed_status || "no",
+          createdAt: machine.createdAt,
+          updatedAt: machine.updatedAt,
+        })),
         pagination: {
           currentPage: page,
           totalPages,
@@ -1670,7 +1702,6 @@ export class MachineService {
       },
     };
   }
-
   /**
    * Get machine dashboard statistics only (for quick stats cards)
    */
