@@ -47,7 +47,6 @@ import { authorize } from "../middleware/authorize.middleware";
 const router = express.Router();
 
 // ========== MACHINE ROUTES ==========
-
 router.post("/machines", authenticate, authorize(["super_admin", "ops_manager"]), createMachine);
 router.get("/machines", authenticate, authorize(["super_admin", "ops_manager"]), getAllMachines);
 router.get(
@@ -80,6 +79,7 @@ router.delete(
   authorize(["super_admin", "ops_manager"]),
   deleteMachine
 );
+
 //Status routes
 router.patch(
   "/machines/:machineId/door/toggle",
@@ -173,6 +173,7 @@ router.get(
   authorize(["super_admin", "ops_manager"]),
   exportAllMachinesAuditTrails
 );
+
 // Machine export routes
 router.get(
   "/export/all",
@@ -186,8 +187,8 @@ router.get(
   authorize(["super_admin", "ops_manager"]),
   exportMachineById
 );
-// ========== RACK ROUTES ==========
 
+// ========== RACK ROUTES ==========
 router.post(
   "/machines/:machineId/racks",
   authenticate,
@@ -219,7 +220,6 @@ router.delete(
   authorize(["super_admin", "ops_manager"]),
   deleteRack
 );
-
 router.get(
   "/dashboard",
   authenticate,
@@ -238,6 +238,7 @@ router.get(
   authorize(["super_admin", "ops_manager"]),
   exportMachineDashboard
 );
+
 //extra routes
 router.get(
   "/machines/:machineId/slots",

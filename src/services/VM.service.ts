@@ -1061,7 +1061,7 @@ export class MachineService {
 
   static async exportAuditTrails(
     machineId: string,
-    format: "json" | "csv" = "json",
+    format: "json" | "csv" = "csv",
     options?: {
       startDate?: Date;
       endDate?: Date;
@@ -1793,8 +1793,8 @@ export class MachineService {
 
       if (machine.underMaintenance === "yes") totalUnderMaintenance++;
       if (machine.decommissioned === "yes") totalDecommissioned++;
-      if (machine.installed_status === "yes") totalInstalled++;
-      else if (machine.installed_status === "no") totalNotInstalled++;
+      if (machine.installed_status === "installed") totalInstalled++;
+      else if (machine.installed_status === "not_installed") totalNotInstalled++;
 
       if (machine.doorStatus === "open") totalDoorOpen++;
       else if (machine.doorStatus === "closed") totalDoorClosed++;

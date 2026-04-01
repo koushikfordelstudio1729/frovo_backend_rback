@@ -12,31 +12,12 @@ export interface IMachineImageData {
 
 const machineImageSchema = new Schema<IMachineImageData>(
   {
-    image_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    file_url: {
-      type: String,
-      required: true,
-    },
-    cloudinary_public_id: {
-      type: String,
-      required: true,
-    },
-    file_size: {
-      type: Number,
-      required: true,
-    },
-    mime_type: {
-      type: String,
-      required: true,
-    },
-    uploaded_at: {
-      type: Date,
-      default: Date.now,
-    },
+    image_name: { type: String, required: true, trim: true },
+    file_url: { type: String, required: true },
+    cloudinary_public_id: { type: String, required: true },
+    file_size: { type: Number, required: true },
+    mime_type: { type: String, required: true },
+    uploaded_at: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -57,21 +38,9 @@ export interface ILocation extends Document {
 
 const LocationSchema: Schema = new Schema(
   {
-    area_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    state: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    district: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    area_name: { type: String, required: true, trim: true },
+    state: { type: String, required: true, trim: true },
+    district: { type: String, required: true, trim: true },
     pincode: {
       type: String,
       required: true,
@@ -83,17 +52,8 @@ const LocationSchema: Schema = new Schema(
         message: "Pincode must be 6 digits",
       },
     },
-    area_description: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      required: true,
-      default: "active",
-    },
+    area_description: { type: String, required: true, trim: true },
+    status: { type: String, enum: ["active", "inactive"], required: true, default: "active" },
     latitude: {
       type: Number,
       min: -90,
@@ -116,10 +76,7 @@ const LocationSchema: Schema = new Schema(
         message: "Longitude must be between -180 and 180",
       },
     },
-    address: {
-      type: String,
-      trim: true,
-    },
+    address: { type: String, trim: true },
   },
   {
     timestamps: true,
@@ -145,21 +102,9 @@ export interface ISubLocation extends Document {
 
 const SubLocationSchema: Schema = new Schema(
   {
-    campus: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    tower: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    floor: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    campus: { type: String, required: true, trim: true },
+    tower: { type: String, required: true, trim: true },
+    floor: { type: String, required: true, trim: true },
     select_machine: {
       type: [String],
       required: true,
@@ -170,11 +115,7 @@ const SubLocationSchema: Schema = new Schema(
         message: "At least one machine must be selected",
       },
     },
-    location_id: {
-      type: Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
+    location_id: { type: Schema.Types.ObjectId, ref: "Location", required: true },
   },
   {
     timestamps: true,
@@ -199,31 +140,11 @@ export interface IMachineDetails extends Document {
 
 const MachineDetailsSchema: Schema = new Schema(
   {
-    machine_name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    sub_location_id: {
-      type: Schema.Types.ObjectId,
-      ref: "SubLocation",
-      required: true,
-    },
-    installed_status: {
-      type: String,
-      enum: ["installed", "not_installed"],
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      required: true,
-      default: "active",
-    },
-    machine_image: {
-      type: [machineImageSchema],
-      default: [],
-    },
+    machine_name: { type: String, required: true, trim: true },
+    sub_location_id: { type: Schema.Types.ObjectId, ref: "SubLocation", required: true },
+    installed_status: { type: String, enum: ["installed", "not_installed"], required: true },
+    status: { type: String, enum: ["active", "inactive"], required: true, default: "active" },
+    machine_image: { type: [machineImageSchema], default: [] },
   },
   {
     timestamps: true,
@@ -282,28 +203,15 @@ export interface IHistoryArea extends Document {
 
 const HistoryAreaSchema: Schema = new Schema(
   {
-    location_id: {
-      type: Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
+    location_id: { type: Schema.Types.ObjectId, ref: "Location", required: true },
     action: {
       type: String,
       enum: ["CREATE", "UPDATE", "DELETE", "STATUS_CHANGE", "ADD_SUB_LOCATION", "REMOVE_MACHINE"],
       required: true,
     },
-    old_data: {
-      type: Schema.Types.Mixed,
-      default: null,
-    },
-    new_data: {
-      type: Schema.Types.Mixed,
-      default: null,
-    },
-    changes: {
-      type: Schema.Types.Mixed,
-      default: null,
-    },
+    old_data: { type: Schema.Types.Mixed, default: null },
+    new_data: { type: Schema.Types.Mixed, default: null },
+    changes: { type: Schema.Types.Mixed, default: null },
     performed_by: {
       type: new Schema(
         {
@@ -315,18 +223,9 @@ const HistoryAreaSchema: Schema = new Schema(
       ),
       required: true,
     },
-    ip_address: {
-      type: String,
-      trim: true,
-    },
-    user_agent: {
-      type: String,
-      trim: true,
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
+    ip_address: { type: String, trim: true },
+    user_agent: { type: String, trim: true },
+    timestamp: { type: Date, default: Date.now },
   },
   {
     timestamps: true,

@@ -110,7 +110,7 @@ export interface IMachine extends Document {
   underMaintenance?: "yes" | "no";
   decommissioned?: "yes" | "no";
   internalTemperature?: number;
-  installed_status?: "yes" | "no";
+  installed_status?: "installed" | "not_installed";
   racks: Types.DocumentArray<IRack>;
   auditLogs: Types.DocumentArray<IAuditLog>;
   createdAt?: Date;
@@ -146,7 +146,11 @@ const MachineSchema = new Schema<IMachine>(
     decommissioned: { type: String, enum: ["yes", "no"], default: "no" },
     machineId: { type: String, index: true, unique: true, sparse: true },
     internalTemperature: { type: Number },
-    installed_status: { type: String, enum: ["yes", "no"], default: "no" },
+    installed_status: {
+      type: String,
+      enum: ["installed", "not_installed"],
+      default: "not_installed",
+    },
     racks: { type: [RackSubSchema], default: [] },
     auditLogs: { type: [AuditLogSubSchema], default: [] },
   },
