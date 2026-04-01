@@ -1278,58 +1278,43 @@ export class VendingMachineController {
       });
     }
   }
-
   static async getAuditTrailsByMachineId(req: Request, res: Response) {
     try {
       const { machineId } = req.params;
-      const { page = 1, limit = 10, skip, startDate, endDate, action, entityType } = req.query;
+      const { page = "1", limit = "10", skip, startDate, endDate, action, entityType } = req.query;
 
-      // Calculate skip based on page and limit if skip is not provided
-      const pageNum = parseInt(page as string);
-      const limitNum = parseInt(limit as string);
+      const pageNum = Math.max(1, parseInt(page as string));
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit as string))); // cap at 100
       const skipNum = skip ? parseInt(skip as string) : (pageNum - 1) * limitNum;
 
-      const options: any = {
+      const result = await MachineService.getAuditTrailsByMachineId(machineId, {
         limit: limitNum,
         skip: skipNum,
-      };
+        ...(startDate && { startDate: new Date(startDate as string) }),
+        ...(endDate && { endDate: new Date(endDate as string) }),
+        ...(action && { action: action as string }),
+        ...(entityType && { entityType: entityType as string }),
+      });
 
-      if (startDate) options.startDate = new Date(startDate as string);
-      if (endDate) options.endDate = new Date(endDate as string);
-      if (action) options.action = action as string;
-      if (entityType) options.entityType = entityType as string;
-
-      const result = await MachineService.getAuditTrailsByMachineId(machineId, options);
-
-      // Calculate pagination metadata
-      const total = result.total;
-      const totalPages = Math.ceil(total / limitNum);
+      const totalPages = Math.ceil(result.total / limitNum);
 
       res.status(200).json({
         success: true,
-        data: {
-          auditLogs: result.auditLogs,
-          machineInfo: {
-            machineId: result.machineId,
-            machineSerialNumber: result.machineSerialNumber,
-            machineModelNumber: result.machineModelNumber,
-          },
-          pagination: {
-            currentPage: pageNum,
-            totalPages: totalPages,
-            totalItems: total,
-            itemsPerPage: limitNum,
-            hasNextPage: pageNum < totalPages,
-            hasPrevPage: pageNum > 1,
-          },
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: result.total,
+          totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1,
         },
+        logs: result.logs,
       });
     } catch (error: any) {
-      logger.error("Error fetching audit trails by machine ID:", error);
-      res.status(500).json({
+      logger.error("Error fetching audit trails:", error);
+      res.status(error.message === "Machine not found" ? 404 : 500).json({
         success: false,
-        message: "Failed to fetch audit trails",
-        error: error.message,
+        message: error.message,
       });
     }
   }
