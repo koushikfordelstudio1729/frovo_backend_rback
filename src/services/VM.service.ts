@@ -1250,7 +1250,7 @@ export class MachineService {
     };
   }
   static async exportAllMachines(
-    format: "json" | "csv" = "json",
+    format: "json" | "csv" = "csv",
     options?: {
       machineType?: string;
       status?: string;
@@ -1306,57 +1306,6 @@ export class MachineService {
               },
             },
           },
-          occupiedSlots: {
-            $sum: {
-              $map: {
-                input: { $ifNull: ["$racks", []] },
-                as: "r",
-                in: {
-                  $size: {
-                    $filter: {
-                      input: { $ifNull: ["$$r.slotsList", []] },
-                      as: "s",
-                      cond: { $eq: ["$$s.status", "occupied"] },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          availableSlots: {
-            $sum: {
-              $map: {
-                input: { $ifNull: ["$racks", []] },
-                as: "r",
-                in: {
-                  $size: {
-                    $filter: {
-                      input: { $ifNull: ["$$r.slotsList", []] },
-                      as: "s",
-                      cond: { $eq: ["$$s.status", "available"] },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          maintenanceSlots: {
-            $sum: {
-              $map: {
-                input: { $ifNull: ["$racks", []] },
-                as: "r",
-                in: {
-                  $size: {
-                    $filter: {
-                      input: { $ifNull: ["$$r.slotsList", []] },
-                      as: "s",
-                      cond: { $eq: ["$$s.status", "maintenance"] },
-                    },
-                  },
-                },
-              },
-            },
-          },
         },
       },
     ]);
@@ -1378,14 +1327,6 @@ export class MachineService {
       "Internal Temperature": machine.internalTemperature || "",
       "Total Racks": machine.totalRacks,
       "Total Slots": machine.totalSlots,
-      "Occupied Slots": machine.occupiedSlots,
-      "Available Slots": machine.availableSlots,
-      "Maintenance Slots": machine.maintenanceSlots,
-      "Slot Utilization":
-        machine.totalSlots > 0
-          ? `${((machine.occupiedSlots / machine.totalSlots) * 100).toFixed(2)}%`
-          : "0%",
-      "Total Capacity": machine.totalCapacity,
       "Created At": machine.createdAt ? new Date(machine.createdAt).toISOString() : "",
       "Last Updated": machine.updatedAt ? new Date(machine.updatedAt).toISOString() : "",
     }));
@@ -1409,50 +1350,32 @@ export class MachineService {
     }
 
     let totalSlots = 0;
-    let occupiedSlots = 0;
-    let availableSlots = 0;
-    let maintenanceSlots = 0;
-    let totalCapacity = 0;
 
     const racksDetails =
       machine.racks?.map((rack: any) => {
         let rackOccupied = 0;
         let rackAvailable = 0;
-        let rackMaintenance = 0;
 
         const slotsDetails =
           rack.slotsList?.map((slot: any) => {
             if (slot.status === "occupied") {
               rackOccupied++;
-              occupiedSlots++;
             } else if (slot.status === "available") {
               rackAvailable++;
-              availableSlots++;
-            } else if (slot.status === "maintenance") {
-              rackMaintenance++;
-              maintenanceSlots++;
             }
 
             return {
               slotNumber: slot.slotNumber,
-              status: slot.status,
               productId: slot.productId || "",
-              productName: slot.productName || "",
-              price: slot.price || 0,
-              expiryDate: slot.expiryDate ? new Date(slot.expiryDate).toISOString() : "",
             };
           }) || [];
 
         totalSlots += rack.slots;
-        totalCapacity += rack.capacity;
 
         return {
           rackName: rack.rackName,
           slots: rack.slots,
           capacity: rack.capacity,
-          occupiedSlots: rackOccupied,
-          availableSlots: rackAvailable,
-          maintenanceSlots: rackMaintenance,
           slotsList: slotsDetails,
         };
       }) || [];
@@ -1477,14 +1400,6 @@ export class MachineService {
       "Internal Temperature": machine.internalTemperature || "",
       "Total Racks": machine.racks?.length || 0,
       "Total Slots": totalSlots,
-      "Occupied Slots": occupiedSlots,
-      "Available Slots": availableSlots,
-      "Maintenance Slots": maintenanceSlots,
-      "Slot Utilization":
-        totalSlots > 0 ? `${((occupiedSlots / totalSlots) * 100).toFixed(2)}%` : "0%",
-      "Total Capacity": totalCapacity,
-      "Capacity Utilization":
-        totalCapacity > 0 ? `${((occupiedSlots / totalCapacity) * 100).toFixed(2)}%` : "0%",
       "Created At": machine.createdAt ? new Date(machine.createdAt).toISOString() : "",
       "Last Updated": machine.updatedAt ? new Date(machine.updatedAt).toISOString() : "",
       Racks: racksDetails,
@@ -1510,12 +1425,6 @@ export class MachineService {
         "Internal Temperature",
         "Total Racks",
         "Total Slots",
-        "Occupied Slots",
-        "Available Slots",
-        "Maintenance Slots",
-        "Slot Utilization",
-        "Total Capacity",
-        "Capacity Utilization",
         "Created At",
         "Last Updated",
       ]);
@@ -1537,62 +1446,26 @@ export class MachineService {
         String(machineData["Internal Temperature"]),
         String(machineData["Total Racks"]),
         String(machineData["Total Slots"]),
-        String(machineData["Occupied Slots"]),
-        String(machineData["Available Slots"]),
-        String(machineData["Maintenance Slots"]),
-        machineData["Slot Utilization"],
-        String(machineData["Total Capacity"]),
-        machineData["Capacity Utilization"],
         machineData["Created At"],
         machineData["Last Updated"],
       ]);
 
       csvRows.push([]);
       csvRows.push(["RACK DETAILS"]);
-      csvRows.push([
-        "Rack Name",
-        "Slots",
-        "Capacity",
-        "Occupied Slots",
-        "Available Slots",
-        "Maintenance Slots",
-      ]);
+      csvRows.push(["Rack Name", "Slots", "Capacity"]);
 
       racksDetails.forEach(rack => {
-        csvRows.push([
-          rack.rackName,
-          String(rack.slots),
-          String(rack.capacity),
-          String(rack.occupiedSlots),
-          String(rack.availableSlots),
-          String(rack.maintenanceSlots),
-        ]);
+        csvRows.push([rack.rackName, String(rack.slots), String(rack.capacity)]);
       });
 
       if (racksDetails.length > 0) {
         csvRows.push([]);
         csvRows.push(["SLOT DETAILS"]);
-        csvRows.push([
-          "Rack Name",
-          "Slot Number",
-          "Status",
-          "Product ID",
-          "Product Name",
-          "Price",
-          "Expiry Date",
-        ]);
+        csvRows.push(["Rack Name", "Slot Number", "Product ID"]);
 
         racksDetails.forEach(rack => {
           rack.slotsList.forEach((slot: any) => {
-            csvRows.push([
-              rack.rackName,
-              slot.slotNumber,
-              slot.status,
-              slot.productId,
-              slot.productName,
-              String(slot.price),
-              slot.expiryDate,
-            ]);
+            csvRows.push([rack.rackName, slot.slotNumber, slot.productId]);
           });
         });
       }

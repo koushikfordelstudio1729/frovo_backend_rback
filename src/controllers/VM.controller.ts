@@ -64,6 +64,7 @@ export class VendingMachineController {
                       skuId: slot.product.sku_id,
                     }
                   : null,
+                no_of_products: slot.no_of_products,
               })),
             })) || [],
         },
@@ -120,6 +121,7 @@ export class VendingMachineController {
                       skuId: slot.product.sku_id,
                     }
                   : null,
+                no_of_products: slot.no_of_products,
               })) || [],
           })) || [],
       }));
@@ -187,8 +189,7 @@ export class VendingMachineController {
               slotsList: rack.slotsList?.map((slot: any) => ({
                 id: slot._id,
                 slotNumber: slot.slotNumber,
-                status: slot.status,
-                product: slot.product,
+                no_of_products: slot.no_of_products,
               })),
             })) || [],
         },
@@ -1544,9 +1545,6 @@ export class VendingMachineController {
     }
   }
 
-  /**
-   * Get machine dashboard statistics only (for stats cards)
-   */
   static async getMachineDashboardStats(req: Request, res: Response) {
     try {
       const stats = await MachineService.getMachineDashboardStats();
@@ -1565,15 +1563,6 @@ export class VendingMachineController {
     }
   }
 
-  /**
-   * Export machine dashboard data
-   * Query params:
-   *   - format: 'json' or 'csv' (default: 'csv')
-   *   - search: string
-   *   - machineType: string
-   *   - status: string
-   *   - connectivityStatus: string
-   */
   static async exportMachineDashboard(req: Request, res: Response) {
     try {
       const { format = "csv", search, machineType, status, connectivityStatus } = req.query;

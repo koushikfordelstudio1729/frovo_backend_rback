@@ -44,6 +44,7 @@ export interface ISlot {
   _id?: Types.ObjectId;
   slotNumber: string;
   product?: Types.ObjectId;
+  no_of_products?: number;
 }
 
 const SlotSubSchema = new Schema<ISlot>(
@@ -56,6 +57,11 @@ const SlotSubSchema = new Schema<ISlot>(
       type: Schema.Types.ObjectId,
       ref: "Catalogue",
       default: null,
+    },
+    no_of_products: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   { _id: true }
