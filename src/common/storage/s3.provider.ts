@@ -148,7 +148,8 @@ export class S3Provider implements IStorageProvider {
       };
     } catch (error: any) {
       logger.error("S3 upload error:", error);
-      throw new Error(`S3 upload failed: ${error.message}`);
+      const msg = error.message || error.Code || error.code || error.name || JSON.stringify(error);
+      throw new Error(`S3 upload failed: ${msg}`);
     }
   }
 

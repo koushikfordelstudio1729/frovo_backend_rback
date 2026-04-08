@@ -1338,6 +1338,11 @@ export class CategoryController extends BaseController {
       const { id } = req.params;
       const user = CategoryController.getLoggedInUser(req);
 
+      // Handle image deletions
+      const imagesToDelete: string[] = req.body.images_to_delete
+        ? JSON.parse(req.body.images_to_delete)
+        : [];
+
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {
         const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
@@ -1353,16 +1358,56 @@ export class CategoryController extends BaseController {
         const newCategoryImages = await Promise.all(uploadPromises);
 
         if (req.body.replace_images === "true") {
-          req.body.category_images = newCategoryImages;
+          req.body.category_image = newCategoryImages;
         } else {
           const currentCategory = await categoryService.getCategoryById(id);
           if (currentCategory) {
-            const currentImages = (currentCategory as any).category_images || [];
-            req.body.category_images = [...currentImages, ...newCategoryImages];
+            let currentImages = (currentCategory as any).category_image || [];
+            if (imagesToDelete.length > 0) {
+              // Delete from storage and filter out
+              const toRemove = currentImages.filter((img: any) =>
+                imagesToDelete.includes(String(img._id))
+              );
+              await Promise.all(
+                toRemove.map((img: any) =>
+                  imageUploadService
+                    .deleteFromCloudinary(img.cloudinary_public_id)
+                    .catch((e: any) =>
+                      logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
+                    )
+                )
+              );
+              currentImages = currentImages.filter(
+                (img: any) => !imagesToDelete.includes(String(img._id))
+              );
+            }
+            req.body.category_image = [...currentImages, ...newCategoryImages];
           }
         }
 
         logger.info(`Uploaded ${newCategoryImages.length} new category images`);
+      } else if (imagesToDelete.length > 0) {
+        // No new files, just deleting existing ones
+        const currentCategory = await categoryService.getCategoryById(id);
+        if (currentCategory) {
+          const currentImages = (currentCategory as any).category_image || [];
+          const toRemove = currentImages.filter((img: any) =>
+            imagesToDelete.includes(String(img._id))
+          );
+          await Promise.all(
+            toRemove.map((img: any) =>
+              imageUploadService
+                .deleteFromCloudinary(img.cloudinary_public_id)
+                .catch((e: any) =>
+                  logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
+                )
+            )
+          );
+          req.body.category_image = currentImages.filter(
+            (img: any) => !imagesToDelete.includes(String(img._id))
+          );
+          logger.info(`Deleted ${toRemove.length} category images`);
+        }
       }
 
       const updateData: UpdateCategoryDTO = { ...req.body };
@@ -2311,6 +2356,11 @@ export class SubCategoryController extends BaseController {
       const { id } = req.params;
       const user = SubCategoryController.getLoggedInUser(req);
 
+      // Handle image deletions
+      const imagesToDelete: string[] = req.body.images_to_delete
+        ? JSON.parse(req.body.images_to_delete)
+        : [];
+
       const files = req.files as Express.Multer.File[];
       if (files && files.length > 0) {
         const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || "frovo/subcategory_images";
@@ -2330,12 +2380,50 @@ export class SubCategoryController extends BaseController {
         } else {
           const currentSubCategory = await subCategoryService.getSubCategoryById(id);
           if (currentSubCategory) {
-            const currentImages = (currentSubCategory as any).sub_category_image || [];
+            let currentImages = (currentSubCategory as any).sub_category_image || [];
+            if (imagesToDelete.length > 0) {
+              const toRemove = currentImages.filter((img: any) =>
+                imagesToDelete.includes(String(img._id))
+              );
+              await Promise.all(
+                toRemove.map((img: any) =>
+                  imageUploadService
+                    .deleteFromCloudinary(img.cloudinary_public_id)
+                    .catch((e: any) =>
+                      logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
+                    )
+                )
+              );
+              currentImages = currentImages.filter(
+                (img: any) => !imagesToDelete.includes(String(img._id))
+              );
+            }
             req.body.sub_category_image = [...currentImages, ...newSubCategoryImages];
           }
         }
 
         logger.info(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
+      } else if (imagesToDelete.length > 0) {
+        const currentSubCategory = await subCategoryService.getSubCategoryById(id);
+        if (currentSubCategory) {
+          const currentImages = (currentSubCategory as any).sub_category_image || [];
+          const toRemove = currentImages.filter((img: any) =>
+            imagesToDelete.includes(String(img._id))
+          );
+          await Promise.all(
+            toRemove.map((img: any) =>
+              imageUploadService
+                .deleteFromCloudinary(img.cloudinary_public_id)
+                .catch((e: any) =>
+                  logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
+                )
+            )
+          );
+          req.body.sub_category_image = currentImages.filter(
+            (img: any) => !imagesToDelete.includes(String(img._id))
+          );
+          logger.info(`Deleted ${toRemove.length} sub-category images`);
+        }
       }
 
       const updateData: UpdateSubCategoryDTO = { ...req.body };
