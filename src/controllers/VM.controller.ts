@@ -17,11 +17,21 @@ export class VendingMachineController {
       userAgent: req.headers["user-agent"] || "unknown",
     };
   }
-
   static async createMachine(req: Request, res: Response) {
     try {
       // Auto-generate rack names before creating
       const machineData = { ...req.body };
+
+      // Validate machineId format if provided
+      if (machineData.machineId) {
+        const machineIdPattern = /^VM\d{7}$/;
+        if (!machineIdPattern.test(machineData.machineId)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid machineId format. Expected format: VMYYYYNNN (e.g., VM2026001)",
+          });
+        }
+      }
 
       if (machineData.racks && machineData.racks.length > 0) {
         machineData.racks = machineData.racks.map((rack: any, index: number) => ({
@@ -71,6 +81,16 @@ export class VendingMachineController {
       });
     } catch (error: any) {
       logger.error("Error creating machine:", error);
+
+      // Handle duplicate key error
+      if (error.code === 11000 && error.keyPattern?.machineId) {
+        return res.status(409).json({
+          success: false,
+          message: "Machine ID already exists",
+          error: "Duplicate machineId",
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: "Failed to create machine",
@@ -199,6 +219,37 @@ export class VendingMachineController {
       res.status(500).json({
         success: false,
         message: "Failed to fetch machine",
+        error: error.message,
+      });
+    }
+  }
+
+  static async checkMachineExists(req: Request, res: Response) {
+    try {
+      const { machineId } = req.params;
+
+      if (!machineId) {
+        return res.status(400).json({
+          success: false,
+          message: "Machine ID is required",
+        });
+      }
+
+      const exists = await MachineService.checkMachineExists(machineId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          machineId,
+          exists,
+          message: exists ? "Machine exists" : "Machine does not exist",
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error checking machine existence:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to check machine existence",
         error: error.message,
       });
     }
@@ -1640,3 +1691,4 @@ export const exportMachineById = VendingMachineController.exportMachineById;
 export const getMachineDashboard = VendingMachineController.getMachineDashboard;
 export const getMachineDashboardStats = VendingMachineController.getMachineDashboardStats;
 export const exportMachineDashboard = VendingMachineController.exportMachineDashboard;
+export const checkMachineExists = VendingMachineController.checkMachineExists;

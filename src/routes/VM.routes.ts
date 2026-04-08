@@ -41,6 +41,7 @@ import {
   getMachineDashboard,
   getMachineDashboardStats,
   exportMachineDashboard,
+  checkMachineExists,
 } from "../controllers/VM.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
@@ -79,7 +80,12 @@ router.delete(
   authorize(["super_admin", "ops_manager"]),
   deleteMachine
 );
-
+router.get(
+  "/machines/:machineId/exists",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  checkMachineExists
+);
 //Status routes
 router.patch(
   "/machines/:machineId/door/toggle",

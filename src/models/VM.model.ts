@@ -185,4 +185,59 @@ MachineSchema.pre("save", function (next) {
   next();
 });
 
+// Helper function to generate machine ID in format VM{year}XXX
+async function generateMachineId(): Promise<string> {
+  // Use UTC date to avoid timezone issues
+  const now = new Date();
+  const currentYear = now.getUTCFullYear(); // or getFullYear() based on your needs
+  const prefix = `VM${currentYear}`;
+
+  // Find the highest sequence number for this year
+  const lastMachine = await Machine.findOne(
+    { machineId: { $regex: `^${prefix}`, $options: "i" } },
+    { machineId: 1 }
+  )
+    .sort({ machineId: -1 })
+    .lean();
+
+  let nextSequence = 1;
+
+  if (lastMachine && lastMachine.machineId) {
+    // Extract the numeric part from VM2026001 -> 001
+    const match = lastMachine.machineId.match(/\d+$/);
+    if (match) {
+      const lastNumber = parseInt(match[0], 10);
+      nextSequence = lastNumber + 1;
+    }
+  }
+
+  // Format: VM2026001, VM2026002, etc.
+  const newMachineId = `${prefix}${nextSequence.toString().padStart(3, "0")}`;
+
+  return newMachineId;
+}
+
+MachineSchema.pre("save", async function (next) {
+  // Auto-generate machineId if not provided
+  if (!this.machineId || this.machineId === "") {
+    this.machineId = await generateMachineId();
+  }
+
+  // Auto-generate rack names and slot numbers
+  if (this.racks && this.racks.length > 0) {
+    this.racks.forEach((rack: any, index: number) => {
+      if (!rack.rackName || rack.rackName === "") {
+        rack.rackName = String.fromCharCode(65 + index);
+      }
+
+      if (!rack.slotsList || rack.slotsList.length !== rack.slots) {
+        const slotNumbers = generateSlotNumbers(rack.rackName, rack.slots);
+        rack.slotsList = slotNumbers.map(slotNumber => ({
+          slotNumber,
+        }));
+      }
+    });
+  }
+  next();
+});
 export const Machine = mongoose.model<IMachine>("Machine", MachineSchema);
