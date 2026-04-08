@@ -1,9 +1,6 @@
-// controllers/vendingMachine.controller.ts
 import { Request, Response } from "express";
 import { MachineService, AuditLogParams } from "../services/VM.service";
 import { logger } from "../utils/logger.util";
-
-// ========== MACHINE CONTROLLERS ==========
 
 export class VendingMachineController {
   private static getAuditParams(req: Request): AuditLogParams {
@@ -19,10 +16,8 @@ export class VendingMachineController {
   }
   static async createMachine(req: Request, res: Response) {
     try {
-      // Auto-generate rack names before creating
       const machineData = { ...req.body };
 
-      // Validate machineId format if provided
       if (machineData.machineId) {
         const machineIdPattern = /^VM\d{7}$/;
         if (!machineIdPattern.test(machineData.machineId)) {
@@ -82,7 +77,6 @@ export class VendingMachineController {
     } catch (error: any) {
       logger.error("Error creating machine:", error);
 
-      // Handle duplicate key error
       if (error.code === 11000 && error.keyPattern?.machineId) {
         return res.status(409).json({
           success: false,
@@ -316,8 +310,6 @@ export class VendingMachineController {
     }
   }
 
-  // ========== RACK CONTROLLERS ==========
-
   static async addRacks(req: Request, res: Response) {
     try {
       const { machineId } = req.params;
@@ -472,8 +464,6 @@ export class VendingMachineController {
     }
   }
 
-  // ========== SLOT CONTROLLERS ==========
-
   static async getMachineSlots(req: Request, res: Response) {
     try {
       const { machineId } = req.params;
@@ -518,136 +508,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  static async occupySlot(req: Request, res: Response) {
-    try {
-      const { slotId } = req.params;
-      const { productId, productName, price, expiryDate } = req.body;
-
-      if (!productId || !productName || !price) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID, name, and price are required",
-        });
-      }
-
-      const auditParams = VendingMachineController.getAuditParams(req);
-      const slot = await MachineService.occupySlot(
-        slotId,
-        {
-          productId,
-          productName,
-          price,
-          expiryDate,
-        },
-        auditParams
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Slot occupied successfully",
-        data: slot,
-      });
-    } catch (error: any) {
-      logger.error("Error occupying slot:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to occupy slot",
-        error: error.message,
-      });
-    }
-  }
-
-  static async freeSlot(req: Request, res: Response) {
-    try {
-      const { slotId } = req.params;
-      const auditParams = VendingMachineController.getAuditParams(req);
-      const slot = await MachineService.freeSlot(slotId, auditParams);
-
-      res.status(200).json({
-        success: true,
-        message: "Slot freed successfully",
-        data: slot,
-      });
-    } catch (error: any) {
-      logger.error("Error freeing slot:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to free slot",
-        error: error.message,
-      });
-    }
-  }
-
-  static async updateSlotStatus(req: Request, res: Response) {
-    try {
-      const { slotId } = req.params;
-      const { status } = req.body;
-
-      if (!status || !["available", "occupied", "maintenance"].includes(status)) {
-        return res.status(400).json({
-          success: false,
-          message: "Valid status (available, occupied, maintenance) is required",
-        });
-      }
-
-      const auditParams = VendingMachineController.getAuditParams(req);
-      const slot = await MachineService.updateSlotStatus(slotId, status, auditParams);
-
-      res.status(200).json({
-        success: true,
-        message: "Slot status updated successfully",
-        data: slot,
-      });
-    } catch (error: any) {
-      logger.error("Error updating slot status:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to update slot status",
-        error: error.message,
-      });
-    }
-  }
-
-  static async getAvailableSlots(req: Request, res: Response) {
-    try {
-      const { machineId } = req.params;
-      const slots = await MachineService.getAvailableSlots(machineId);
-
-      res.status(200).json({
-        success: true,
-        data: slots,
-      });
-    } catch (error: any) {
-      logger.error("Error fetching available slots:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch available slots",
-        error: error.message,
-      });
-    }
-  }
-
-  static async getOccupiedSlots(req: Request, res: Response) {
-    try {
-      const { machineId } = req.params;
-      const slots = await MachineService.getOccupiedSlots(machineId);
-
-      res.status(200).json({
-        success: true,
-        data: slots,
-      });
-    } catch (error: any) {
-      logger.error("Error fetching occupied slots:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch occupied slots",
-        error: error.message,
-      });
-    }
-  }
-
-  // ========== ADDITIONAL CONTROLLERS ==========
 
   static async getMachinesByType(req: Request, res: Response) {
     try {
@@ -717,8 +577,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== DOOR STATUS CONTROLLERS ==========
 
   static async toggleDoorStatus(req: Request, res: Response) {
     try {
@@ -823,8 +681,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== CONNECTIVITY STATUS CONTROLLERS ==========
 
   static async toggleConnectivityStatus(req: Request, res: Response) {
     try {
@@ -931,8 +787,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== MACHINE STATUS CONTROLLERS ==========
 
   static async toggleMachineStatus(req: Request, res: Response) {
     try {
@@ -1042,8 +896,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== UNDER MAINTENANCE STATUS CONTROLLERS ==========
 
   static async toggleUnderMaintenance(req: Request, res: Response) {
     try {
@@ -1163,8 +1015,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== DECOMMISSIONED STATUS CONTROLLERS ==========
 
   static async toggleDecommissioned(req: Request, res: Response) {
     try {
@@ -1294,8 +1144,6 @@ export class VendingMachineController {
       });
     }
   }
-
-  // ========== AUDIT TRAIL CONTROLLERS ==========
 
   static async getAllMachinesAuditTrails(req: Request, res: Response) {
     try {
@@ -1478,8 +1326,6 @@ export class VendingMachineController {
     }
   }
 
-  // ========== MACHINE EXPORT CONTROLLERS ==========
-
   static async exportAllMachines(req: Request, res: Response) {
     try {
       const { format = "csv", machineType, status, installed_status, decommissioned } = req.query;
@@ -1649,8 +1495,6 @@ export class VendingMachineController {
   }
 }
 
-// ========== EXPORT ALL CONTROLLER METHODS ==========
-
 export const createMachine = VendingMachineController.createMachine;
 export const getAllMachines = VendingMachineController.getAllMachines;
 export const getMachineById = VendingMachineController.getMachineById;
@@ -1663,11 +1507,6 @@ export const updateRack = VendingMachineController.updateRack;
 export const deleteRack = VendingMachineController.deleteRack;
 export const getMachineSlots = VendingMachineController.getMachineSlots;
 export const getSlotById = VendingMachineController.getSlotById;
-export const occupySlot = VendingMachineController.occupySlot;
-export const freeSlot = VendingMachineController.freeSlot;
-export const updateSlotStatus = VendingMachineController.updateSlotStatus;
-export const getAvailableSlots = VendingMachineController.getAvailableSlots;
-export const getOccupiedSlots = VendingMachineController.getOccupiedSlots;
 export const getMachinesByType = VendingMachineController.getMachinesByType;
 export const getActiveMachines = VendingMachineController.getActiveMachines;
 export const updateRacksBatch = VendingMachineController.updateRacksBatch;

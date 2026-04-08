@@ -16,11 +16,6 @@ import {
   updateRacksBatch,
   getMachineSlots,
   getSlotById,
-  occupySlot,
-  freeSlot,
-  updateSlotStatus,
-  getAvailableSlots,
-  getOccupiedSlots,
   toggleDoorStatus,
   updateDoorStatus,
   toggleConnectivityStatus,
@@ -179,6 +174,24 @@ router.get(
   authorize(["super_admin", "ops_manager"]),
   exportAllMachinesAuditTrails
 );
+router.get(
+  "/:machineId/audit-trails/export",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  exportAuditTrails
+);
+router.get(
+  "/audit-trails/all",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  getAllMachinesAuditTrails
+);
+router.get(
+  "/audit-trails/all/export",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  exportAllMachinesAuditTrails
+);
 
 // Machine export routes
 router.get(
@@ -226,6 +239,25 @@ router.delete(
   authorize(["super_admin", "ops_manager"]),
   deleteRack
 );
+router.put(
+  "/machines/:machineId/racks/batch",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  updateRacksBatch
+);
+router.get("/racks/:rackId", authenticate, authorize(["super_admin", "ops_manager"]), getRackById);
+router.put(
+  "/machines/:machineId/racks/:rackId",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  updateRack
+);
+router.delete(
+  "/machines/:machineId/racks/:rackId",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  deleteRack
+);
 router.get(
   "/dashboard",
   authenticate,
@@ -253,34 +285,4 @@ router.get(
   getMachineSlots
 );
 router.get("/slots/:slotId", authenticate, authorize(["super_admin", "ops_manager"]), getSlotById);
-router.patch(
-  "/slots/:slotId/occupy",
-  authenticate,
-  authorize(["super_admin", "ops_manager"]),
-  occupySlot
-);
-router.patch(
-  "/slots/:slotId/free",
-  authenticate,
-  authorize(["super_admin", "ops_manager"]),
-  freeSlot
-);
-router.patch(
-  "/slots/:slotId/status",
-  authenticate,
-  authorize(["super_admin", "ops_manager"]),
-  updateSlotStatus
-);
-router.get(
-  "/machines/:machineId/slots/available",
-  authenticate,
-  authorize(["super_admin", "ops_manager"]),
-  getAvailableSlots
-);
-router.get(
-  "/machines/:machineId/slots/occupied",
-  authenticate,
-  authorize(["super_admin", "ops_manager"]),
-  getOccupiedSlots
-);
 export default router;

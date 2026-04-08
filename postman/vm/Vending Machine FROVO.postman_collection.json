@@ -414,6 +414,43 @@
       "response": []
     },
     {
+      "name": "VM Exist or Not",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"machineId\": \"MACH-303\",\r\n  \"serialNumber\": \"RN223555613\",\r\n  \"modelNumber\": \"VM-2204\",\r\n  \"machineType\": \"combo\",\r\n  \"firmwareVersion\": \"1.5.0\",\r\n  \"height\": 190,\r\n  \"width\": 70,\r\n  \"length\": 40,\r\n  \"racks\": [\r\n    {\r\n      \"slots\": 5,\r\n      \"capacity\": 50\r\n    },\r\n    {\r\n      \"slots\": 3,\r\n      \"capacity\": 40\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/machines/:machineId/exists",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "machines",
+            ":machineId",
+            "exists"
+          ],
+          "variable": [
+            {
+              "key": "machineId",
+              "value": "MAC-002"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Get All VM",
       "protocolProfileBehavior": {
         "disableBodyPruning": true
@@ -891,7 +928,7 @@
     "bearer": [
       {
         "key": "token",
-        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzQ4NDE2NjIsImV4cCI6MTc3NDkyODA2MiwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.aFTHEQt4Z55JhxJee9ZQUwzZVGxbbyxFEXu1_dh_56s",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzU2MjQyNDcsImV4cCI6MTc3NTcxMDY0NywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.cXu65vcac8rS7VzzvcY3tc4k4z64o-Lrf8bZnixxXxQ",
         "type": "string"
       }
     ]

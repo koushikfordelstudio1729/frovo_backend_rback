@@ -1,7 +1,5 @@
-// models/machine.model.ts
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-// ==================== AUDIT LOG SUB-SCHEMA ====================
 export interface IAuditLog {
   action: string;
   entityType: string;
@@ -39,7 +37,6 @@ const AuditLogSubSchema = new Schema<IAuditLog>(
   { _id: true }
 );
 
-// ==================== SLOT SUB-SCHEMA ====================
 export interface ISlot {
   _id?: Types.ObjectId;
   slotNumber: string;
@@ -67,7 +64,6 @@ const SlotSubSchema = new Schema<ISlot>(
   { _id: true }
 );
 
-// ==================== RACK SUB-SCHEMA ====================
 export interface IRack {
   _id?: Types.ObjectId;
   rackName: string;
@@ -100,7 +96,6 @@ const RackSubSchema = new Schema<IRack>(
   { _id: true }
 );
 
-// ==================== MACHINE SCHEMA ====================
 export interface IMachine extends Document {
   machineId?: string;
   serialNumber: string;
@@ -123,7 +118,6 @@ export interface IMachine extends Document {
   updatedAt?: Date;
 }
 
-// Helper function to generate slot numbers
 function generateSlotNumbers(rackName: string, numberOfSlots: number): string[] {
   const slots: string[] = [];
   for (let i = 1; i <= numberOfSlots; i++) {
@@ -163,17 +157,12 @@ const MachineSchema = new Schema<IMachine>(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Pre-save middleware to auto-generate rack names and slot numbers
 MachineSchema.pre("save", function (next) {
-  // Auto-generate rack names if not provided
   if (this.racks && this.racks.length > 0) {
     this.racks.forEach((rack: any, index: number) => {
-      // If rackName is not provided, auto-generate it (A, B, C, D...)
       if (!rack.rackName || rack.rackName === "") {
         rack.rackName = String.fromCharCode(65 + index);
       }
-
-      // Generate slotsList if it doesn't exist or if slots count changed
       if (!rack.slotsList || rack.slotsList.length !== rack.slots) {
         const slotNumbers = generateSlotNumbers(rack.rackName, rack.slots);
         rack.slotsList = slotNumbers.map(slotNumber => ({
@@ -185,14 +174,11 @@ MachineSchema.pre("save", function (next) {
   next();
 });
 
-// Helper function to generate machine ID in format VM{year}XXX
 async function generateMachineId(): Promise<string> {
-  // Use UTC date to avoid timezone issues
   const now = new Date();
-  const currentYear = now.getUTCFullYear(); // or getFullYear() based on your needs
+  const currentYear = now.getUTCFullYear();
   const prefix = `VM${currentYear}`;
 
-  // Find the highest sequence number for this year
   const lastMachine = await Machine.findOne(
     { machineId: { $regex: `^${prefix}`, $options: "i" } },
     { machineId: 1 }
@@ -203,7 +189,6 @@ async function generateMachineId(): Promise<string> {
   let nextSequence = 1;
 
   if (lastMachine && lastMachine.machineId) {
-    // Extract the numeric part from VM2026001 -> 001
     const match = lastMachine.machineId.match(/\d+$/);
     if (match) {
       const lastNumber = parseInt(match[0], 10);
@@ -211,19 +196,15 @@ async function generateMachineId(): Promise<string> {
     }
   }
 
-  // Format: VM2026001, VM2026002, etc.
   const newMachineId = `${prefix}${nextSequence.toString().padStart(3, "0")}`;
 
   return newMachineId;
 }
 
 MachineSchema.pre("save", async function (next) {
-  // Auto-generate machineId if not provided
   if (!this.machineId || this.machineId === "") {
     this.machineId = await generateMachineId();
   }
-
-  // Auto-generate rack names and slot numbers
   if (this.racks && this.racks.length > 0) {
     this.racks.forEach((rack: any, index: number) => {
       if (!rack.rackName || rack.rackName === "") {
