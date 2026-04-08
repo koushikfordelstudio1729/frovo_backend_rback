@@ -19,6 +19,7 @@ import historyCatalogueRoutes from "./historyCatalogue.routes";
 import fieldOpsRoutes from "./fieldops.routes";
 import priceOverrideRoutes from "./priceOverride.routes";
 import VMroutes from "./VM.routes";
+import uploadRoutes from "./upload.routes";
 
 const router = Router();
 
@@ -51,5 +52,6 @@ router.use("/field-ops", fieldOpsRoutes);
 router.use("/price-override", priceOverrideRoutes);
 router.use("/", productRoutes);
 router.use("/vm", VMroutes);
+router.use("/upload", uploadRoutes);
 
 export default router;

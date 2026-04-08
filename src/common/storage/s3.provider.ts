@@ -77,6 +77,9 @@ export class S3Provider implements IStorageProvider {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
+      // Disable automatic checksum so presigned PUT URLs work from the browser
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     };
 
     if (config.endpoint) {
@@ -195,6 +198,34 @@ export class S3Provider implements IStorageProvider {
     });
 
     return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  async getPresignedUploadUrl(
+    key: string,
+    contentType: string,
+    expiresIn: number = 300
+  ): Promise<string> {
+    await this.initialize();
+
+    if (!this.client) {
+      throw new Error("S3 client not initialized");
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: this.getConfig().bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  buildFileUrl(key: string): string {
+    const config = this.getConfig();
+    if (config.endpoint) {
+      return `${config.endpoint}/${config.bucket}/${key}`;
+    }
+    return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`;
   }
 
   async exists(publicId: string): Promise<boolean> {

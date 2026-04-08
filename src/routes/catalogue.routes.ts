@@ -53,7 +53,6 @@ router.put(
   "/categories/:id",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   categoryController.updateCategory.bind(categoryController)
 );
 
@@ -116,7 +115,6 @@ router.put(
   "/sub-categories/:id",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   subCategoryController.updateSubCategory.bind(subCategoryController)
 );
 
@@ -153,7 +151,6 @@ router.post(
   "/sku-catalogues",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   catalogueController.createCatalogue.bind(catalogueController)
 );
 
@@ -211,7 +208,6 @@ router.put(
   "/sku-catalogues/:id",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   catalogueController.updateCatalogue.bind(catalogueController)
 );
 

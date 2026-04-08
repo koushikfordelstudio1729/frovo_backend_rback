@@ -54,28 +54,26 @@ export class CatalogueController extends BaseController {
       const userRole = roles[0]?.key || "unknown";
 
       let productImages: any[] = [];
-      const files = req.files as Express.Multer.File[];
 
-      if (files && files.length > 0) {
+      // Accept pre-uploaded image metadata (presigned URL flow)
+      if (req.body.new_images) {
+        const newImages: any[] = JSON.parse(req.body.new_images);
         const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || "10");
-        if (files.length > maxImages) {
+        if (newImages.length > maxImages) {
           res.status(400).json({
             success: false,
             message: `Maximum ${maxImages} images allowed`,
           });
           return;
         }
-
-        const folder = process.env.CATALOGUE_IMAGE_FOLDER || "frovo/catalogue_images";
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createProductDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        productImages = await Promise.all(uploadPromises);
+        productImages = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
       } else if (req.body.images) {
         productImages = Array.isArray(req.body.images)
           ? req.body.images
@@ -266,10 +264,11 @@ export class CatalogueController extends BaseController {
       const { id } = req.params;
       const user = CatalogueController.getLoggedInUser(req);
 
-      const files = req.files as Express.Multer.File[];
-      if (files && files.length > 0) {
+      // Accept pre-uploaded image metadata (presigned URL flow)
+      const newImages: any[] = req.body.new_images ? JSON.parse(req.body.new_images) : [];
+      if (newImages.length > 0) {
         const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || "10");
-        if (files.length > maxImages) {
+        if (newImages.length > maxImages) {
           res.status(400).json({
             success: false,
             message: `Maximum ${maxImages} images allowed`,
@@ -277,17 +276,14 @@ export class CatalogueController extends BaseController {
           return;
         }
 
-        const folder = process.env.CATALOGUE_IMAGE_FOLDER || "frovo/catalogue_images";
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createProductDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        const productImages = await Promise.all(uploadPromises);
-        req.body.product_images = productImages;
+        req.body.product_images = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
       }
 
       const updateData: UpdateCatalogueDTO = { ...req.body };
@@ -1343,19 +1339,18 @@ export class CategoryController extends BaseController {
         ? JSON.parse(req.body.images_to_delete)
         : [];
 
-      const files = req.files as Express.Multer.File[];
-      if (files && files.length > 0) {
-        const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
+      // Accept pre-uploaded image metadata (presigned URL flow)
+      const newImages: any[] = req.body.new_images ? JSON.parse(req.body.new_images) : [];
 
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createCategoryDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        const newCategoryImages = await Promise.all(uploadPromises);
+      if (newImages.length > 0) {
+        const newCategoryImages = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
 
         if (req.body.replace_images === "true") {
           req.body.category_image = newCategoryImages;
@@ -1364,7 +1359,6 @@ export class CategoryController extends BaseController {
           if (currentCategory) {
             let currentImages = (currentCategory as any).category_image || [];
             if (imagesToDelete.length > 0) {
-              // Delete from storage and filter out
               const toRemove = currentImages.filter((img: any) =>
                 imagesToDelete.includes(String(img._id))
               );
@@ -1385,9 +1379,9 @@ export class CategoryController extends BaseController {
           }
         }
 
-        logger.info(`Uploaded ${newCategoryImages.length} new category images`);
+        logger.info(`Saved ${newCategoryImages.length} new category images (presigned upload)`);
       } else if (imagesToDelete.length > 0) {
-        // No new files, just deleting existing ones
+        // No new images, just deleting existing ones
         const currentCategory = await categoryService.getCategoryById(id);
         if (currentCategory) {
           const currentImages = (currentCategory as any).category_image || [];
@@ -2361,19 +2355,18 @@ export class SubCategoryController extends BaseController {
         ? JSON.parse(req.body.images_to_delete)
         : [];
 
-      const files = req.files as Express.Multer.File[];
-      if (files && files.length > 0) {
-        const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || "frovo/subcategory_images";
+      // Accept pre-uploaded image metadata (presigned URL flow)
+      const newImages: any[] = req.body.new_images ? JSON.parse(req.body.new_images) : [];
 
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createSubCategoryDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        const newSubCategoryImages = await Promise.all(uploadPromises);
+      if (newImages.length > 0) {
+        const newSubCategoryImages = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
 
         if (req.body.replace_images === "true") {
           req.body.sub_category_image = newSubCategoryImages;
@@ -2402,7 +2395,9 @@ export class SubCategoryController extends BaseController {
           }
         }
 
-        logger.info(`Uploaded ${newSubCategoryImages.length} new sub-category images`);
+        logger.info(
+          `Saved ${newSubCategoryImages.length} new sub-category images (presigned upload)`
+        );
       } else if (imagesToDelete.length > 0) {
         const currentSubCategory = await subCategoryService.getSubCategoryById(id);
         if (currentSubCategory) {
