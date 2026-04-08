@@ -1166,22 +1166,18 @@ export class CategoryController extends BaseController {
       const user = CategoryController.getLoggedInUser(req);
 
       let categoryImagesData: any[] = [];
-      const files = req.files as Express.Multer.File[];
 
-      if (files && files.length > 0) {
-        const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
-
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createCategoryDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        categoryImagesData = await Promise.all(uploadPromises);
-
-        logger.info(`Uploaded ${categoryImagesData.length} category images`);
+      if (req.body.new_images) {
+        const newImages: any[] = JSON.parse(req.body.new_images);
+        categoryImagesData = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
+        logger.info(`Saved ${categoryImagesData.length} category images (presigned upload)`);
       }
 
       const categoryData: CreateCategoryDTO = {
@@ -2125,22 +2121,18 @@ export class SubCategoryController extends BaseController {
       const user = SubCategoryController.getLoggedInUser(req);
 
       let subCategoryImagesData: any[] = [];
-      const files = req.files as Express.Multer.File[];
 
-      if (files && files.length > 0) {
-        const folder = process.env.SUBCATEGORY_IMAGE_FOLDER || "frovo/subcategory_images";
-
-        const uploadPromises = files.map(file =>
-          imageUploadService
-            .uploadToCloudinary(file.buffer, file.originalname, folder)
-            .then(({ url, publicId }) =>
-              imageUploadService.createSubCategoryDocumentMetadata(file, url, publicId)
-            )
-        );
-
-        subCategoryImagesData = await Promise.all(uploadPromises);
-
-        logger.info(`Uploaded ${subCategoryImagesData.length} sub-category images`);
+      if (req.body.new_images) {
+        const newImages: any[] = JSON.parse(req.body.new_images);
+        subCategoryImagesData = newImages.map(img => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size || 0,
+          mime_type: img.mime_type || "application/octet-stream",
+          uploaded_at: new Date(),
+        }));
+        logger.info(`Saved ${subCategoryImagesData.length} sub-category images (presigned upload)`);
       }
 
       const subCategoryData: CreateSubCategoryDTO = {

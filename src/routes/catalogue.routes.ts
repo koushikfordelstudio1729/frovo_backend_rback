@@ -16,7 +16,6 @@ router.post(
   "/categories",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   categoryController.createCategory.bind(categoryController)
 );
 
@@ -86,7 +85,6 @@ router.post(
   "/sub-categories",
   authenticate,
   authorize(MANAGEMENT),
-  uploadMultiple,
   subCategoryController.createSubCategory.bind(subCategoryController)
 );
 
