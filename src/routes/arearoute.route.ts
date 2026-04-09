@@ -18,7 +18,8 @@ router.get("/location", authorize(STAFF), AreaController.getAllLocations);
 
 // Export routes MUST come before parameterized routes
 router.get("/location/export", authorize(STAFF), AreaController.exportLocations);
-router.get("/location/export/:ids", authorize(STAFF), AreaController.exportLocationsByIds);
+
+//router.get("/location/export/:ids", authorize(STAFF), AreaController.exportLocationsByIds);
 
 // Check location exists
 router.get("/location/check-exists", authorize(STAFF), AreaController.checkLocationExists);
@@ -105,7 +106,7 @@ router.get(
 
 router.get("/dashboard/data", authorize(STAFF), AreaController.getDashboardData);
 router.get("/dashboard/table", authorize(STAFF), AreaController.getDashboardTableData);
-router.get("/dashboard/export", authorize(STAFF), AreaController.exportDashboardData);
+//router.get("/dashboard/export", authorize(STAFF), AreaController.exportDashboardData);
 router.get("/filter/options", authorize(STAFF), AreaController.getFilterOptions);
 
 export default router;

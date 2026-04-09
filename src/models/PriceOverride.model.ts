@@ -72,7 +72,7 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
     },
     area_id: {
       type: Schema.Types.ObjectId,
-      ref: "AreaRoute",
+      ref: "Location",
       index: true,
     },
     area_name: {

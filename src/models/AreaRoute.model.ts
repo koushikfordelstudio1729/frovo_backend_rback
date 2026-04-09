@@ -106,7 +106,7 @@ const SubLocationSchema: Schema = new Schema(
     tower: { type: String, required: true, trim: true },
     floor: { type: String, required: true, trim: true },
     select_machine: {
-      type: [String],
+      type: [{ type: String, ref: "Machine" }],
       required: true,
       validate: {
         validator: function (v: string[]) {
@@ -129,7 +129,7 @@ SubLocationSchema.index({ location_id: 1 });
 export const SubLocationModel = mongoose.model<ISubLocation>("SubLocation", SubLocationSchema);
 
 export interface IMachineDetails extends Document {
-  machine_name: string;
+  machineId: string;
   sub_location_id: Types.ObjectId;
   installed_status: "installed" | "not_installed";
   status: "active" | "inactive";
@@ -140,7 +140,7 @@ export interface IMachineDetails extends Document {
 
 const MachineDetailsSchema: Schema = new Schema(
   {
-    machine_name: { type: String, required: true, trim: true },
+    machineId: { type: String, required: true, trim: true }, // ← renamed
     sub_location_id: { type: Schema.Types.ObjectId, ref: "SubLocation", required: true },
     installed_status: { type: String, enum: ["installed", "not_installed"], required: true },
     status: { type: String, enum: ["active", "inactive"], required: true, default: "active" },
@@ -152,18 +152,21 @@ const MachineDetailsSchema: Schema = new Schema(
   }
 );
 
-// Add a pre-save middleware to validate machine_name exists in sub-location
 MachineDetailsSchema.pre("save", async function (next) {
   try {
-    const subLocation = await mongoose.model("SubLocation").findById(this.sub_location_id);
+    const machine = await mongoose.model("Machine").findOne({ machineId: this.machineId });
+    if (!machine) {
+      throw new Error(`Machine with machineId "${this.machineId}" not found`);
+    }
 
+    const subLocation = await mongoose.model("SubLocation").findById(this.sub_location_id);
     if (!subLocation) {
       throw new Error("Sub-location not found");
     }
 
-    if (!subLocation.select_machine.includes(this.machine_name)) {
+    if (!subLocation.select_machine.includes(this.machineId)) {
       throw new Error(
-        `Machine "${this.machine_name}" is not in the selected machines list for this sub-location`
+        `Machine "${this.machineId}" is not in the selected machines list for this sub-location`
       );
     }
 
@@ -173,7 +176,8 @@ MachineDetailsSchema.pre("save", async function (next) {
   }
 });
 
-MachineDetailsSchema.index({ machine_name: 1, sub_location_id: 1 }, { unique: true });
+// Update index to use machineId
+MachineDetailsSchema.index({ machineId: 1, sub_location_id: 1 }, { unique: true });
 MachineDetailsSchema.index({ sub_location_id: 1 });
 MachineDetailsSchema.index({ status: 1 });
 MachineDetailsSchema.index({ installed_status: 1 });
