@@ -431,40 +431,238 @@ export class AreaService {
       },
     };
   }
-
-  static async getRecentActivities(limit: number = 10, filter?: any): Promise<any[]> {
+  static async getRecentActivities(
+    page: number = 1,
+    limit: number = 10,
+    filter?: any
+  ): Promise<{
+    activities: any[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+    };
+  }> {
     try {
+      const pageNum = Math.max(1, page);
+      const limitNum = Math.max(1, Math.min(limit, 100));
+      const skip = (pageNum - 1) * limitNum;
+
       let query = HistoryAreaModel.find();
       if (filter) query = query.where(filter);
 
+      // Get total count first
+      const totalItems = await HistoryAreaModel.countDocuments(filter || {});
+
+      // Get paginated activities with full population
       const activities = await query
         .sort({ timestamp: -1 })
-        .limit(limit)
-        .populate("location_id", "area_name state district")
+        .skip(skip)
+        .limit(limitNum)
+        .populate(
+          "location_id",
+          "area_name state district pincode status address latitude longitude"
+        )
         .lean();
 
-      return activities.map(activity => ({
-        id: activity._id,
-        action: activity.action,
-        location_id: (activity.location_id as any)?._id,
-        area_name: (activity.location_id as any)?.area_name || "Deleted Area",
-        area_state: (activity.location_id as any)?.state,
-        area_district: (activity.location_id as any)?.district,
-        performed_by: activity.performed_by,
-        ip_address: activity.ip_address,
-        user_agent: activity.user_agent,
-        timestamp: activity.timestamp,
-        changes: activity.changes,
-        old_data: activity.old_data,
-        new_data: activity.new_data,
-      }));
+      // Enrich activities with complete data
+      const enrichedActivities = await Promise.all(
+        activities.map(async activity => {
+          // Get complete location data
+          let completeLocationData = null;
+          if (activity.location_id) {
+            const locationObj = activity.location_id as any;
+            completeLocationData = {
+              id: locationObj._id,
+              area_name: locationObj.area_name || "Deleted Area",
+              state: locationObj.state,
+              district: locationObj.district,
+              pincode: locationObj.pincode,
+              status: locationObj.status,
+              address: locationObj.address,
+              latitude: locationObj.latitude,
+              longitude: locationObj.longitude,
+            };
+          }
+
+          // If location is deleted, try to get data from old_data
+          if (!activity.location_id && activity.old_data) {
+            completeLocationData = {
+              id: activity.old_data._id,
+              area_name: activity.old_data.area_name || "Deleted Area",
+              state: activity.old_data.state,
+              district: activity.old_data.district,
+              pincode: activity.old_data.pincode,
+              status: activity.old_data.status,
+              address: activity.old_data.address,
+              latitude: activity.old_data.latitude,
+              longitude: activity.old_data.longitude,
+            };
+          }
+
+          // Get sub-location details if present in changes
+          let subLocationDetails = null;
+          if (activity.changes) {
+            if (activity.changes.sub_location_added) {
+              subLocationDetails = {
+                action: "added",
+                campus: activity.changes.sub_location_added.new?.campus,
+                tower: activity.changes.sub_location_added.new?.tower,
+                floor: activity.changes.sub_location_added.new?.floor,
+                machines_count: activity.changes.sub_location_added.new?.machines_count,
+                machineIds: activity.changes.sub_location_added.new?.machineIds,
+              };
+            } else if (activity.changes.removed_sub_location) {
+              subLocationDetails = {
+                action: "removed",
+                campus: activity.changes.removed_sub_location.old?.campus,
+                tower: activity.changes.removed_sub_location.old?.tower,
+                floor: activity.changes.removed_sub_location.old?.floor,
+                machines_count: activity.changes.removed_sub_location.old?.machines_count,
+              };
+            } else if (activity.changes.select_machine) {
+              subLocationDetails = {
+                action: "updated_machines",
+                old_machines: activity.changes.select_machine.old,
+                new_machines: activity.changes.select_machine.new,
+                added_machines: activity.changes.select_machine.new?.filter(
+                  (id: string) => !activity.changes.select_machine.old?.includes(id)
+                ),
+                removed_machines: activity.changes.select_machine.old?.filter(
+                  (id: string) => !activity.changes.select_machine.new?.includes(id)
+                ),
+              };
+            } else if (
+              activity.changes.campus ||
+              activity.changes.tower ||
+              activity.changes.floor
+            ) {
+              subLocationDetails = {
+                action: "updated_details",
+                campus: activity.changes.campus,
+                tower: activity.changes.tower,
+                floor: activity.changes.floor,
+              };
+            }
+          }
+
+          // Get machine details if present in changes
+          let machineDetails = null;
+          if (activity.changes) {
+            if (activity.changes["machine.installed_status"]) {
+              machineDetails = {
+                type: "installed_status",
+                old_status: activity.changes["machine.installed_status"].old,
+                new_status: activity.changes["machine.installed_status"].new,
+              };
+            } else if (activity.changes["machine.status"]) {
+              machineDetails = {
+                type: "status",
+                old_status: activity.changes["machine.status"].old,
+                new_status: activity.changes["machine.status"].new,
+              };
+            } else if (activity.changes.removed_machine) {
+              machineDetails = {
+                type: "removed",
+                machineId: activity.changes.removed_machine.old?.machineId,
+                machine_details_id: activity.changes.removed_machine.old?.machine_details_id,
+              };
+            } else if (activity.changes.machine_images) {
+              machineDetails = {
+                type: "images_updated",
+                old_count: activity.changes.machine_images.old?.count,
+                new_count: activity.changes.machine_images.new?.count,
+                added_images: activity.changes.machine_images.new?.names,
+                removed_images: activity.changes.machine_images.old?.names,
+              };
+            }
+          }
+
+          // Get field changes for location updates
+          let fieldChanges = null;
+          if (
+            activity.changes &&
+            activity.action === "UPDATE" &&
+            !subLocationDetails &&
+            !machineDetails
+          ) {
+            fieldChanges = Object.keys(activity.changes).map(key => ({
+              field: key,
+              old_value: activity.changes[key].old,
+              new_value: activity.changes[key].new,
+            }));
+          }
+
+          // Format timestamp
+          const formattedTimestamp = activity.timestamp
+            ? new Date(activity.timestamp).toLocaleString()
+            : null;
+
+          return {
+            id: activity._id,
+            action: activity.action,
+            action_description: this.getActionDescription(activity.action),
+            location: completeLocationData,
+            sub_location: subLocationDetails,
+            machine: machineDetails,
+            field_changes: fieldChanges,
+            performed_by: {
+              user_id: activity.performed_by?.user_id,
+              email: activity.performed_by?.email,
+              name: activity.performed_by?.name,
+            },
+            ip_address: activity.ip_address,
+            user_agent: activity.user_agent,
+            timestamp: activity.timestamp,
+            formatted_timestamp: formattedTimestamp,
+            old_data: activity.old_data,
+            new_data: activity.new_data,
+            changes: activity.changes,
+          };
+        })
+      );
+
+      return {
+        activities: enrichedActivities,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalItems / limitNum),
+          totalItems,
+          itemsPerPage: limitNum,
+        },
+      };
     } catch (error) {
       logger.error("Error fetching recent activities:", error);
       throw error;
     }
   }
 
-  // ── Location CRUD ───────────────────────────────────────────────────────────
+  // Helper function to get action description
+  private static getActionDescription(action: string): string {
+    const descriptions: Record<string, string> = {
+      CREATE: "Created new location",
+      UPDATE: "Updated location information",
+      DELETE: "Deleted location",
+      STATUS_CHANGE: "Changed location status",
+      ADD_SUB_LOCATION: "Added new sub-location",
+      REMOVE_MACHINE: "Removed machine or sub-location",
+    };
+    return descriptions[action] || action;
+  }
+
+  // Helper function to get action type
+  private static getActionType(action: string): string {
+    const types: Record<string, string> = {
+      CREATE: "creation",
+      UPDATE: "modification",
+      DELETE: "deletion",
+      STATUS_CHANGE: "modification",
+      ADD_SUB_LOCATION: "addition",
+      REMOVE_MACHINE: "removal",
+    };
+    return types[action] || "unknown";
+  } // ── Location CRUD ───────────────────────────────────────────────────────────
 
   static async createLocation(
     locationData: CreateLocationDto,
@@ -1690,6 +1888,564 @@ export class AreaService {
     } catch (error) {
       logger.error("Error converting sub-locations to CSV:", error);
       return "Error generating sub-locations CSV";
+    }
+  }
+  // Add these to your AreaService class
+
+  /**
+   * Export a single location by ID with all its sub-locations and machines
+   */
+  static async exportLocationById(
+    locationId: string,
+    format: string = "json"
+  ): Promise<{ data: any; filename: string; contentType: string }> {
+    this.validateObjectId(locationId);
+
+    const location = await LocationModel.findById(locationId);
+    if (!location) throw new Error("Location not found");
+
+    // Get all sub-locations for this location
+    const subLocations = await SubLocationModel.find({ location_id: locationId });
+
+    // Enrich sub-locations with machine details
+    const enrichedSubLocations = await Promise.all(
+      subLocations.map(async subLoc => {
+        const machines = await MachineDetailsModel.find({
+          sub_location_id: subLoc._id,
+        });
+        return {
+          ...subLoc.toObject(),
+          machines: machines.map(m => ({
+            id: m._id,
+            machineId: m.machineId,
+            installed_status: m.installed_status,
+            status: m.status,
+            images_count: m.machine_image.length,
+            images: m.machine_image.map(img => ({
+              image_name: img.image_name,
+              file_url: img.file_url,
+              uploaded_at: img.uploaded_at,
+            })),
+            created_at: m.createdAt,
+            updated_at: m.updatedAt,
+          })),
+        };
+      })
+    );
+
+    // Calculate summary statistics
+    const totalMachines = enrichedSubLocations.reduce((sum, sl) => sum + sl.machines.length, 0);
+    const installedMachines = enrichedSubLocations.reduce(
+      (sum, sl) => sum + sl.machines.filter((m: any) => m.installed_status === "installed").length,
+      0
+    );
+    const activeMachines = enrichedSubLocations.reduce(
+      (sum, sl) => sum + sl.machines.filter((m: any) => m.status === "active").length,
+      0
+    );
+
+    const exportData = {
+      location: {
+        id: location._id,
+        area_name: location.area_name,
+        state: location.state,
+        district: location.district,
+        pincode: location.pincode,
+        area_description: location.area_description,
+        status: location.status,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        address: location.address,
+        created_at: location.createdAt,
+        updated_at: location.updatedAt,
+      },
+      sub_locations: enrichedSubLocations,
+      summary: {
+        total_sub_locations: enrichedSubLocations.length,
+        total_machines: totalMachines,
+        installed_machines: installedMachines,
+        not_installed_machines: totalMachines - installedMachines,
+        active_machines: activeMachines,
+        inactive_machines: totalMachines - activeMachines,
+      },
+      export_date: new Date().toISOString(),
+    };
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const locationName = location.area_name.replace(/[^a-zA-Z0-9]/g, "_");
+    const filename = `location-${locationName}-${timestamp}`;
+
+    if (format === "csv") {
+      return {
+        data: this.convertLocationToCSV(exportData),
+        filename: `${filename}.csv`,
+        contentType: "text/csv",
+      };
+    } else if (format === "json") {
+      return {
+        data: exportData,
+        filename: `${filename}.json`,
+        contentType: "application/json",
+      };
+    } else {
+      throw new Error('Unsupported format. Use "csv" or "json"');
+    }
+  }
+
+  /**
+   * Convert a single location to CSV format
+   */
+  private static convertLocationToCSV(exportData: any): string {
+    try {
+      let csv = "\ufeff";
+
+      // Location Information Section
+      csv += "LOCATION INFORMATION\n";
+      csv += `"Field","Value"\n`;
+      csv += `"Location ID","${exportData.location.id}"\n`;
+      csv += `"Area Name","${exportData.location.area_name.replace(/"/g, '""')}"\n`;
+      csv += `"State","${exportData.location.state.replace(/"/g, '""')}"\n`;
+      csv += `"District","${exportData.location.district.replace(/"/g, '""')}"\n`;
+      csv += `"Pincode","${exportData.location.pincode}"\n`;
+      csv += `"Area Description","${(exportData.location.area_description || "").replace(/"/g, '""')}"\n`;
+      csv += `"Status","${exportData.location.status}"\n`;
+      csv += `"Latitude","${exportData.location.latitude || ""}"\n`;
+      csv += `"Longitude","${exportData.location.longitude || ""}"\n`;
+      csv += `"Address","${(exportData.location.address || "").replace(/"/g, '""')}"\n`;
+      csv += `"Created At","${exportData.location.created_at || ""}"\n`;
+      csv += `"Updated At","${exportData.location.updated_at || ""}"\n`;
+      csv += `\n`;
+
+      // Summary Section
+      csv += "SUMMARY\n";
+      csv += `"Metric","Value"\n`;
+      csv += `"Total Sub-locations","${exportData.summary.total_sub_locations}"\n`;
+      csv += `"Total Machines","${exportData.summary.total_machines}"\n`;
+      csv += `"Installed Machines","${exportData.summary.installed_machines}"\n`;
+      csv += `"Not Installed Machines","${exportData.summary.not_installed_machines}"\n`;
+      csv += `"Active Machines","${exportData.summary.active_machines}"\n`;
+      csv += `"Inactive Machines","${exportData.summary.inactive_machines}"\n`;
+      csv += `\n`;
+
+      // Sub-locations and Machines Section
+      csv += "SUB-LOCATIONS AND MACHINES\n";
+      const headers = [
+        "Sub-location ID",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Selected Machines",
+        "Machine Details ID",
+        "Machine ID",
+        "Installed Status",
+        "Machine Status",
+        "Images Count",
+        "Machine Created At",
+        "Machine Updated At",
+      ];
+      csv += headers.join(",") + "\n";
+
+      for (const subLoc of exportData.sub_locations) {
+        if (subLoc.machines.length === 0) {
+          csv +=
+            [
+              subLoc._id,
+              `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.select_machine || []).join("; ").replace(/"/g, '""')}"`,
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ].join(",") + "\n";
+          continue;
+        }
+
+        for (const machine of subLoc.machines) {
+          csv +=
+            [
+              subLoc._id,
+              `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
+              `"${(subLoc.select_machine || []).join("; ").replace(/"/g, '""')}"`,
+              machine.id,
+              `"${machine.machineId || ""}"`,
+              machine.installed_status,
+              machine.status,
+              machine.images_count,
+              machine.created_at ? new Date(machine.created_at).toISOString() : "",
+              machine.updated_at ? new Date(machine.updated_at).toISOString() : "",
+            ].join(",") + "\n";
+        }
+      }
+
+      csv += `\n`;
+      csv += `"Export Date","${exportData.export_date}"\n`;
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting location to CSV:", error);
+      return "Error generating location CSV export";
+    }
+  }
+
+  /**
+   * Export dashboard data
+   */
+  static async exportDashboardData(
+    params: DashboardFilterParams,
+    format: string = "json"
+  ): Promise<{ data: any; filename: string; contentType: string }> {
+    const { status = "all", state, district, address, campus, tower, floor, search } = params;
+
+    // Get all locations matching the filter (no pagination for export)
+    const filter = this.buildDashboardFilter({ status, state, district, address, search });
+
+    let locations = await LocationModel.find(filter).sort({ area_name: 1 });
+
+    // Apply sub-location filters if needed
+    if (campus || tower || floor) {
+      const filteredLocations = await Promise.all(
+        locations.map(async location => {
+          const subFilter: any = { location_id: location._id };
+          if (campus) subFilter.campus = { $regex: campus, $options: "i" };
+          if (tower) subFilter.tower = { $regex: tower, $options: "i" };
+          if (floor) subFilter.floor = { $regex: floor, $options: "i" };
+          const subs = await SubLocationModel.find(subFilter);
+          return subs.length > 0 ? location : null;
+        })
+      );
+      locations = filteredLocations.filter(Boolean);
+    }
+
+    // Enrich locations with sub-locations and machines
+    const enrichedLocations = await Promise.all(
+      locations.map(async location => {
+        const subLocations = await SubLocationModel.find({
+          location_id: location._id,
+        });
+
+        const enrichedSubLocations = await Promise.all(
+          subLocations.map(async subLoc => {
+            // Apply sub-location filters
+            let shouldInclude = true;
+            if (campus && !subLoc.campus.toLowerCase().includes(campus.toLowerCase()))
+              shouldInclude = false;
+            if (tower && !subLoc.tower.toLowerCase().includes(tower.toLowerCase()))
+              shouldInclude = false;
+            if (floor && !subLoc.floor.toLowerCase().includes(floor.toLowerCase()))
+              shouldInclude = false;
+
+            if (!shouldInclude) return null;
+
+            const machines = await MachineDetailsModel.find({
+              sub_location_id: subLoc._id,
+            });
+
+            return {
+              ...subLoc.toObject(),
+              machines: machines.map(m => ({
+                id: m._id,
+                machineId: m.machineId,
+                installed_status: m.installed_status,
+                status: m.status,
+                images_count: m.machine_image.length,
+                created_at: m.createdAt,
+                updated_at: m.updatedAt,
+              })),
+            };
+          })
+        );
+
+        const validSubLocations = enrichedSubLocations.filter(Boolean);
+
+        // Calculate location statistics
+        const totalMachines = validSubLocations.reduce(
+          (sum, sl) => sum + (sl?.machines?.length || 0),
+          0
+        );
+        const installedMachines = validSubLocations.reduce(
+          (sum, sl) =>
+            sum +
+            (sl?.machines?.filter((m: any) => m.installed_status === "installed").length || 0),
+          0
+        );
+        const activeMachines = validSubLocations.reduce(
+          (sum, sl) => sum + (sl?.machines?.filter((m: any) => m.status === "active").length || 0),
+          0
+        );
+
+        return {
+          ...location.toObject(),
+          sub_locations: validSubLocations,
+          summary: {
+            total_sub_locations: validSubLocations.length,
+            total_machines: totalMachines,
+            installed_machines: installedMachines,
+            not_installed_machines: totalMachines - installedMachines,
+            active_machines: activeMachines,
+            inactive_machines: totalMachines - activeMachines,
+          },
+        };
+      })
+    );
+
+    // Get global statistics
+    const statistics = await this.getDashboardStatistics();
+
+    // Apply campus/tower/floor filters to statistics
+    let filteredStatistics = { ...statistics };
+    if (campus || tower || floor) {
+      const filteredMachines = await this.getFilteredMachineStatistics(campus, tower, floor);
+      filteredStatistics = {
+        ...statistics,
+        ...filteredMachines,
+      };
+    }
+
+    const exportData = {
+      export_date: new Date().toISOString(),
+      filters_applied: {
+        status,
+        state: state || null,
+        district: district || null,
+        address: address || null,
+        campus: campus || null,
+        tower: tower || null,
+        floor: floor || null,
+        search: search || null,
+      },
+      statistics: filteredStatistics,
+      locations: enrichedLocations,
+      total_locations: enrichedLocations.length,
+    };
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `dashboard-export-${timestamp}`;
+
+    if (format === "csv") {
+      return {
+        data: this.convertDashboardToCSV(exportData),
+        filename: `${filename}.csv`,
+        contentType: "text/csv",
+      };
+    } else if (format === "json") {
+      return {
+        data: exportData,
+        filename: `${filename}.json`,
+        contentType: "application/json",
+      };
+    } else {
+      throw new Error('Unsupported format. Use "csv" or "json"');
+    }
+  }
+
+  /**
+   * Get filtered machine statistics based on campus, tower, floor filters
+   */
+  private static async getFilteredMachineStatistics(
+    campus?: string,
+    tower?: string,
+    floor?: string
+  ): Promise<{
+    totalMachines: number;
+    installedMachines: number;
+    notInstalledMachines: number;
+    activeMachines: number;
+    inactiveMachines: number;
+  }> {
+    const subLocationFilter: any = {};
+    if (campus) subLocationFilter.campus = { $regex: campus, $options: "i" };
+    if (tower) subLocationFilter.tower = { $regex: tower, $options: "i" };
+    if (floor) subLocationFilter.floor = { $regex: floor, $options: "i" };
+
+    const subLocations = await SubLocationModel.find(subLocationFilter);
+    const subLocationIds = subLocations.map(sl => sl._id);
+
+    if (subLocationIds.length === 0) {
+      return {
+        totalMachines: 0,
+        installedMachines: 0,
+        notInstalledMachines: 0,
+        activeMachines: 0,
+        inactiveMachines: 0,
+      };
+    }
+
+    const result = await MachineDetailsModel.aggregate([
+      {
+        $match: {
+          sub_location_id: { $in: subLocationIds },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          installed: {
+            $sum: { $cond: [{ $eq: ["$installed_status", "installed"] }, 1, 0] },
+          },
+          active: {
+            $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    const stats = result[0] || { total: 0, installed: 0, active: 0 };
+    return {
+      totalMachines: stats.total,
+      installedMachines: stats.installed,
+      notInstalledMachines: stats.total - stats.installed,
+      activeMachines: stats.active,
+      inactiveMachines: stats.total - stats.active,
+    };
+  }
+
+  /**
+   * Convert dashboard data to CSV format
+   */
+  private static convertDashboardToCSV(exportData: any): string {
+    try {
+      let csv = "\ufeff";
+
+      // Export Information Section
+      csv += "DASHBOARD EXPORT REPORT\n";
+      csv += `"Export Date","${exportData.export_date}"\n`;
+      csv += `"Total Locations","${exportData.total_locations}"\n`;
+      csv += `\n`;
+
+      // Filters Applied Section
+      csv += "FILTERS APPLIED\n";
+      csv += `"Filter","Value"\n`;
+      csv += `"Status","${exportData.filters_applied.status}"\n`;
+      csv += `"State","${exportData.filters_applied.state || "All"}"\n`;
+      csv += `"District","${exportData.filters_applied.district || "All"}"\n`;
+      csv += `"Address","${exportData.filters_applied.address || "All"}"\n`;
+      csv += `"Campus","${exportData.filters_applied.campus || "All"}"\n`;
+      csv += `"Tower","${exportData.filters_applied.tower || "All"}"\n`;
+      csv += `"Floor","${exportData.filters_applied.floor || "All"}"\n`;
+      csv += `"Search","${exportData.filters_applied.search || "None"}"\n`;
+      csv += `\n`;
+
+      // Statistics Section
+      csv += "STATISTICS\n";
+      csv += `"Metric","Value"\n`;
+      csv += `"Total Locations","${exportData.statistics.totalLocations}"\n`;
+      csv += `"Active Locations","${exportData.statistics.activeLocations}"\n`;
+      csv += `"Inactive Locations","${exportData.statistics.inactiveLocations}"\n`;
+      csv += `"Total Machines","${exportData.statistics.totalMachines}"\n`;
+      csv += `"Installed Machines","${exportData.statistics.installedMachines}"\n`;
+      csv += `"Not Installed Machines","${exportData.statistics.notInstalledMachines}"\n`;
+      csv += `"Active Machines","${exportData.statistics.activeMachines}"\n`;
+      csv += `"Inactive Machines","${exportData.statistics.inactiveMachines}"\n`;
+      csv += `\n`;
+
+      // Locations Section
+      csv += "LOCATIONS DETAILS\n";
+      const headers = [
+        "Location ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Address",
+        "Sub-locations Count",
+        "Total Machines",
+        "Installed Machines",
+        "Not Installed Machines",
+        "Active Machines",
+        "Inactive Machines",
+        "Created At",
+        "Updated At",
+      ];
+      csv += headers.join(",") + "\n";
+
+      for (const location of exportData.locations) {
+        csv +=
+          [
+            location._id,
+            `"${(location.area_name || "").replace(/"/g, '""')}"`,
+            `"${(location.state || "").replace(/"/g, '""')}"`,
+            `"${(location.district || "").replace(/"/g, '""')}"`,
+            location.pincode || "",
+            location.status,
+            `"${(location.address || "").replace(/"/g, '""')}"`,
+            location.summary?.total_sub_locations || 0,
+            location.summary?.total_machines || 0,
+            location.summary?.installed_machines || 0,
+            location.summary?.not_installed_machines || 0,
+            location.summary?.active_machines || 0,
+            location.summary?.inactive_machines || 0,
+            location.createdAt ? new Date(location.createdAt).toISOString() : "",
+            location.updatedAt ? new Date(location.updatedAt).toISOString() : "",
+          ].join(",") + "\n";
+
+        // Add sub-locations details for this location
+        if (location.sub_locations && location.sub_locations.length > 0) {
+          csv += `\n"Sub-locations for ${location.area_name}","","","","","","","","","","","","","",""\n`;
+          const subHeaders = [
+            "Sub-location ID",
+            "Campus",
+            "Tower",
+            "Floor",
+            "Selected Machines",
+            "Total Machines",
+            "Installed",
+            "Not Installed",
+            "Active",
+            "Inactive",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ];
+          csv += subHeaders.join(",") + "\n";
+
+          for (const subLoc of location.sub_locations) {
+            const installed =
+              subLoc.machines?.filter((m: any) => m.installed_status === "installed").length || 0;
+            const notInstalled =
+              subLoc.machines?.filter((m: any) => m.installed_status === "not_installed").length ||
+              0;
+            const active = subLoc.machines?.filter((m: any) => m.status === "active").length || 0;
+            const inactive =
+              subLoc.machines?.filter((m: any) => m.status === "inactive").length || 0;
+
+            csv +=
+              [
+                subLoc._id,
+                `"${(subLoc.campus || "").replace(/"/g, '""')}"`,
+                `"${(subLoc.tower || "").replace(/"/g, '""')}"`,
+                `"${(subLoc.floor || "").replace(/"/g, '""')}"`,
+                `"${(subLoc.select_machine || []).join("; ").replace(/"/g, '""')}"`,
+                subLoc.machines?.length || 0,
+                installed,
+                notInstalled,
+                active,
+                inactive,
+                "",
+                "",
+                "",
+                "",
+                "",
+              ].join(",") + "\n";
+          }
+          csv += `\n`;
+        }
+      }
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting dashboard to CSV:", error);
+      return "Error generating dashboard CSV export";
     }
   }
 }

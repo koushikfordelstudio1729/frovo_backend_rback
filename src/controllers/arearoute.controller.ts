@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { AreaService, AuditLogParams } from "../services/arearoute.service";
+import { AreaService, AuditLogParams, DashboardFilterParams } from "../services/arearoute.service";
 import { ImageUploadService } from "../services/areaFileUpload.service";
 import { logger } from "../utils/logger.util";
 
@@ -1051,12 +1051,68 @@ export class AreaController {
 
   static async getRecentActivities(req: Request, res: Response): Promise<void> {
     try {
+      const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const activities = await AreaService.getRecentActivities(limit);
-      res.status(200).json({ success: true, data: activities });
+      const action = req.query.action as string;
+      const locationId = req.query.locationId as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      // Build filter
+      const filter: any = {};
+
+      if (action && action !== "all") {
+        filter.action = action;
+      }
+
+      if (locationId) {
+        if (!mongoose.Types.ObjectId.isValid(locationId)) {
+          res.status(400).json({ success: false, message: "Invalid location ID format" });
+          return;
+        }
+        filter.location_id = new mongoose.Types.ObjectId(locationId);
+      }
+
+      if (startDate || endDate) {
+        filter.timestamp = {};
+        if (startDate) {
+          filter.timestamp.$gte = new Date(startDate);
+        }
+        if (endDate) {
+          filter.timestamp.$lte = new Date(endDate);
+        }
+      }
+
+      const result = await AreaService.getRecentActivities(page, limit, filter);
+
+      // Get summary statistics
+      const totalByAction = await HistoryAreaModel.aggregate([
+        { $match: filter },
+        { $group: { _id: "$action", count: { $sum: 1 } } },
+      ]);
+
+      const actionSummary: Record<string, number> = {};
+      totalByAction.forEach(item => {
+        actionSummary[item._id] = item.count;
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          activities: result.activities,
+          summary: {
+            total: result.pagination.totalItems,
+            by_action: actionSummary,
+          },
+          pagination: result.pagination,
+        },
+      });
     } catch (error: any) {
       logger.error("Error fetching recent activities:", error);
-      res.status(500).json({ success: false, message: error.message || "Internal server error" });
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
     }
   }
 
@@ -1580,5 +1636,89 @@ export class AreaController {
 
     csv += `\n\nTotal Activities,${activities.length}\nExport Date,${new Date().toISOString()}\n`;
     return csv;
+  }
+
+  // Add these to your AreaController class
+
+  /**
+   * Export a single location by ID
+   * GET /api/locations/:locationId/export?format=csv|json
+   */
+  static async exportLocationById(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId } = req.params;
+      const format = (req.query.format as string) || "json";
+
+      if (!AreaController.isValidObjectId(locationId)) {
+        res.status(400).json({ success: false, message: "Invalid location ID" });
+        return;
+      }
+
+      const result = await AreaService.exportLocationById(locationId, format);
+
+      res.setHeader("Content-Type", result.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+
+      if (format === "csv") {
+        res.status(200).send(result.data);
+      } else {
+        res.status(200).json({
+          success: true,
+          ...result.data,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting location by ID:", error);
+      const status = error.message?.includes("not found") ? 404 : 500;
+      res.status(status).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
+
+  /**
+   * Export dashboard data
+   * GET /api/dashboard/export?format=csv|json&status=active&state=Maharashtra&campus=Main
+   */
+  static async exportDashboardData(req: Request, res: Response): Promise<void> {
+    try {
+      const format = (req.query.format as string) || "json";
+
+      const params = {
+        status: (req.query.status as "active" | "inactive" | "all") || "all",
+        state: req.query.state as string,
+        district: req.query.district as string,
+        address: req.query.address as string,
+        campus: req.query.campus as string,
+        tower: req.query.tower as string,
+        floor: req.query.floor as string,
+        search: req.query.search as string,
+        page: 1,
+        limit: 999999, // Get all data for export
+        sortBy: req.query.sortBy as string,
+        sortOrder: req.query.sortOrder as "asc" | "desc",
+      };
+
+      const result = await AreaService.exportDashboardData(params, format);
+
+      res.setHeader("Content-Type", result.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+
+      if (format === "csv") {
+        res.status(200).send(result.data);
+      } else {
+        res.status(200).json({
+          success: true,
+          ...result.data,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting dashboard data:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
   }
 }
