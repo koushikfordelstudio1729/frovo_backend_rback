@@ -431,6 +431,7 @@ export class AreaService {
       },
     };
   }
+
   static async getRecentActivities(
     page: number = 1,
     limit: number = 10,
@@ -449,14 +450,13 @@ export class AreaService {
       const limitNum = Math.max(1, Math.min(limit, 100));
       const skip = (pageNum - 1) * limitNum;
 
-      let query = HistoryAreaModel.find();
-      if (filter) query = query.where(filter);
+      const safeFilter = filter && typeof filter === "object" ? filter : {};
 
-      // Get total count first
-      const totalItems = await HistoryAreaModel.countDocuments(filter || {});
+      // Get total count
+      const totalItems = await HistoryAreaModel.countDocuments(safeFilter);
 
-      // Get paginated activities with full population
-      const activities = await query
+      // Get paginated activities
+      const activities = await HistoryAreaModel.find(safeFilter)
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -466,160 +466,209 @@ export class AreaService {
         )
         .lean();
 
-      // Enrich activities with complete data
+      if (!activities || !Array.isArray(activities)) {
+        return {
+          activities: [],
+          pagination: {
+            currentPage: pageNum,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: limitNum,
+          },
+        };
+      }
+
+      // Enrich activities
       const enrichedActivities = await Promise.all(
         activities.map(async activity => {
-          // Get complete location data
-          let completeLocationData = null;
-          if (activity.location_id) {
-            const locationObj = activity.location_id as any;
-            completeLocationData = {
-              id: locationObj._id,
-              area_name: locationObj.area_name || "Deleted Area",
-              state: locationObj.state,
-              district: locationObj.district,
-              pincode: locationObj.pincode,
-              status: locationObj.status,
-              address: locationObj.address,
-              latitude: locationObj.latitude,
-              longitude: locationObj.longitude,
-            };
-          }
+          try {
+            // Get complete location data
+            let completeLocationData = null;
 
-          // If location is deleted, try to get data from old_data
-          if (!activity.location_id && activity.old_data) {
-            completeLocationData = {
-              id: activity.old_data._id,
-              area_name: activity.old_data.area_name || "Deleted Area",
-              state: activity.old_data.state,
-              district: activity.old_data.district,
-              pincode: activity.old_data.pincode,
-              status: activity.old_data.status,
-              address: activity.old_data.address,
-              latitude: activity.old_data.latitude,
-              longitude: activity.old_data.longitude,
-            };
-          }
+            if (activity.location_id) {
+              const locationObj = activity.location_id as any;
+              completeLocationData = {
+                id: locationObj._id,
+                area_name: locationObj.area_name || "Deleted Area",
+                state: locationObj.state,
+                district: locationObj.district,
+                pincode: locationObj.pincode,
+                status: locationObj.status,
+                address: locationObj.address,
+                latitude: locationObj.latitude,
+                longitude: locationObj.longitude,
+              };
+            }
 
-          // Get sub-location details if present in changes
-          let subLocationDetails = null;
-          if (activity.changes) {
-            if (activity.changes.sub_location_added) {
-              subLocationDetails = {
-                action: "added",
-                campus: activity.changes.sub_location_added.new?.campus,
-                tower: activity.changes.sub_location_added.new?.tower,
-                floor: activity.changes.sub_location_added.new?.floor,
-                machines_count: activity.changes.sub_location_added.new?.machines_count,
-                machineIds: activity.changes.sub_location_added.new?.machineIds,
+            // If location is deleted, try to get data from old_data
+            if (!activity.location_id && activity.old_data) {
+              completeLocationData = {
+                id: activity.old_data._id,
+                area_name: activity.old_data.area_name || "Deleted Area",
+                state: activity.old_data.state,
+                district: activity.old_data.district,
+                pincode: activity.old_data.pincode,
+                status: activity.old_data.status,
+                address: activity.old_data.address,
+                latitude: activity.old_data.latitude,
+                longitude: activity.old_data.longitude,
               };
-            } else if (activity.changes.removed_sub_location) {
-              subLocationDetails = {
-                action: "removed",
-                campus: activity.changes.removed_sub_location.old?.campus,
-                tower: activity.changes.removed_sub_location.old?.tower,
-                floor: activity.changes.removed_sub_location.old?.floor,
-                machines_count: activity.changes.removed_sub_location.old?.machines_count,
-              };
-            } else if (activity.changes.select_machine) {
-              subLocationDetails = {
-                action: "updated_machines",
-                old_machines: activity.changes.select_machine.old,
-                new_machines: activity.changes.select_machine.new,
-                added_machines: activity.changes.select_machine.new?.filter(
-                  (id: string) => !activity.changes.select_machine.old?.includes(id)
-                ),
-                removed_machines: activity.changes.select_machine.old?.filter(
-                  (id: string) => !activity.changes.select_machine.new?.includes(id)
-                ),
-              };
-            } else if (
-              activity.changes.campus ||
-              activity.changes.tower ||
-              activity.changes.floor
+            }
+
+            // Get sub-location details if present in changes
+            let subLocationDetails = null;
+            if (activity.changes) {
+              if (activity.changes.sub_location_added) {
+                subLocationDetails = {
+                  action: "added",
+                  campus: activity.changes.sub_location_added.new?.campus,
+                  tower: activity.changes.sub_location_added.new?.tower,
+                  floor: activity.changes.sub_location_added.new?.floor,
+                  machines_count: activity.changes.sub_location_added.new?.machines_count,
+                  machineIds: activity.changes.sub_location_added.new?.machineIds,
+                };
+              } else if (activity.changes.removed_sub_location) {
+                subLocationDetails = {
+                  action: "removed",
+                  campus: activity.changes.removed_sub_location.old?.campus,
+                  tower: activity.changes.removed_sub_location.old?.tower,
+                  floor: activity.changes.removed_sub_location.old?.floor,
+                  machines_count: activity.changes.removed_sub_location.old?.machines_count,
+                };
+              } else if (activity.changes.select_machine) {
+                subLocationDetails = {
+                  action: "updated_machines",
+                  old_machines: activity.changes.select_machine.old,
+                  new_machines: activity.changes.select_machine.new,
+                  added_machines: Array.isArray(activity.changes.select_machine.new)
+                    ? activity.changes.select_machine.new.filter(
+                        (id: string) =>
+                          !Array.isArray(activity.changes.select_machine.old) ||
+                          !activity.changes.select_machine.old.includes(id)
+                      )
+                    : [],
+                  removed_machines: Array.isArray(activity.changes.select_machine.old)
+                    ? activity.changes.select_machine.old.filter(
+                        (id: string) =>
+                          !Array.isArray(activity.changes.select_machine.new) ||
+                          !activity.changes.select_machine.new.includes(id)
+                      )
+                    : [],
+                };
+              } else if (
+                activity.changes.campus ||
+                activity.changes.tower ||
+                activity.changes.floor
+              ) {
+                subLocationDetails = {
+                  action: "updated_details",
+                  campus: activity.changes.campus,
+                  tower: activity.changes.tower,
+                  floor: activity.changes.floor,
+                };
+              }
+            }
+
+            // Get machine details if present in changes
+            let machineDetails = null;
+            if (activity.changes) {
+              if (activity.changes["machine.installed_status"]) {
+                machineDetails = {
+                  type: "installed_status",
+                  old_status: activity.changes["machine.installed_status"].old,
+                  new_status: activity.changes["machine.installed_status"].new,
+                };
+              } else if (activity.changes["machine.status"]) {
+                machineDetails = {
+                  type: "status",
+                  old_status: activity.changes["machine.status"].old,
+                  new_status: activity.changes["machine.status"].new,
+                };
+              } else if (activity.changes.removed_machine) {
+                machineDetails = {
+                  type: "removed",
+                  machineId: activity.changes.removed_machine.old?.machineId,
+                  machine_details_id: activity.changes.removed_machine.old?.machine_details_id,
+                };
+              } else if (activity.changes.machine_images) {
+                machineDetails = {
+                  type: "images_updated",
+                  old_count: activity.changes.machine_images.old?.count,
+                  new_count: activity.changes.machine_images.new?.count,
+                  added_images: activity.changes.machine_images.new?.names,
+                  removed_images: activity.changes.machine_images.old?.names,
+                };
+              }
+            }
+
+            // Get field changes for location updates
+            let fieldChanges = null;
+            if (
+              activity.changes &&
+              activity.action === "UPDATE" &&
+              !subLocationDetails &&
+              !machineDetails
             ) {
-              subLocationDetails = {
-                action: "updated_details",
-                campus: activity.changes.campus,
-                tower: activity.changes.tower,
-                floor: activity.changes.floor,
-              };
+              fieldChanges = Object.keys(activity.changes).map(key => ({
+                field: key,
+                old_value: activity.changes[key].old,
+                new_value: activity.changes[key].new,
+              }));
             }
+
+            // Format timestamp
+            const formattedTimestamp = activity.timestamp
+              ? new Date(activity.timestamp).toLocaleString()
+              : null;
+
+            return {
+              id: activity._id,
+              action: activity.action,
+              action_description: this.getActionDescription(activity.action),
+              location: completeLocationData,
+              sub_location: subLocationDetails,
+              machine: machineDetails,
+              field_changes: fieldChanges,
+              performed_by: {
+                user_id: activity.performed_by?.user_id,
+                email: activity.performed_by?.email,
+                name: activity.performed_by?.name,
+              },
+              ip_address: activity.ip_address,
+              user_agent: activity.user_agent,
+              timestamp: activity.timestamp,
+              formatted_timestamp: formattedTimestamp,
+              old_data: activity.old_data,
+              new_data: activity.new_data,
+              changes: activity.changes,
+            };
+          } catch (enrichError) {
+            logger.error("Error enriching activity:", enrichError);
+            // Return partial activity instead of crashing the whole list
+            return {
+              id: activity._id,
+              action: activity.action,
+              action_description: this.getActionDescription(activity.action),
+              location: null,
+              sub_location: null,
+              machine: null,
+              field_changes: null,
+              performed_by: {
+                user_id: activity.performed_by?.user_id,
+                email: activity.performed_by?.email,
+                name: activity.performed_by?.name,
+              },
+              ip_address: activity.ip_address,
+              user_agent: activity.user_agent,
+              timestamp: activity.timestamp,
+              formatted_timestamp: activity.timestamp
+                ? new Date(activity.timestamp).toLocaleString()
+                : null,
+              old_data: null,
+              new_data: null,
+              changes: null,
+            };
           }
-
-          // Get machine details if present in changes
-          let machineDetails = null;
-          if (activity.changes) {
-            if (activity.changes["machine.installed_status"]) {
-              machineDetails = {
-                type: "installed_status",
-                old_status: activity.changes["machine.installed_status"].old,
-                new_status: activity.changes["machine.installed_status"].new,
-              };
-            } else if (activity.changes["machine.status"]) {
-              machineDetails = {
-                type: "status",
-                old_status: activity.changes["machine.status"].old,
-                new_status: activity.changes["machine.status"].new,
-              };
-            } else if (activity.changes.removed_machine) {
-              machineDetails = {
-                type: "removed",
-                machineId: activity.changes.removed_machine.old?.machineId,
-                machine_details_id: activity.changes.removed_machine.old?.machine_details_id,
-              };
-            } else if (activity.changes.machine_images) {
-              machineDetails = {
-                type: "images_updated",
-                old_count: activity.changes.machine_images.old?.count,
-                new_count: activity.changes.machine_images.new?.count,
-                added_images: activity.changes.machine_images.new?.names,
-                removed_images: activity.changes.machine_images.old?.names,
-              };
-            }
-          }
-
-          // Get field changes for location updates
-          let fieldChanges = null;
-          if (
-            activity.changes &&
-            activity.action === "UPDATE" &&
-            !subLocationDetails &&
-            !machineDetails
-          ) {
-            fieldChanges = Object.keys(activity.changes).map(key => ({
-              field: key,
-              old_value: activity.changes[key].old,
-              new_value: activity.changes[key].new,
-            }));
-          }
-
-          // Format timestamp
-          const formattedTimestamp = activity.timestamp
-            ? new Date(activity.timestamp).toLocaleString()
-            : null;
-
-          return {
-            id: activity._id,
-            action: activity.action,
-            action_description: this.getActionDescription(activity.action),
-            location: completeLocationData,
-            sub_location: subLocationDetails,
-            machine: machineDetails,
-            field_changes: fieldChanges,
-            performed_by: {
-              user_id: activity.performed_by?.user_id,
-              email: activity.performed_by?.email,
-              name: activity.performed_by?.name,
-            },
-            ip_address: activity.ip_address,
-            user_agent: activity.user_agent,
-            timestamp: activity.timestamp,
-            formatted_timestamp: formattedTimestamp,
-            old_data: activity.old_data,
-            new_data: activity.new_data,
-            changes: activity.changes,
-          };
         })
       );
 
@@ -634,7 +683,16 @@ export class AreaService {
       };
     } catch (error) {
       logger.error("Error fetching recent activities:", error);
-      throw error;
+      // Return empty result instead of throwing — controller handles display
+      return {
+        activities: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limit,
+        },
+      };
     }
   }
 
@@ -1890,11 +1948,7 @@ export class AreaService {
       return "Error generating sub-locations CSV";
     }
   }
-  // Add these to your AreaService class
 
-  /**
-   * Export a single location by ID with all its sub-locations and machines
-   */
   static async exportLocationById(
     locationId: string,
     format: string = "json"
@@ -1904,10 +1958,8 @@ export class AreaService {
     const location = await LocationModel.findById(locationId);
     if (!location) throw new Error("Location not found");
 
-    // Get all sub-locations for this location
     const subLocations = await SubLocationModel.find({ location_id: locationId });
 
-    // Enrich sub-locations with machine details
     const enrichedSubLocations = await Promise.all(
       subLocations.map(async subLoc => {
         const machines = await MachineDetailsModel.find({

@@ -140,7 +140,7 @@ export interface IMachineDetails extends Document {
 
 const MachineDetailsSchema: Schema = new Schema(
   {
-    machineId: { type: String, required: true, trim: true }, // ← renamed
+    machineId: { type: String, required: true, trim: true },
     sub_location_id: { type: Schema.Types.ObjectId, ref: "SubLocation", required: true },
     installed_status: { type: String, enum: ["installed", "not_installed"], required: true },
     status: { type: String, enum: ["active", "inactive"], required: true, default: "active" },

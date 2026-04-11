@@ -1048,7 +1048,6 @@ export class AreaController {
         .json({ success: false, message: error.message || "Internal server error" });
     }
   }
-
   static async getRecentActivities(req: Request, res: Response): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
@@ -1067,7 +1066,11 @@ export class AreaController {
 
       if (locationId) {
         if (!mongoose.Types.ObjectId.isValid(locationId)) {
-          res.status(400).json({ success: false, message: "Invalid location ID format" });
+          res.status(400).json({
+            success: false,
+            activities: [],
+            message: "Invalid location ID format",
+          });
           return;
         }
         filter.location_id = new mongoose.Types.ObjectId(locationId);
@@ -1098,24 +1101,32 @@ export class AreaController {
 
       res.status(200).json({
         success: true,
-        data: {
-          activities: result.activities,
-          summary: {
-            total: result.pagination.totalItems,
-            by_action: actionSummary,
-          },
-          pagination: result.pagination,
+        activities: Array.isArray(result.activities) ? result.activities : [],
+        summary: {
+          total: result.pagination.totalItems,
+          by_action: actionSummary,
         },
+        pagination: result.pagination,
       });
     } catch (error: any) {
       logger.error("Error fetching recent activities:", error);
       res.status(500).json({
         success: false,
+        activities: [],
+        summary: {
+          total: 0,
+          by_action: {},
+        },
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: 10,
+        },
         message: error.message || "Internal server error",
       });
     }
   }
-
   // ── Dashboard endpoints ─────────────────────────────────────────────────────
 
   static async getDashboardData(req: Request, res: Response): Promise<void> {
@@ -1638,23 +1649,17 @@ export class AreaController {
     return csv;
   }
 
-  // Add these to your AreaController class
-
-  /**
-   * Export a single location by ID
-   * GET /api/locations/:locationId/export?format=csv|json
-   */
   static async exportLocationById(req: Request, res: Response): Promise<void> {
     try {
-      const { locationId } = req.params;
+      const { ids } = req.params;
       const format = (req.query.format as string) || "json";
 
-      if (!AreaController.isValidObjectId(locationId)) {
+      if (!AreaController.isValidObjectId(ids)) {
         res.status(400).json({ success: false, message: "Invalid location ID" });
         return;
       }
 
-      const result = await AreaService.exportLocationById(locationId, format);
+      const result = await AreaService.exportLocationById(ids, format);
 
       res.setHeader("Content-Type", result.contentType);
       res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
