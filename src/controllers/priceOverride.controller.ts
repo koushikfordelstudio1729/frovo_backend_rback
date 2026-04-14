@@ -8,7 +8,6 @@ import {
 import { logger } from "../utils/logger.util";
 
 class PriceOverrideController {
-  // Create price override
   async createPriceOverride(req: Request, res: Response): Promise<void> {
     try {
       const service = createPriceOverrideService(req);
@@ -31,6 +30,38 @@ class PriceOverrideController {
         res.status(400).json({
           success: false,
           message: "SKU ID is required",
+        });
+        return;
+      }
+
+      if (!data.state) {
+        res.status(400).json({
+          success: false,
+          message: "State is required",
+        });
+        return;
+      }
+
+      if (!data.district) {
+        res.status(400).json({
+          success: false,
+          message: "District is required",
+        });
+        return;
+      }
+
+      if (!data.area_id) {
+        res.status(400).json({
+          success: false,
+          message: "Area ID is required",
+        });
+        return;
+      }
+
+      if (!data.machine_id) {
+        res.status(400).json({
+          success: false,
+          message: "Machine ID is required",
         });
         return;
       }
@@ -59,15 +90,6 @@ class PriceOverrideController {
         return;
       }
 
-      // At least one location level must be specified
-      if (!data.state && !data.district && !data.area_id && !data.machine_id) {
-        res.status(400).json({
-          success: false,
-          message: "At least one location level (state, district, area, or machine) is required",
-        });
-        return;
-      }
-
       const priceOverride = await service.createPriceOverride(data);
 
       res.status(201).json({
@@ -77,6 +99,21 @@ class PriceOverrideController {
       });
     } catch (error: any) {
       logger.error("Create price override error:", error);
+
+      // Handle specific validation errors
+      if (
+        error.message.includes("state does not match") ||
+        error.message.includes("district does not match") ||
+        error.message.includes("machine is not assigned") ||
+        error.message.includes("not found in the system")
+      ) {
+        res.status(422).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
+
       res.status(400).json({
         success: false,
         message: error.message || "Failed to create price override",

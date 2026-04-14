@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+// Update PriceOverride model interfaces
 export interface IPriceOverride extends Document {
   _id: Types.ObjectId;
   sku_id: Types.ObjectId;
@@ -7,17 +8,17 @@ export interface IPriceOverride extends Document {
   product_name: string;
   original_base_price: number;
 
-  // Location hierarchy (all optional - for granular overrides)
-  state?: string;
-  district?: string;
-  area_id?: Types.ObjectId;
-  area_name?: string;
+  // Location hierarchy with validation
+  state: string; // Required - must match area's state
+  district: string; // Required - must match area's district
+  area_id: Types.ObjectId; // Required - reference to Location
+  area_name: string;
   location?: {
     campus?: string;
     tower?: string;
     floor?: string;
   };
-  machine_id?: string;
+  machine_id: string; // Required - must exist in Machine collection and be assigned to this area
 
   // Override details
   override_price: number;
@@ -27,7 +28,7 @@ export interface IPriceOverride extends Document {
 
   // Status
   status: "active" | "inactive" | "expired";
-  priority: number; // Higher = more specific (machine > location > area > district > state)
+  priority: number;
 
   // Audit
   created_by: Types.ObjectId;
@@ -36,6 +37,7 @@ export interface IPriceOverride extends Document {
   updatedAt: Date;
 }
 
+// Update Schema
 const PriceOverrideSchema = new Schema<IPriceOverride>(
   {
     sku_id: {
@@ -59,24 +61,28 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
       min: 0,
     },
 
-    // Location hierarchy
+    // Location hierarchy - all required
     state: {
       type: String,
+      required: true,
       trim: true,
       index: true,
     },
     district: {
       type: String,
+      required: true,
       trim: true,
       index: true,
     },
     area_id: {
       type: Schema.Types.ObjectId,
       ref: "Location",
+      required: true,
       index: true,
     },
     area_name: {
       type: String,
+      required: true,
       trim: true,
     },
     location: {
@@ -86,11 +92,11 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
     },
     machine_id: {
       type: String,
+      required: true,
       trim: true,
       index: true,
     },
 
-    // Override details
     override_price: {
       type: Number,
       required: true,
@@ -113,7 +119,6 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
       maxlength: 500,
     },
 
-    // Status
     status: {
       type: String,
       enum: ["active", "inactive", "expired"],
@@ -122,17 +127,11 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
     },
     priority: {
       type: Number,
-      default: 1,
+      default: 5, // Machine level is highest priority
       min: 1,
       max: 5,
-      // 1 = State level
-      // 2 = District level
-      // 3 = Area level
-      // 4 = Location level (campus/tower/floor)
-      // 5 = Machine level (most specific)
     },
 
-    // Audit
     created_by: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -149,11 +148,11 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
 );
 
 // Compound indexes for efficient querying
-PriceOverrideSchema.index({ sku_id: 1, status: 1, start_date: 1, end_date: 1 });
 PriceOverrideSchema.index({ sku_id: 1, machine_id: 1, status: 1 });
-PriceOverrideSchema.index({ sku_id: 1, state: 1, district: 1, area_id: 1, status: 1 });
-PriceOverrideSchema.index({ status: 1, end_date: 1 }); // For expiry check job
-
+PriceOverrideSchema.index({ sku_id: 1, area_id: 1, status: 1 });
+PriceOverrideSchema.index({ machine_id: 1, status: 1, start_date: 1, end_date: 1 });
+PriceOverrideSchema.index({ area_id: 1, status: 1 });
+PriceOverrideSchema.index({ state: 1, district: 1, area_id: 1 });
 // History Model
 export interface IPriceOverrideHistory extends Document {
   _id: Types.ObjectId;

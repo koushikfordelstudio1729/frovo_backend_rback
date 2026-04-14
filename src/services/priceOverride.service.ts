@@ -7,21 +7,21 @@ import {
   IPriceOverrideHistory,
 } from "../models/PriceOverride.model";
 import { CatalogueModel } from "../models/Catalogue.model";
-import { LocationModel } from "../models/AreaRoute.model";
+import { LocationModel, MachineDetailsModel } from "../models/AreaRoute.model";
 import { logger } from "../utils/logger.util";
+import { Machine } from "../models/VM.model";
 
-// DTOs
 export interface CreatePriceOverrideDTO {
   sku_id: string;
-  state?: string;
-  district?: string;
-  area_id?: string;
+  state: string; // Required
+  district: string; // Required
+  area_id: string; // Required
   location?: {
     campus?: string;
     tower?: string;
     floor?: string;
   };
-  machine_id?: string;
+  machine_id: string; // Required
   override_price: number;
   start_date: Date;
   end_date: Date;
@@ -85,7 +85,7 @@ export class PriceOverrideService {
 
   // Calculate priority based on location specificity
   private calculatePriority(data: CreatePriceOverrideDTO | UpdatePriceOverrideDTO): number {
-    if (data.machine_id) return 5; // Most specific
+    if (data.machine_id) return 5; // Machine level - highest priority
     if (data.location?.campus || data.location?.tower || data.location?.floor) return 4;
     if (data.area_id) return 3;
     if (data.district) return 2;
@@ -167,10 +167,107 @@ export class PriceOverrideService {
       logger.error("Failed to log price override history:", error);
     }
   }
+  // Validate that state and district match the area
+  private async validateAreaLocation(
+    areaId: string,
+    state: string,
+    district: string,
+    machineId?: string
+  ): Promise<{ area: any; isValid: boolean; message?: string }> {
+    // Validate area exists
+    if (!mongoose.Types.ObjectId.isValid(areaId)) {
+      return { isValid: false, area: null, message: "Invalid area ID format" };
+    }
 
-  // Create price override
+    const area = await LocationModel.findById(areaId);
+    if (!area) {
+      return { isValid: false, area: null, message: "Area not found" };
+    }
+
+    // Validate state matches
+    if (area.state.toLowerCase() !== state.toLowerCase()) {
+      return {
+        isValid: false,
+        area: null,
+        message: `State "${state}" does not match area's state "${area.state}". Please provide the correct state for this area.`,
+      };
+    }
+
+    // Validate district matches
+    if (area.district.toLowerCase() !== district.toLowerCase()) {
+      return {
+        isValid: false,
+        area: null,
+        message: `District "${district}" does not match area's district "${area.district}". Please provide the correct district for this area.`,
+      };
+    }
+
+    return { isValid: true, area };
+  }
+
+  // Validate that machine exists and is assigned to the area
+  private async validateMachineInArea(
+    machineId: string,
+    areaId: string
+  ): Promise<{ isValid: boolean; message?: string; machineDetails?: any }> {
+    // Check if machine exists in Machine collection
+    const machine = await Machine.findOne({ machineId });
+    if (!machine) {
+      return {
+        isValid: false,
+        message: `Machine with ID "${machineId}" not found in the system. Please create the machine first.`,
+      };
+    }
+
+    // Check if machine is assigned to any sub-location in this area
+    const machineDetails = await MachineDetailsModel.findOne({ machineId }).populate({
+      path: "sub_location_id",
+      populate: {
+        path: "location_id",
+      },
+    });
+
+    if (!machineDetails || !machineDetails.sub_location_id) {
+      return {
+        isValid: false,
+        message: `Machine "${machineId}" is not assigned to any sub-location. Please assign it to a sub-location in the area first.`,
+      };
+    }
+
+    const subLocation = machineDetails.sub_location_id as any;
+    const location = subLocation?.location_id as any;
+
+    if (!location || location._id.toString() !== areaId) {
+      return {
+        isValid: false,
+        message: `Machine "${machineId}" is not assigned to the specified area. Please ensure the machine is assigned to a sub-location within this area.`,
+      };
+    }
+
+    return {
+      isValid: true,
+      machineDetails: {
+        machine,
+        subLocation,
+        location,
+      },
+    };
+  }
+
+  // Create price override with validations
   async createPriceOverride(data: CreatePriceOverrideDTO): Promise<IPriceOverride> {
     try {
+      // Validate required fields
+      if (!data.sku_id) throw new Error("SKU ID is required");
+      if (!data.state) throw new Error("State is required");
+      if (!data.district) throw new Error("District is required");
+      if (!data.area_id) throw new Error("Area ID is required");
+      if (!data.machine_id) throw new Error("Machine ID is required");
+      if (!data.override_price) throw new Error("Override price is required");
+      if (!data.start_date) throw new Error("Start date is required");
+      if (!data.end_date) throw new Error("End date is required");
+      if (!data.reason) throw new Error("Reason is required");
+
       // Validate SKU exists
       if (!mongoose.Types.ObjectId.isValid(data.sku_id)) {
         throw new Error("Invalid SKU ID format");
@@ -181,25 +278,36 @@ export class PriceOverrideService {
         throw new Error("SKU not found in catalogue");
       }
 
-      // Validate area if provided
-      let areaName: string | undefined;
-      if (data.area_id) {
-        if (!mongoose.Types.ObjectId.isValid(data.area_id)) {
-          throw new Error("Invalid Area ID format");
-        }
-        const area = await LocationModel.findById(data.area_id);
-        if (!area) {
-          throw new Error("Area not found");
-        }
-        areaName = area.area_name;
+      // Validate area, state, and district match
+      const areaValidation = await this.validateAreaLocation(
+        data.area_id,
+        data.state,
+        data.district,
+        data.machine_id
+      );
+
+      if (!areaValidation.isValid) {
+        throw new Error(areaValidation.message);
+      }
+
+      // Validate machine exists and is assigned to this area
+      const machineValidation = await this.validateMachineInArea(data.machine_id, data.area_id);
+
+      if (!machineValidation.isValid) {
+        throw new Error(machineValidation.message);
       }
 
       // Validate dates
       const startDate = new Date(data.start_date);
       const endDate = new Date(data.end_date);
+      const now = new Date();
 
       if (startDate >= endDate) {
         throw new Error("End date must be after start date");
+      }
+
+      if (startDate < now) {
+        throw new Error("Start date cannot be in the past");
       }
 
       // Validate override price
@@ -207,9 +315,10 @@ export class PriceOverrideService {
         throw new Error("Override price cannot be negative");
       }
 
-      // Check for conflicting overrides
-      const conflictQuery: any = {
+      // Check for conflicting active overrides for this machine and SKU
+      const conflictingOverride = await PriceOverrideModel.findOne({
         sku_id: data.sku_id,
+        machine_id: data.machine_id,
         status: "active",
         $or: [
           {
@@ -217,18 +326,12 @@ export class PriceOverrideService {
             end_date: { $gte: startDate },
           },
         ],
-      };
+      });
 
-      // Add location filters for conflict check
-      if (data.machine_id) conflictQuery.machine_id = data.machine_id;
-      if (data.area_id) conflictQuery.area_id = data.area_id;
-      if (data.district) conflictQuery.district = data.district;
-      if (data.state) conflictQuery.state = data.state;
-
-      const conflictingOverride = await PriceOverrideModel.findOne(conflictQuery);
       if (conflictingOverride) {
         throw new Error(
-          `A conflicting price override already exists for this SKU and location (ID: ${conflictingOverride._id})`
+          `A conflicting price override already exists for this SKU and machine (ID: ${conflictingOverride._id}). ` +
+            `Valid from ${conflictingOverride.start_date.toLocaleDateString()} to ${conflictingOverride.end_date.toLocaleDateString()}`
         );
       }
 
@@ -242,7 +345,7 @@ export class PriceOverrideService {
         state: data.state,
         district: data.district,
         area_id: data.area_id,
-        area_name: areaName,
+        area_name: areaValidation.area.area_name,
         location: data.location,
         machine_id: data.machine_id,
         override_price: data.override_price,
@@ -262,13 +365,232 @@ export class PriceOverrideService {
       logger.info("Price override created:", {
         id: savedOverride._id,
         sku: savedOverride.sku_code,
+        machine: savedOverride.machine_id,
+        area: savedOverride.area_name,
         override_price: savedOverride.override_price,
-        priority: savedOverride.priority,
       });
 
       return savedOverride;
     } catch (error: any) {
       logger.error("Error creating price override:", error);
+      throw error;
+    }
+  }
+
+  // Update price override with validations
+  async updatePriceOverride(id: string, data: UpdatePriceOverrideDTO): Promise<IPriceOverride> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new Error("Invalid price override ID format");
+      }
+
+      const existingOverride = await PriceOverrideModel.findById(id);
+      if (!existingOverride) {
+        throw new Error("Price override not found");
+      }
+
+      const oldData = existingOverride.toObject();
+
+      // Validate area, state, district if any of them are being updated
+      if (data.area_id || data.state || data.district || data.machine_id) {
+        const areaId = data.area_id || existingOverride.area_id.toString();
+        const state = data.state || existingOverride.state;
+        const district = data.district || existingOverride.district;
+        const machineId = data.machine_id || existingOverride.machine_id;
+
+        // Validate area location
+        const areaValidation = await this.validateAreaLocation(areaId, state, district, machineId);
+        if (!areaValidation.isValid) {
+          throw new Error(areaValidation.message);
+        }
+
+        // Validate machine in area if machine_id is being updated
+        if (data.machine_id && data.machine_id !== existingOverride.machine_id) {
+          const machineValidation = await this.validateMachineInArea(data.machine_id, areaId);
+          if (!machineValidation.isValid) {
+            throw new Error(machineValidation.message);
+          }
+        }
+      }
+
+      // Validate dates if provided
+      if (data.start_date || data.end_date) {
+        const startDate = data.start_date ? new Date(data.start_date) : existingOverride.start_date;
+        const endDate = data.end_date ? new Date(data.end_date) : existingOverride.end_date;
+
+        if (startDate >= endDate) {
+          throw new Error("End date must be after start date");
+        }
+
+        if (startDate < new Date() && existingOverride.status === "active") {
+          throw new Error("Cannot update start date to a past date for active override");
+        }
+      }
+
+      // Validate override price
+      if (data.override_price !== undefined && data.override_price < 0) {
+        throw new Error("Override price cannot be negative");
+      }
+
+      // Calculate changes
+      const changes: { field: string; old_value: any; new_value: any }[] = [];
+      const updateFields: any = {};
+
+      if (
+        data.override_price !== undefined &&
+        data.override_price !== existingOverride.override_price
+      ) {
+        changes.push({
+          field: "override_price",
+          old_value: existingOverride.override_price,
+          new_value: data.override_price,
+        });
+        updateFields.override_price = data.override_price;
+      }
+
+      if (data.start_date) {
+        changes.push({
+          field: "start_date",
+          old_value: existingOverride.start_date,
+          new_value: data.start_date,
+        });
+        updateFields.start_date = data.start_date;
+      }
+
+      if (data.end_date) {
+        changes.push({
+          field: "end_date",
+          old_value: existingOverride.end_date,
+          new_value: data.end_date,
+        });
+        updateFields.end_date = data.end_date;
+      }
+
+      if (data.reason && data.reason !== existingOverride.reason) {
+        changes.push({
+          field: "reason",
+          old_value: existingOverride.reason,
+          new_value: data.reason,
+        });
+        updateFields.reason = data.reason;
+      }
+
+      if (data.status && data.status !== existingOverride.status) {
+        changes.push({
+          field: "status",
+          old_value: existingOverride.status,
+          new_value: data.status,
+        });
+        updateFields.status = data.status;
+      }
+
+      // Update location fields
+      if (data.state !== undefined) updateFields.state = data.state;
+      if (data.district !== undefined) updateFields.district = data.district;
+      if (data.area_id !== undefined) updateFields.area_id = data.area_id;
+      if (data.location !== undefined) updateFields.location = data.location;
+      if (data.machine_id !== undefined) updateFields.machine_id = data.machine_id;
+
+      // Recalculate priority if location changed
+      if (data.machine_id || data.area_id || data.district || data.state) {
+        const newPriority = this.calculatePriority({
+          ...existingOverride.toObject(),
+          ...data,
+        } as unknown as CreatePriceOverrideDTO);
+        updateFields.priority = newPriority;
+      }
+
+      updateFields.updated_by = (this.req as any)?.user?._id || (this.req as any)?.user?.id;
+
+      const updatedOverride = await PriceOverrideModel.findByIdAndUpdate(
+        id,
+        { $set: updateFields },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedOverride) {
+        throw new Error("Failed to update price override");
+      }
+
+      // Log history
+      const action =
+        data.status === "active"
+          ? "ACTIVATE"
+          : data.status === "inactive"
+            ? "DEACTIVATE"
+            : "UPDATE";
+      await this.logHistory(action, updatedOverride, oldData, changes);
+
+      logger.info("Price override updated:", {
+        id: updatedOverride._id,
+        changes: changes.length,
+      });
+
+      return updatedOverride;
+    } catch (error: any) {
+      logger.error("Error updating price override:", error);
+      throw error;
+    }
+  }
+
+  // Get effective price with machine validation
+  async getEffectivePrice(
+    skuId: string,
+    machineId: string, // Now required
+    areaId?: string,
+    district?: string,
+    state?: string
+  ): Promise<EffectivePriceResult> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(skuId)) {
+        throw new Error("Invalid SKU ID format");
+      }
+
+      if (!machineId) {
+        throw new Error("Machine ID is required to get effective price");
+      }
+
+      const catalogue = await CatalogueModel.findById(skuId);
+      if (!catalogue) {
+        throw new Error("SKU not found");
+      }
+
+      const now = new Date();
+
+      // Get machine-specific override (highest priority)
+      const override = await PriceOverrideModel.findOne({
+        sku_id: skuId,
+        machine_id: machineId,
+        status: "active",
+        start_date: { $lte: now },
+        end_date: { $gte: now },
+      }).lean();
+
+      const result: EffectivePriceResult = {
+        sku_id: skuId,
+        sku_code: catalogue.sku_id,
+        product_name: catalogue.product_name,
+        base_price: catalogue.base_price,
+        effective_price: catalogue.base_price,
+        is_overridden: false,
+      };
+
+      if (override) {
+        result.effective_price = override.override_price;
+        result.is_overridden = true;
+        result.override_details = {
+          override_id: override._id.toString(),
+          override_price: override.override_price,
+          level: "Machine",
+          reason: override.reason,
+          start_date: override.start_date,
+          end_date: override.end_date,
+        };
+      }
+
+      return result;
+    } catch (error: any) {
+      logger.error("Error getting effective price:", error);
       throw error;
     }
   }
@@ -371,134 +693,6 @@ export class PriceOverrideService {
     }
   }
 
-  // Update price override
-  async updatePriceOverride(id: string, data: UpdatePriceOverrideDTO): Promise<IPriceOverride> {
-    try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new Error("Invalid price override ID format");
-      }
-
-      const existingOverride = await PriceOverrideModel.findById(id);
-      if (!existingOverride) {
-        throw new Error("Price override not found");
-      }
-
-      const oldData = existingOverride.toObject();
-
-      // Validate dates if provided
-      if (data.start_date || data.end_date) {
-        const startDate = data.start_date ? new Date(data.start_date) : existingOverride.start_date;
-        const endDate = data.end_date ? new Date(data.end_date) : existingOverride.end_date;
-
-        if (startDate >= endDate) {
-          throw new Error("End date must be after start date");
-        }
-      }
-
-      // Validate override price
-      if (data.override_price !== undefined && data.override_price < 0) {
-        throw new Error("Override price cannot be negative");
-      }
-
-      // Calculate changes
-      const changes: { field: string; old_value: any; new_value: any }[] = [];
-      const updateFields: any = {};
-
-      if (
-        data.override_price !== undefined &&
-        data.override_price !== existingOverride.override_price
-      ) {
-        changes.push({
-          field: "override_price",
-          old_value: existingOverride.override_price,
-          new_value: data.override_price,
-        });
-        updateFields.override_price = data.override_price;
-      }
-
-      if (data.start_date) {
-        changes.push({
-          field: "start_date",
-          old_value: existingOverride.start_date,
-          new_value: data.start_date,
-        });
-        updateFields.start_date = data.start_date;
-      }
-
-      if (data.end_date) {
-        changes.push({
-          field: "end_date",
-          old_value: existingOverride.end_date,
-          new_value: data.end_date,
-        });
-        updateFields.end_date = data.end_date;
-      }
-
-      if (data.reason && data.reason !== existingOverride.reason) {
-        changes.push({
-          field: "reason",
-          old_value: existingOverride.reason,
-          new_value: data.reason,
-        });
-        updateFields.reason = data.reason;
-      }
-
-      if (data.status && data.status !== existingOverride.status) {
-        changes.push({
-          field: "status",
-          old_value: existingOverride.status,
-          new_value: data.status,
-        });
-        updateFields.status = data.status;
-      }
-
-      // Update location fields
-      if (data.state !== undefined) updateFields.state = data.state;
-      if (data.district !== undefined) updateFields.district = data.district;
-      if (data.area_id !== undefined) updateFields.area_id = data.area_id;
-      if (data.location !== undefined) updateFields.location = data.location;
-      if (data.machine_id !== undefined) updateFields.machine_id = data.machine_id;
-
-      // Recalculate priority if location changed
-      const newPriority = this.calculatePriority({
-        ...existingOverride.toObject(),
-        ...data,
-      } as unknown as CreatePriceOverrideDTO);
-      updateFields.priority = newPriority;
-
-      updateFields.updated_by = (this.req as any)?.user?._id || (this.req as any)?.user?.id;
-
-      const updatedOverride = await PriceOverrideModel.findByIdAndUpdate(
-        id,
-        { $set: updateFields },
-        { new: true, runValidators: true }
-      );
-
-      if (!updatedOverride) {
-        throw new Error("Failed to update price override");
-      }
-
-      // Log history
-      const action =
-        data.status === "active"
-          ? "ACTIVATE"
-          : data.status === "inactive"
-            ? "DEACTIVATE"
-            : "UPDATE";
-      await this.logHistory(action, updatedOverride, oldData, changes);
-
-      logger.info("Price override updated:", {
-        id: updatedOverride._id,
-        changes: changes.length,
-      });
-
-      return updatedOverride;
-    } catch (error: any) {
-      logger.error("Error updating price override:", error);
-      throw error;
-    }
-  }
-
   // Delete price override
   async deletePriceOverride(id: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -529,123 +723,6 @@ export class PriceOverrideService {
       throw error;
     }
   }
-
-  // Get effective price for a SKU at a specific location/machine
-  async getEffectivePrice(
-    skuId: string,
-    machineId?: string,
-    areaId?: string,
-    district?: string,
-    state?: string
-  ): Promise<EffectivePriceResult> {
-    try {
-      if (!mongoose.Types.ObjectId.isValid(skuId)) {
-        throw new Error("Invalid SKU ID format");
-      }
-
-      const catalogue = await CatalogueModel.findById(skuId);
-      if (!catalogue) {
-        throw new Error("SKU not found");
-      }
-
-      const now = new Date();
-
-      // Base query for active overrides within date range
-      const baseQuery: any = {
-        sku_id: skuId,
-        status: "active",
-        start_date: { $lte: now },
-        end_date: { $gte: now },
-      };
-
-      let override: any = null;
-
-      // Priority 5: Check for machine-level override (most specific)
-      if (machineId && !override) {
-        override = await PriceOverrideModel.findOne({
-          ...baseQuery,
-          machine_id: machineId,
-        }).lean();
-      }
-
-      // Priority 4: Check for location-level override (campus/tower/floor)
-      // Skipped for now as location is an object
-
-      // Priority 3: Check for area-level override
-      if (areaId && !override) {
-        override = await PriceOverrideModel.findOne({
-          ...baseQuery,
-          area_id: areaId,
-          machine_id: { $in: [null, undefined, ""] },
-        }).lean();
-
-        // Also try without machine_id filter
-        if (!override) {
-          override = await PriceOverrideModel.findOne({
-            ...baseQuery,
-            area_id: areaId,
-            $or: [{ machine_id: { $exists: false } }, { machine_id: null }, { machine_id: "" }],
-          }).lean();
-        }
-      }
-
-      // Priority 2: Check for district-level override
-      if (district && !override) {
-        override = await PriceOverrideModel.findOne({
-          ...baseQuery,
-          district: { $regex: new RegExp(`^${district}$`, "i") },
-          $and: [
-            { $or: [{ area_id: { $exists: false } }, { area_id: null }] },
-            { $or: [{ machine_id: { $exists: false } }, { machine_id: null }, { machine_id: "" }] },
-          ],
-        }).lean();
-      }
-
-      // Priority 1: Check for state-level override (least specific)
-      if (state && !override) {
-        override = await PriceOverrideModel.findOne({
-          ...baseQuery,
-          state: { $regex: new RegExp(`^${state}$`, "i") },
-          $or: [{ district: { $exists: false } }, { district: null }, { district: "" }],
-        }).lean();
-      }
-
-      // Fallback: Find any matching override with highest priority
-      if (!override) {
-        override = await PriceOverrideModel.findOne(baseQuery)
-          .sort({ priority: -1, createdAt: -1 })
-          .lean();
-      }
-
-      const result: EffectivePriceResult = {
-        sku_id: skuId,
-        sku_code: catalogue.sku_id,
-        product_name: catalogue.product_name,
-        base_price: catalogue.base_price,
-        effective_price: catalogue.base_price,
-        is_overridden: false,
-      };
-
-      if (override) {
-        result.effective_price = override.override_price;
-        result.is_overridden = true;
-        result.override_details = {
-          override_id: override._id.toString(),
-          override_price: override.override_price,
-          level: this.getPriorityLevelName(override.priority),
-          reason: override.reason,
-          start_date: override.start_date,
-          end_date: override.end_date,
-        };
-      }
-
-      return result;
-    } catch (error: any) {
-      logger.error("Error getting effective price:", error);
-      throw error;
-    }
-  }
-
   // Get price override history
   async getPriceOverrideHistory(
     filters: {
