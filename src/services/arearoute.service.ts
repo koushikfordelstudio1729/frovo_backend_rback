@@ -2358,7 +2358,132 @@ export class AreaService {
       inactiveMachines: stats.total - stats.active,
     };
   }
+  /**
+   * Check if a machine is allotted to any area (sub-location)
+   * @param machineId - The machine ID to check (e.g., "VM2024001")
+   * @returns Object with allotment status and details
+   */
+  static async checkMachineAllotmentStatus(machineId: string): Promise<{
+    is_created: boolean;
+    is_allotted: boolean;
+    machine_exists: boolean;
+    machine_details?: {
+      machineId: string;
+      serialNumber: string;
+      modelNumber: string;
+      machineType: string;
+      machineStatus: string;
+      installed_status: string;
+      created_at: Date;
+    };
+    allotment_details?: {
+      sub_location_id: string;
+      sub_location_details: {
+        campus: string;
+        tower: string;
+        floor: string;
+      };
+      location_details: {
+        location_id: string;
+        area_name: string;
+        state: string;
+        district: string;
+        pincode: string;
+        status: string;
+      };
+      installed_status: string;
+      machine_status: string;
+      allotted_at: Date;
+    };
+  }> {
+    try {
+      // Validate input
+      if (!machineId || machineId.trim() === "") {
+        throw new Error("Machine ID is required");
+      }
 
+      // Check if machine exists in Machine collection
+      const machine = await Machine.findOne({ machineId }).lean();
+
+      if (!machine) {
+        return {
+          is_created: false,
+          is_allotted: false,
+          machine_exists: false,
+        };
+      }
+
+      // Machine exists and is created
+      // Check if machine is allotted to any sub-location
+      const machineDetails = await MachineDetailsModel.findOne({ machineId })
+        .populate({
+          path: "sub_location_id",
+          populate: {
+            path: "location_id",
+          },
+        })
+        .lean();
+
+      // If not allotted to any sub-location
+      if (!machineDetails || !machineDetails.sub_location_id) {
+        return {
+          is_created: true,
+          is_allotted: false,
+          machine_exists: true,
+          machine_details: {
+            machineId: machine.machineId || machineId,
+            serialNumber: machine.serialNumber,
+            modelNumber: machine.modelNumber,
+            machineType: machine.machineType,
+            machineStatus: machine.machineStatus,
+            installed_status: machine.installed_status || "not_installed",
+            created_at: machine.createdAt,
+          },
+        };
+      }
+
+      // Machine is allotted, get details
+      const subLocation = machineDetails.sub_location_id as any;
+      const location = subLocation?.location_id as any;
+
+      return {
+        is_created: true,
+        is_allotted: true,
+        machine_exists: true,
+        machine_details: {
+          machineId: machine.machineId || machineId,
+          serialNumber: machine.serialNumber,
+          modelNumber: machine.modelNumber,
+          machineType: machine.machineType,
+          machineStatus: machine.machineStatus,
+          installed_status: machine.installed_status || "not_installed",
+          created_at: machine.createdAt,
+        },
+        allotment_details: {
+          sub_location_id: subLocation?._id?.toString(),
+          sub_location_details: {
+            campus: subLocation?.campus,
+            tower: subLocation?.tower,
+            floor: subLocation?.floor,
+          },
+          location_details: {
+            location_id: location?._id?.toString(),
+            area_name: location?.area_name,
+            state: location?.state,
+            district: location?.district,
+            pincode: location?.pincode,
+            status: location?.status,
+          },
+          installed_status: machineDetails.installed_status,
+          machine_status: machineDetails.status,
+          allotted_at: machineDetails.createdAt || new Date(),
+        },
+      };
+    } catch (error) {
+      logger.error("Error checking machine allotment status:", error);
+      throw error;
+    }
+  }
   /**
    * Convert dashboard data to CSV format
    */

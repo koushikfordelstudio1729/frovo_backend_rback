@@ -1399,7 +1399,60 @@ export class AreaController {
       res.status(500).json({ success: false, message: error.message || "Internal server error" });
     }
   }
+  /**
+   * Check if a machine is allotted to any area
+   * GET /api/machines/:machineId/allotment-status
+   * Example: GET /api/machines/VM2024001/allotment-status
+   */
+  static async checkMachineAllotmentStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineId } = req.params;
 
+      if (!machineId || machineId.trim() === "") {
+        res.status(400).json({
+          success: false,
+          message: "Machine ID is required",
+        });
+        return;
+      }
+
+      const result = await AreaService.checkMachineAllotmentStatus(machineId);
+
+      if (!result.machine_exists) {
+        res.status(404).json({
+          success: false,
+          message: `Machine with ID "${machineId}" not found. Please create the machine first.`,
+          data: {
+            is_created: false,
+            is_allotted: false,
+            machine_exists: false,
+          },
+        });
+        return;
+      }
+
+      let message = "";
+      if (!result.is_created) {
+        message = `Machine "${machineId}" is not created yet`;
+      } else if (result.is_allotted) {
+        message = `Machine "${machineId}" is created and allotted to an area`;
+      } else {
+        message = `Machine "${machineId}" is created but not allotted to any area`;
+      }
+
+      res.status(200).json({
+        success: true,
+        message,
+        data: result,
+      });
+    } catch (error: any) {
+      logger.error("Error checking machine allotment status:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
   // ── Private CSV/JSON helpers ────────────────────────────────────────────────
 
   private static async buildDetailedLocationsJson(

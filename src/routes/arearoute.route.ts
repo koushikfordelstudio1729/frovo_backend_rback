@@ -83,6 +83,12 @@ router.patch(
   authorize(MANAGEMENT),
   AreaController.toggleMachineInstalledStatus
 );
+router.get(
+  "/machine/:machineId/allotment-status",
+  authorize(STAFF),
+  AreaController.checkMachineAllotmentStatus
+);
+
 router.get("/machine/search", authorize(STAFF), AreaController.searchMachines);
 router.put(
   "/machine/:machineDetailsId/images",

@@ -388,6 +388,48 @@
           "response": []
         },
         {
+          "name": "Price Overide",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"campus\": \"Main Campus\",\r\n  \"tower\": \"Tower A\",\r\n  \"floor\": \"3rd Floor\",\r\n  \"select_machine\": [\"VM-001\", \"VM-002\", \"VM-003\"]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/price-override?page=1&limit=10",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "price-override"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Get Sub Location By Location ID",
           "protocolProfileBehavior": {
             "disableBodyPruning": true
@@ -458,7 +500,7 @@
           "response": []
         },
         {
-          "name": "Get Sub Location By Location ID Copy",
+          "name": "Delete Sublocation",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -489,6 +531,57 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Check Machine Available",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineId/allotment-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineId",
+                "allotment-status"
+              ],
+              "variable": [
+                {
+                  "key": "machineId",
+                  "value": "VM2026002"
+                }
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -497,6 +590,53 @@
       "item": [
         {
           "name": "Add Machine Details",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "installed_status",
+                  "value": "installed",
+                  "type": "text",
+                  "uuid": "6a66aea3-a1c8-4671-96c8-5b1110a8161b"
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "type": "text",
+                  "uuid": "d2e0b04d-8cd5-49eb-aecc-1079627648f6"
+                },
+                {
+                  "key": "machine_image",
+                  "type": "file",
+                  "uuid": "3d6081c0-6f80-462c-baa0-fed94e6942be",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/machine/:machineDetailsId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "machine",
+                ":machineDetailsId"
+              ],
+              "variable": [
+                {
+                  "key": "machineDetailsId",
+                  "value": "6982cf1cb13f5e479fbe1a0d"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Images",
           "request": {
             "method": "PUT",
             "header": [],
@@ -703,13 +843,23 @@
               "raw": "{\r\n  \"area_name\": \"Tech Park\",\r\n  \"state\": \"Haryana\",\r\n  \"district\": \"Bangalore\",\r\n  \"pincode\": \"560002\",\r\n  \"area_description\": \"Technology business park\",\r\n  \"status\": \"active\",\r\n  \"latitude\": 12.9716,\r\n  \"longitude\": 77.5946,\r\n  \"address\": \"123 Tech Street\"\r\n}"
             },
             "url": {
-              "raw": "{{base_url}}/audit/recent-activities",
+              "raw": "{{base_url}}/audit/recent-activities?page=2&limit=10",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "audit",
                 "recent-activities"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
               ]
             }
           },
