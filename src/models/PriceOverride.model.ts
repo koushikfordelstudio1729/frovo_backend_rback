@@ -9,16 +9,16 @@ export interface IPriceOverride extends Document {
   original_base_price: number;
 
   // Location hierarchy with validation
-  state: string; // Required - must match area's state
-  district: string; // Required - must match area's district
-  area_id: Types.ObjectId; // Required - reference to Location
-  area_name: string;
+  state?: string;
+  district?: string;
+  area_id?: Types.ObjectId;
+  area_name?: string;
   location?: {
     campus?: string;
     tower?: string;
     floor?: string;
   };
-  machine_id: string; // Required - must exist in Machine collection and be assigned to this area
+  machine_id?: string;
 
   // Override details
   override_price: number;
@@ -64,25 +64,21 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
     // Location hierarchy - all required
     state: {
       type: String,
-      required: true,
       trim: true,
       index: true,
     },
     district: {
       type: String,
-      required: true,
       trim: true,
       index: true,
     },
     area_id: {
       type: Schema.Types.ObjectId,
       ref: "Location",
-      required: true,
       index: true,
     },
     area_name: {
       type: String,
-      required: true,
       trim: true,
     },
     location: {
@@ -92,7 +88,6 @@ const PriceOverrideSchema = new Schema<IPriceOverride>(
     },
     machine_id: {
       type: String,
-      required: true,
       trim: true,
       index: true,
     },

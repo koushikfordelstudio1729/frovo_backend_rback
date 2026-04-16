@@ -25,68 +25,24 @@ class PriceOverrideController {
         reason: req.body.reason,
       };
 
-      // Validation
+      // Basic validations
       if (!data.sku_id) {
-        res.status(400).json({
-          success: false,
-          message: "SKU ID is required",
-        });
-        return;
-      }
-
-      if (!data.state) {
-        res.status(400).json({
-          success: false,
-          message: "State is required",
-        });
-        return;
-      }
-
-      if (!data.district) {
-        res.status(400).json({
-          success: false,
-          message: "District is required",
-        });
-        return;
-      }
-
-      if (!data.area_id) {
-        res.status(400).json({
-          success: false,
-          message: "Area ID is required",
-        });
-        return;
-      }
-
-      if (!data.machine_id) {
-        res.status(400).json({
-          success: false,
-          message: "Machine ID is required",
-        });
+        res.status(400).json({ success: false, message: "SKU ID is required" });
         return;
       }
 
       if (data.override_price === undefined || isNaN(data.override_price)) {
-        res.status(400).json({
-          success: false,
-          message: "Valid override price is required",
-        });
+        res.status(400).json({ success: false, message: "Valid override price is required" });
         return;
       }
 
       if (!data.start_date || !data.end_date) {
-        res.status(400).json({
-          success: false,
-          message: "Start date and end date are required",
-        });
+        res.status(400).json({ success: false, message: "Start date and end date are required" });
         return;
       }
 
       if (!data.reason) {
-        res.status(400).json({
-          success: false,
-          message: "Reason for override is required",
-        });
+        res.status(400).json({ success: false, message: "Reason for override is required" });
         return;
       }
 
@@ -102,10 +58,11 @@ class PriceOverrideController {
 
       // Handle specific validation errors
       if (
-        error.message.includes("state does not match") ||
-        error.message.includes("district does not match") ||
-        error.message.includes("machine is not assigned") ||
-        error.message.includes("not found in the system")
+        error.message.includes("State is required") ||
+        error.message.includes("Area ID is required") ||
+        error.message.includes("does not match") ||
+        error.message.includes("not assigned") ||
+        error.message.includes("not found")
       ) {
         res.status(422).json({
           success: false,
@@ -120,7 +77,60 @@ class PriceOverrideController {
       });
     }
   }
+  // Get effective price for a machine
+  async getEffectivePrice(req: Request, res: Response): Promise<void> {
+    try {
+      const { skuId } = req.params;
+      const { machineId } = req.query;
+      const service = createPriceOverrideService(req);
 
+      if (!machineId) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Machine ID is required. Please provide a valid machine ID to check the effective price.",
+        });
+        return;
+      }
+
+      const result = await service.getEffectivePrice(skuId, machineId as string);
+
+      res.status(200).json({
+        success: true,
+        message: result.is_overridden
+          ? `Price overridden from ₹${result.base_price} to ₹${result.effective_price}`
+          : `Using base price ₹${result.base_price} (no active override found)`,
+        data: result,
+      });
+    } catch (error: any) {
+      logger.error("Get effective price error:", error);
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to get effective price",
+      });
+    }
+  }
+  // Get all overrides for a machine
+  async getMachineOverrides(req: Request, res: Response): Promise<void> {
+    try {
+      const { machineId } = req.params;
+      const service = createPriceOverrideService(req);
+
+      const overrides = await service.getMachineOverrides(machineId);
+
+      res.status(200).json({
+        success: true,
+        data: overrides,
+        total: overrides.length,
+      });
+    } catch (error: any) {
+      logger.error("Get machine overrides error:", error);
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to get machine overrides",
+      });
+    }
+  }
   // Get price override by ID
   async getPriceOverrideById(req: Request, res: Response): Promise<void> {
     try {
@@ -149,7 +159,6 @@ class PriceOverrideController {
       });
     }
   }
-
   // Get all price overrides with filters
   async getAllPriceOverrides(req: Request, res: Response): Promise<void> {
     try {
@@ -276,33 +285,6 @@ class PriceOverrideController {
     }
   }
 
-  // Get effective price for a SKU at a location/machine
-  async getEffectivePrice(req: Request, res: Response): Promise<void> {
-    try {
-      const { skuId } = req.params;
-      const service = createPriceOverrideService(req);
-
-      const result = await service.getEffectivePrice(
-        skuId,
-        req.query.machine_id as string,
-        req.query.area_id as string,
-        req.query.district as string,
-        req.query.state as string
-      );
-
-      res.status(200).json({
-        success: true,
-        data: result,
-      });
-    } catch (error: any) {
-      logger.error("Get effective price error:", error);
-      res.status(400).json({
-        success: false,
-        message: error.message || "Failed to get effective price",
-      });
-    }
-  }
-
   // Get price override history
   async getPriceOverrideHistory(req: Request, res: Response): Promise<void> {
     try {
@@ -380,7 +362,6 @@ class PriceOverrideController {
       });
     }
   }
-
   // Manually trigger expiry check (for admin/cron)
   async expireOverrides(req: Request, res: Response): Promise<void> {
     try {
