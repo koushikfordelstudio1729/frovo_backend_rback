@@ -891,6 +891,7 @@ export class PriceOverrideService {
     }
   }
   // Get price override by ID with affected machines and locations
+  // Get price override by ID with affected machines and locations
   async getPriceOverrideById(id: string): Promise<any> {
     try {
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -930,20 +931,16 @@ export class PriceOverrideService {
           state: { $regex: new RegExp(`^${priceOverride.state}$`, "i") },
         }).lean();
 
-        // Get unique districts
         const districts = [...new Set(areas.map(area => area.district))];
 
-        // Get all sub-locations in these areas
         const subLocations = await SubLocationModel.find({
           location_id: { $in: areas.map(a => a._id) },
         });
 
-        // Get all machine details
         const machineDetails = await MachineDetailsModel.find({
           sub_location_id: { $in: subLocations.map(sl => sl._id) },
         });
 
-        // Get all machines
         const machines = await Machine.find({
           machineId: { $in: machineDetails.map(md => md.machineId) },
         }).lean();
@@ -976,17 +973,14 @@ export class PriceOverrideService {
           district: { $regex: new RegExp(`^${priceOverride.district}$`, "i") },
         }).lean();
 
-        // Get all sub-locations in these areas
         const subLocations = await SubLocationModel.find({
           location_id: { $in: areas.map(a => a._id) },
         });
 
-        // Get all machine details
         const machineDetails = await MachineDetailsModel.find({
           sub_location_id: { $in: subLocations.map(sl => sl._id) },
         });
 
-        // Get all machines
         const machines = await Machine.find({
           machineId: { $in: machineDetails.map(md => md.machineId) },
         }).lean();
@@ -1016,17 +1010,14 @@ export class PriceOverrideService {
         // Area level - get all machines in this area
         const area = await LocationModel.findById(priceOverride.area_id).lean();
 
-        // Get all sub-locations in this area
         const subLocations = await SubLocationModel.find({
           location_id: priceOverride.area_id,
         });
 
-        // Get all machine details
         const machineDetails = await MachineDetailsModel.find({
           sub_location_id: { $in: subLocations.map(sl => sl._id) },
         });
 
-        // Get all machines
         const machines = await Machine.find({
           machineId: { $in: machineDetails.map(md => md.machineId) },
         }).lean();
@@ -1057,12 +1048,69 @@ export class PriceOverrideService {
           total_machines: machines.length,
         };
       } else if (priceOverride.machine_id) {
-        // Machine level - get single machine
+        // Machine level - get single machine AND also show its area and district
         const machine = await Machine.findOne({ machineId: priceOverride.machine_id }).lean();
 
+        // Get the machine's location details
+        const machineDetails = await MachineDetailsModel.findOne({
+          machineId: priceOverride.machine_id,
+        }).populate({
+          path: "sub_location_id",
+          populate: { path: "location_id" },
+        });
+
+        let areaDetails = null;
+        let districtDetails = null;
+        let areaObj = null;
+
+        if (machineDetails && machineDetails.sub_location_id) {
+          const subLocation = machineDetails.sub_location_id as any;
+          const location = subLocation?.location_id as any;
+
+          if (location) {
+            areaObj = location;
+            areaDetails = {
+              _id: location._id,
+              area_name: location.area_name,
+              state: location.state,
+              district: location.district,
+              pincode: location.pincode,
+              status: location.status,
+            };
+
+            districtDetails = {
+              name: location.district,
+              state: location.state,
+            };
+          }
+        }
+
+        // Also get area from the override's area_id if available
+        let overrideArea = null;
+        if (priceOverride.area_id) {
+          overrideArea = await LocationModel.findById(priceOverride.area_id).lean();
+        }
+
         affectedData = {
-          areas: [],
-          districts: [],
+          areas: areaDetails
+            ? [areaDetails]
+            : overrideArea
+              ? [
+                  {
+                    _id: overrideArea._id,
+                    area_name: overrideArea.area_name,
+                    state: overrideArea.state,
+                    district: overrideArea.district,
+                    pincode: overrideArea.pincode,
+                    status: overrideArea.status,
+                  },
+                ]
+              : [],
+          districts: districtDetails
+            ? [districtDetails]
+            : overrideArea
+              ? [{ name: overrideArea.district }]
+              : [],
           machines: machine
             ? [
                 {
@@ -1074,9 +1122,17 @@ export class PriceOverrideService {
                 },
               ]
             : [],
-          total_areas: 0,
-          total_districts: 0,
+          total_areas: areaDetails || overrideArea ? 1 : 0,
+          total_districts: districtDetails || overrideArea ? 1 : 0,
           total_machines: machine ? 1 : 0,
+          location_hierarchy: {
+            state: areaObj?.state || overrideArea?.state || priceOverride.state,
+            district: areaObj?.district || overrideArea?.district || priceOverride.district,
+            area: areaObj?.area_name || overrideArea?.area_name,
+            campus: (machineDetails?.sub_location_id as any)?.campus,
+            tower: (machineDetails?.sub_location_id as any)?.tower,
+            floor: (machineDetails?.sub_location_id as any)?.floor,
+          },
         };
       }
 
