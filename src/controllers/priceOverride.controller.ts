@@ -481,18 +481,6 @@ class PriceOverrideController {
     }
   }
 
-  /**
-   * GET /price-overrides/location-options
-   *
-   * Returns available states, districts, areas and machines from the
-   * area-route database so the Price Override form can build cascading
-   * dropdowns.
-   *
-   * Query params (all optional):
-   *   state    – filter districts / areas / machines by state
-   *   district – filter areas / machines by district (requires state)
-   *   area_id  – filter machines by area (LocationModel _id)
-   */
   async getLocationFilterOptions(req: Request, res: Response): Promise<void> {
     try {
       const { state, district, area_id } = req.query as {
@@ -501,17 +489,14 @@ class PriceOverrideController {
         area_id?: string;
       };
 
-      // ── 1. Distinct States ──────────────────────────────────────────────────
       const states: string[] = await LocationModel.distinct("state");
       states.sort();
 
-      // ── 2. Districts (optionally filtered by state) ─────────────────────────
       const districtFilter: Record<string, any> = {};
       if (state) districtFilter.state = new RegExp(`^${state}$`, "i");
       const districts: string[] = await LocationModel.distinct("district", districtFilter);
       districts.sort();
 
-      // ── 3. Areas (Locations filtered by state + district) ───────────────────
       const areaFilter: Record<string, any> = {};
       if (state) areaFilter.state = new RegExp(`^${state}$`, "i");
       if (district) areaFilter.district = new RegExp(`^${district}$`, "i");
@@ -524,12 +509,10 @@ class PriceOverrideController {
         district: loc.district,
       }));
 
-      // ── 4. Machines (filtered by area_id if provided) ───────────────────────
       let machines: { machineId: string; machine_details_id: string; sub_location_id: string }[] =
         [];
 
       if (area_id) {
-        // Fetch the parent location to enrich machines with area info
         const parentLocation = await LocationModel.findById(area_id).select(
           "area_name state district"
         );
@@ -555,16 +538,13 @@ class PriceOverrideController {
               district: parentLocation?.district ?? null,
             }));
 
-          // Sort alphabetically by machineId (null-safe)
           machines.sort((a, b) => (a.machineId ?? "").localeCompare(b.machineId ?? ""));
         }
       } else {
-        // No area filter – return all machines (machineId + area info via join)
         const allMachineDetails = await MachineDetailsModel.find().select(
           "machineId sub_location_id"
         );
 
-        // Enrich with area info
         const subLocMap = new Map<string, any>();
         const allSubLocs = await SubLocationModel.find().select("_id location_id");
         allSubLocs.forEach(sl => subLocMap.set((sl._id as any).toString(), sl.location_id));
@@ -588,7 +568,6 @@ class PriceOverrideController {
             };
           });
 
-        // Sort alphabetically by machineId (null-safe)
         machines.sort((a, b) => (a.machineId ?? "").localeCompare(b.machineId ?? ""));
       }
 
