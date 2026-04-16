@@ -1050,12 +1050,21 @@ export class AreaController {
   }
   static async getRecentActivities(req: Request, res: Response): Promise<void> {
     try {
+      // Pagination parameters
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
+
+      // Filter parameters
       const action = req.query.action as string;
       const locationId = req.query.locationId as string;
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
+
+      // Additional filter parameters
+      const userId = req.query.userId as string;
+      const search = req.query.search as string;
+      const sortBy = (req.query.sortBy as string) || "timestamp";
+      const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
 
       // Build filter
       const filter: any = {};
@@ -1076,6 +1085,10 @@ export class AreaController {
         filter.location_id = new mongoose.Types.ObjectId(locationId);
       }
 
+      if (userId) {
+        filter["performed_by.user_id"] = userId;
+      }
+
       if (startDate || endDate) {
         filter.timestamp = {};
         if (startDate) {
@@ -1086,9 +1099,18 @@ export class AreaController {
         }
       }
 
-      const result = await AreaService.getRecentActivities(page, limit, filter);
+      if (search) {
+        filter.$or = [
+          { action: { $regex: search, $options: "i" } },
+          { "performed_by.email": { $regex: search, $options: "i" } },
+          { "performed_by.name": { $regex: search, $options: "i" } },
+          { ip_address: { $regex: search, $options: "i" } },
+        ];
+      }
 
-      // Get summary statistics
+      const result = await AreaService.getRecentActivities(page, limit, filter, sortBy, sortOrder);
+
+      // Get summary statistics with pagination aware
       const totalByAction = await HistoryAreaModel.aggregate([
         { $match: filter },
         { $group: { _id: "$action", count: { $sum: 1 } } },
@@ -1099,14 +1121,47 @@ export class AreaController {
         actionSummary[item._id] = item.count;
       });
 
+      // Get date range summary
+      const dateRangeSummary = await HistoryAreaModel.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            earliest: { $min: "$timestamp" },
+            latest: { $max: "$timestamp" },
+          },
+        },
+      ]);
+
       res.status(200).json({
         success: true,
         activities: Array.isArray(result.activities) ? result.activities : [],
         summary: {
           total: result.pagination.totalItems,
           by_action: actionSummary,
+          date_range: dateRangeSummary[0]
+            ? {
+                from: dateRangeSummary[0].earliest,
+                to: dateRangeSummary[0].latest,
+              }
+            : null,
         },
-        pagination: result.pagination,
+        pagination: {
+          currentPage: result.pagination.currentPage,
+          totalPages: result.pagination.totalPages,
+          totalItems: result.pagination.totalItems,
+          itemsPerPage: result.pagination.itemsPerPage,
+          hasNextPage: result.pagination.currentPage < result.pagination.totalPages,
+          hasPrevPage: result.pagination.currentPage > 1,
+        },
+        filters: {
+          action: action || "all",
+          locationId: locationId || null,
+          userId: userId || null,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          search: search || null,
+        },
       });
     } catch (error: any) {
       logger.error("Error fetching recent activities:", error);
@@ -1116,13 +1171,17 @@ export class AreaController {
         summary: {
           total: 0,
           by_action: {},
+          date_range: null,
         },
         pagination: {
           currentPage: 1,
           totalPages: 0,
           totalItems: 0,
           itemsPerPage: 10,
+          hasNextPage: false,
+          hasPrevPage: false,
         },
+        filters: {},
         message: error.message || "Internal server error",
       });
     }

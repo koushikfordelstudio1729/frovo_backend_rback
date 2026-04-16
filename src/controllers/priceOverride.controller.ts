@@ -315,22 +315,45 @@ class PriceOverrideController {
       });
     }
   }
-
   // Get history for a specific price override
   async getHistoryByOverrideId(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const service = createPriceOverrideService(req);
 
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const action = req.query.action as string;
+      const fromDate = req.query.from_date as string;
+      const toDate = req.query.to_date as string;
+      const sortBy = (req.query.sortBy as string) || "timestamp";
+      const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
+
       const result = await service.getPriceOverrideHistory({
         price_override_id: id,
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 20,
+        action: action !== "all" ? action : undefined,
+        from_date: fromDate ? new Date(fromDate) : undefined,
+        to_date: toDate ? new Date(toDate) : undefined,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
       });
 
       res.status(200).json({
         success: true,
-        ...result,
+        data: {
+          history: result.history,
+          summary: result.summary,
+          pagination: {
+            currentPage: result.page,
+            totalPages: result.totalPages,
+            totalItems: result.total,
+            itemsPerPage: result.limit,
+            hasNextPage: result.page < result.totalPages,
+            hasPrevPage: result.page > 1,
+          },
+        },
       });
     } catch (error: any) {
       logger.error("Get history by override ID error:", error);
@@ -341,6 +364,69 @@ class PriceOverrideController {
     }
   }
 
+  // Get all price override history with filters
+  async getAllPriceOverrideHistory(req: Request, res: Response): Promise<void> {
+    try {
+      const service = createPriceOverrideService(req);
+
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const skuId = req.query.sku_id as string;
+      const skuCode = req.query.sku_code as string;
+      const action = req.query.action as string;
+      const userId = req.query.user_id as string;
+      const userEmail = req.query.user_email as string;
+      const fromDate = req.query.from_date as string;
+      const toDate = req.query.to_date as string;
+      const sortBy = (req.query.sortBy as string) || "timestamp";
+      const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
+
+      const result = await service.getPriceOverrideHistory({
+        sku_id: skuId,
+        sku_code: skuCode,
+        action: action !== "all" ? action : undefined,
+        user_id: userId,
+        user_email: userEmail,
+        from_date: fromDate ? new Date(fromDate) : undefined,
+        to_date: toDate ? new Date(toDate) : undefined,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          history: result.history,
+          summary: result.summary,
+          pagination: {
+            currentPage: result.page,
+            totalPages: result.totalPages,
+            totalItems: result.total,
+            itemsPerPage: result.limit,
+            hasNextPage: result.page < result.totalPages,
+            hasPrevPage: result.page > 1,
+          },
+          filters: {
+            sku_id: skuId || null,
+            sku_code: skuCode || null,
+            action: action || "all",
+            user_id: userId || null,
+            user_email: userEmail || null,
+            from_date: fromDate || null,
+            to_date: toDate || null,
+          },
+        },
+      });
+    } catch (error: any) {
+      logger.error("Get all price override history error:", error);
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to fetch history",
+      });
+    }
+  }
   // Get all overrides for a specific SKU
   async getOverridesBySku(req: Request, res: Response): Promise<void> {
     try {

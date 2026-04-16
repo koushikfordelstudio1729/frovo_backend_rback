@@ -431,11 +431,14 @@ export class AreaService {
       },
     };
   }
+  // In AreaService class
 
   static async getRecentActivities(
     page: number = 1,
     limit: number = 10,
-    filter?: any
+    filter?: any,
+    sortBy: string = "timestamp",
+    sortOrder: "asc" | "desc" = "desc"
   ): Promise<{
     activities: any[];
     pagination: {
@@ -452,12 +455,16 @@ export class AreaService {
 
       const safeFilter = filter && typeof filter === "object" ? filter : {};
 
+      // Build sort object
+      const sortObject: any = {};
+      sortObject[sortBy] = sortOrder === "asc" ? 1 : -1;
+
       // Get total count
       const totalItems = await HistoryAreaModel.countDocuments(safeFilter);
 
       // Get paginated activities
       const activities = await HistoryAreaModel.find(safeFilter)
-        .sort({ timestamp: -1 })
+        .sort(sortObject)
         .skip(skip)
         .limit(limitNum)
         .populate(
@@ -624,7 +631,7 @@ export class AreaService {
             return {
               id: activity._id,
               action: activity.action,
-              action_description: this.getActionDescription(activity.action),
+              action_description: AreaService.getActionDescription(activity.action),
               location: completeLocationData,
               sub_location: subLocationDetails,
               machine: machineDetails,
@@ -644,11 +651,10 @@ export class AreaService {
             };
           } catch (enrichError) {
             logger.error("Error enriching activity:", enrichError);
-            // Return partial activity instead of crashing the whole list
             return {
               id: activity._id,
               action: activity.action,
-              action_description: this.getActionDescription(activity.action),
+              action_description: AreaService.getActionDescription(activity.action),
               location: null,
               sub_location: null,
               machine: null,
@@ -683,7 +689,6 @@ export class AreaService {
       };
     } catch (error) {
       logger.error("Error fetching recent activities:", error);
-      // Return empty result instead of throwing — controller handles display
       return {
         activities: [],
         pagination: {

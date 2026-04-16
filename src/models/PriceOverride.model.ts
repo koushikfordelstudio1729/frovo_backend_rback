@@ -179,6 +179,7 @@ export interface IPriceOverrideHistory extends Document {
 
   timestamp: Date;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const PriceOverrideHistorySchema = new Schema<IPriceOverrideHistory>(

@@ -91,7 +91,67 @@ export class PriceOverrideService {
     if (data.state) return 1; // State level (least specific)
     return 1;
   }
+  private async logHistory(
+    action: IPriceOverrideHistory["action"],
+    priceOverride: IPriceOverride,
+    oldData?: Partial<IPriceOverride>,
+    changes?: { field: string; old_value: any; new_value: any }[]
+  ): Promise<void> {
+    try {
+      if (!this.req) {
+        logger.warn("logHistory: No request context available");
+        return;
+      }
 
+      const user = (this.req as any).user;
+      if (!user) {
+        logger.warn("logHistory: No user in request context");
+        return;
+      }
+
+      logger.info("logHistory: Logging action", { action, user_id: user._id || user.id });
+
+      // Handle both Mongoose document and plain object
+      const newData =
+        typeof priceOverride.toObject === "function" ? priceOverride.toObject() : priceOverride;
+
+      // Extract role name from roles array (populated from auth middleware)
+      let roleName = "unknown";
+      if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
+        // roles is populated, so it's an array of role objects
+        const firstRole = user.roles[0];
+        roleName = firstRole.name || firstRole.roleName || String(firstRole);
+      } else if (user.role) {
+        roleName = user.role;
+      }
+
+      const historyEntry = new PriceOverrideHistoryModel({
+        price_override_id: priceOverride._id,
+        sku_id: priceOverride.sku_id,
+        sku_code: priceOverride.sku_code,
+        product_name: priceOverride.product_name,
+        action,
+        old_data: oldData || null,
+        new_data: newData,
+        changes: changes || [],
+        performed_by: {
+          user_id: user._id || user.id,
+          email: user.email,
+          name: user.name || "",
+          role: roleName,
+        },
+        ip_address: this.req.ip || this.req.headers["x-forwarded-for"] || "unknown",
+        user_agent: this.req.headers["user-agent"] || "unknown",
+        request_path: this.req.originalUrl,
+        timestamp: new Date(),
+      });
+
+      await historyEntry.save();
+      logger.info("logHistory: History entry saved successfully", { id: historyEntry._id });
+    } catch (error) {
+      logger.error("Failed to log price override history:", error);
+    }
+  }
   // Get priority level name
   private getPriorityLevelName(priority: number): string {
     const levels: Record<number, string> = {
@@ -673,16 +733,6 @@ export class PriceOverrideService {
       logger.error("Error getting machine overrides:", error);
       throw error;
     }
-  }
-
-  // Log history (existing method)
-  private async logHistory(
-    action: IPriceOverrideHistory["action"],
-    priceOverride: IPriceOverride,
-    oldData?: Partial<IPriceOverride>,
-    changes?: { field: string; old_value: any; new_value: any }[]
-  ): Promise<void> {
-    // ... existing implementation
   }
 
   // Update price override with validations
@@ -1319,27 +1369,44 @@ export class PriceOverrideService {
       throw error;
     }
   }
-  // Get price override history
+  // In PriceOverrideService class
+
+  // Get price override history with enhanced filtering and pagination
   async getPriceOverrideHistory(
     filters: {
       price_override_id?: string;
       sku_id?: string;
+      sku_code?: string;
       action?: string;
       user_id?: string;
+      user_email?: string;
       from_date?: Date;
       to_date?: Date;
       page?: number;
       limit?: number;
+      sortBy?: string;
+      sortOrder?: "asc" | "desc";
     } = {}
   ): Promise<{
-    history: IPriceOverrideHistory[];
+    history: any[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
+    summary: {
+      by_action: Record<string, number>;
+      date_range: { from: Date | null; to: Date | null };
+      total_actions: number;
+    };
   }> {
     try {
-      const { page = 1, limit = 20, ...filterParams } = filters;
+      const {
+        page = 1,
+        limit = 20,
+        sortBy = "timestamp",
+        sortOrder = "desc",
+        ...filterParams
+      } = filters;
 
       const query: any = {};
 
@@ -1351,12 +1418,20 @@ export class PriceOverrideService {
         query.sku_id = filterParams.sku_id;
       }
 
+      if (filterParams.sku_code) {
+        query.sku_code = { $regex: filterParams.sku_code, $options: "i" };
+      }
+
       if (filterParams.action) {
         query.action = filterParams.action;
       }
 
       if (filterParams.user_id) {
         query["performed_by.user_id"] = filterParams.user_id;
+      }
+
+      if (filterParams.user_email) {
+        query["performed_by.email"] = { $regex: filterParams.user_email, $options: "i" };
       }
 
       if (filterParams.from_date || filterParams.to_date) {
@@ -1369,26 +1444,122 @@ export class PriceOverrideService {
         }
       }
 
-      const total = await PriceOverrideHistoryModel.countDocuments(query);
+      // Get summary statistics
+      const [total, byActionAgg, dateRangeAgg] = await Promise.all([
+        PriceOverrideHistoryModel.countDocuments(query),
+        PriceOverrideHistoryModel.aggregate([
+          { $match: query },
+          { $group: { _id: "$action", count: { $sum: 1 } } },
+        ]),
+        PriceOverrideHistoryModel.aggregate([
+          { $match: query },
+          {
+            $group: {
+              _id: null,
+              earliest: { $min: "$timestamp" },
+              latest: { $max: "$timestamp" },
+            },
+          },
+        ]),
+      ]);
+
       const skip = (page - 1) * limit;
+      const sortObject: any = {};
+      sortObject[sortBy] = sortOrder === "asc" ? 1 : -1;
 
       const history = await PriceOverrideHistoryModel.find(query)
-        .sort({ timestamp: -1 })
+        .sort(sortObject)
         .skip(skip)
         .limit(limit)
         .lean();
 
+      // Enrich history data
+      const enrichedHistory = await Promise.all(
+        history.map(async record => {
+          // Get additional details if needed
+          let skuDetails = null;
+          if (record.sku_id) {
+            const catalogue = await CatalogueModel.findById(record.sku_id)
+              .select("sku_id product_name base_price final_price")
+              .lean();
+            if (catalogue) {
+              skuDetails = {
+                sku_code: catalogue.sku_id,
+                product_name: catalogue.product_name,
+                base_price: catalogue.base_price,
+                final_price: catalogue.final_price,
+              };
+            }
+          }
+
+          return {
+            id: record._id,
+            price_override_id: record.price_override_id,
+            sku_id: record.sku_id,
+            sku_code: record.sku_code,
+            product_name: record.product_name,
+            sku_details: skuDetails,
+            action: record.action,
+            action_description: this.getHistoryActionDescription(record.action),
+            old_data: record.old_data,
+            new_data: record.new_data,
+            changes: record.changes,
+            performed_by: {
+              user_id: record.performed_by?.user_id,
+              email: record.performed_by?.email,
+              name: record.performed_by?.name,
+              role: record.performed_by?.role,
+            },
+            ip_address: record.ip_address,
+            user_agent: record.user_agent,
+            request_path: record.request_path,
+            timestamp: record.timestamp,
+            formatted_timestamp: record.timestamp
+              ? new Date(record.timestamp).toLocaleString()
+              : null,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+          };
+        })
+      );
+
+      const byActionSummary: Record<string, number> = {};
+      byActionAgg.forEach(item => {
+        byActionSummary[item._id] = item.count;
+      });
+
       return {
-        history: history as unknown as IPriceOverrideHistory[],
+        history: enrichedHistory,
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        summary: {
+          by_action: byActionSummary,
+          date_range: {
+            from: dateRangeAgg[0]?.earliest || null,
+            to: dateRangeAgg[0]?.latest || null,
+          },
+          total_actions: total,
+        },
       };
     } catch (error: any) {
       logger.error("Error fetching price override history:", error);
       throw error;
     }
+  }
+
+  // Helper function to get action description
+  private getHistoryActionDescription(action: string): string {
+    const descriptions: Record<string, string> = {
+      CREATE: "Price override created",
+      UPDATE: "Price override updated",
+      DELETE: "Price override deleted",
+      ACTIVATE: "Price override activated",
+      DEACTIVATE: "Price override deactivated",
+      EXPIRE: "Price override expired automatically",
+    };
+    return descriptions[action] || action;
   }
 
   // Expire overrides that have passed their end date
