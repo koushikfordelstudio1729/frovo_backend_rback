@@ -1,9 +1,11 @@
 {
   "info": {
-    "_postman_id": "56a24444-650e-4e27-a8af-e63b137a9302",
+    "_postman_id": "dbd240d2-5e15-46f7-9d0f-94c9fcadcff4",
     "name": "Frovo Catalogue API",
     "description": "Complete API collection for Frovo Catalogue Management System\n\n**Modules:**\n- Category Management\n- Sub-Category Management\n- SKU Catalogue Management\n- Dashboard & Reporting\n- Image Upload\n- Price Override Management\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "39772168",
+    "_collection_link": "https://go.postman.co/collection/39772168-dbd240d2-5e15-46f7-9d0f-94c9fcadcff4?source=collection_link"
   },
   "item": [
     {
@@ -56,14 +58,20 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: Category image (JPG, PNG, PDF)"
+                  "description": "Optional: Category image (JPG, PNG, PDF)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/categories",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories"
+              ]
             },
             "description": "Create a new category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -76,8 +84,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/categories?page=1&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories"
+              ],
               "query": [
                 {
                   "key": "status",
@@ -114,8 +127,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "{{category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "{{category_id}}"
+              ]
             },
             "description": "Get a specific category by ID\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -150,14 +169,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: New category image"
+                  "description": "Optional: New category image",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "{{category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "{{category_id}}"
+              ]
             },
             "description": "Update a category\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -170,8 +196,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "{{category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "{{category_id}}"
+              ]
             },
             "description": "Delete a category\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -193,8 +225,15 @@
             },
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "{{category_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "{{category_id}}",
+                "status"
+              ]
             },
             "description": "Update category status with body\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -211,14 +250,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Category image (JPG, PNG, PDF)"
+                  "description": "Category image (JPG, PNG, PDF)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/categories/upload-image",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "upload-image"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "upload-image"
+              ]
             },
             "description": "Upload category image to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -231,8 +277,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/categories/dashboard/stats",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "dashboard", "stats"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "dashboard",
+                "stats"
+              ]
             },
             "description": "Get category statistics\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -245,8 +298,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/export/category/csv",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "export", "category", "csv"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "export",
+                "category",
+                "csv"
+              ]
             },
             "description": "Export all categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -259,8 +319,16 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/export/category/csv/{{category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "export", "category", "csv", "{{category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "export",
+                "category",
+                "csv",
+                "{{category_id}}"
+              ]
             },
             "description": "Export a category with its sub-categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -325,14 +393,20 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: Sub-category image (JPG, PNG, PDF)"
+                  "description": "Optional: Sub-category image (JPG, PNG, PDF)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories"
+              ]
             },
             "description": "Create a new sub-category under a category\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -345,8 +419,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories?page=1&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories"
+              ],
               "query": [
                 {
                   "key": "status",
@@ -383,8 +462,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories",
+                "{{sub_category_id}}"
+              ]
             },
             "description": "Get a specific sub-category by ID\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -397,8 +482,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/categories/{{category_id}}/sub-categories",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "categories", "{{category_id}}", "sub-categories"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "categories",
+                "{{category_id}}",
+                "sub-categories"
+              ]
             },
             "description": "Get all sub-categories for a specific category\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -433,14 +525,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: New sub-category image"
+                  "description": "Optional: New sub-category image",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories",
+                "{{sub_category_id}}"
+              ]
             },
             "description": "Update a sub-category\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -453,8 +552,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories", "{{sub_category_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories",
+                "{{sub_category_id}}"
+              ]
             },
             "description": "Delete a sub-category\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -476,8 +581,15 @@
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/{{sub_category_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories", "{{sub_category_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories",
+                "{{sub_category_id}}",
+                "status"
+              ]
             },
             "description": "Update sub-category status with body\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -494,14 +606,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Sub-category image (JPG, PNG, PDF)"
+                  "description": "Sub-category image (JPG, PNG, PDF)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sub-categories/upload-image",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sub-categories", "upload-image"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sub-categories",
+                "upload-image"
+              ]
             },
             "description": "Upload sub-category image to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -514,8 +633,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/export/sub-category/csv",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "export", "sub-category", "csv"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "export",
+                "sub-category",
+                "csv"
+              ]
             },
             "description": "Export all sub-categories to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -664,14 +790,20 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: Product image(s)"
+                  "description": "Optional: Product image(s)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues"
+              ]
             },
             "description": "Create a new SKU catalogue item\n\n**Required Role:** super_admin, admin, ops_manager\n**Content-Type:** multipart/form-data"
           },
@@ -684,8 +816,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues?page=1&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues"
+              ],
               "query": [
                 {
                   "key": "status",
@@ -758,8 +895,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues",
+                "{{catalogue_id}}"
+              ]
             },
             "description": "Get a specific catalogue item by ID\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -806,14 +949,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Optional: New product image(s)"
+                  "description": "Optional: New product image(s)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues",
+                "{{catalogue_id}}"
+              ]
             },
             "description": "Update a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -826,8 +976,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues",
+                "{{catalogue_id}}"
+              ]
             },
             "description": "Delete a catalogue item\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -849,8 +1005,15 @@
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues/{{catalogue_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues", "{{catalogue_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues",
+                "{{catalogue_id}}",
+                "status"
+              ]
             },
             "description": "Update catalogue status\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Payload:** { \"status\": \"active\" } or { \"status\": \"inactive\" }"
           },
@@ -867,14 +1030,21 @@
                 {
                   "key": "documents",
                   "type": "file",
-                  "description": "Product images (max 5)"
+                  "description": "Product images (max 5)",
+                  "value": null
                 }
               ]
             },
             "url": {
               "raw": "{{base_url}}/catalogue/sku-catalogues/upload-images",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "sku-catalogues", "upload-images"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "sku-catalogues",
+                "upload-images"
+              ]
             },
             "description": "Upload product images to Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -887,8 +1057,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/images/{{image_public_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "images", "{{image_public_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "images",
+                "{{image_public_id}}"
+              ]
             },
             "description": "Delete a product image from Cloudinary\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Note:** URL-encode the public_id"
           },
@@ -901,8 +1077,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/export/sku/csv",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "export", "sku", "csv"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "export",
+                "sku",
+                "csv"
+              ]
             },
             "description": "Export all catalogue items to CSV\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -921,8 +1104,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/dashboard?page=1&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "dashboard"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "dashboard"
+              ],
               "query": [
                 {
                   "key": "category",
@@ -995,8 +1183,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/dashboard/filter-options",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "dashboard", "filter-options"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "dashboard",
+                "filter-options"
+              ]
             },
             "description": "Get available filter options (brands, categories)\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -1009,8 +1203,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/catalogue/dashboard/export",
-              "host": ["{{base_url}}"],
-              "path": ["catalogue", "dashboard", "export"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "catalogue",
+                "dashboard",
+                "export"
+              ],
               "query": [
                 {
                   "key": "category",
@@ -1051,7 +1251,9 @@
                   "    }",
                   "}"
                 ],
-                "type": "text/javascript"
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
               }
             }
           ],
@@ -1065,12 +1267,16 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"sku_id\": \"{{catalogue_id}}\",\n    \"state\": \"Karnataka\",\n    \"district\": \"Bangalore\",\n    \"area_id\": \"{{area_id}}\",\n    \"machine_id\": \"VM001\",\n    \"override_price\": 50,\n    \"start_date\": \"2026-01-01\",\n    \"end_date\": \"2026-12-31\",\n    \"reason\": \"High demand area - premium pricing\"\n}"
+              "raw": "{\n    \"sku_id\": \"{{catalogue_id}}\",\n    \"state\": \"Karnataka\",\n  \n    \"override_price\": 70,\n    \"start_date\": \"2026-09-09\",\n    \"end_date\": \"2026-12-31\",\n    \"reason\": \"High demand area - premium pricing\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/price-override",
-              "host": ["{{base_url}}"],
-              "path": ["price-override"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override"
+              ]
             },
             "description": "Create a new price override for a SKU\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Priority Levels:**\n- Machine (5) - Most specific\n- Location (4) - Campus/Tower/Floor\n- Area (3)\n- District (2)\n- State (1) - Least specific\n\n**Note:** Original catalogue price is NOT modified. Override is stored separately."
           },
@@ -1083,8 +1289,12 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override?page=1&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["price-override"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override"
+              ],
               "query": [
                 {
                   "key": "sku_id",
@@ -1163,8 +1373,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/{{price_override_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "{{price_override_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "{{price_override_id}}"
+              ]
             },
             "description": "Get a specific price override by ID\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -1177,8 +1392,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/sku/{{catalogue_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "sku", "{{catalogue_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "sku",
+                "{{catalogue_id}}"
+              ]
             },
             "description": "Get all price overrides for a specific SKU\n\n**Required Role:** super_admin, admin, ops_manager"
           },
@@ -1190,15 +1411,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/price-override/effective-price/{{catalogue_id}}?machine_id=VM001&state=Karnataka",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "effective-price", "{{catalogue_id}}"],
+              "raw": "{{base_url}}/price-override/effective-price/{{catalogue_id}}?machineId=VM2026009",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "effective-price",
+                "{{catalogue_id}}"
+              ],
               "query": [
-                {
-                  "key": "machine_id",
-                  "value": "VM001",
-                  "description": "Machine ID (highest priority)"
-                },
                 {
                   "key": "area_id",
                   "value": "{{area_id}}",
@@ -1212,9 +1434,8 @@
                   "disabled": true
                 },
                 {
-                  "key": "state",
-                  "value": "Karnataka",
-                  "description": "State name"
+                  "key": "machineId",
+                  "value": "VM2026009"
                 }
               ]
             },
@@ -1238,8 +1459,13 @@
             },
             "url": {
               "raw": "{{base_url}}/price-override/{{price_override_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "{{price_override_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "{{price_override_id}}"
+              ]
             },
             "description": "Update a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Updateable fields:**\n- override_price\n- start_date\n- end_date\n- reason\n- status\n- state, district, area_id, location, machine_id"
           },
@@ -1261,8 +1487,14 @@
             },
             "url": {
               "raw": "{{base_url}}/price-override/{{price_override_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "{{price_override_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "{{price_override_id}}",
+                "status"
+              ]
             },
             "description": "Activate or deactivate a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Payload:** { \"status\": \"active\" } or { \"status\": \"inactive\" }"
           },
@@ -1275,8 +1507,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/{{price_override_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "{{price_override_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "{{price_override_id}}"
+              ]
             },
             "description": "Delete a price override\n\n**Required Role:** super_admin, admin, ops_manager\n\n**Note:** This permanently removes the override. History is preserved."
           },
@@ -1289,8 +1526,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/history?page=1&limit=20",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "history"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "history"
+              ],
               "query": [
                 {
                   "key": "price_override_id",
@@ -1351,8 +1593,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/{{price_override_id}}/history?page=1&limit=20",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "{{price_override_id}}", "history"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "{{price_override_id}}",
+                "history"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -1377,8 +1625,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/price-override/expire",
-              "host": ["{{base_url}}"],
-              "path": ["price-override", "expire"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "price-override",
+                "expire"
+              ]
             },
             "description": "Manually trigger expiry check for overrides past their end date\n\n**Required Role:** super_admin only\n\n**Note:** This is typically run by a cron job, but can be triggered manually."
           },
@@ -1386,6 +1639,46 @@
         }
       ],
       "description": "Price Override Management APIs\n\n**Features:**\n- Override prices at State/District/Area/Location/Machine level\n- Time-bound overrides with start and end dates\n- Priority system (most specific wins)\n- Full audit history\n- Original catalogue price is never modified\n\n**Access Roles:** super_admin, admin, ops_manager"
+    },
+    {
+      "name": "Login As Super Admin",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n   \"email\":\"nkoushikpanda123@gmail.com\",\r\n    \"password\":\"SuperAdmin@123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:4000/api/auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -1416,5 +1709,11 @@
       }
     }
   ],
-  "variable": []
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "default"
+    }
+  ]
 }
