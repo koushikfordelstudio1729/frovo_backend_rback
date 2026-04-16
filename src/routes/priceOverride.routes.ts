@@ -26,6 +26,15 @@ router.get(
   priceOverrideController.getAllPriceOverrides.bind(priceOverrideController)
 );
 
+// Get available states, districts, areas, and machines for the Price Override form
+// Supports cascading query params: ?state=Maharashtra&district=Pune&area_id=<locationId>
+router.get(
+  "/location-options",
+  authenticate,
+  authorize(MANAGEMENT),
+  priceOverrideController.getLocationFilterOptions.bind(priceOverrideController)
+);
+
 // Get price override history (all)
 router.get(
   "/history",

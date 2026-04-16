@@ -6,6 +6,7 @@ import {
   PriceOverrideFilterDTO,
 } from "../services/priceOverride.service";
 import { logger } from "../utils/logger.util";
+import { LocationModel, SubLocationModel, MachineDetailsModel } from "../models/AreaRoute.model";
 
 class PriceOverrideController {
   async createPriceOverride(req: Request, res: Response): Promise<void> {
@@ -476,6 +477,146 @@ class PriceOverrideController {
       res.status(400).json({
         success: false,
         message: error.message || "Failed to expire overrides",
+      });
+    }
+  }
+
+  /**
+   * GET /price-overrides/location-options
+   *
+   * Returns available states, districts, areas and machines from the
+   * area-route database so the Price Override form can build cascading
+   * dropdowns.
+   *
+   * Query params (all optional):
+   *   state    – filter districts / areas / machines by state
+   *   district – filter areas / machines by district (requires state)
+   *   area_id  – filter machines by area (LocationModel _id)
+   */
+  async getLocationFilterOptions(req: Request, res: Response): Promise<void> {
+    try {
+      const { state, district, area_id } = req.query as {
+        state?: string;
+        district?: string;
+        area_id?: string;
+      };
+
+      // ── 1. Distinct States ──────────────────────────────────────────────────
+      const states: string[] = await LocationModel.distinct("state");
+      states.sort();
+
+      // ── 2. Districts (optionally filtered by state) ─────────────────────────
+      const districtFilter: Record<string, any> = {};
+      if (state) districtFilter.state = new RegExp(`^${state}$`, "i");
+      const districts: string[] = await LocationModel.distinct("district", districtFilter);
+      districts.sort();
+
+      // ── 3. Areas (Locations filtered by state + district) ───────────────────
+      const areaFilter: Record<string, any> = {};
+      if (state) areaFilter.state = new RegExp(`^${state}$`, "i");
+      if (district) areaFilter.district = new RegExp(`^${district}$`, "i");
+
+      const areasDocs = await LocationModel.find(areaFilter).select("_id area_name state district");
+      const areas = areasDocs.map(loc => ({
+        id: loc._id,
+        area_name: loc.area_name,
+        state: loc.state,
+        district: loc.district,
+      }));
+
+      // ── 4. Machines (filtered by area_id if provided) ───────────────────────
+      let machines: { machineId: string; machine_details_id: string; sub_location_id: string }[] =
+        [];
+
+      if (area_id) {
+        // Fetch the parent location to enrich machines with area info
+        const parentLocation = await LocationModel.findById(area_id).select(
+          "area_name state district"
+        );
+
+        // Get all sub-locations that belong to this location
+        const subLocations = await SubLocationModel.find({ location_id: area_id }).select("_id");
+        const subLocationIds = subLocations.map(sl => sl._id);
+
+        if (subLocationIds.length > 0) {
+          const machineDetails = await MachineDetailsModel.find({
+            sub_location_id: { $in: subLocationIds },
+          }).select("machineId sub_location_id");
+
+          machines = machineDetails
+            .filter(m => m.machineId)
+            .map(m => ({
+              machineId: m.machineId,
+              machine_details_id: (m._id as any).toString(),
+              sub_location_id: m.sub_location_id.toString(),
+              // Always include area context so response shape is consistent
+              area_name: parentLocation?.area_name ?? null,
+              state: parentLocation?.state ?? null,
+              district: parentLocation?.district ?? null,
+            }));
+
+          // Sort alphabetically by machineId (null-safe)
+          machines.sort((a, b) => (a.machineId ?? "").localeCompare(b.machineId ?? ""));
+        }
+      } else {
+        // No area filter – return all machines (machineId + area info via join)
+        const allMachineDetails = await MachineDetailsModel.find().select(
+          "machineId sub_location_id"
+        );
+
+        // Enrich with area info
+        const subLocMap = new Map<string, any>();
+        const allSubLocs = await SubLocationModel.find().select("_id location_id");
+        allSubLocs.forEach(sl => subLocMap.set((sl._id as any).toString(), sl.location_id));
+
+        const locMap = new Map<string, any>();
+        const allLocs = await LocationModel.find().select("_id area_name state district");
+        allLocs.forEach(loc => locMap.set((loc._id as any).toString(), loc));
+
+        machines = allMachineDetails
+          .filter(m => m.machineId)
+          .map(m => {
+            const locId = subLocMap.get(m.sub_location_id.toString())?.toString();
+            const loc = locId ? locMap.get(locId) : null;
+            return {
+              machineId: m.machineId,
+              machine_details_id: (m._id as any).toString(),
+              sub_location_id: m.sub_location_id.toString(),
+              area_name: loc?.area_name ?? null,
+              state: loc?.state ?? null,
+              district: loc?.district ?? null,
+            };
+          });
+
+        // Sort alphabetically by machineId (null-safe)
+        machines.sort((a, b) => (a.machineId ?? "").localeCompare(b.machineId ?? ""));
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          states,
+          districts,
+          areas,
+          machines,
+        },
+        meta: {
+          total_states: states.length,
+          total_districts: districts.length,
+          total_areas: areas.length,
+          total_machines: machines.length,
+          filters_applied: {
+            state: state ?? null,
+            district: district ?? null,
+            area_id: area_id ?? null,
+          },
+        },
+      });
+    } catch (error: any) {
+      logger.error("Get location filter options error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch location filter options",
       });
     }
   }
