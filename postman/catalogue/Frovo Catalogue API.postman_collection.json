@@ -1,11 +1,10 @@
 {
   "info": {
-    "_postman_id": "dbd240d2-5e15-46f7-9d0f-94c9fcadcff4",
+    "_postman_id": "d0ef7544-0518-4d99-b664-2af08840f694",
     "name": "Frovo Catalogue API",
     "description": "Complete API collection for Frovo Catalogue Management System\n\n**Modules:**\n- Category Management\n- Sub-Category Management\n- SKU Catalogue Management\n- Dashboard & Reporting\n- Image Upload\n- Price Override Management\n\n**Access Roles:**\n- super_admin, admin, ops_manager: Full CRUD access\n- Authentication required for all endpoints",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "39772168",
-    "_collection_link": "https://go.postman.co/collection/39772168-dbd240d2-5e15-46f7-9d0f-94c9fcadcff4?source=collection_link"
+    "_exporter_id": "17407322"
   },
   "item": [
     {
@@ -1636,6 +1635,14 @@
             "description": "Manually trigger expiry check for overrides past their end date\n\n**Required Role:** super_admin only\n\n**Note:** This is typically run by a cron job, but can be triggered manually."
           },
           "response": []
+        },
+        {
+          "name": "location option",
+          "request": {
+            "method": "GET",
+            "header": []
+          },
+          "response": []
         }
       ],
       "description": "Price Override Management APIs\n\n**Features:**\n- Override prices at State/District/Area/Location/Machine level\n- Time-bound overrides with start and end dates\n- Priority system (most specific wins)\n- Full audit history\n- Original catalogue price is never modified\n\n**Access Roles:** super_admin, admin, ops_manager"
@@ -1712,8 +1719,7 @@
   "variable": [
     {
       "key": "access_token",
-      "value": "",
-      "type": "default"
+      "value": ""
     }
   ]
 }
