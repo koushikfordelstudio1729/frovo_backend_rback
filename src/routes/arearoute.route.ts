@@ -62,13 +62,9 @@ router.get(
   AreaController.getMachineDetailsBySubLocationId
 );
 
-// ── Machine routes: STATIC paths first, then PARAMETERIZED ────────────────────
-
-// Static GET routes (must be declared before /machine/:id to avoid param capture)
 router.get("/machine/search", authorize(STAFF), AreaController.searchMachines);
 router.get("/machine/unassigned", authorize(STAFF), AreaController.getUnassignedMachines);
 
-// Parameterized machine CRUD
 router.put(
   "/machine/:machineDetailsId",
   uploadAreaFiles,
