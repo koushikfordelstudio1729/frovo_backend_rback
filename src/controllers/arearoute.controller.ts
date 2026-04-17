@@ -958,6 +958,45 @@ export class AreaController {
     }
   }
 
+  /**
+   * GET /machine/unassigned?search=VM&status=active
+   * Returns all vending machines that have NOT been assigned to any sub-location/route.
+   * Designed for the "Select Machines" dropdown — once a machine is assigned it disappears.
+   */
+  static async getUnassignedMachines(req: Request, res: Response): Promise<void> {
+    try {
+      const search = (req.query.search as string)?.trim() || undefined;
+      const status = (req.query.status as string)?.trim() || undefined;
+
+      if (status && !["active", "inactive"].includes(status)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid status value. Use 'active' or 'inactive'.",
+        });
+        return;
+      }
+
+      const machines = await AreaService.getUnassignedMachines(search, status);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          machines,
+          total: machines.length,
+          ...(search && { search_term: search }),
+          ...(status && { filter_status: status }),
+        },
+        message:
+          machines.length === 0
+            ? "No unassigned vending machines found"
+            : `${machines.length} unassigned vending machine(s) available`,
+      });
+    } catch (error: any) {
+      logger.error("Error fetching unassigned machines:", error);
+      res.status(500).json({ success: false, message: error.message || "Internal server error" });
+    }
+  }
+
   // ── Audit Log endpoints ─────────────────────────────────────────────────────
 
   static async getAuditLogs(req: Request, res: Response): Promise<void> {

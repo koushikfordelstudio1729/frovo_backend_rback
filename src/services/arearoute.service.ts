@@ -1597,6 +1597,68 @@ export class AreaService {
     });
   }
 
+  // ── Unassigned Machines ─────────────────────────────────────────────────────
+
+  /**
+   * Returns all Machines (from VM.model) that are NOT assigned to any SubLocation.
+   * A machine is considered "assigned" if its machineId appears in any SubLocation's
+   * select_machine array. Supports optional partial-match search on machineId.
+   *
+   * @param search   Optional search term to filter by machineId (case-insensitive)
+   * @param status   Optional filter for machineStatus: "active" | "inactive"
+   */
+  static async getUnassignedMachines(
+    search?: string,
+    status?: string
+  ): Promise<
+    {
+      machineId: string;
+      machineType: string;
+      machineStatus: string;
+      serialNumber: string;
+      modelNumber: string;
+    }[]
+  > {
+    // Step 1: Collect all machineIds already in use across all sub-locations
+    const allSubLocations = await SubLocationModel.find({}, { select_machine: 1, _id: 0 }).lean();
+    const assignedMachineIds = new Set<string>(
+      allSubLocations.flatMap(sl => sl.select_machine as string[])
+    );
+
+    // Step 2: Build filter for Machine collection
+    const machineFilter: Record<string, any> = {
+      machineId: { $nin: Array.from(assignedMachineIds), $exists: true, $ne: null },
+    };
+
+    // Optional: filter by machineStatus
+    if (status && ["active", "inactive"].includes(status)) {
+      machineFilter.machineStatus = status;
+    }
+
+    // Optional: partial search on machineId
+    if (search && search.trim()) {
+      machineFilter.machineId = {
+        ...machineFilter.machineId,
+        $regex: search.trim(),
+        $options: "i",
+      };
+    }
+
+    // Step 3: Return a lean projection — only fields needed for the dropdown
+    const machines = await Machine.find(machineFilter, {
+      machineId: 1,
+      machineType: 1,
+      machineStatus: 1,
+      serialNumber: 1,
+      modelNumber: 1,
+      _id: 0,
+    })
+      .sort({ machineId: 1 })
+      .lean();
+
+    return machines as any[];
+  }
+
   // ── Filter options ──────────────────────────────────────────────────────────
 
   static async getFilterOptions(): Promise<{
