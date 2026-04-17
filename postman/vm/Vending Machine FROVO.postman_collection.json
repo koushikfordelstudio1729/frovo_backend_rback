@@ -776,13 +776,23 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/audit-trails/all",
+          "raw": "{{base_url}}/audit-trails/all?page=2&limit=10",
           "host": [
             "{{base_url}}"
           ],
           "path": [
             "audit-trails",
             "all"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "2"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
           ]
         }
       },
@@ -921,6 +931,87 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Export Audit Trails By Multiple IDs",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/export/audit/by-ids?ids=69e1c26390126c53b87a2b30,69e1ba929c60edfa3c95231b&format=csv",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "export",
+            "audit",
+            "by-ids"
+          ],
+          "query": [
+            {
+              "key": "ids",
+              "value": "69e1c26390126c53b87a2b30,69e1ba929c60edfa3c95231b"
+            },
+            {
+              "key": "format",
+              "value": "csv"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Export By Multiple IDs",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  { \"slots\": 5, \"capacity\": 10 },\r\n  { \"slots\": 8, \"capacity\": 7 },\r\n  { \"slots\": 6, \"capacity\": 5 }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/export/by-ids?ids=69e1c26390126c53b87a2b30,69e1ba929c60edfa3c95231b&format=csv",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "export",
+            "by-ids"
+          ],
+          "query": [
+            {
+              "key": "ids",
+              "value": "69e1c26390126c53b87a2b30,69e1ba929c60edfa3c95231b"
+            },
+            {
+              "key": "format",
+              "value": "csv"
+            }
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -928,7 +1019,7 @@
     "bearer": [
       {
         "key": "token",
-        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzU2MjQyNDcsImV4cCI6MTc3NTcxMDY0NywiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.cXu65vcac8rS7VzzvcY3tc4k4z64o-Lrf8bZnixxXxQ",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDRkNDFkNjk1Yzg0ODMzZDA4MDIwMCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NzY0MDM5ODgsImV4cCI6MTc3NjQ5MDM4OCwiYXVkIjoiZnJvdm8tdXNlcnMiLCJpc3MiOiJmcm92by1yYmFjIn0.vP8QMDgENMSeMi16cYwLuoQnMHbpALiSavsz5e6-fnk",
         "type": "string"
       }
     ]

@@ -37,6 +37,8 @@ import {
   getMachineDashboardStats,
   exportMachineDashboard,
   checkMachineExists,
+  exportMachinesByIds,
+  exportAuditTrailsByMachineIds,
 } from "../controllers/VM.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/authorize.middleware";
@@ -277,6 +279,19 @@ router.get(
   exportMachineDashboard
 );
 
+router.get(
+  "/export/by-ids",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  exportMachinesByIds
+);
+
+router.get(
+  "/export/audit/by-ids",
+  authenticate,
+  authorize(["super_admin", "ops_manager"]),
+  exportAuditTrailsByMachineIds
+);
 //extra routes
 router.get(
   "/machines/:machineId/slots",

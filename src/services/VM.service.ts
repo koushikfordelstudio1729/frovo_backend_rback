@@ -635,7 +635,6 @@ export class MachineService {
       slotsCount: rack.slotsList.length,
     }));
   }
-
   static async getAllMachinesAuditTrails(options?: {
     limit?: number;
     skip?: number;
@@ -646,6 +645,8 @@ export class MachineService {
     userId?: string;
     machineId?: string;
     sortBy?: "asc" | "desc";
+    page?: number;
+    pageSize?: number;
   }) {
     const query: any = {};
     if (options?.machineId) {
@@ -677,6 +678,7 @@ export class MachineService {
       allAuditLogs.push(...logs);
     });
 
+    // Apply filters
     if (options?.startDate) {
       allAuditLogs = allAuditLogs.filter(log => log.timestamp >= options.startDate!);
     }
@@ -693,6 +695,7 @@ export class MachineService {
       allAuditLogs = allAuditLogs.filter(log => log.performedBy.userId === options.userId);
     }
 
+    // Apply sorting
     const sortOrder = options?.sortBy === "asc" ? 1 : -1;
     allAuditLogs.sort((a, b) => {
       return sortOrder === 1
@@ -700,11 +703,15 @@ export class MachineService {
         : b.timestamp.getTime() - a.timestamp.getTime();
     });
 
+    // Get total count before pagination
     const total = allAuditLogs.length;
+
+    // Apply pagination
     const skip = options?.skip || 0;
     const limit = options?.limit || total;
     const paginatedLogs = allAuditLogs.slice(skip, skip + limit);
 
+    // Calculate summary statistics (based on all filtered logs, not just paginated)
     const actionCounts: { [key: string]: number } = {};
     const entityTypeCounts: { [key: string]: number } = {};
     const machineCounts: { [key: string]: number } = {};
@@ -717,10 +724,12 @@ export class MachineService {
       userCounts[log.performedBy.userId] = (userCounts[log.performedBy.userId] || 0) + 1;
     });
 
+    // Calculate date range
     const dates = allAuditLogs.map(log => log.timestamp.getTime());
     const oldestDate = dates.length > 0 ? new Date(Math.min(...dates)) : null;
     const newestDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
 
+    // Calculate recent activity
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const recentActivity = allAuditLogs.filter(log => log.timestamp >= sevenDaysAgo).length;
@@ -743,6 +752,191 @@ export class MachineService {
         byUser: userCounts,
       },
       auditLogs: paginatedLogs,
+    };
+  }
+  static async exportMachinesByIds(machineIds: string[], format: "json" | "csv" = "csv") {
+    if (!machineIds.length) {
+      throw new Error("machineIds required");
+    }
+
+    const machines = await Machine.find({
+      _id: { $in: machineIds.map(id => new mongoose.Types.ObjectId(id)) },
+    }).lean();
+
+    if (!machines.length) {
+      throw new Error("No machines found");
+    }
+
+    // 🔥 FLATTEN STRUCTURE → ONE ROW PER SLOT
+    const rows: any[] = [];
+
+    machines.forEach(machine => {
+      if (!machine.racks || machine.racks.length === 0) {
+        rows.push({
+          machineId: machine.machineId,
+          serialNumber: machine.serialNumber,
+        });
+        return;
+      }
+
+      machine.racks.forEach((rack: any) => {
+        if (!rack.slotsList || rack.slotsList.length === 0) {
+          rows.push({
+            machineId: machine.machineId,
+            serialNumber: machine.serialNumber,
+            rackName: rack.rackName,
+            capacity: rack.capacity,
+          });
+          return;
+        }
+
+        rack.slotsList.forEach((slot: any) => {
+          rows.push({
+            // MACHINE
+            "Machine DB ID": machine._id?.toString(),
+            "Machine Identifier": machine.machineId,
+            "Serial Number": machine.serialNumber,
+            "Model Number": machine.modelNumber,
+            "Machine Type": machine.machineType,
+
+            // STATUS
+            "Machine Status": machine.machineStatus,
+            Connectivity: machine.connectivityStatus,
+            "Door Status": machine.doorStatus,
+            "Installed Status": machine.installed_status,
+
+            // RACK
+            "Rack Name": rack.rackName,
+            "Rack Capacity": rack.capacity,
+            "Total Slots in Rack": rack.slots,
+
+            // SLOT
+            "Slot Number": slot.slotNumber,
+            "Product ID": slot.product || "",
+            "No of Products": slot.no_of_products || 0,
+
+            // META
+            "Created At": machine.createdAt?.toISOString(),
+          });
+        });
+      });
+    });
+
+    // ✅ CSV
+    if (format === "csv") {
+      if (!rows.length) return "";
+
+      const headers = Object.keys(rows[0]);
+
+      const csvRows = rows.map(row =>
+        headers.map(h => `"${String(row[h] || "").replace(/"/g, '""')}"`).join(",")
+      );
+
+      return [headers.join(","), ...csvRows].join("\n");
+    }
+
+    // ✅ JSON (FULL NESTED)
+    return {
+      exportDate: new Date().toISOString(),
+      totalMachines: machines.length,
+      data: machines,
+    };
+  }
+
+  static async exportAuditTrailsByMachineIds(
+    machineIds: string[],
+    format: "json" | "csv" = "csv",
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      action?: string;
+      entityType?: string;
+      userId?: string;
+    }
+  ) {
+    if (!Array.isArray(machineIds) || machineIds.length === 0) {
+      throw new Error("machineIds must be a non-empty array");
+    }
+
+    const machines = await Machine.find({
+      _id: { $in: machineIds.map(id => new mongoose.Types.ObjectId(id)) },
+    }).select("_id serialNumber modelNumber machineType auditLogs");
+
+    let allLogs: any[] = [];
+
+    machines.forEach(machine => {
+      const logs = machine.auditLogs.map((log: any) => ({
+        id: log._id,
+        machineId: machine._id,
+        serialNumber: machine.serialNumber,
+        modelNumber: machine.modelNumber,
+        machineType: machine.machineType,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        changes: log.changes,
+        performedBy: log.performedBy,
+        timestamp: log.timestamp,
+        previousData: log.previousData,
+        newData: log.newData,
+      }));
+
+      allLogs.push(...logs);
+    });
+
+    // Filters
+    if (options?.startDate) {
+      allLogs = allLogs.filter(log => log.timestamp >= options.startDate!);
+    }
+    if (options?.endDate) {
+      allLogs = allLogs.filter(log => log.timestamp <= options.endDate!);
+    }
+    if (options?.action) {
+      allLogs = allLogs.filter(log => log.action === options.action);
+    }
+    if (options?.entityType) {
+      allLogs = allLogs.filter(log => log.entityType === options.entityType);
+    }
+    if (options?.userId) {
+      allLogs = allLogs.filter(log => log.performedBy.userId === options.userId);
+    }
+
+    // Sort latest first
+    allLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    const formattedLogs = allLogs.map(log => ({
+      "Audit ID": log.id,
+      "Machine ID": log.machineId,
+      "Serial Number": log.serialNumber,
+      "Model Number": log.modelNumber,
+      "Machine Type": log.machineType,
+      Action: log.action,
+      "Entity Type": log.entityType,
+      "Entity ID": log.entityId || "",
+      Changes: JSON.stringify(log.changes || {}),
+      "Performed By": `${log.performedBy.userName || log.performedBy.userEmail}`,
+      "User ID": log.performedBy.userId,
+      "IP Address": log.performedBy.ipAddress,
+      Timestamp: log.timestamp.toISOString(),
+    }));
+
+    if (format === "csv") {
+      if (!formattedLogs.length) return "";
+
+      const headers = Object.keys(formattedLogs[0]);
+
+      const rows = formattedLogs.map(row =>
+        headers.map(h => `"${String((row as any)[h] || "").replace(/"/g, '""')}"`).join(",")
+      );
+
+      return [headers.join(","), ...rows].join("\n");
+    }
+
+    return {
+      exportDate: new Date().toISOString(),
+      totalRecords: formattedLogs.length,
+      filters: options || {},
+      data: formattedLogs,
     };
   }
   static async getAuditTrailsByMachineId(

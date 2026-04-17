@@ -1147,13 +1147,36 @@ export class VendingMachineController {
 
   static async getAllMachinesAuditTrails(req: Request, res: Response) {
     try {
-      const { limit, skip, startDate, endDate, action, entityType, userId, machineId, sortBy } =
-        req.query;
+      const {
+        limit,
+        skip,
+        startDate,
+        endDate,
+        action,
+        entityType,
+        userId,
+        machineId,
+        sortBy,
+        page = 1,
+        pageSize = 10,
+      } = req.query;
+
+      // Calculate skip based on page and pageSize if pagination is used
+      let finalSkip: number | undefined = skip ? parseInt(skip as string) : undefined;
+      let finalLimit: number | undefined = limit ? parseInt(limit as string) : undefined;
+
+      if (!skip && page) {
+        finalSkip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
+      }
+
+      if (!limit && pageSize) {
+        finalLimit = parseInt(pageSize as string);
+      }
 
       const options: any = {};
 
-      if (limit) options.limit = parseInt(limit as string);
-      if (skip) options.skip = parseInt(skip as string);
+      if (finalLimit) options.limit = finalLimit;
+      if (finalSkip) options.skip = finalSkip;
       if (startDate) options.startDate = new Date(startDate as string);
       if (endDate) options.endDate = new Date(endDate as string);
       if (action) options.action = action as string;
@@ -1163,11 +1186,26 @@ export class VendingMachineController {
       if (sortBy && (sortBy === "asc" || sortBy === "desc"))
         options.sortBy = sortBy as "asc" | "desc";
 
+      // Add pagination metadata
+      options.page = parseInt(page as string) || 1;
+      options.pageSize = parseInt(pageSize as string) || 10;
+
       const result = await MachineService.getAllMachinesAuditTrails(options);
 
+      // Enhance response with pagination metadata
       res.status(200).json({
         success: true,
-        data: result,
+        data: {
+          ...result,
+          pagination: {
+            currentPage: options.page,
+            pageSize: options.pageSize,
+            totalPages: Math.ceil(result.total / options.pageSize),
+            totalItems: result.total,
+            hasNextPage: options.page * options.pageSize < result.total,
+            hasPrevPage: options.page > 1,
+          },
+        },
       });
     } catch (error: any) {
       logger.error("Error fetching all machines audit trails:", error);
@@ -1175,6 +1213,92 @@ export class VendingMachineController {
         success: false,
         message: "Failed to fetch all machines audit trails",
         error: error.message,
+      });
+    }
+  }
+  static async exportMachinesByIds(req: Request, res: Response) {
+    try {
+      const { ids, format = "csv" } = req.query;
+
+      if (!ids) {
+        return res.status(400).json({
+          success: false,
+          message: "ids query param is required (comma-separated)",
+        });
+      }
+
+      const machineIds = (ids as string).split(",").map(id => id.trim());
+
+      const result = await MachineService.exportMachinesByIds(machineIds, format as "json" | "csv");
+
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=machines_export_${Date.now()}.csv`
+        );
+        return res.send(result);
+      }
+
+      const jsonResult = result as { exportDate: string; totalMachines: number; data: any[] };
+      return res.json({
+        success: true,
+        ...jsonResult,
+      });
+    } catch (error: any) {
+      logger.error("Error exporting machines by ids:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+  static async exportAuditTrailsByMachineIds(req: Request, res: Response) {
+    try {
+      const { ids, format = "csv", startDate, endDate, action, entityType, userId } = req.query;
+
+      if (!ids) {
+        return res.status(400).json({
+          success: false,
+          message: "ids query param is required",
+        });
+      }
+
+      const machineIds = (ids as string).split(",").map(id => id.trim());
+
+      const result = await MachineService.exportAuditTrailsByMachineIds(
+        machineIds,
+        format as "json" | "csv",
+        {
+          ...(startDate && { startDate: new Date(startDate as string) }),
+          ...(endDate && { endDate: new Date(endDate as string) }),
+          ...(action && { action: action as string }),
+          ...(entityType && { entityType: entityType as string }),
+          ...(userId && { userId: userId as string }),
+        }
+      );
+
+      if (format === "csv") {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename=audit_export_${Date.now()}.csv`);
+        return res.send(result);
+      }
+
+      const jsonResult = result as {
+        exportDate: string;
+        totalRecords: number;
+        filters: any;
+        data: any[];
+      };
+      return res.json({
+        success: true,
+        ...jsonResult,
+      });
+    } catch (error: any) {
+      logger.error("Error exporting audit logs by ids:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message,
       });
     }
   }
@@ -1531,3 +1655,5 @@ export const getMachineDashboard = VendingMachineController.getMachineDashboard;
 export const getMachineDashboardStats = VendingMachineController.getMachineDashboardStats;
 export const exportMachineDashboard = VendingMachineController.exportMachineDashboard;
 export const checkMachineExists = VendingMachineController.checkMachineExists;
+export const exportMachinesByIds = VendingMachineController.exportMachinesByIds;
+export const exportAuditTrailsByMachineIds = VendingMachineController.exportAuditTrailsByMachineIds;

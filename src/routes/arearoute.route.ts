@@ -116,5 +116,6 @@ router.get("/dashboard/data", authorize(STAFF), AreaController.getDashboardData)
 router.get("/dashboard/table", authorize(STAFF), AreaController.getDashboardTableData);
 router.get("/dashboard/export", authorize(STAFF), AreaController.exportDashboardData);
 router.get("/filter/options", authorize(STAFF), AreaController.getFilterOptions);
+router.post("/location/export-multiple", authorize(STAFF), AreaController.exportMultipleLocations);
 
 export default router;

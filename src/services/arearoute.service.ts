@@ -2692,4 +2692,215 @@ export class AreaService {
       return "Error generating dashboard CSV export";
     }
   }
+
+  /**
+   * Export multiple locations by IDs with full nested details
+   * @param locationIds string[]
+   * @param format "json" | "csv"
+   */
+  static async exportLocationsByIds(
+    locationIds: string[],
+    format: string = "json"
+  ): Promise<{ data: any; filename: string; contentType: string }> {
+    try {
+      if (!Array.isArray(locationIds) || locationIds.length === 0) {
+        throw new Error("locationIds must be a non-empty array");
+      }
+
+      // Validate ObjectIds
+      const invalidIds = locationIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+      if (invalidIds.length > 0) {
+        throw new Error(`Invalid location IDs: ${invalidIds.join(", ")}`);
+      }
+
+      // Fetch locations
+      const locations = await LocationModel.find({
+        _id: { $in: locationIds },
+      });
+
+      if (!locations || locations.length === 0) {
+        throw new Error("No locations found for provided IDs");
+      }
+
+      // Build full nested structure
+      const enrichedLocations = await Promise.all(
+        locations.map(async location => {
+          const subLocations = await SubLocationModel.find({
+            location_id: location._id,
+          });
+
+          const enrichedSubLocations = await Promise.all(
+            subLocations.map(async subLoc => {
+              const machines = await MachineDetailsModel.find({
+                sub_location_id: subLoc._id,
+              });
+
+              return {
+                ...subLoc.toObject(),
+                machines: machines.map(m => ({
+                  id: m._id,
+                  machineId: m.machineId,
+                  installed_status: m.installed_status,
+                  status: m.status,
+                  images_count: m.machine_image.length,
+                  images: m.machine_image,
+                  created_at: m.createdAt,
+                  updated_at: m.updatedAt,
+                })),
+              };
+            })
+          );
+
+          // Summary
+          const totalMachines = enrichedSubLocations.reduce(
+            (sum, sl) => sum + sl.machines.length,
+            0
+          );
+
+          const installedMachines = enrichedSubLocations.reduce(
+            (sum, sl) =>
+              sum + sl.machines.filter((m: any) => m.installed_status === "installed").length,
+            0
+          );
+
+          const activeMachines = enrichedSubLocations.reduce(
+            (sum, sl) => sum + sl.machines.filter((m: any) => m.status === "active").length,
+            0
+          );
+
+          return {
+            ...location.toObject(),
+            sub_locations: enrichedSubLocations,
+            summary: {
+              total_sub_locations: enrichedSubLocations.length,
+              total_machines: totalMachines,
+              installed_machines: installedMachines,
+              not_installed_machines: totalMachines - installedMachines,
+              active_machines: activeMachines,
+              inactive_machines: totalMachines - activeMachines,
+            },
+          };
+        })
+      );
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `multiple-locations-export-${timestamp}`;
+
+      if (format === "csv") {
+        return {
+          data: this.convertMultipleLocationsToCSV(enrichedLocations),
+          filename: `${filename}.csv`,
+          contentType: "text/csv",
+        };
+      }
+
+      return {
+        data: {
+          locations: enrichedLocations,
+          total: enrichedLocations.length,
+          export_date: new Date().toISOString(),
+        },
+        filename: `${filename}.json`,
+        contentType: "application/json",
+      };
+    } catch (error) {
+      logger.error("Error exporting multiple locations:", error);
+      throw error;
+    }
+  }
+  private static convertMultipleLocationsToCSV(locations: any[]): string {
+    try {
+      let csv = "\ufeff";
+
+      const headers = [
+        "Location ID",
+        "Area Name",
+        "State",
+        "District",
+        "Pincode",
+        "Status",
+        "Sub-location ID",
+        "Campus",
+        "Tower",
+        "Floor",
+        "Machine ID",
+        "Installed Status",
+        "Machine Status",
+        "Images Count",
+      ];
+
+      csv += headers.join(",") + "\n";
+
+      for (const loc of locations) {
+        if (!loc.sub_locations || loc.sub_locations.length === 0) {
+          csv +=
+            [
+              loc._id,
+              `"${loc.area_name}"`,
+              `"${loc.state}"`,
+              `"${loc.district}"`,
+              loc.pincode,
+              loc.status,
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ].join(",") + "\n";
+          continue;
+        }
+
+        for (const subLoc of loc.sub_locations) {
+          if (!subLoc.machines || subLoc.machines.length === 0) {
+            csv +=
+              [
+                loc._id,
+                `"${loc.area_name}"`,
+                `"${loc.state}"`,
+                `"${loc.district}"`,
+                loc.pincode,
+                loc.status,
+                subLoc._id,
+                `"${subLoc.campus}"`,
+                `"${subLoc.tower}"`,
+                `"${subLoc.floor}"`,
+                "",
+                "",
+                "",
+                "",
+              ].join(",") + "\n";
+            continue;
+          }
+
+          for (const m of subLoc.machines) {
+            csv +=
+              [
+                loc._id,
+                `"${loc.area_name}"`,
+                `"${loc.state}"`,
+                `"${loc.district}"`,
+                loc.pincode,
+                loc.status,
+                subLoc._id,
+                `"${subLoc.campus}"`,
+                `"${subLoc.tower}"`,
+                `"${subLoc.floor}"`,
+                `"${m.machineId}"`,
+                m.installed_status,
+                m.status,
+                m.images_count,
+              ].join(",") + "\n";
+          }
+        }
+      }
+
+      return csv;
+    } catch (error) {
+      logger.error("Error converting multiple locations to CSV:", error);
+      return "Error generating CSV";
+    }
+  }
 }

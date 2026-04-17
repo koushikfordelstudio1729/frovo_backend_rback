@@ -1877,4 +1877,41 @@ export class AreaController {
       });
     }
   }
+  /**
+   * POST /locations/export-multiple
+   * body: { locationIds: string[], format?: "json" | "csv" }
+   */
+  static async exportMultipleLocations(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationIds, format = "json" } = req.body;
+
+      if (!Array.isArray(locationIds) || locationIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "locationIds must be a non-empty array",
+        });
+        return;
+      }
+
+      const result = await AreaService.exportLocationsByIds(locationIds, format);
+
+      res.setHeader("Content-Type", result.contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+
+      if (format === "csv") {
+        res.status(200).send(result.data);
+      } else {
+        res.status(200).json({
+          success: true,
+          ...result.data,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Error exporting multiple locations:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Internal server error",
+      });
+    }
+  }
 }
