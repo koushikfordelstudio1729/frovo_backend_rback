@@ -305,8 +305,6 @@ export class PriceOverrideService {
     });
     return [...new Set(areas.map(area => area.district))];
   }
-
-  // Create price override with hierarchical support
   async createPriceOverride(data: CreatePriceOverrideDTO): Promise<IPriceOverride> {
     try {
       // Validate required fields
@@ -348,17 +346,33 @@ export class PriceOverrideService {
         throw new Error(machineValidation.message);
       }
 
-      // Validate dates
+      // Validate dates - FIXED VERSION
       const startDate = new Date(data.start_date);
       const endDate = new Date(data.end_date);
-      const now = new Date();
 
-      if (startDate >= endDate) {
+      // Normalize to start of day for comparison
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const startDateNormalized = new Date(startDate);
+      startDateNormalized.setHours(0, 0, 0, 0);
+
+      const endDateNormalized = new Date(endDate);
+      endDateNormalized.setHours(0, 0, 0, 0);
+
+      // Validate end date is after start date
+      if (endDateNormalized <= startDateNormalized) {
         throw new Error("End date must be after start date");
       }
 
-      if (startDate < now) {
+      // Validate start date is not in the past (today is allowed)
+      if (startDateNormalized < today) {
         throw new Error("Start date cannot be in the past");
+      }
+
+      // Additional validation: end date should be at least today
+      if (endDateNormalized < today) {
+        throw new Error("End date cannot be in the past");
       }
 
       // Validate override price
