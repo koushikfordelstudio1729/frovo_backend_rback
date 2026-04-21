@@ -528,7 +528,6 @@ class WarehouseService {
         vendor_email: vendor.brand_email,
         vendor_phone: vendor.contact_phone,
         vendor_category: vendor.brand_category,
-        gst_number: vendor.gst_details,
         verification_status: vendor.verification_status,
         vendor_address: vendor.address,
         vendor_contact: vendor.contact_name,

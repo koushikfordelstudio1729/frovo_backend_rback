@@ -17,6 +17,9 @@ import {
   setExportHeaders,
   requireRole,
   getRequiredDocumentsForLegalEntity,
+  getRequiredDocumentForCancelledCheque,
+  getRequiredCompanyDocumentsForLegalEntity,
+  normalizeBody,
   ValidationError,
   VALID_LEGAL_STRUCTURES,
   VALID_REGISTRATION_TYPES,
@@ -49,27 +52,13 @@ export class VendorController {
       email: user.email || "",
     };
   }
-
-  // ============================================
-  // COMPANY CONTROLLER METHODS
-  // ============================================
-
   public static async createCompany(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
 
-      validateMissingFields(req.body, [
-        "registered_company_name",
-        "registered_office_address",
-        "official_email",
-        "legal_entity_structure",
-        "registration_type",
-        "cin_or_msme_number",
-        "date_of_incorporation",
-        "directory_signature_name",
-        "din",
-      ]);
+      // Trim all string values
+      const trimmedBody = normalizeBody(req.body);
 
       const {
         registered_company_name,
@@ -82,21 +71,113 @@ export class VendorController {
         corporate_website,
         directory_signature_name,
         din,
-        company_status,
-      } = req.body;
+        gst_details,
+        PAN_number,
+        FSSAI_number,
+        TDS_rate,
+        billing_cycle,
+      } = trimmedBody;
+
+      // Validate that we have the required text fields
+      if (!legal_entity_structure) {
+        throw new ValidationError(
+          "legal_entity_structure is required. Make sure you're sending it as a form field (not JSON)"
+        );
+      }
 
       validateEnumValue(legal_entity_structure, VALID_LEGAL_STRUCTURES, "legal_entity_structure");
       validateEnumValue(registration_type, VALID_REGISTRATION_TYPES, "registration_type");
       validateLegalEntityRelationship(legal_entity_structure, registration_type);
 
-      if (CIN_REQUIRED_STRUCTURES.includes(legal_entity_structure) && (!din || din.trim() === "")) {
+      if (CIN_REQUIRED_STRUCTURES.includes(legal_entity_structure) && (!din || din === "")) {
         throw new ValidationError(
           `DIN is required for legal entity structure '${legal_entity_structure}'`
         );
       }
 
       validateEmail(official_email);
+
+      // Validate PAN format
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(PAN_number?.toUpperCase() || "")) {
+        throw new ValidationError("Invalid PAN number format. Expected format: ABCDE1234F");
+      }
+
+      // Validate GST format
+      if (
+        !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/.test(
+          gst_details?.toUpperCase() || ""
+        )
+      ) {
+        throw new ValidationError("Invalid GST number format. Expected format: 22AAAAA0000A1Z5");
+      }
+
+      // Validate TDS rate
+      const tdsRateNum = Number(TDS_rate);
+      if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
+        throw new ValidationError("TDS rate must be between 0 and 100");
+      }
+
       const parsedDate = parseDateNotFuture(date_of_incorporation, "Date of incorporation");
+
+      // Check for files
+      if (!req.files || Object.keys(req.files).length === 0) {
+        throw new ValidationError("No files uploaded. Required documents are missing.");
+      }
+
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+      // Get allowed documents for this legal entity structure
+      const allowedDocuments = getRequiredCompanyDocumentsForLegalEntity(legal_entity_structure);
+      const uploadedFileNames = Object.keys(files);
+
+      // Check for unauthorized document uploads
+      const unauthorizedDocuments = uploadedFileNames.filter(
+        fieldName => !allowedDocuments.includes(fieldName)
+      );
+
+      if (unauthorizedDocuments.length > 0) {
+        throw new ValidationError(
+          `Cannot upload documents that are not required for '${legal_entity_structure}' legal entity. ` +
+            `Unauthorized documents: ${unauthorizedDocuments.join(", ")}. ` +
+            `Allowed documents: ${allowedDocuments.join(", ")}`
+        );
+      }
+
+      // Check for missing required documents
+      const missingDocuments = allowedDocuments.filter(
+        doc => !uploadedFileNames.includes(doc) || !files[doc]?.[0]
+      );
+
+      if (missingDocuments.length > 0) {
+        throw new ValidationError(
+          `Missing required documents for '${legal_entity_structure}': ${missingDocuments.join(", ")}`
+        );
+      }
+
+      const imageUploadService = new ImageUploadService();
+      const processedFiles: Record<string, any> = {};
+      const folderPath = registered_company_name.replace(/[^a-zA-Z0-9]/g, "_");
+
+      // Only process allowed documents
+      for (const fieldName of allowedDocuments) {
+        const fileArray = files[fieldName];
+        if (fileArray && fileArray.length > 0) {
+          const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
+          if (documentType) {
+            try {
+              processedFiles[fieldName] = await imageUploadService.uploadDocument(
+                fileArray[0],
+                documentType as DocumentType,
+                folderPath
+              );
+            } catch (uploadError: any) {
+              logger.error(`Failed to upload ${fieldName}:`, uploadError);
+              await VendorController.cleanupUploadedFiles(processedFiles, imageUploadService);
+              throw new Error(`Failed to upload ${fieldName}: ${uploadError.message}`);
+            }
+          }
+        }
+      }
 
       const newCompany = await companyService.createCompany(
         {
@@ -111,6 +192,12 @@ export class VendorController {
           directory_signature_name,
           din,
           company_status: "active",
+          gst_details: gst_details.toUpperCase(),
+          PAN_number: PAN_number.toUpperCase(),
+          FSSAI_number,
+          TDS_rate: tdsRateNum,
+          billing_cycle,
+          ...processedFiles,
         },
         userId,
         userEmail,
@@ -124,6 +211,23 @@ export class VendorController {
         data: newCompany,
       });
     } catch (error) {
+      // Clean up any uploaded files if there's an error
+      if (req.files) {
+        try {
+          const imageUploadService = new ImageUploadService();
+          const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+          const processedFiles: Record<string, any> = {};
+
+          for (const fieldName of Object.keys(files)) {
+            if (processedFiles[fieldName]) {
+              await VendorController.cleanupUploadedFiles(processedFiles, imageUploadService);
+              break;
+            }
+          }
+        } catch (cleanupError) {
+          logger.error("Error during cleanup:", cleanupError);
+        }
+      }
       handleControllerError(res, error, "creating company");
     }
   }
@@ -203,12 +307,11 @@ export class VendorController {
         );
       }
 
-      // Validate legal entity / registration type relationship
       let currentCompany: any = null;
       try {
         currentCompany = await companyService.getCompanyById(id);
       } catch (_) {
-        // Will be caught during update
+        // will be caught during update
       }
 
       validateLegalEntityRelationship(
@@ -227,6 +330,51 @@ export class VendorController {
           updateData.date_of_incorporation,
           "Date of incorporation"
         );
+      }
+
+      if (updateData.PAN_number) {
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(updateData.PAN_number.toUpperCase())) {
+          throw new ValidationError("Invalid PAN number format. Expected format: ABCDE1234F");
+        }
+        updateData.PAN_number = updateData.PAN_number.toUpperCase();
+      }
+
+      if (updateData.gst_details) {
+        if (
+          !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/.test(
+            updateData.gst_details.toUpperCase()
+          )
+        ) {
+          throw new ValidationError("Invalid GST number format");
+        }
+        updateData.gst_details = updateData.gst_details.toUpperCase();
+      }
+
+      if (updateData.TDS_rate !== undefined) {
+        const tdsRateNum = Number(updateData.TDS_rate);
+        if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
+          throw new ValidationError("TDS rate must be between 0 and 100");
+        }
+        updateData.TDS_rate = tdsRateNum;
+      }
+
+      // Handle file uploads for update
+      if (req.files) {
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const imageUploadService = new ImageUploadService();
+
+        for (const fieldName of UPDATABLE_DOCUMENT_FIELDS) {
+          if (files[fieldName]?.[0]) {
+            const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
+            if (documentType) {
+              updateData[fieldName] = await imageUploadService.uploadDocument(
+                files[fieldName][0],
+                documentType as DocumentType,
+                currentCompany?.registered_company_name || `companies/${id}`
+              );
+            }
+          }
+        }
       }
 
       const updatedCompany = await companyService.updateCompany(
@@ -512,10 +660,6 @@ export class VendorController {
     }
   }
 
-  // ============================================
-  // BRAND CONTROLLER METHODS
-  // ============================================
-
   public static async createBrand(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -536,11 +680,6 @@ export class VendorController {
         "bank_account_of_brand",
         "ifsc_code",
         "payment_terms",
-        "gst_details",
-        "PAN_number",
-        "FSSAI_number",
-        "TDS_rate",
-        "billing_cycle",
         "brand_status_cycle",
         "contract_start_date",
         "contract_end_date",
@@ -563,11 +702,6 @@ export class VendorController {
         bank_account_of_brand,
         ifsc_code,
         payment_terms,
-        gst_details,
-        PAN_number,
-        FSSAI_number,
-        TDS_rate,
-        billing_cycle,
         brand_status_cycle,
         contract_start_date,
         contract_end_date,
@@ -583,7 +717,7 @@ export class VendorController {
       validateEnumValue(payment_methods, VALID_PAYMENT_METHODS, "payment_methods");
       validateEmail(brand_email);
 
-      // Validate dates
+      // ── Validate dates ────────────────────────────────────────────────────
       const parsedContractStartDate = parseDate(contract_start_date, "contract_start_date");
       const parsedContractEndDate = parseDate(contract_end_date, "contract_end_date");
       const parsedContractRenewalDate = parseDate(contract_renewal_date, "contract_renewal_date");
@@ -595,19 +729,13 @@ export class VendorController {
         throw new ValidationError("Contract renewal date must be on or after contract end date");
       }
 
-      // Validate TDS rate
-      const tdsRateNum = Number(TDS_rate);
-      if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
-        throw new ValidationError("TDS rate must be a number between 0 and 100");
-      }
-
-      // Validate company (support both MongoDB _id and string company_id)
+      // ── Resolve and validate company ──────────────────────────────────────
       let company;
       if (mongoose.Types.ObjectId.isValid(company_id) && company_id.length === 24) {
         company = await CompanyCreate.findById(company_id);
       }
       if (!company) {
-        company = await CompanyCreate.findOne({ company_id: company_id });
+        company = await CompanyCreate.findOne({ company_id });
       }
       if (!company) {
         throw new Error(`Company with ID ${company_id} not found`);
@@ -625,28 +753,16 @@ export class VendorController {
         );
       }
 
-      // Validate required documents
-      const requiredDocuments = getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
-
-      if (!req.files) {
-        throw new ValidationError(
-          `Required documents for legal entity structure '${company.legal_entity_structure}' are missing`
-        );
-      }
-
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const uploadedFiles = Object.keys(files);
-      const missingDocuments = requiredDocuments.filter(doc => !uploadedFiles.includes(doc));
+      const requiredDocuments = getRequiredDocumentForCancelledCheque();
+      const missingDocuments = requiredDocuments.filter(
+        doc => !uploadedFiles.includes(doc) || !files[doc]?.[0]
+      );
 
-      if (missingDocuments.length > 0) {
-        throw new ValidationError(
-          `Missing required documents for '${company.legal_entity_structure}': ${missingDocuments.join(", ")}`
-        );
-      }
-
-      // Process uploaded files
+      // ── Upload files to Cloudinary ────────────────────────────────────────
       const imageUploadService = new ImageUploadService();
-      const processedFiles: any = {};
+      const processedFiles: Record<string, any> = {};
 
       for (const fieldName of uploadedFiles) {
         const fileArray = files[fieldName];
@@ -668,6 +784,7 @@ export class VendorController {
         }
       }
 
+      // ── Build brand data (NO compliance fields) ───────────────────────────
       const brandData: any = {
         registration_type,
         cin_or_msme_number,
@@ -683,11 +800,6 @@ export class VendorController {
         bank_account_of_brand,
         ifsc_code: ifsc_code.toUpperCase(),
         payment_terms,
-        gst_details: gst_details.toUpperCase(),
-        PAN_number: PAN_number.toUpperCase(),
-        FSSAI_number,
-        TDS_rate: tdsRateNum,
-        billing_cycle,
         brand_status_cycle,
         brand_status: "active",
         verification_status: "pending",
@@ -840,18 +952,21 @@ export class VendorController {
         }
       }
 
-      // Uppercase normalization
       if (updateData.ifsc_code) updateData.ifsc_code = updateData.ifsc_code.toUpperCase();
-      if (updateData.gst_details) updateData.gst_details = updateData.gst_details.toUpperCase();
-      if (updateData.PAN_number) updateData.PAN_number = updateData.PAN_number.toUpperCase();
 
-      // Handle file uploads
+      // Handle file uploads — brand does NOT accept compliance image updates here
       if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         const imageUploadService = new ImageUploadService();
 
-        for (const fieldName of UPDATABLE_DOCUMENT_FIELDS) {
-          if (files[fieldName] && files[fieldName][0]) {
+        // Exclude compliance-only fields (gst_certificate_image, PAN_image, FSSAI_image)
+        // from brand updates
+        const brandUpdatableFields = UPDATABLE_DOCUMENT_FIELDS.filter(
+          f => f !== "gst_certificate_image" && f !== "PAN_image" && f !== "FSSAI_image"
+        );
+
+        for (const fieldName of brandUpdatableFields) {
+          if (files[fieldName]?.[0]) {
             const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
             if (documentType) {
               let currentBrand;
@@ -861,7 +976,7 @@ export class VendorController {
                 currentBrand = await BrandCreate.findOne({ brand_id: id });
               }
 
-              let folderPath;
+              let folderPath: string | undefined;
               if (currentBrand) {
                 const company = await CompanyCreate.findById(currentBrand.company_id);
                 folderPath = company
@@ -953,7 +1068,7 @@ export class VendorController {
 
       validateEnumValue(verification_status, VALID_VERIFICATION_STATUSES, "verification_status");
 
-      const updateData = {
+      const updateData: Record<string, any> = {
         verification_status,
         ...(risk_notes !== undefined && { risk_notes }),
         ...(verification_status === "verified" && { verified_by: userId }),

@@ -1,6 +1,24 @@
 import mongoose, { Types } from "mongoose";
 import { Request } from "express";
-import { CompanyCreate, ICompanyCreate, BrandCreate, IBrandCreate } from "../models/Vendor.model";
+import {
+  CompanyCreate,
+  ICompanyCreate,
+  BrandCreate,
+  IBrandCreate,
+  ITrademarkCertificateImage,
+  ICertificateOfIncorporationImage,
+  IMsmeOrUdyamCertificate,
+  IGstCertificateImage,
+  IAoAImage,
+  IAuthorizedSignatoryImage,
+  IBoardResolutionImage,
+  IFSSAIImage,
+  ILLPAgreementImage,
+  IMoAImage,
+  IPANImage,
+  IRegisteredPartnershipDeedImage,
+  IShopAndEstablishmentCertificateImage,
+} from "../models/Vendor.model";
 import { AuditTrailService } from "./auditTrail.service";
 import { logger } from "../utils/logger.util";
 import { ImageUploadService } from "./vendorFileUpload.service";
@@ -9,15 +27,13 @@ import PDFDocument from "pdfkit";
 import {
   validateMongoId,
   getRequiredDocumentsForLegalEntity,
+  getRequiredDocumentForCancelledCheque,
+  getRequiredCompanyDocumentsForLegalEntity,
   escapeCSVCell,
   buildCSV,
 } from "../utils/vendor.helpers";
 
 const auditTrailService = new AuditTrailService();
-
-// ============================================
-// COMPANY SERVICE INTERFACES
-// ============================================
 
 export interface ICompanyDashboardOptions {
   page: number;
@@ -82,14 +98,36 @@ export interface ICompanyCreateData {
   registered_company_name: string;
   registered_office_address: string;
   official_email: string;
-  legal_entity_structure: "pvt" | "public" | "opc" | "llp" | "proprietorship" | "partnership";
-  registration_type: "cin" | "msme";
+  legal_entity_structure: string;
+  registration_type: string;
   cin_or_msme_number: string;
   date_of_incorporation: Date;
   corporate_website?: string;
   directory_signature_name: string;
   din: string;
-  company_status?: "active" | "inactive";
+  company_status?: string;
+  // Compliance fields
+  gst_details: string;
+  PAN_number: string;
+  FSSAI_number: string;
+  TDS_rate: number;
+  billing_cycle: string;
+  // Compliance certificate images (always uploaded at company level)
+  gst_certificate_image?: IGstCertificateImage;
+  PAN_image?: IPANImage;
+  FSSAI_image?: IFSSAIImage;
+  // Legal-entity-specific document images (optional at type level;
+  // required set enforced per entity by getRequiredCompanyDocumentsForLegalEntity)
+  certificate_of_incorporation_image?: ICertificateOfIncorporationImage;
+  MSME_or_Udyam_certificate_image?: IMsmeOrUdyamCertificate;
+  MOA_image?: IMoAImage;
+  AOA_image?: IAoAImage;
+  Trademark_certificate_image?: ITrademarkCertificateImage;
+  Authorized_Signatory_image?: IAuthorizedSignatoryImage;
+  LLP_agreement_image?: ILLPAgreementImage;
+  Shop_and_Establishment_certificate_image?: IShopAndEstablishmentCertificateImage;
+  Registered_Partnership_deed_image?: IRegisteredPartnershipDeedImage;
+  Board_resolution_image?: IBoardResolutionImage;
 }
 
 export interface ICompanyUpdateData {
@@ -104,6 +142,25 @@ export interface ICompanyUpdateData {
   directory_signature_name?: string;
   din?: string;
   company_status?: "active" | "inactive";
+  // Compliance (optional on update)
+  gst_details?: string;
+  PAN_number?: string;
+  FSSAI_number?: string;
+  TDS_rate?: number;
+  billing_cycle?: string;
+  gst_certificate_image?: IGstCertificateImage;
+  PAN_image?: IPANImage;
+  FSSAI_image?: IFSSAIImage;
+  certificate_of_incorporation_image?: ICertificateOfIncorporationImage;
+  MSME_or_Udyam_certificate_image?: IMsmeOrUdyamCertificate;
+  MOA_image?: IMoAImage;
+  AOA_image?: IAoAImage;
+  Trademark_certificate_image?: ITrademarkCertificateImage;
+  Authorized_Signatory_image?: IAuthorizedSignatoryImage;
+  LLP_agreement_image?: ILLPAgreementImage;
+  Shop_and_Establishment_certificate_image?: IShopAndEstablishmentCertificateImage;
+  Registered_Partnership_deed_image?: IRegisteredPartnershipDeedImage;
+  Board_resolution_image?: IBoardResolutionImage;
 }
 
 export interface ICompanyPaginationOptions {
@@ -119,6 +176,8 @@ export interface ICompanyPaginationOptions {
 
 // ============================================
 // BRAND SERVICE INTERFACES
+// Compliance fields (GST, PAN, FSSAI, TDS, billing_cycle) and their
+// certificate images are intentionally EXCLUDED — they live on Company only.
 // ============================================
 
 export interface IBrandCreateData {
@@ -136,24 +195,9 @@ export interface IBrandCreateData {
   bank_account_of_brand: string;
   ifsc_code: string;
   payment_terms: string;
+  // Brand-specific banking document
   upload_cancelled_cheque_image?: any;
-  gst_details: string;
-  gst_certificate_image?: any;
-  PAN_number: string;
-  PAN_image?: any;
-  FSSAI_number: string;
-  FSSAI_image?: any;
-  TDS_rate: number;
-  billing_cycle: string;
-  brand_status_cycle: string;
-  verification_status?: "pending" | "verified" | "rejected";
-  risk_notes?: string;
-  contract_terms?: string;
-  contract_start_date: Date;
-  contract_end_date: Date;
-  contract_renewal_date: Date;
-  payment_methods: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
-  internal_notes?: string;
+  // Legal-entity-specific document images
   certificate_of_incorporation_image?: any;
   MSME_or_Udyam_certificate_image?: any;
   MOA_image?: any;
@@ -164,6 +208,18 @@ export interface IBrandCreateData {
   Shop_and_Establishment_certificate_image?: any;
   Registered_Partnership_deed_image?: any;
   Board_resolution_image?: any;
+  // Status & contract
+  brand_status_cycle: string;
+  brand_status?: "active" | "inactive";
+  verification_status?: "pending" | "verified" | "rejected";
+  risk_notes?: string;
+  contract_terms?: string;
+  contract_start_date: Date;
+  contract_end_date: Date;
+  contract_renewal_date: Date;
+  payment_methods: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
+  internal_notes?: string;
+  // Relations
   warehouse_id?: Types.ObjectId;
   createdBy: Types.ObjectId;
 }
@@ -183,24 +239,9 @@ export interface IBrandUpdateData {
   bank_account_of_brand?: string;
   ifsc_code?: string;
   payment_terms?: string;
+  // Brand-specific banking document
   upload_cancelled_cheque_image?: any;
-  gst_details?: string;
-  gst_certificate_image?: any;
-  PAN_number?: string;
-  PAN_image?: any;
-  FSSAI_number?: string;
-  FSSAI_image?: any;
-  TDS_rate?: number;
-  billing_cycle?: string;
-  brand_status_cycle?: string;
-  verification_status?: "pending" | "verified" | "rejected";
-  risk_notes?: string;
-  contract_terms?: string;
-  contract_start_date?: Date;
-  contract_end_date?: Date;
-  contract_renewal_date?: Date;
-  payment_methods?: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
-  internal_notes?: string;
+  // Legal-entity-specific document images
   certificate_of_incorporation_image?: any;
   MSME_or_Udyam_certificate_image?: any;
   MOA_image?: any;
@@ -211,6 +252,18 @@ export interface IBrandUpdateData {
   Shop_and_Establishment_certificate_image?: any;
   Registered_Partnership_deed_image?: any;
   Board_resolution_image?: any;
+  // Status & contract
+  brand_status_cycle?: string;
+  brand_status?: "active" | "inactive";
+  verification_status?: "pending" | "verified" | "rejected";
+  risk_notes?: string;
+  contract_terms?: string;
+  contract_start_date?: Date;
+  contract_end_date?: Date;
+  contract_renewal_date?: Date;
+  payment_methods?: "upi" | "bank_transfer" | "cheque" | "credit_card" | "debit_card" | "other";
+  internal_notes?: string;
+  // Relations
   warehouse_id?: Types.ObjectId;
   verified_by?: Types.ObjectId;
 }
@@ -240,7 +293,7 @@ export interface IBrandByCompanyOptions {
 function buildBrandQuery(brandIdentifier: string): any {
   return mongoose.Types.ObjectId.isValid(brandIdentifier) &&
     brandIdentifier.length === 24 &&
-    brandIdentifier.match(/^[0-9a-fA-F]{24}$/)
+    /^[0-9a-fA-F]{24}$/.test(brandIdentifier)
     ? { _id: new mongoose.Types.ObjectId(brandIdentifier) }
     : { brand_id: brandIdentifier };
 }
@@ -285,20 +338,32 @@ export class CompanyService {
           "Legal Entity Structure",
           "Registration Type",
           "CIN/MSME Number",
+          "GST Details",
+          "PAN Number",
+          "FSSAI Number",
+          "TDS Rate (%)",
+          "Billing Cycle",
           "Date of Incorporation",
           "Company Status",
+          "Verification Status",
           "Created At",
         ];
 
         const rows = companies.map(c => [
-          c.company_id,
+          (c as any).company_id || "",
           c.registered_company_name,
           c.official_email,
           c.legal_entity_structure,
           c.registration_type,
           c.cin_or_msme_number,
+          (c as any).gst_details || "",
+          (c as any).PAN_number || "",
+          (c as any).FSSAI_number || "",
+          String((c as any).TDS_rate ?? ""),
+          (c as any).billing_cycle || "",
           new Date(c.date_of_incorporation).toISOString().split("T")[0],
           c.company_status,
+          c.verification_status,
           new Date(c.createdAt).toISOString(),
         ]);
 
@@ -343,7 +408,7 @@ export class CompanyService {
     req?: Request
   ): Promise<ICompanyCreate> {
     try {
-      // Check for duplicates
+      // ── Duplicate checks ─────────────────────────────────────────────────
       const existingCIN = await CompanyCreate.findOne({
         cin_or_msme_number: companyData.cin_or_msme_number,
       });
@@ -365,10 +430,43 @@ export class CompanyService {
         throw new Error(`Company with DIN ${companyData.din} already exists`);
       }
 
+      const existingPAN = await CompanyCreate.findOne({ PAN_number: companyData.PAN_number });
+      if (existingPAN) {
+        throw new Error(`Company with PAN number ${companyData.PAN_number} already exists`);
+      }
+
+      const existingGST = await CompanyCreate.findOne({ gst_details: companyData.gst_details });
+      if (existingGST) {
+        throw new Error(`Company with GST number ${companyData.gst_details} already exists`);
+      }
+
+      const existingFSSAI = await CompanyCreate.findOne({
+        FSSAI_number: companyData.FSSAI_number,
+      });
+      if (existingFSSAI) {
+        throw new Error(`Company with FSSAI number ${companyData.FSSAI_number} already exists`);
+      }
+
+      // ── Validate required documents per legal entity ──────────────────────
+      const requiredDocs = getRequiredCompanyDocumentsForLegalEntity(
+        companyData.legal_entity_structure
+      );
+      const missingDocs = requiredDocs.filter(
+        docField => !(companyData as any)[docField]?.file_url
+      );
+
+      if (missingDocs.length > 0) {
+        throw new Error(
+          `Missing required documents for '${companyData.legal_entity_structure}': ${missingDocs.join(", ")}`
+        );
+      }
+
       const newCompany = new CompanyCreate({
         ...companyData,
         company_status: companyData.company_status || "active",
+        verification_status: "pending",
       });
+
       await newCompany.save();
 
       if (req) {
@@ -377,7 +475,7 @@ export class CompanyService {
           user_email: userEmail,
           user_role: userRole,
           action: "create",
-          action_description: `Created company: ${companyData.registered_company_name}`,
+          action_description: `Created company: ${companyData.registered_company_name} with GST: ${companyData.gst_details}, PAN: ${companyData.PAN_number}`,
           target_type: "company",
           target_company: newCompany._id,
           target_company_name: companyData.registered_company_name,
@@ -420,6 +518,8 @@ export class CompanyService {
           { official_email: { $regex: search, $options: "i" } },
           { directory_signature_name: { $regex: search, $options: "i" } },
           { din: { $regex: search, $options: "i" } },
+          { PAN_number: { $regex: search, $options: "i" } },
+          { gst_details: { $regex: search, $options: "i" } },
         ];
       }
 
@@ -434,7 +534,7 @@ export class CompanyService {
         .limit(limit)
         .lean()) as unknown as ICompanyCreate[];
 
-      // Get brand counts for all fetched companies
+      // Attach brand counts
       const companyIds = companies.map((c: any) => c._id);
       const brandCounts = await BrandCreate.aggregate([
         { $match: { company_id: { $in: companyIds } } },
@@ -446,7 +546,10 @@ export class CompanyService {
         brand_count: brandCountMap.get(company._id.toString()) || 0,
       }));
 
-      return { data: companiesWithBrandCount, pagination: paginationMeta(page, limit, total) };
+      return {
+        data: companiesWithBrandCount,
+        pagination: paginationMeta(page, limit, total),
+      };
     } catch (error) {
       logger.error("Error fetching companies:", error);
       throw error;
@@ -750,7 +853,7 @@ export class CompanyService {
       const currentCompany = await CompanyCreate.findById(id);
       if (!currentCompany) throw new Error("Company not found");
 
-      // Check for duplicates
+      // Duplicate checks on mutable unique fields
       if (
         updateData.cin_or_msme_number &&
         updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
@@ -759,11 +862,10 @@ export class CompanyService {
           cin_or_msme_number: updateData.cin_or_msme_number,
           _id: { $ne: id },
         });
-        if (existing) {
+        if (existing)
           throw new Error(
             `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
           );
-        }
       }
 
       if (
@@ -774,16 +876,34 @@ export class CompanyService {
           official_email: updateData.official_email.toLowerCase(),
           _id: { $ne: id },
         });
-        if (existing) {
+        if (existing)
           throw new Error(`Company with email ${updateData.official_email} already exists`);
-        }
       }
 
       if (updateData.din && updateData.din !== currentCompany.din) {
-        const existing = await CompanyCreate.findOne({ din: updateData.din, _id: { $ne: id } });
-        if (existing) {
-          throw new Error(`Company with DIN ${updateData.din} already exists`);
-        }
+        const existing = await CompanyCreate.findOne({
+          din: updateData.din,
+          _id: { $ne: id },
+        });
+        if (existing) throw new Error(`Company with DIN ${updateData.din} already exists`);
+      }
+
+      if (updateData.PAN_number && updateData.PAN_number !== currentCompany.PAN_number) {
+        const existing = await CompanyCreate.findOne({
+          PAN_number: updateData.PAN_number,
+          _id: { $ne: id },
+        });
+        if (existing)
+          throw new Error(`Company with PAN number ${updateData.PAN_number} already exists`);
+      }
+
+      if (updateData.gst_details && updateData.gst_details !== currentCompany.gst_details) {
+        const existing = await CompanyCreate.findOne({
+          gst_details: updateData.gst_details,
+          _id: { $ne: id },
+        });
+        if (existing)
+          throw new Error(`Company with GST number ${updateData.gst_details} already exists`);
       }
 
       const updateObj: any = { ...updateData };
@@ -876,13 +996,18 @@ export class CompanyService {
 
       if (format === "csv") {
         const c = company as any;
-        const rows = [
+        const rows: [string, string][] = [
           ["Company ID", c.company_id || ""],
           ["Registered Company Name", c.registered_company_name || ""],
           ["Official Email", c.official_email || ""],
           ["Legal Entity Structure", c.legal_entity_structure || ""],
           ["Registration Type", c.registration_type || ""],
           ["CIN/MSME Number", c.cin_or_msme_number || ""],
+          ["GST Details", c.gst_details || ""],
+          ["PAN Number", c.PAN_number || ""],
+          ["FSSAI Number", c.FSSAI_number || ""],
+          ["TDS Rate (%)", String(c.TDS_rate ?? "")],
+          ["Billing Cycle", c.billing_cycle || ""],
           [
             "Date of Incorporation",
             c.date_of_incorporation
@@ -894,6 +1019,7 @@ export class CompanyService {
           ["Directory Signature Name", c.directory_signature_name || ""],
           ["DIN", c.din || ""],
           ["Company Status", c.company_status || ""],
+          ["Verification Status", c.verification_status || ""],
           ["Created At", c.createdAt ? new Date(c.createdAt).toISOString() : ""],
           ["Updated At", c.updatedAt ? new Date(c.updatedAt).toISOString() : ""],
         ];
@@ -973,14 +1099,11 @@ export class BrandService {
         throw new Error("Company ID does not match the registration number");
       }
 
-      // Validate required files
-      const requiredFields = getRequiredDocumentsForLegalEntity(company.legal_entity_structure);
+      // Validate required files (brand scope: cancelled cheque + entity-specific docs)
+      const requiredFields = getRequiredDocumentForCancelledCheque();
       for (const field of requiredFields) {
-        if (
-          !brandData[field as keyof IBrandCreateData] ||
-          !(brandData as any)[field]?.file_url ||
-          !(brandData as any)[field]?.cloudinary_public_id
-        ) {
+        const docData = (brandData as any)[field];
+        if (!docData?.file_url || !docData?.cloudinary_public_id) {
           throw new Error(`Missing or invalid ${field} file upload`);
         }
       }
@@ -1043,8 +1166,7 @@ export class BrandService {
           { brand_email: { $regex: search, $options: "i" } },
           { contact_name: { $regex: search, $options: "i" } },
           { contact_phone: { $regex: search, $options: "i" } },
-          { PAN_number: { $regex: search, $options: "i" } },
-          { gst_details: { $regex: search, $options: "i" } },
+          { brand_id: { $regex: search, $options: "i" } },
         ];
       }
 
@@ -1057,7 +1179,10 @@ export class BrandService {
 
       const total = await BrandCreate.countDocuments(query);
       const brands = (await BrandCreate.find(query)
-        .populate("company_id", "company_id registered_company_name official_email")
+        .populate(
+          "company_id",
+          "company_id registered_company_name official_email gst_details PAN_number FSSAI_number TDS_rate billing_cycle"
+        )
         .populate("warehouse_id", "warehouse_name warehouse_code")
         .populate("verified_by", "email name")
         .populate("createdBy", "email name")
@@ -1113,8 +1238,6 @@ export class BrandService {
       const updateObj: any = { ...updateData };
       if (updateObj.brand_email) updateObj.brand_email = updateObj.brand_email.toLowerCase();
       if (updateObj.ifsc_code) updateObj.ifsc_code = updateObj.ifsc_code.toUpperCase();
-      if (updateObj.gst_details) updateObj.gst_details = updateObj.gst_details.toUpperCase();
-      if (updateObj.PAN_number) updateObj.PAN_number = updateObj.PAN_number.toUpperCase();
 
       const updatedBrand = (await BrandCreate.findOneAndUpdate(
         query,
@@ -1123,7 +1246,7 @@ export class BrandService {
       )
         .populate(
           "company_id",
-          "company_id registered_company_name official_email cin_or_msme_number"
+          "company_id registered_company_name official_email cin_or_msme_number gst_details PAN_number FSSAI_number TDS_rate billing_cycle"
         )
         .populate("warehouse_id", "warehouse_name warehouse_code")
         .populate("verified_by", "email name")
@@ -1224,7 +1347,7 @@ export class BrandService {
       const brand = (await BrandCreate.findById(id)
         .populate(
           "company_id",
-          "company_id registered_company_name official_email cin_or_msme_number"
+          "company_id registered_company_name official_email cin_or_msme_number gst_details PAN_number FSSAI_number TDS_rate billing_cycle legal_entity_structure"
         )
         .populate("warehouse_id", "warehouse_name warehouse_code")
         .populate("verified_by", "email name")
@@ -1330,15 +1453,13 @@ export class BrandService {
           { brand_email: { $regex: filters.search, $options: "i" } },
           { brand_id: { $regex: filters.search, $options: "i" } },
           { contact_name: { $regex: filters.search, $options: "i" } },
-          { PAN_number: { $regex: filters.search, $options: "i" } },
-          { gst_details: { $regex: filters.search, $options: "i" } },
         ];
       }
 
       const brands = await BrandCreate.find(query)
         .populate(
           "company_id",
-          "company_id registered_company_name official_email legal_entity_structure"
+          "company_id registered_company_name official_email legal_entity_structure gst_details PAN_number FSSAI_number TDS_rate billing_cycle"
         )
         .populate("warehouse_id", "warehouse_name warehouse_code")
         .populate("verified_by", "email name")
@@ -1362,17 +1483,18 @@ export class BrandService {
           "Company ID",
           "Company Email",
           "Company Legal Entity",
+          // Compliance fields surfaced from Company
+          "Company GST Details",
+          "Company PAN Number",
+          "Company FSSAI Number",
+          "Company TDS Rate (%)",
+          "Company Billing Cycle",
           "Contact Name",
           "Contact Phone",
           "Address",
           "Bank Account",
           "IFSC Code",
           "Payment Terms",
-          "GST Details",
-          "PAN Number",
-          "FSSAI Number",
-          "TDS Rate (%)",
-          "Billing Cycle",
           "Brand Status Cycle",
           "Verification Status",
           "Risk Notes",
@@ -1391,9 +1513,6 @@ export class BrandService {
           "Created At",
           "Updated At",
           "Cancelled Cheque URL",
-          "GST Certificate URL",
-          "PAN Image URL",
-          "FSSAI Certificate URL",
           "Certificate of Incorporation URL",
           "MSME/Udyam Certificate URL",
           "MOA Document URL",
@@ -1423,17 +1542,17 @@ export class BrandService {
             d.company_id?.company_id || "",
             d.company_id?.official_email || "",
             d.company_id?.legal_entity_structure || "",
+            d.company_id?.gst_details || "",
+            d.company_id?.PAN_number || "",
+            d.company_id?.FSSAI_number || "",
+            String(d.company_id?.TDS_rate ?? ""),
+            d.company_id?.billing_cycle || "",
             d.contact_name || "",
             d.contact_phone || "",
             d.address || "",
             d.bank_account_of_brand || "",
             d.ifsc_code || "",
             d.payment_terms || "",
-            d.gst_details || "",
-            d.PAN_number || "",
-            d.FSSAI_number || "",
-            d.TDS_rate || "",
-            d.billing_cycle || "",
             d.brand_status_cycle || "",
             d.verification_status || "",
             d.risk_notes || "",
@@ -1452,9 +1571,6 @@ export class BrandService {
             d.createdAt ? new Date(d.createdAt).toISOString() : "",
             d.updatedAt ? new Date(d.updatedAt).toISOString() : "",
             d.upload_cancelled_cheque_image?.file_url || "",
-            d.gst_certificate_image?.file_url || "",
-            d.PAN_image?.file_url || "",
-            d.FSSAI_image?.file_url || "",
             d.certificate_of_incorporation_image?.file_url || "",
             d.MSME_or_Udyam_certificate_image?.file_url || "",
             d.MOA_image?.file_url || "",
@@ -1491,7 +1607,7 @@ export class BrandService {
         {
           path: "company_id",
           select:
-            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address",
+            "company_id registered_company_name official_email cin_or_msme_number legal_entity_structure registration_type date_of_incorporation registered_office_address gst_details PAN_number FSSAI_number TDS_rate billing_cycle",
         },
         {
           path: "warehouse_id",
@@ -1503,11 +1619,13 @@ export class BrandService {
 
       let brand;
       if (mongoose.Types.ObjectId.isValid(brandIdStr) && brandIdStr.length === 24) {
-        const objectId =
+        brand = await BrandCreate.findById(
           typeof brandIdentifier === "string"
             ? new Types.ObjectId(brandIdentifier)
-            : brandIdentifier;
-        brand = await BrandCreate.findById(objectId).populate(populateFields).lean();
+            : brandIdentifier
+        )
+          .populate(populateFields)
+          .lean();
       } else {
         brand = await BrandCreate.findOne({ brand_id: brandIdStr }).populate(populateFields).lean();
       }
@@ -1520,7 +1638,7 @@ export class BrandService {
         const d = brand as any;
         const dateStr = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : "");
 
-        const rows = [
+        const rows: [string, string][] = [
           ["FIELD", "VALUE"],
           ["Brand Information", ""],
           ["Brand ID", d.brand_id || ""],
@@ -1541,6 +1659,13 @@ export class BrandService {
           ["Date of Incorporation", dateStr(d.company_id?.date_of_incorporation)],
           ["Company Address", d.company_id?.registered_office_address || ""],
           ["", ""],
+          ["Compliance (from Company)", ""],
+          ["GST Details", d.company_id?.gst_details || ""],
+          ["PAN Number", d.company_id?.PAN_number || ""],
+          ["FSSAI Number", d.company_id?.FSSAI_number || ""],
+          ["TDS Rate (%)", String(d.company_id?.TDS_rate ?? "")],
+          ["Billing Cycle", d.company_id?.billing_cycle || ""],
+          ["", ""],
           ["Contact Information", ""],
           ["Contact Name", d.contact_name || ""],
           ["Contact Phone", d.contact_phone || ""],
@@ -1550,11 +1675,6 @@ export class BrandService {
           ["Bank Account", d.bank_account_of_brand || ""],
           ["IFSC Code", d.ifsc_code || ""],
           ["Payment Terms", d.payment_terms || ""],
-          ["GST Details", d.gst_details || ""],
-          ["PAN Number", d.PAN_number || ""],
-          ["FSSAI Number", d.FSSAI_number || ""],
-          ["TDS Rate (%)", d.TDS_rate || ""],
-          ["Billing Cycle", d.billing_cycle || ""],
           ["Brand Status Cycle", d.brand_status_cycle || ""],
           ["Payment Methods", d.payment_methods || ""],
           ["", ""],
@@ -1578,9 +1698,6 @@ export class BrandService {
           ["", ""],
           ["Document URLs", ""],
           ["Cancelled Cheque", d.upload_cancelled_cheque_image?.file_url || ""],
-          ["GST Certificate", d.gst_certificate_image?.file_url || ""],
-          ["PAN Image", d.PAN_image?.file_url || ""],
-          ["FSSAI Certificate", d.FSSAI_image?.file_url || ""],
           ["Certificate of Incorporation", d.certificate_of_incorporation_image?.file_url || ""],
           ["MSME/Udyam Certificate", d.MSME_or_Udyam_certificate_image?.file_url || ""],
           ["MOA Document", d.MOA_image?.file_url || ""],
@@ -1759,6 +1876,11 @@ export class BrandService {
         doc.text(`Company ID: ${brand.company_id.company_id || "N/A"}`);
         doc.text(`Official Email: ${brand.company_id.official_email || "N/A"}`);
         doc.moveDown();
+        doc.fontSize(14).text("Compliance (from Company):");
+        doc.fontSize(12).text(`GST Details: ${brand.company_id.gst_details || "N/A"}`);
+        doc.text(`PAN Number: ${brand.company_id.PAN_number || "N/A"}`);
+        doc.text(`FSSAI Number: ${brand.company_id.FSSAI_number || "N/A"}`);
+        doc.moveDown();
       }
 
       doc.fontSize(14).text("Contact Information:");
@@ -1770,8 +1892,6 @@ export class BrandService {
       doc.fontSize(14).text("Financial Information:");
       doc.fontSize(12).text(`Bank Account: ${brand.bank_account_of_brand || "N/A"}`);
       doc.text(`IFSC Code: ${brand.ifsc_code || "N/A"}`);
-      doc.text(`PAN Number: ${brand.PAN_number || "N/A"}`);
-      doc.text(`GST Details: ${brand.gst_details || "N/A"}`);
       doc.moveDown();
 
       doc.fontSize(14).text("Status Information:");

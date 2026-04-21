@@ -19,7 +19,29 @@ router.get(
 );
 
 // Create a new company
-router.post("/companies", authorize(STAFF_MANAGEMENT), VendorController.createCompany);
+router.post(
+  "/companies",
+  authorize(STAFF_MANAGEMENT),
+  upload.fields([
+    // Common mandatory documents
+    { name: "gst_certificate_image", maxCount: 1 },
+    { name: "PAN_image", maxCount: 1 },
+    { name: "FSSAI_image", maxCount: 1 },
+
+    // Legal entity specific documents (all possible documents)
+    { name: "certificate_of_incorporation_image", maxCount: 1 },
+    { name: "MSME_or_Udyam_certificate_image", maxCount: 1 },
+    { name: "MOA_image", maxCount: 1 },
+    { name: "AOA_image", maxCount: 1 },
+    { name: "Trademark_certificate_image", maxCount: 1 },
+    { name: "Authorized_Signatory_image", maxCount: 1 },
+    { name: "LLP_agreement_image", maxCount: 1 },
+    { name: "Shop_and_Establishment_certificate_image", maxCount: 1 },
+    { name: "Registered_Partnership_deed_image", maxCount: 1 },
+    { name: "Board_resolution_image", maxCount: 1 },
+  ]),
+  VendorController.createCompany
+);
 
 // Get all companies with pagination
 router.get("/companies", authorize(STAFF_MANAGEMENT), VendorController.getAllCompanies);
@@ -92,21 +114,6 @@ router.post(
   upload.fields([
     // Common mandatory documents
     { name: "upload_cancelled_cheque_image", maxCount: 1 },
-    { name: "gst_certificate_image", maxCount: 1 },
-    { name: "PAN_image", maxCount: 1 },
-    { name: "FSSAI_image", maxCount: 1 },
-
-    // Legal entity specific documents (all possible documents)
-    { name: "certificate_of_incorporation_image", maxCount: 1 },
-    { name: "MSME_or_Udyam_certificate_image", maxCount: 1 },
-    { name: "MOA_image", maxCount: 1 },
-    { name: "AOA_image", maxCount: 1 },
-    { name: "Trademark_certificate_image", maxCount: 1 },
-    { name: "Authorized_Signatory_image", maxCount: 1 },
-    { name: "LLP_agreement_image", maxCount: 1 },
-    { name: "Shop_and_Establishment_certificate_image", maxCount: 1 },
-    { name: "Registered_Partnership_deed_image", maxCount: 1 },
-    { name: "Board_resolution_image", maxCount: 1 },
   ]),
   VendorController.createBrand
 );

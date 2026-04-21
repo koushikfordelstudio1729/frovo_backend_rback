@@ -31,6 +31,7 @@ export const CIN_REQUIRED_STRUCTURES = ["pvt", "public", "opc"];
 const MSME_ALLOWED_STRUCTURES = ["llp", "proprietorship", "partnership"];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Maps multipart field names → DocumentType strings used by ImageUploadService
 export const DOCUMENT_TYPE_MAPPING: Record<string, string> = {
   upload_cancelled_cheque_image: "cancelled_cheque",
   gst_certificate_image: "gst_certificate",
@@ -50,13 +51,17 @@ export const DOCUMENT_TYPE_MAPPING: Record<string, string> = {
 
 export const UPDATABLE_DOCUMENT_FIELDS = Object.keys(DOCUMENT_TYPE_MAPPING);
 
-const COMMON_DOCUMENT_FIELDS = [
-  "upload_cancelled_cheque_image",
+// ── Company-level compliance documents (always required on Company create) ──
+export const COMPANY_COMPLIANCE_DOCUMENT_FIELDS = [
   "gst_certificate_image",
   "PAN_image",
   "FSSAI_image",
-];
+] as const;
 
+// ── Brand-level document always required on Brand create ──
+const BRAND_COMMON_DOCUMENT_FIELDS = ["upload_cancelled_cheque_image"] as const;
+
+// ── Legal-entity-specific documents required on BOTH company and brand create ──
 const ENTITY_SPECIFIC_DOCUMENTS: Record<string, string[]> = {
   pvt: [
     "certificate_of_incorporation_image",
@@ -139,25 +144,17 @@ export function parseDate(dateStr: string, fieldName: string): Date {
 }
 
 export function validateMissingFields(body: any, requiredFields: string[]): void {
-  const missing = requiredFields.filter(field => !body[field]);
+  const missing = requiredFields.filter(
+    field => body[field] === undefined || body[field] === null || body[field] === ""
+  );
   if (missing.length > 0) {
     throw new ValidationError(`Missing required fields: ${missing.join(", ")}`);
   }
 }
 
-export function validateEnumValue(
-  value: string,
-  validValues: readonly string[],
-  fieldName: string
-): void {
-  if (!validValues.includes(value)) {
-    throw new ValidationError(`Invalid ${fieldName}. Must be one of: ${validValues.join(", ")}`);
-  }
-}
-
 export function validateLegalEntityRelationship(
-  structure: string,
-  regType: string,
+  structure: string | undefined,
+  regType: string | undefined,
   currentCompany?: any
 ): void {
   const effectiveStructure = structure || currentCompany?.legal_entity_structure;
@@ -177,9 +174,51 @@ export function validateLegalEntityRelationship(
     );
   }
 }
+export function validateEnumValue(
+  value: string,
+  validValues: readonly string[],
+  fieldName: string
+): void {
+  // Trim the value before validation
+  const trimmedValue = value?.trim();
 
+  if (!trimmedValue || !validValues.includes(trimmedValue)) {
+    throw new ValidationError(`Invalid ${fieldName}. Must be one of: ${validValues.join(", ")}`);
+  }
+}
+/**
+ * Returns the list of required document field names for a given legal entity structure
+ * when creating or updating a COMPANY.
+ * Includes compliance docs (GST, PAN, FSSAI) + entity-specific docs.
+ */
+export function getRequiredCompanyDocumentsForLegalEntity(legalEntity: string): string[] {
+  return [...COMPANY_COMPLIANCE_DOCUMENT_FIELDS, ...(ENTITY_SPECIFIC_DOCUMENTS[legalEntity] || [])];
+}
+
+/**
+ * Returns the list of required document field names for a given legal entity structure
+ * when creating or updating a BRAND.
+ * Includes only the cancelled cheque + entity-specific docs
+ * (compliance docs GST/PAN/FSSAI stay on the Company).
+ */
 export function getRequiredDocumentsForLegalEntity(legalEntity: string): string[] {
-  return [...COMMON_DOCUMENT_FIELDS, ...(ENTITY_SPECIFIC_DOCUMENTS[legalEntity] || [])];
+  return [...BRAND_COMMON_DOCUMENT_FIELDS, ...(ENTITY_SPECIFIC_DOCUMENTS[legalEntity] || [])];
+}
+
+export function getRequiredDocumentForCancelledCheque(): string[] {
+  return [...BRAND_COMMON_DOCUMENT_FIELDS];
+}
+/**
+ * Trims all top-level string values in the request body.
+ * Returns a shallow copy so the original req.body is not mutated.
+ */
+export function normalizeBody(body: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(body)) {
+    const val = body[key];
+    result[key] = typeof val === "string" ? val.trim() : val;
+  }
+  return result;
 }
 
 // ============================================
