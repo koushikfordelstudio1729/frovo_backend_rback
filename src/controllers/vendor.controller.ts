@@ -606,8 +606,32 @@ export class VendorController {
       requireRole(userRole, ["super_admin", "vendor_admin"], "export companies");
 
       const { format = "csv", filters } = req.query;
+
+      // Validate format
+      validateEnumValue(format as string, ["csv", "json", "excel", "xlsx"], "format");
+
       const filterData = filters ? JSON.parse(filters as string) : {};
       const exportData = await companyService.exportCompanies(format as string, filterData, userId);
+
+      if (format === "excel" || format === "xlsx") {
+        // If you have Excel export capability
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Companies");
+        const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=companies_export_${Date.now()}.xlsx`
+        );
+        res.status(200).send(excelBuffer);
+        return;
+      }
 
       setExportHeaders(res, format as string, "companies");
       res.status(200).send(exportData);
@@ -654,7 +678,6 @@ export class VendorController {
       handleControllerError(res, error, "fetching company audit trail");
     }
   }
-
   public static async exportCompanyById(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, roles } = VendorController.getLoggedInUser(req);
@@ -666,13 +689,50 @@ export class VendorController {
       const { format = "csv" } = req.query;
 
       validateMongoId(id, "Company ID");
-      validateEnumValue(format as string, ["csv", "json"], "format");
+      validateEnumValue(format as string, ["csv", "json", "excel", "xlsx", "pdf"], "format");
 
       const exportData = await companyService.exportCompanyById(id, format as string, userId);
       const company = await companyService.getCompanyById(id);
 
+      if (format === "excel" || format === "xlsx") {
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.utils.book_new();
+
+        // Company Overview Sheet
+        const companySheet = XLSX.utils.json_to_sheet([exportData.company]);
+        XLSX.utils.book_append_sheet(workbook, companySheet, "Company Overview");
+
+        // Documents Sheet
+        const documentsSheet = XLSX.utils.json_to_sheet(exportData.documents);
+        XLSX.utils.book_append_sheet(workbook, documentsSheet, "Documents");
+
+        // Brands Sheet
+        if (exportData.brands && exportData.brands.length > 0) {
+          const brandsSheet = XLSX.utils.json_to_sheet(exportData.brands);
+          XLSX.utils.book_append_sheet(workbook, brandsSheet, "Brands");
+        }
+
+        const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=company_${company?.company_id || id}_${Date.now()}.xlsx`
+        );
+        res.status(200).send(excelBuffer);
+        return;
+      }
+
       setExportHeaders(res, format as string, `company_${company?.company_id || id}`);
-      res.status(200).send(exportData);
+
+      if (format === "json") {
+        res.status(200).json(exportData);
+      } else {
+        res.status(200).send(exportData);
+      }
     } catch (error) {
       handleControllerError(res, error, "exporting company by ID");
     }
@@ -1229,7 +1289,6 @@ export class VendorController {
       handleControllerError(res, error, "fetching brand statistics");
     }
   }
-
   public static async updateBrandVerificationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -1267,7 +1326,7 @@ export class VendorController {
 
       res.status(200).json({
         success: true,
-        message: "Brand verification status updated successfully",
+        message: `Brand verification status updated to ${verification_status} successfully`,
         data: updatedBrand,
       });
     } catch (error) {

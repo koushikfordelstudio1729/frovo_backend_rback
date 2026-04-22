@@ -302,51 +302,219 @@ export class CompanyService {
           { registered_company_name: { $regex: filters.search, $options: "i" } },
           { cin_or_msme_number: { $regex: filters.search, $options: "i" } },
           { official_email: { $regex: filters.search, $options: "i" } },
+          { PAN_number: { $regex: filters.search, $options: "i" } },
+          { gst_details: { $regex: filters.search, $options: "i" } },
         ];
       }
 
       const companies = await CompanyCreate.find(query).sort({ createdAt: -1 }).lean();
 
-      if (format === "json") return JSON.stringify(companies, null, 2);
+      if (format === "json") {
+        return JSON.stringify(companies, null, 2);
+      }
 
       if (format === "csv") {
         const headers = [
+          // Basic Information
           "Company ID",
           "Registered Company Name",
           "Official Email",
           "Legal Entity Structure",
           "Registration Type",
           "CIN/MSME Number",
+          "Date of Incorporation",
+          "Registered Office Address",
+          "Corporate Website",
+          "Directory Signature Name",
+          "DIN",
+
+          // Compliance Information
           "GST Details",
           "PAN Number",
           "FSSAI Number",
           "TDS Rate (%)",
           "Billing Cycle",
-          "Date of Incorporation",
+
+          // Status Information
           "Company Status",
           "Verification Status",
+
+          // Document URLs - Common
+          "GST Certificate URL",
+          "PAN Image URL",
+          "FSSAI Image URL",
+
+          // Document URLs - Entity Specific
+          "Certificate of Incorporation URL",
+          "MSME/Udyam Certificate URL",
+          "MOA Document URL",
+          "AOA Document URL",
+          "Trademark Certificate URL",
+          "Authorized Signatory URL",
+          "LLP Agreement URL",
+          "Shop & Establishment Certificate URL",
+          "Registered Partnership Deed URL",
+          "Board Resolution URL",
+
+          // Timestamps
           "Created At",
+          "Updated At",
         ];
 
-        const rows = companies.map(c => [
-          (c as any).company_id || "",
-          c.registered_company_name,
-          c.official_email,
-          c.legal_entity_structure,
-          c.registration_type,
-          c.cin_or_msme_number,
-          (c as any).gst_details || "",
-          (c as any).PAN_number || "",
-          (c as any).FSSAI_number || "",
-          String((c as any).TDS_rate ?? ""),
-          (c as any).billing_cycle || "",
-          new Date(c.date_of_incorporation).toISOString().split("T")[0],
-          c.company_status,
-          c.verification_status,
-          new Date(c.createdAt).toISOString(),
-        ]);
+        const rows = companies.map(c => {
+          const company = c as any;
+          const dateStr = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : "");
+          const dateTimeStr = (v: any) => (v ? new Date(v).toISOString() : "");
+
+          return [
+            // Basic Information
+            company.company_id || "",
+            `"${(company.registered_company_name || "").replace(/"/g, '""')}"`,
+            company.official_email || "",
+            company.legal_entity_structure || "",
+            company.registration_type || "",
+            company.cin_or_msme_number || "",
+            dateStr(company.date_of_incorporation),
+            `"${(company.registered_office_address || "").replace(/"/g, '""')}"`,
+            company.corporate_website || "",
+            `"${(company.directory_signature_name || "").replace(/"/g, '""')}"`,
+            company.din || "",
+
+            // Compliance Information
+            company.gst_details || "",
+            company.PAN_number || "",
+            company.FSSAI_number || "",
+            String(company.TDS_rate ?? ""),
+            company.billing_cycle || "",
+
+            // Status Information
+            company.company_status || "",
+            company.verification_status || "",
+
+            // Document URLs - Common
+            company.gst_certificate_image?.file_url || "",
+            company.PAN_image?.file_url || "",
+            company.FSSAI_image?.file_url || "",
+
+            // Document URLs - Entity Specific
+            company.certificate_of_incorporation_image?.file_url || "",
+            company.MSME_or_Udyam_certificate_image?.file_url || "",
+            company.MOA_image?.file_url || "",
+            company.AOA_image?.file_url || "",
+            company.Trademark_certificate_image?.file_url || "",
+            company.Authorized_Signatory_image?.file_url || "",
+            company.LLP_agreement_image?.file_url || "",
+            company.Shop_and_Establishment_certificate_image?.file_url || "",
+            company.Registered_Partnership_deed_image?.file_url || "",
+            company.Board_resolution_image?.file_url || "",
+
+            // Timestamps
+            dateTimeStr(company.createdAt),
+            dateTimeStr(company.updatedAt),
+          ];
+        });
 
         return buildCSV(headers, rows);
+      }
+
+      if (format === "excel" || format === "xlsx") {
+        // For Excel format, return structured data that can be converted to Excel
+        const excelData = companies.map(c => {
+          const company = c as any;
+          return {
+            // Basic Information
+            "Company ID": company.company_id || "",
+            "Registered Company Name": company.registered_company_name || "",
+            "Official Email": company.official_email || "",
+            "Legal Entity Structure": company.legal_entity_structure || "",
+            "Registration Type": company.registration_type || "",
+            "CIN/MSME Number": company.cin_or_msme_number || "",
+            "Date of Incorporation": company.date_of_incorporation
+              ? new Date(company.date_of_incorporation).toISOString().split("T")[0]
+              : "",
+            "Registered Office Address": company.registered_office_address || "",
+            "Corporate Website": company.corporate_website || "",
+            "Directory Signature Name": company.directory_signature_name || "",
+            DIN: company.din || "",
+
+            // Compliance Information
+            "GST Details": company.gst_details || "",
+            "PAN Number": company.PAN_number || "",
+            "FSSAI Number": company.FSSAI_number || "",
+            "TDS Rate (%)": company.TDS_rate ?? "",
+            "Billing Cycle": company.billing_cycle || "",
+
+            // Status Information
+            "Company Status": company.company_status || "",
+            "Verification Status": company.verification_status || "",
+
+            // Document Details - Common
+            "GST Certificate Name": company.gst_certificate_image?.image_name || "",
+            "GST Certificate URL": company.gst_certificate_image?.file_url || "",
+            "GST Certificate Size (KB)": company.gst_certificate_image?.file_size
+              ? (company.gst_certificate_image.file_size / 1024).toFixed(2)
+              : "",
+            "GST Certificate Type": company.gst_certificate_image?.mime_type || "",
+
+            "PAN Image Name": company.PAN_image?.image_name || "",
+            "PAN Image URL": company.PAN_image?.file_url || "",
+            "PAN Image Size (KB)": company.PAN_image?.file_size
+              ? (company.PAN_image.file_size / 1024).toFixed(2)
+              : "",
+            "PAN Image Type": company.PAN_image?.mime_type || "",
+
+            "FSSAI Image Name": company.FSSAI_image?.image_name || "",
+            "FSSAI Image URL": company.FSSAI_image?.file_url || "",
+            "FSSAI Image Size (KB)": company.FSSAI_image?.file_size
+              ? (company.FSSAI_image.file_size / 1024).toFixed(2)
+              : "",
+            "FSSAI Image Type": company.FSSAI_image?.mime_type || "",
+
+            // Document Details - Entity Specific
+            "Certificate of Incorporation Name":
+              company.certificate_of_incorporation_image?.image_name || "",
+            "Certificate of Incorporation URL":
+              company.certificate_of_incorporation_image?.file_url || "",
+
+            "MSME/Udyam Certificate Name":
+              company.MSME_or_Udyam_certificate_image?.image_name || "",
+            "MSME/Udyam Certificate URL": company.MSME_or_Udyam_certificate_image?.file_url || "",
+
+            "MOA Document Name": company.MOA_image?.image_name || "",
+            "MOA Document URL": company.MOA_image?.file_url || "",
+
+            "AOA Document Name": company.AOA_image?.image_name || "",
+            "AOA Document URL": company.AOA_image?.file_url || "",
+
+            "Trademark Certificate Name": company.Trademark_certificate_image?.image_name || "",
+            "Trademark Certificate URL": company.Trademark_certificate_image?.file_url || "",
+
+            "Authorized Signatory Name": company.Authorized_Signatory_image?.image_name || "",
+            "Authorized Signatory URL": company.Authorized_Signatory_image?.file_url || "",
+
+            "LLP Agreement Name": company.LLP_agreement_image?.image_name || "",
+            "LLP Agreement URL": company.LLP_agreement_image?.file_url || "",
+
+            "Shop & Establishment Certificate Name":
+              company.Shop_and_Establishment_certificate_image?.image_name || "",
+            "Shop & Establishment Certificate URL":
+              company.Shop_and_Establishment_certificate_image?.file_url || "",
+
+            "Registered Partnership Deed Name":
+              company.Registered_Partnership_deed_image?.image_name || "",
+            "Registered Partnership Deed URL":
+              company.Registered_Partnership_deed_image?.file_url || "",
+
+            "Board Resolution Name": company.Board_resolution_image?.image_name || "",
+            "Board Resolution URL": company.Board_resolution_image?.file_url || "",
+
+            // Timestamps
+            "Created At": company.createdAt ? new Date(company.createdAt).toISOString() : "",
+            "Updated At": company.updatedAt ? new Date(company.updatedAt).toISOString() : "",
+          };
+        });
+
+        return excelData;
       }
 
       return companies;
@@ -355,7 +523,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async getCompanyAuditTrails(
     companyId: string,
     page: number = 1,
@@ -1070,7 +1237,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async exportCompanyById(companyId: string, format: string, userId: Types.ObjectId): Promise<any> {
     try {
       validateMongoId(companyId, "Company ID");
@@ -1078,39 +1244,269 @@ export class CompanyService {
       const company = await CompanyCreate.findById(companyId).lean();
       if (!company) throw new Error(`Company with ID ${companyId} not found`);
 
-      if (format === "json") return JSON.stringify(company, null, 2);
+      // Get all brands associated with this company
+      const brands = await BrandCreate.find({
+        company_id: new mongoose.Types.ObjectId(companyId),
+      })
+        .populate("warehouse_id", "warehouse_name warehouse_code")
+        .populate("verified_by", "email name")
+        .populate("createdBy", "email name")
+        .lean();
+
+      const c = company as any;
+      const dateStr = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : "");
+      const dateTimeStr = (v: any) => (v ? new Date(v).toISOString() : "");
+
+      // Build documents list
+      const documents: any[] = [];
+
+      const docFields = [
+        { key: "gst_certificate_image", label: "GST Certificate" },
+        { key: "PAN_image", label: "PAN Card" },
+        { key: "FSSAI_image", label: "FSSAI Certificate" },
+        { key: "certificate_of_incorporation_image", label: "Certificate of Incorporation" },
+        { key: "MSME_or_Udyam_certificate_image", label: "MSME/Udyam Certificate" },
+        { key: "MOA_image", label: "Memorandum of Association (MOA)" },
+        { key: "AOA_image", label: "Articles of Association (AOA)" },
+        { key: "Trademark_certificate_image", label: "Trademark Certificate" },
+        { key: "Authorized_Signatory_image", label: "Authorized Signatory" },
+        { key: "LLP_agreement_image", label: "LLP Agreement" },
+        {
+          key: "Shop_and_Establishment_certificate_image",
+          label: "Shop & Establishment Certificate",
+        },
+        { key: "Registered_Partnership_deed_image", label: "Registered Partnership Deed" },
+        { key: "Board_resolution_image", label: "Board Resolution" },
+      ];
+
+      for (const doc of docFields) {
+        const docData = c[doc.key];
+        if (docData) {
+          documents.push({
+            "Document Type": doc.label,
+            "Document Name": docData.image_name || "N/A",
+            "File URL": docData.file_url || "N/A",
+            "File Size (KB)": docData.file_size ? (docData.file_size / 1024).toFixed(2) : "N/A",
+            "File Type": docData.mime_type || "N/A",
+            "Uploaded At": docData.uploaded_at
+              ? new Date(docData.uploaded_at).toISOString()
+              : "N/A",
+            "Cloudinary Public ID": docData.cloudinary_public_id || "N/A",
+          });
+        }
+      }
+
+      if (format === "json") {
+        return {
+          company: {
+            // Basic Information
+            "Company ID": c.company_id || "",
+            "Registered Company Name": c.registered_company_name || "",
+            "Official Email": c.official_email || "",
+            "Legal Entity Structure": c.legal_entity_structure || "",
+            "Registration Type": c.registration_type || "",
+            "CIN/MSME Number": c.cin_or_msme_number || "",
+            "Date of Incorporation": dateStr(c.date_of_incorporation),
+            "Registered Office Address": c.registered_office_address || "",
+            "Corporate Website": c.corporate_website || "",
+            "Directory Signature Name": c.directory_signature_name || "",
+            DIN: c.din || "",
+
+            // Compliance
+            "GST Details": c.gst_details || "",
+            "PAN Number": c.PAN_number || "",
+            "FSSAI Number": c.FSSAI_number || "",
+            "TDS Rate (%)": c.TDS_rate ?? "",
+            "Billing Cycle": c.billing_cycle || "",
+
+            // Status
+            "Company Status": c.company_status || "",
+            "Verification Status": c.verification_status || "",
+
+            // Timestamps
+            "Created At": dateTimeStr(c.createdAt),
+            "Updated At": dateTimeStr(c.updatedAt),
+          },
+          documents: documents,
+          brands: brands.map(b => ({
+            "Brand ID": (b as any).brand_id || "",
+            "Brand Name": (b as any).brand_name || "",
+            "Brand Billing Name": (b as any).brand_billing_name || "",
+            "Brand Email": (b as any).brand_email || "",
+            "Brand Category": (b as any).brand_category || "",
+            "Brand Type": (b as any).brand_type || "",
+            "Contact Name": (b as any).contact_name || "",
+            "Contact Phone": (b as any).contact_phone || "",
+            Address: (b as any).address || "",
+            "Bank Account": (b as any).bank_account_of_brand || "",
+            "IFSC Code": (b as any).ifsc_code || "",
+            "Payment Terms": (b as any).payment_terms || "",
+            "Payment Methods": (b as any).payment_methods || "",
+            "Brand Status": (b as any).brand_status || "",
+            "Verification Status": (b as any).verification_status || "",
+            "Contract Start Date": dateStr((b as any).contract_start_date),
+            "Contract End Date": dateStr((b as any).contract_end_date),
+            "Contract Renewal Date": dateStr((b as any).contract_renewal_date),
+            "Cancelled Cheque URL": (b as any).upload_cancelled_cheque_image?.file_url || "",
+            Warehouse: (b as any).warehouse_id?.warehouse_name || "",
+            "Created At": dateTimeStr((b as any).createdAt),
+          })),
+          summary: {
+            "Total Brands": brands.length,
+            "Active Brands": brands.filter(b => (b as any).brand_status === "active").length,
+            "Inactive Brands": brands.filter(b => (b as any).brand_status === "inactive").length,
+            "Verified Brands": brands.filter(b => (b as any).verification_status === "verified")
+              .length,
+            "Pending Brands": brands.filter(b => (b as any).verification_status === "pending")
+              .length,
+            "Rejected Brands": brands.filter(b => (b as any).verification_status === "rejected")
+              .length,
+            "Total Documents": documents.length,
+          },
+        };
+      }
 
       if (format === "csv") {
-        const c = company as any;
-        const rows: [string, string][] = [
-          ["Company ID", c.company_id || ""],
-          ["Registered Company Name", c.registered_company_name || ""],
-          ["Official Email", c.official_email || ""],
-          ["Legal Entity Structure", c.legal_entity_structure || ""],
-          ["Registration Type", c.registration_type || ""],
-          ["CIN/MSME Number", c.cin_or_msme_number || ""],
-          ["GST Details", c.gst_details || ""],
-          ["PAN Number", c.PAN_number || ""],
-          ["FSSAI Number", c.FSSAI_number || ""],
-          ["TDS Rate (%)", String(c.TDS_rate ?? "")],
-          ["Billing Cycle", c.billing_cycle || ""],
-          [
-            "Date of Incorporation",
-            c.date_of_incorporation
-              ? new Date(c.date_of_incorporation).toISOString().split("T")[0]
-              : "",
-          ],
-          ["Registered Office Address", c.registered_office_address || ""],
-          ["Corporate Website", c.corporate_website || ""],
-          ["Directory Signature Name", c.directory_signature_name || ""],
-          ["DIN", c.din || ""],
-          ["Company Status", c.company_status || ""],
-          ["Verification Status", c.verification_status || ""],
-          ["Created At", c.createdAt ? new Date(c.createdAt).toISOString() : ""],
-          ["Updated At", c.updatedAt ? new Date(c.updatedAt).toISOString() : ""],
-        ];
+        let csv = "";
 
-        return buildCSV(["Field", "Value"], rows);
+        // Company Overview Section
+        csv += "=== COMPANY OVERVIEW ===\n";
+        csv += "Field,Value\n";
+        csv += `Company ID,${c.company_id || ""}\n`;
+        csv += `Registered Company Name,"${(c.registered_company_name || "").replace(/"/g, '""')}"\n`;
+        csv += `Official Email,${c.official_email || ""}\n`;
+        csv += `Legal Entity Structure,${c.legal_entity_structure || ""}\n`;
+        csv += `Registration Type,${c.registration_type || ""}\n`;
+        csv += `CIN/MSME Number,${c.cin_or_msme_number || ""}\n`;
+        csv += `Date of Incorporation,${dateStr(c.date_of_incorporation)}\n`;
+        csv += `Registered Office Address,"${(c.registered_office_address || "").replace(/"/g, '""')}"\n`;
+        csv += `Corporate Website,${c.corporate_website || ""}\n`;
+        csv += `Directory Signature Name,"${(c.directory_signature_name || "").replace(/"/g, '""')}"\n`;
+        csv += `DIN,${c.din || ""}\n\n`;
+
+        // Compliance Section
+        csv += "=== COMPLIANCE INFORMATION ===\n";
+        csv += "Field,Value\n";
+        csv += `GST Details,${c.gst_details || ""}\n`;
+        csv += `PAN Number,${c.PAN_number || ""}\n`;
+        csv += `FSSAI Number,${c.FSSAI_number || ""}\n`;
+        csv += `TDS Rate (%),${c.TDS_rate ?? ""}\n`;
+        csv += `Billing Cycle,${c.billing_cycle || ""}\n\n`;
+
+        // Status Section
+        csv += "=== STATUS INFORMATION ===\n";
+        csv += "Field,Value\n";
+        csv += `Company Status,${c.company_status || ""}\n`;
+        csv += `Verification Status,${c.verification_status || ""}\n`;
+        csv += `Created At,${dateTimeStr(c.createdAt)}\n`;
+        csv += `Updated At,${dateTimeStr(c.updatedAt)}\n\n`;
+
+        // Documents Section
+        csv += "=== DOCUMENTS ===\n";
+        if (documents.length > 0) {
+          csv += "Document Type,Document Name,File URL,File Size (KB),File Type,Uploaded At\n";
+          for (const doc of documents) {
+            csv += `"${doc["Document Type"]}",`;
+            csv += `"${doc["Document Name"].replace(/"/g, '""')}",`;
+            csv += `${doc["File URL"]},`;
+            csv += `${doc["File Size (KB)"]},`;
+            csv += `${doc["File Type"]},`;
+            csv += `${doc["Uploaded At"]}\n`;
+          }
+        } else {
+          csv += "No documents uploaded\n";
+        }
+        csv += "\n";
+
+        // Brands Section
+        csv += "=== BRANDS ===\n";
+        csv += `Total Brands,${brands.length}\n`;
+        csv += `Active Brands,${brands.filter(b => (b as any).brand_status === "active").length}\n`;
+        csv += `Inactive Brands,${brands.filter(b => (b as any).brand_status === "inactive").length}\n`;
+        csv += `Verified Brands,${brands.filter(b => (b as any).verification_status === "verified").length}\n`;
+        csv += `Pending Brands,${brands.filter(b => (b as any).verification_status === "pending").length}\n`;
+        csv += `Rejected Brands,${brands.filter(b => (b as any).verification_status === "rejected").length}\n\n`;
+
+        if (brands.length > 0) {
+          csv +=
+            "Brand ID,Brand Name,Brand Email,Category,Type,Contact Name,Contact Phone,Status,Verification,Contract Start,Contract End,Cancelled Cheque URL\n";
+          for (const b of brands) {
+            const brand = b as any;
+            csv += `${brand.brand_id || ""},`;
+            csv += `"${(brand.brand_name || "").replace(/"/g, '""')}",`;
+            csv += `${brand.brand_email || ""},`;
+            csv += `${brand.brand_category || ""},`;
+            csv += `${brand.brand_type || ""},`;
+            csv += `"${(brand.contact_name || "").replace(/"/g, '""')}",`;
+            csv += `${brand.contact_phone || ""},`;
+            csv += `${brand.brand_status || ""},`;
+            csv += `${brand.verification_status || ""},`;
+            csv += `${dateStr(brand.contract_start_date)},`;
+            csv += `${dateStr(brand.contract_end_date)},`;
+            csv += `${brand.upload_cancelled_cheque_image?.file_url || ""}\n`;
+          }
+        }
+
+        return csv;
+      }
+
+      if (format === "excel" || format === "xlsx") {
+        // Return structured data for Excel export
+        return {
+          company: {
+            "Company ID": c.company_id || "",
+            "Registered Company Name": c.registered_company_name || "",
+            "Official Email": c.official_email || "",
+            "Legal Entity Structure": c.legal_entity_structure || "",
+            "Registration Type": c.registration_type || "",
+            "CIN/MSME Number": c.cin_or_msme_number || "",
+            "Date of Incorporation": dateStr(c.date_of_incorporation),
+            "Registered Office Address": c.registered_office_address || "",
+            "Corporate Website": c.corporate_website || "",
+            "Directory Signature Name": c.directory_signature_name || "",
+            DIN: c.din || "",
+            "GST Details": c.gst_details || "",
+            "PAN Number": c.PAN_number || "",
+            "FSSAI Number": c.FSSAI_number || "",
+            "TDS Rate (%)": c.TDS_rate ?? "",
+            "Billing Cycle": c.billing_cycle || "",
+            "Company Status": c.company_status || "",
+            "Verification Status": c.verification_status || "",
+            "Created At": dateTimeStr(c.createdAt),
+            "Updated At": dateTimeStr(c.updatedAt),
+          },
+          documents: documents,
+          brands: brands.map(b => ({
+            "Brand ID": (b as any).brand_id || "",
+            "Brand Name": (b as any).brand_name || "",
+            "Brand Billing Name": (b as any).brand_billing_name || "",
+            "Brand Email": (b as any).brand_email || "",
+            "Brand Category": (b as any).brand_category || "",
+            "Brand Type": (b as any).brand_type || "",
+            "Contact Name": (b as any).contact_name || "",
+            "Contact Phone": (b as any).contact_phone || "",
+            Address: (b as any).address || "",
+            "Bank Account": (b as any).bank_account_of_brand || "",
+            "IFSC Code": (b as any).ifsc_code || "",
+            "Payment Terms": (b as any).payment_terms || "",
+            "Payment Methods": (b as any).payment_methods || "",
+            "Brand Status": (b as any).brand_status || "",
+            "Verification Status": (b as any).verification_status || "",
+            "Contract Start Date": dateStr((b as any).contract_start_date),
+            "Contract End Date": dateStr((b as any).contract_end_date),
+            "Contract Renewal Date": dateStr((b as any).contract_renewal_date),
+            "Risk Notes": (b as any).risk_notes || "",
+            "Contract Terms": (b as any).contract_terms || "",
+            "Internal Notes": (b as any).internal_notes || "",
+            "Cancelled Cheque URL": (b as any).upload_cancelled_cheque_image?.file_url || "",
+            "Warehouse Name": (b as any).warehouse_id?.warehouse_name || "",
+            "Warehouse Code": (b as any).warehouse_id?.warehouse_code || "",
+            "Verified By": (b as any).verified_by?.name || "",
+            "Created By": (b as any).createdBy?.name || "",
+            "Created At": dateTimeStr((b as any).createdAt),
+            "Updated At": dateTimeStr((b as any).updatedAt),
+          })),
+        };
       }
 
       return company;
@@ -1119,7 +1515,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async getCompanyStatistics(): Promise<any> {
     try {
       const [total, active, inactive, structureStats, registrationTypeStats, recentCompanies] =
@@ -1818,7 +2213,6 @@ export class BrandService {
       throw error;
     }
   }
-
   async bulkUpdateBrandVerificationStatus(
     brandIds: string[],
     verification_status: "pending" | "verified" | "rejected",
@@ -1830,6 +2224,16 @@ export class BrandService {
   ): Promise<{ updated: number; failed: string[] }> {
     const failed: string[] = [];
     let updated = 0;
+
+    // Determine action based on verification status
+    let action: string;
+    if (verification_status === "verified") {
+      action = "verify";
+    } else if (verification_status === "rejected") {
+      action = "reject";
+    } else {
+      action = "status_change";
+    }
 
     for (const brandId of brandIds) {
       try {
@@ -1853,22 +2257,42 @@ export class BrandService {
         );
 
         if (req) {
-          await auditTrailService.createAuditRecord({
-            user: updatedBy,
-            user_email: userEmail,
-            user_role: userRole,
-            action: "update_verification",
-            action_description: `Updated brand verification status from ${currentBrand.verification_status} to ${verification_status}: ${currentBrand.brand_name}. Notes: ${risk_notes}`,
-            target_type: "brand",
-            target_brand: currentBrand._id,
-            target_brand_name: currentBrand.brand_name,
-            target_company: currentBrand.company_id,
-            before_state: { verification_status: currentBrand.verification_status },
-            after_state: { verification_status, risk_notes },
-            changed_fields: ["verification_status", "risk_notes"],
-            ip_address: req.ip,
-            user_agent: req.get("User-Agent"),
-          });
+          try {
+            // Build action description based on verification status
+            let actionDescription: string;
+            if (verification_status === "verified") {
+              actionDescription = `Verified brand: ${currentBrand.brand_name}`;
+            } else if (verification_status === "rejected") {
+              actionDescription = `Rejected brand verification: ${currentBrand.brand_name}`;
+            } else {
+              actionDescription = `Changed brand verification status from ${currentBrand.verification_status} to ${verification_status}: ${currentBrand.brand_name}`;
+            }
+
+            await auditTrailService.createAuditRecord({
+              user: updatedBy,
+              user_email: userEmail,
+              user_role: userRole,
+              action: action,
+              action_description: risk_notes
+                ? `${actionDescription}. Notes: ${risk_notes}`
+                : actionDescription,
+              target_type: "brand",
+              target_brand: currentBrand._id,
+              target_brand_name: currentBrand.brand_name,
+              target_brand_id: currentBrand.brand_id,
+              target_company: currentBrand.company_id,
+              before_state: { verification_status: currentBrand.verification_status },
+              after_state: { verification_status, risk_notes: risk_notes || undefined },
+              changed_fields: ["verification_status", risk_notes ? "risk_notes" : null].filter(
+                Boolean
+              ),
+              ip_address: req.ip,
+              user_agent: req.get("User-Agent"),
+            });
+          } catch (auditError) {
+            logger.error("Error creating audit record:", auditError);
+            // Don't throw - the update was successful, just log the audit failure
+          }
         }
 
         updated++;
@@ -1880,7 +2304,6 @@ export class BrandService {
 
     return { updated, failed };
   }
-
   async updateBrandStatus(
     brandIdentifier: string,
     brand_status: "active" | "inactive",
