@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose, { Types } from "mongoose";
 import { CompanyService, BrandService } from "../services/vendor.service";
 import { AuditTrailService } from "../services/auditTrail.service";
-import { CompanyCreate, BrandCreate } from "../models/Vendor.model";
+import { CompanyCreate, BrandCreate, ICompanyCreate } from "../models/Vendor.model";
 import { logger } from "../utils/logger.util";
 import { ImageUploadService, DocumentType } from "../services/vendorFileUpload.service";
 import {
@@ -281,16 +281,34 @@ export class VendorController {
       handleControllerError(res, error, "fetching company");
     }
   }
-
   public static async updateCompany(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
       const { id } = req.params;
-      const updateData = req.body;
 
       validateMongoId(id, "Company ID");
 
+      // Get current company first for validation context
+      const currentCompany = await companyService.getCompanyById(id);
+      if (!currentCompany) {
+        throw new Error("Company not found");
+      }
+
+      // Check if body is empty and no files
+      const hasBody = req.body && Object.keys(req.body).length > 0;
+      const hasFiles =
+        req.files &&
+        (Array.isArray(req.files) ? req.files.length > 0 : Object.keys(req.files).length > 0);
+
+      if (!hasBody && !hasFiles) {
+        throw new ValidationError("Request body is empty. Please provide data to update.");
+      }
+
+      // Normalize and trim all string values (only if there is body data)
+      const updateData = hasBody ? normalizeBody(req.body) : {};
+
+      // Validate legal_entity_structure if provided
       if (updateData.legal_entity_structure) {
         validateEnumValue(
           updateData.legal_entity_structure,
@@ -299,6 +317,7 @@ export class VendorController {
         );
       }
 
+      // Validate registration_type if provided
       if (updateData.registration_type) {
         validateEnumValue(
           updateData.registration_type,
@@ -307,24 +326,26 @@ export class VendorController {
         );
       }
 
-      let currentCompany: any = null;
-      try {
-        currentCompany = await companyService.getCompanyById(id);
-      } catch (_) {
-        // will be caught during update
-      }
-
+      // Validate legal entity relationship
       validateLegalEntityRelationship(
         updateData.legal_entity_structure,
         updateData.registration_type,
         currentCompany
       );
 
+      // Validate email if provided - ONLY if changed
       if (updateData.official_email) {
-        validateEmail(updateData.official_email);
-        updateData.official_email = updateData.official_email.toLowerCase();
+        const newEmail = updateData.official_email.toLowerCase();
+        if (newEmail !== currentCompany.official_email) {
+          validateEmail(newEmail);
+          updateData.official_email = newEmail;
+        } else {
+          // Remove from updateData if same as current
+          delete updateData.official_email;
+        }
       }
 
+      // Validate date if provided
       if (updateData.date_of_incorporation) {
         updateData.date_of_incorporation = parseDateNotFuture(
           updateData.date_of_incorporation,
@@ -332,49 +353,155 @@ export class VendorController {
         );
       }
 
+      // Validate PAN format if provided - ONLY if changed
       if (updateData.PAN_number) {
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(updateData.PAN_number.toUpperCase())) {
-          throw new ValidationError("Invalid PAN number format. Expected format: ABCDE1234F");
+        const newPAN = updateData.PAN_number.toUpperCase();
+        if (newPAN !== currentCompany.PAN_number) {
+          if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(newPAN)) {
+            throw new ValidationError("Invalid PAN number format. Expected format: ABCDE1234F");
+          }
+          updateData.PAN_number = newPAN;
+        } else {
+          delete updateData.PAN_number;
         }
-        updateData.PAN_number = updateData.PAN_number.toUpperCase();
       }
 
+      // Validate GST format if provided - ONLY if changed
       if (updateData.gst_details) {
-        if (
-          !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/.test(
-            updateData.gst_details.toUpperCase()
-          )
-        ) {
-          throw new ValidationError("Invalid GST number format");
+        const newGST = updateData.gst_details.toUpperCase();
+        if (newGST !== currentCompany.gst_details) {
+          if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/.test(newGST)) {
+            throw new ValidationError(
+              "Invalid GST number format. Expected format: 22AAAAA0000A1Z5"
+            );
+          }
+          updateData.gst_details = newGST;
+        } else {
+          delete updateData.gst_details;
         }
-        updateData.gst_details = updateData.gst_details.toUpperCase();
       }
 
+      // Validate TDS rate if provided - ONLY if changed
       if (updateData.TDS_rate !== undefined) {
         const tdsRateNum = Number(updateData.TDS_rate);
-        if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
-          throw new ValidationError("TDS rate must be between 0 and 100");
+        if (tdsRateNum !== currentCompany.TDS_rate) {
+          if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
+            throw new ValidationError("TDS rate must be between 0 and 100");
+          }
+          updateData.TDS_rate = tdsRateNum;
+        } else {
+          delete updateData.TDS_rate;
         }
-        updateData.TDS_rate = tdsRateNum;
+      }
+
+      // Validate DIN requirement if legal entity structure is being changed
+      const effectiveLegalStructure =
+        updateData.legal_entity_structure || currentCompany.legal_entity_structure;
+      if (CIN_REQUIRED_STRUCTURES.includes(effectiveLegalStructure)) {
+        const effectiveDIN = updateData.din !== undefined ? updateData.din : currentCompany.din;
+        if (!effectiveDIN || effectiveDIN === "") {
+          throw new ValidationError(
+            `DIN is required for legal entity structure '${effectiveLegalStructure}'`
+          );
+        }
+      }
+
+      // Remove unchanged non-unique fields
+      const nonUniqueFields = [
+        "registered_company_name",
+        "registered_office_address",
+        "corporate_website",
+        "directory_signature_name",
+        "billing_cycle",
+      ];
+
+      for (const field of nonUniqueFields) {
+        if (updateData[field] === currentCompany[field as keyof ICompanyCreate]) {
+          delete updateData[field];
+        }
       }
 
       // Handle file uploads for update
       if (req.files) {
-        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         const imageUploadService = new ImageUploadService();
+        const folderPath = (
+          updateData.registered_company_name || currentCompany.registered_company_name
+        ).replace(/[^a-zA-Z0-9]/g, "_");
 
-        for (const fieldName of UPDATABLE_DOCUMENT_FIELDS) {
-          if (files[fieldName]?.[0]) {
+        // Handle upload.any() which returns files as an array
+        let filesArray: Express.Multer.File[] = [];
+
+        if (Array.isArray(req.files)) {
+          filesArray = req.files;
+        } else {
+          const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] };
+          filesArray = Object.values(filesObj).flat();
+        }
+
+        if (filesArray.length > 0) {
+          // Determine effective legal entity structure for document validation
+          const effectiveLegalEntity =
+            updateData.legal_entity_structure || currentCompany.legal_entity_structure;
+
+          // Get allowed documents for this legal entity structure
+          const allowedDocuments = getRequiredCompanyDocumentsForLegalEntity(effectiveLegalEntity);
+
+          // Check for unauthorized document uploads
+          const unauthorizedDocuments = filesArray.filter(
+            file => !allowedDocuments.includes(file.fieldname)
+          );
+
+          if (unauthorizedDocuments.length > 0) {
+            const unauthorizedFields = [...new Set(unauthorizedDocuments.map(f => f.fieldname))];
+            throw new ValidationError(
+              `Cannot upload documents that are not allowed for '${effectiveLegalEntity}' legal entity. ` +
+                `Unauthorized documents: ${unauthorizedFields.join(", ")}. ` +
+                `Allowed documents for '${effectiveLegalEntity}': ${allowedDocuments.join(", ")}`
+            );
+          }
+
+          // Process each file
+          for (const file of filesArray) {
+            const fieldName = file.fieldname;
             const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
+
             if (documentType) {
-              updateData[fieldName] = await imageUploadService.uploadDocument(
-                files[fieldName][0],
-                documentType as DocumentType,
-                currentCompany?.registered_company_name || `companies/${id}`
-              );
+              try {
+                // Delete old document if it exists
+                const oldDocument = (currentCompany as any)[fieldName];
+                if (oldDocument?.cloudinary_public_id) {
+                  try {
+                    await imageUploadService.deleteFromCloudinary(oldDocument.cloudinary_public_id);
+                    logger.info(`Deleted old document ${fieldName} for company ${id}`);
+                  } catch (deleteError) {
+                    logger.warn(`Failed to delete old document ${fieldName}:`, deleteError);
+                  }
+                }
+
+                // Upload new document
+                updateData[fieldName] = await imageUploadService.uploadDocument(
+                  file,
+                  documentType as DocumentType,
+                  folderPath
+                );
+              } catch (uploadError: any) {
+                logger.error(`Failed to upload ${fieldName}:`, uploadError);
+                throw new Error(`Failed to upload ${fieldName}: ${uploadError.message}`);
+              }
             }
           }
         }
+      }
+
+      // Remove empty update data check - if nothing to update after filtering
+      const hasUpdates = Object.keys(updateData).length > 0;
+      if (!hasUpdates) {
+        res.status(200).json({
+          success: true,
+          message: "No changes detected",
+          data: currentCompany,
+        });
+        return;
       }
 
       const updatedCompany = await companyService.updateCompany(
@@ -550,7 +677,6 @@ export class VendorController {
       handleControllerError(res, error, "exporting company by ID");
     }
   }
-
   public static async updateCompanyVerificationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -624,7 +750,6 @@ export class VendorController {
       handleControllerError(res, error, "updating company status");
     }
   }
-
   public static async bulkUpdateCompanyVerification(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
@@ -895,22 +1020,40 @@ export class VendorController {
       handleControllerError(res, error, "fetching brand");
     }
   }
-
   public static async updateBrand(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);
       const userRole = roles[0]?.key || "unknown";
       const { id } = req.params;
-      const updateData = req.body;
 
       if (!id || id.trim() === "") {
         throw new ValidationError("Brand ID is required");
       }
 
+      // Get current brand first for validation context
+      let currentBrand = await BrandCreate.findById(id);
+      if (!currentBrand) {
+        currentBrand = await BrandCreate.findOne({ brand_id: id });
+      }
+      if (!currentBrand) {
+        throw new Error("Brand not found");
+      }
+
+      // Get associated company for folder path and validation
+      const currentCompany = await CompanyCreate.findById(currentBrand.company_id);
+      if (!currentCompany) {
+        throw new Error("Associated company not found");
+      }
+
+      // Normalize and trim all string values
+      const updateData = normalizeBody(req.body);
+
+      // Validate payment_methods if provided
       if (updateData.payment_methods) {
         validateEnumValue(updateData.payment_methods, VALID_PAYMENT_METHODS, "payment_methods");
       }
 
+      // Validate registration_type if provided
       if (updateData.registration_type) {
         validateEnumValue(
           updateData.registration_type,
@@ -919,76 +1062,112 @@ export class VendorController {
         );
       }
 
+      // Validate brand_email if provided
       if (updateData.brand_email) {
         validateEmail(updateData.brand_email);
         updateData.brand_email = updateData.brand_email.toLowerCase();
       }
 
-      if (updateData.TDS_rate !== undefined) {
-        const tdsRateNum = Number(updateData.TDS_rate);
-        if (isNaN(tdsRateNum) || tdsRateNum < 0 || tdsRateNum > 100) {
-          throw new ValidationError("TDS rate must be a number between 0 and 100");
+      // Validate IFSC code format if provided (basic format check)
+      if (updateData.ifsc_code) {
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(updateData.ifsc_code.toUpperCase())) {
+          throw new ValidationError("Invalid IFSC code format. Expected format: ABCD0123456");
         }
-        updateData.TDS_rate = tdsRateNum;
+        updateData.ifsc_code = updateData.ifsc_code.toUpperCase();
       }
 
-      // Handle date parsing
+      // Handle date parsing and validation
       const dateFields = ["contract_start_date", "contract_end_date", "contract_renewal_date"];
       for (const field of dateFields) {
-        if (updateData[field]) {
+        if (updateData[field] !== undefined) {
           updateData[field] = parseDate(updateData[field], field);
         }
       }
 
-      if (updateData.contract_start_date && updateData.contract_end_date) {
-        if (updateData.contract_start_date >= updateData.contract_end_date) {
-          throw new ValidationError("Contract start date must be before contract end date");
-        }
+      // Determine effective dates for validation (use existing if not being updated)
+      const effectiveStartDate = updateData.contract_start_date ?? currentBrand.contract_start_date;
+      const effectiveEndDate = updateData.contract_end_date ?? currentBrand.contract_end_date;
+      const effectiveRenewalDate =
+        updateData.contract_renewal_date ?? currentBrand.contract_renewal_date;
+
+      // Validate date relationships
+      if (effectiveStartDate && effectiveEndDate && effectiveStartDate >= effectiveEndDate) {
+        throw new ValidationError("Contract start date must be before contract end date");
       }
 
-      if (updateData.contract_renewal_date && updateData.contract_end_date) {
-        if (updateData.contract_renewal_date < updateData.contract_end_date) {
-          throw new ValidationError("Contract renewal date must be on or after contract end date");
-        }
+      if (effectiveRenewalDate && effectiveEndDate && effectiveRenewalDate < effectiveEndDate) {
+        throw new ValidationError("Contract renewal date must be on or after contract end date");
       }
 
-      if (updateData.ifsc_code) updateData.ifsc_code = updateData.ifsc_code.toUpperCase();
+      // Validate registration type matches company if being updated
+      if (
+        updateData.registration_type &&
+        updateData.registration_type !== currentCompany.registration_type
+      ) {
+        throw new ValidationError(
+          `Registration type mismatch. Company is registered as '${currentCompany.registration_type}' but brand is being updated to '${updateData.registration_type}'`
+        );
+      }
 
-      // Handle file uploads — brand does NOT accept compliance image updates here
+      // Validate CIN/MSME number matches company if being updated
+      if (
+        updateData.cin_or_msme_number &&
+        updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
+      ) {
+        throw new ValidationError(
+          "CIN/MSME number does not match the company's registration number"
+        );
+      }
+
+      const BRAND_ALLOWED_DOCUMENT_FIELD = "upload_cancelled_cheque_image";
+
       if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const imageUploadService = new ImageUploadService();
+        const uploadedFileNames = Object.keys(files);
 
-        // Exclude compliance-only fields (gst_certificate_image, PAN_image, FSSAI_image)
-        // from brand updates
-        const brandUpdatableFields = UPDATABLE_DOCUMENT_FIELDS.filter(
-          f => f !== "gst_certificate_image" && f !== "PAN_image" && f !== "FSSAI_image"
+        // Check for unauthorized document uploads - only cancelled cheque is allowed
+        const unauthorizedDocuments = uploadedFileNames.filter(
+          fieldName => fieldName !== BRAND_ALLOWED_DOCUMENT_FIELD
         );
 
-        for (const fieldName of brandUpdatableFields) {
-          if (files[fieldName]?.[0]) {
-            const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
-            if (documentType) {
-              let currentBrand;
-              if (mongoose.Types.ObjectId.isValid(id) && id.length === 24) {
-                currentBrand = await BrandCreate.findById(id);
-              } else {
-                currentBrand = await BrandCreate.findOne({ brand_id: id });
-              }
+        if (unauthorizedDocuments.length > 0) {
+          throw new ValidationError(
+            `Brand section only accepts cancelled cheque image upload. ` +
+              `Unauthorized document fields: ${unauthorizedDocuments.join(", ")}. ` +
+              `Please upload these documents at the company level instead.`
+          );
+        }
 
-              let folderPath: string | undefined;
-              if (currentBrand) {
-                const company = await CompanyCreate.findById(currentBrand.company_id);
-                folderPath = company
-                  ? `${company.registered_company_name}/${currentBrand.brand_name}`
-                  : `brands/${currentBrand.brand_id}`;
-              }
+        // Process only the cancelled cheque image
+        if (files[BRAND_ALLOWED_DOCUMENT_FIELD]?.[0]) {
+          const imageUploadService = new ImageUploadService();
+          const folderPath =
+            `${currentCompany.registered_company_name}/${updateData.brand_name || currentBrand.brand_name}`.replace(
+              /[^a-zA-Z0-9]/g,
+              "_"
+            );
 
-              updateData[fieldName] = await imageUploadService.uploadDocument(
-                files[fieldName][0],
+          const documentType = DOCUMENT_TYPE_MAPPING[BRAND_ALLOWED_DOCUMENT_FIELD];
+
+          if (documentType) {
+            try {
+              const oldDocument = currentBrand.upload_cancelled_cheque_image;
+              if (oldDocument?.cloudinary_public_id) {
+                try {
+                  await imageUploadService.deleteFromCloudinary(oldDocument.cloudinary_public_id);
+                  logger.info(`Deleted old cancelled cheque for brand ${currentBrand.brand_id}`);
+                } catch (deleteError) {
+                  logger.warn(`Failed to delete old cancelled cheque:`, deleteError);
+                }
+              }
+              updateData[BRAND_ALLOWED_DOCUMENT_FIELD] = await imageUploadService.uploadDocument(
+                files[BRAND_ALLOWED_DOCUMENT_FIELD][0],
                 documentType as DocumentType,
                 folderPath
               );
+            } catch (uploadError: any) {
+              logger.error(`Failed to upload cancelled cheque:`, uploadError);
+              throw new Error(`Failed to upload cancelled cheque: ${uploadError.message}`);
             }
           }
         }
@@ -1016,7 +1195,6 @@ export class VendorController {
       handleControllerError(res, error, "updating brand");
     }
   }
-
   public static async deleteBrand(req: Request, res: Response): Promise<void> {
     try {
       const { _id: userId, email: userEmail, roles } = VendorController.getLoggedInUser(req);

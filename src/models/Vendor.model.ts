@@ -250,14 +250,6 @@ companyCreateSchema.pre("save", async function (next) {
 
 export const CompanyCreate = mongoose.model<ICompanyCreate>("CompanyCreate", companyCreateSchema);
 
-// ============================================
-// BRAND CREATE INTERFACE & SCHEMA
-// Compliance fields (GST, PAN, FSSAI, TDS, billing_cycle) and their
-// certificate images are intentionally EXCLUDED from Brand — they belong
-// to the parent Company only. Brand carries only its own banking document
-// (cancelled cheque) and legal-entity-specific docs inherited at creation.
-// ============================================
-
 export interface IBrandCreate extends Document {
   brand_id: string;
   registration_type: "cin" | "msme";

@@ -31,6 +31,7 @@ import {
   getRequiredCompanyDocumentsForLegalEntity,
   escapeCSVCell,
   buildCSV,
+  UPDATABLE_DOCUMENT_FIELDS,
 } from "../utils/vendor.helpers";
 
 const auditTrailService = new AuditTrailService();
@@ -197,17 +198,6 @@ export interface IBrandCreateData {
   payment_terms: string;
   // Brand-specific banking document
   upload_cancelled_cheque_image?: any;
-  // Legal-entity-specific document images
-  certificate_of_incorporation_image?: any;
-  MSME_or_Udyam_certificate_image?: any;
-  MOA_image?: any;
-  AOA_image?: any;
-  Trademark_certificate_image?: any;
-  Authorized_Signatory_image?: any;
-  LLP_agreement_image?: any;
-  Shop_and_Establishment_certificate_image?: any;
-  Registered_Partnership_deed_image?: any;
-  Board_resolution_image?: any;
   // Status & contract
   brand_status_cycle: string;
   brand_status?: "active" | "inactive";
@@ -241,17 +231,6 @@ export interface IBrandUpdateData {
   payment_terms?: string;
   // Brand-specific banking document
   upload_cancelled_cheque_image?: any;
-  // Legal-entity-specific document images
-  certificate_of_incorporation_image?: any;
-  MSME_or_Udyam_certificate_image?: any;
-  MOA_image?: any;
-  AOA_image?: any;
-  Trademark_certificate_image?: any;
-  Authorized_Signatory_image?: any;
-  LLP_agreement_image?: any;
-  Shop_and_Establishment_certificate_image?: any;
-  Registered_Partnership_deed_image?: any;
-  Board_resolution_image?: any;
   // Status & contract
   brand_status_cycle?: string;
   brand_status?: "active" | "inactive";
@@ -555,6 +534,81 @@ export class CompanyService {
       throw error;
     }
   }
+  async updateCompanyVerificationStatus(
+    companyId: string,
+    verification_status: "pending" | "verified" | "rejected",
+    risk_notes: string,
+    updatedBy: Types.ObjectId,
+    userEmail: string,
+    userRole: string,
+    req?: Request
+  ): Promise<LeanCompany | null> {
+    try {
+      validateMongoId(companyId, "Company ID");
+
+      const objectId = new mongoose.Types.ObjectId(companyId);
+      const currentCompany = await CompanyCreate.findById(objectId);
+      if (!currentCompany) {
+        throw new Error(`Company with ID ${companyId} not found`);
+      }
+
+      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+        objectId,
+        { $set: { verification_status } },
+        { new: true, runValidators: true }
+      ).lean()) as unknown as LeanCompany | null;
+
+      if (!updatedCompany) {
+        throw new Error(`Company with ID ${companyId} not found after update`);
+      }
+
+      if (req) {
+        try {
+          // Determine action based on verification status
+          let action: string;
+          let actionDescription: string;
+
+          if (verification_status === "verified") {
+            action = "verify";
+            actionDescription = `Verified company: ${currentCompany.registered_company_name}`;
+          } else if (verification_status === "rejected") {
+            action = "reject";
+            actionDescription = `Rejected company verification: ${currentCompany.registered_company_name}`;
+          } else {
+            action = "status_change";
+            actionDescription = `Changed company verification status from ${currentCompany.verification_status} to ${verification_status}: ${currentCompany.registered_company_name}`;
+          }
+
+          await auditTrailService.createAuditRecord({
+            user: updatedBy,
+            user_email: userEmail,
+            user_role: userRole,
+            action,
+            action_description: risk_notes
+              ? `${actionDescription}. Notes: ${risk_notes}`
+              : actionDescription,
+            target_type: "company",
+            target_company: currentCompany._id,
+            target_company_name: currentCompany.registered_company_name,
+            target_company_cin: currentCompany.cin_or_msme_number,
+            before_state: { verification_status: currentCompany.verification_status },
+            after_state: { verification_status, risk_notes: risk_notes || undefined },
+            changed_fields: ["verification_status"],
+            ip_address: req.ip,
+            user_agent: req.get("User-Agent"),
+          });
+        } catch (auditError) {
+          logger.error("Failed to create audit trail:", auditError);
+          // Don't throw - the update was successful, just log the audit failure
+        }
+      }
+
+      return updatedCompany;
+    } catch (error) {
+      logger.error("Error in updateCompanyVerificationStatus:", error);
+      throw error;
+    }
+  }
 
   async updateCompanyStatus(
     companyId: string,
@@ -586,24 +640,30 @@ export class CompanyService {
 
       if (req) {
         try {
+          const action = "status_change";
+          const actionDescription = `Changed company status from ${currentCompany.company_status} to ${company_status}: ${currentCompany.registered_company_name}`;
+
           await auditTrailService.createAuditRecord({
             user: updatedBy,
             user_email: userEmail,
             user_role: userRole,
-            action: "update",
-            action_description: `Updated company status from ${currentCompany.company_status} to ${company_status}: ${currentCompany.registered_company_name}. Notes: ${risk_notes}`,
+            action,
+            action_description: risk_notes
+              ? `${actionDescription}. Notes: ${risk_notes}`
+              : actionDescription,
             target_type: "company",
             target_company: currentCompany._id,
             target_company_name: currentCompany.registered_company_name,
             target_company_cin: currentCompany.cin_or_msme_number,
             before_state: { company_status: currentCompany.company_status },
-            after_state: { company_status, risk_notes },
+            after_state: { company_status, risk_notes: risk_notes || undefined },
             changed_fields: ["company_status"],
             ip_address: req.ip,
             user_agent: req.get("User-Agent"),
           });
         } catch (auditError) {
           logger.error("Failed to create audit trail:", auditError);
+          // Don't throw - the update was successful, just log the audit failure
         }
       }
 
@@ -613,7 +673,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async bulkUpdateCompanyStatus(
     companyIds: string[],
     company_status: "active" | "inactive",
@@ -645,64 +704,6 @@ export class CompanyService {
     }
 
     return { updated, failed };
-  }
-
-  async updateCompanyVerificationStatus(
-    companyId: string,
-    verification_status: "pending" | "verified" | "rejected",
-    risk_notes: string,
-    updatedBy: Types.ObjectId,
-    userEmail: string,
-    userRole: string,
-    req?: Request
-  ): Promise<LeanCompany | null> {
-    try {
-      validateMongoId(companyId, "Company ID");
-
-      const objectId = new mongoose.Types.ObjectId(companyId);
-      const currentCompany = await CompanyCreate.findById(objectId);
-      if (!currentCompany) {
-        throw new Error(`Company with ID ${companyId} not found`);
-      }
-
-      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
-        objectId,
-        { $set: { verification_status } },
-        { new: true, runValidators: true }
-      ).lean()) as unknown as LeanCompany | null;
-
-      if (!updatedCompany) {
-        throw new Error(`Company with ID ${companyId} not found after update`);
-      }
-
-      if (req) {
-        try {
-          await auditTrailService.createAuditRecord({
-            user: updatedBy,
-            user_email: userEmail,
-            user_role: userRole,
-            action: "update_verification",
-            action_description: `Updated company verification status from ${currentCompany.verification_status} to ${verification_status}: ${currentCompany.registered_company_name}. Notes: ${risk_notes}`,
-            target_type: "company",
-            target_company: currentCompany._id,
-            target_company_name: currentCompany.registered_company_name,
-            target_company_cin: currentCompany.cin_or_msme_number,
-            before_state: { verification_status: currentCompany.verification_status },
-            after_state: { verification_status, risk_notes },
-            changed_fields: ["verification_status"],
-            ip_address: req.ip,
-            user_agent: req.get("User-Agent"),
-          });
-        } catch (auditError) {
-          logger.error("Failed to create audit trail:", auditError);
-        }
-      }
-
-      return updatedCompany;
-    } catch (error) {
-      logger.error("Error in updateCompanyVerificationStatus:", error);
-      throw error;
-    }
   }
 
   async bulkUpdateCompanyVerificationStatus(
@@ -838,7 +839,6 @@ export class CompanyService {
       throw error;
     }
   }
-
   async updateCompany(
     id: string,
     updateData: ICompanyUpdateData,
@@ -851,9 +851,18 @@ export class CompanyService {
       validateMongoId(id, "Company ID");
 
       const currentCompany = await CompanyCreate.findById(id);
-      if (!currentCompany) throw new Error("Company not found");
+      if (!currentCompany) {
+        throw new Error("Company not found");
+      }
 
-      // Duplicate checks on mutable unique fields
+      // Track changed fields for audit
+      const changedFields: string[] = [];
+      const beforeState = currentCompany.toObject();
+
+      // Build update object with only changed fields
+      const updateObj: any = {};
+
+      // Duplicate checks on mutable unique fields - ONLY if changed
       if (
         updateData.cin_or_msme_number &&
         updateData.cin_or_msme_number !== currentCompany.cin_or_msme_number
@@ -862,63 +871,139 @@ export class CompanyService {
           cin_or_msme_number: updateData.cin_or_msme_number,
           _id: { $ne: id },
         });
-        if (existing)
+        if (existing) {
           throw new Error(
             `Company with CIN/MSME number ${updateData.cin_or_msme_number} already exists`
           );
+        }
+        updateObj.cin_or_msme_number = updateData.cin_or_msme_number;
+        changedFields.push("cin_or_msme_number");
       }
 
-      if (
-        updateData.official_email &&
-        updateData.official_email !== currentCompany.official_email
-      ) {
-        const existing = await CompanyCreate.findOne({
-          official_email: updateData.official_email.toLowerCase(),
-          _id: { $ne: id },
-        });
-        if (existing)
-          throw new Error(`Company with email ${updateData.official_email} already exists`);
+      // Email check - ONLY if changed
+      if (updateData.official_email) {
+        const newEmail = updateData.official_email.toLowerCase();
+        if (newEmail !== currentCompany.official_email) {
+          const existing = await CompanyCreate.findOne({
+            official_email: newEmail,
+            _id: { $ne: id },
+          });
+          if (existing) {
+            throw new Error(`Company with email ${newEmail} already exists`);
+          }
+          updateObj.official_email = newEmail;
+          changedFields.push("official_email");
+        }
       }
 
+      // DIN check - ONLY if changed
       if (updateData.din && updateData.din !== currentCompany.din) {
         const existing = await CompanyCreate.findOne({
           din: updateData.din,
           _id: { $ne: id },
         });
-        if (existing) throw new Error(`Company with DIN ${updateData.din} already exists`);
+        if (existing) {
+          throw new Error(`Company with DIN ${updateData.din} already exists`);
+        }
+        updateObj.din = updateData.din;
+        changedFields.push("din");
       }
 
+      // PAN check - ONLY if changed
       if (updateData.PAN_number && updateData.PAN_number !== currentCompany.PAN_number) {
         const existing = await CompanyCreate.findOne({
           PAN_number: updateData.PAN_number,
           _id: { $ne: id },
         });
-        if (existing)
+        if (existing) {
           throw new Error(`Company with PAN number ${updateData.PAN_number} already exists`);
+        }
+        updateObj.PAN_number = updateData.PAN_number;
+        changedFields.push("PAN_number");
       }
 
+      // GST check - ONLY if changed
       if (updateData.gst_details && updateData.gst_details !== currentCompany.gst_details) {
         const existing = await CompanyCreate.findOne({
           gst_details: updateData.gst_details,
           _id: { $ne: id },
         });
-        if (existing)
+        if (existing) {
           throw new Error(`Company with GST number ${updateData.gst_details} already exists`);
+        }
+        updateObj.gst_details = updateData.gst_details;
+        changedFields.push("gst_details");
       }
 
-      const updateObj: any = { ...updateData };
-      if (updateObj.official_email)
-        updateObj.official_email = updateObj.official_email.toLowerCase();
+      // FSSAI check - ONLY if changed
+      if (updateData.FSSAI_number && updateData.FSSAI_number !== currentCompany.FSSAI_number) {
+        const existing = await CompanyCreate.findOne({
+          FSSAI_number: updateData.FSSAI_number,
+          _id: { $ne: id },
+        });
+        if (existing) {
+          throw new Error(`Company with FSSAI number ${updateData.FSSAI_number} already exists`);
+        }
+        updateObj.FSSAI_number = updateData.FSSAI_number;
+        changedFields.push("FSSAI_number");
+      }
 
-      const updatedCompany = (await CompanyCreate.findByIdAndUpdate(
+      // Track other changed fields (non-unique fields)
+      const nonUniqueFields = [
+        "registered_company_name",
+        "registered_office_address",
+        "legal_entity_structure",
+        "registration_type",
+        "date_of_incorporation",
+        "corporate_website",
+        "directory_signature_name",
+        "company_status",
+        "verification_status",
+        "TDS_rate",
+        "billing_cycle",
+      ];
+
+      for (const field of nonUniqueFields) {
+        const newValue = updateData[field as keyof ICompanyUpdateData];
+
+        if (newValue !== undefined) {
+          const oldValue = currentCompany[field as keyof ICompanyCreate];
+
+          // Compare values (using JSON.stringify for dates and objects)
+          if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+            updateObj[field] = newValue;
+            changedFields.push(field);
+          }
+        }
+      }
+
+      // Track document field changes - always add if present
+      const documentFields = UPDATABLE_DOCUMENT_FIELDS;
+      for (const field of documentFields) {
+        if (updateData[field as keyof ICompanyUpdateData] !== undefined) {
+          updateObj[field] = updateData[field as keyof ICompanyUpdateData];
+          changedFields.push(field);
+        }
+      }
+
+      // If no fields are actually changing, return current company
+      if (Object.keys(updateObj).length === 0) {
+        logger.info(`No changes detected for company ${id}`);
+        return currentCompany;
+      }
+
+      const updatedCompany = await CompanyCreate.findByIdAndUpdate(
         id,
         { $set: updateObj },
         { new: true, runValidators: true }
-      ).lean()) as unknown as ICompanyCreate | null;
+      ).lean();
 
-      if (!updatedCompany) throw new Error("Company not found");
+      if (!updatedCompany) {
+        throw new Error("Company not found");
+      }
 
-      if (req) {
+      // Create audit trail
+      if (req && changedFields.length > 0) {
         await auditTrailService.createAuditRecord({
           user: updatedBy,
           user_email: userEmail,
@@ -929,22 +1014,23 @@ export class CompanyService {
           target_company: currentCompany._id,
           target_company_name: currentCompany.registered_company_name,
           target_company_cin: currentCompany.cin_or_msme_number,
-          before_state: currentCompany.toObject(),
-          after_state: updateData,
-          changed_fields: Object.keys(updateData),
+          before_state: beforeState,
+          after_state: updateObj,
+          changed_fields: changedFields,
           ip_address: req.ip,
           user_agent: req.get("User-Agent"),
         });
       }
 
-      logger.info(`Company updated: ${updatedCompany.registered_company_name} (ID: ${id})`);
-      return updatedCompany;
+      logger.info(
+        `Company updated: ${updatedCompany.registered_company_name} (ID: ${id}), changed fields: ${changedFields.join(", ")}`
+      );
+      return updatedCompany as unknown as ICompanyCreate;
     } catch (error) {
       logger.error(`Error updating company ${id}:`, error);
       throw error;
     }
   }
-
   async deleteCompany(
     id: string,
     deletedBy: Types.ObjectId,

@@ -50,7 +50,12 @@ router.get("/companies", authorize(STAFF_MANAGEMENT), VendorController.getAllCom
 router.get("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.getCompanyById);
 
 // Update company by id
-router.put("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.updateCompany);
+router.put(
+  "/companies/:id",
+  authorize(STAFF_MANAGEMENT),
+  upload.any(),
+  VendorController.updateCompany
+);
 
 // Delete company by id
 router.delete("/companies/:id", authorize(STAFF_MANAGEMENT), VendorController.deleteCompany);
