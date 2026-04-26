@@ -1547,10 +1547,6 @@ export class CompanyService {
   }
 }
 
-// ============================================
-// BRAND SERVICE
-// ============================================
-
 export class BrandService {
   async createBrand(
     brandData: IBrandCreateData,
@@ -1985,8 +1981,6 @@ export class BrandService {
           "Contract Renewal Date",
           "Payment Methods",
           "Internal Notes",
-          "Warehouse Name",
-          "Warehouse Code",
           "Verified By",
           "Verified By Email",
           "Created By",
@@ -1994,16 +1988,6 @@ export class BrandService {
           "Created At",
           "Updated At",
           "Cancelled Cheque URL",
-          "Certificate of Incorporation URL",
-          "MSME/Udyam Certificate URL",
-          "MOA Document URL",
-          "AOA Document URL",
-          "Trademark Certificate URL",
-          "Authorized Signatory URL",
-          "LLP Agreement URL",
-          "Shop & Establishment Certificate URL",
-          "Registered Partnership Deed URL",
-          "Board Resolution URL",
         ];
 
         const rows = brands.map(b => {
@@ -2043,8 +2027,6 @@ export class BrandService {
             dateStr(d.contract_renewal_date),
             d.payment_methods || "",
             d.internal_notes || "",
-            d.warehouse_id?.warehouse_name || "",
-            d.warehouse_id?.warehouse_code || "",
             d.verified_by?.name || "",
             d.verified_by?.email || "",
             d.createdBy?.name || "",
@@ -2052,16 +2034,6 @@ export class BrandService {
             d.createdAt ? new Date(d.createdAt).toISOString() : "",
             d.updatedAt ? new Date(d.updatedAt).toISOString() : "",
             d.upload_cancelled_cheque_image?.file_url || "",
-            d.certificate_of_incorporation_image?.file_url || "",
-            d.MSME_or_Udyam_certificate_image?.file_url || "",
-            d.MOA_image?.file_url || "",
-            d.AOA_image?.file_url || "",
-            d.Trademark_certificate_image?.file_url || "",
-            d.Authorized_Signatory_image?.file_url || "",
-            d.LLP_agreement_image?.file_url || "",
-            d.Shop_and_Establishment_certificate_image?.file_url || "",
-            d.Registered_Partnership_deed_image?.file_url || "",
-            d.Board_resolution_image?.file_url || "",
           ];
         });
 
@@ -2172,27 +2144,9 @@ export class BrandService {
           ["Verified By", d.verified_by?.name || ""],
           ["Verified By Email", d.verified_by?.email || ""],
           ["", ""],
-          ["Warehouse Information", ""],
-          ["Warehouse Name", d.warehouse_id?.warehouse_name || ""],
-          ["Warehouse Code", d.warehouse_id?.warehouse_code || ""],
-          ["Warehouse Address", d.warehouse_id?.address || ""],
-          ["", ""],
           ["Document URLs", ""],
           ["Cancelled Cheque", d.upload_cancelled_cheque_image?.file_url || ""],
-          ["Certificate of Incorporation", d.certificate_of_incorporation_image?.file_url || ""],
-          ["MSME/Udyam Certificate", d.MSME_or_Udyam_certificate_image?.file_url || ""],
-          ["MOA Document", d.MOA_image?.file_url || ""],
-          ["AOA Document", d.AOA_image?.file_url || ""],
-          ["Trademark Certificate", d.Trademark_certificate_image?.file_url || ""],
-          ["Authorized Signatory", d.Authorized_Signatory_image?.file_url || ""],
-          ["LLP Agreement", d.LLP_agreement_image?.file_url || ""],
-          [
-            "Shop & Establishment Certificate",
-            d.Shop_and_Establishment_certificate_image?.file_url || "",
-          ],
-          ["Registered Partnership Deed", d.Registered_Partnership_deed_image?.file_url || ""],
-          ["Board Resolution", d.Board_resolution_image?.file_url || ""],
-          ["", ""],
+
           ["System Information", ""],
           ["Created By", d.createdBy?.name || ""],
           ["Created By Email", d.createdBy?.email || ""],

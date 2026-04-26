@@ -31,7 +31,6 @@ export const CIN_REQUIRED_STRUCTURES = ["pvt", "public", "opc"];
 const MSME_ALLOWED_STRUCTURES = ["llp", "proprietorship", "partnership"];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Maps multipart field names → DocumentType strings used by ImageUploadService
 export const DOCUMENT_TYPE_MAPPING: Record<string, string> = {
   upload_cancelled_cheque_image: "cancelled_cheque",
   gst_certificate_image: "gst_certificate",
