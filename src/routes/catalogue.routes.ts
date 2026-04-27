@@ -15,6 +15,7 @@ const MANAGEMENT = ["super_admin", "admin", "ops_manager"];
 router.post(
   "/categories",
   authenticate,
+  uploadMultiple,
   authorize(MANAGEMENT),
   categoryController.createCategory.bind(categoryController)
 );
@@ -27,13 +28,19 @@ router.get(
 );
 
 router.post(
-  "/categories/upload-image",
+  "/categories/:id/upload-image",
   authenticate,
   authorize(MANAGEMENT),
   uploadMultiple,
   categoryController.uploadCategoryImage.bind(categoryController)
 );
 
+router.delete(
+  "/categories/:id/images/:imageId",
+  authenticate,
+  authorize(MANAGEMENT),
+  categoryController.deleteCategoryImage.bind(categoryController)
+);
 router.get(
   "/categories/dashboard/stats",
   authenticate,
@@ -51,6 +58,7 @@ router.get(
 router.put(
   "/categories/:id",
   authenticate,
+  uploadMultiple,
   authorize(MANAGEMENT),
   categoryController.updateCategory.bind(categoryController)
 );
@@ -84,6 +92,7 @@ router.get(
 router.post(
   "/sub-categories",
   authenticate,
+  uploadMultiple,
   authorize(MANAGEMENT),
   subCategoryController.createSubCategory.bind(subCategoryController)
 );

@@ -246,5 +246,56 @@ const CatalogueSchema = new mongoose.Schema<ICatalogue>(
 CatalogueSchema.index({ category: 1 });
 CatalogueSchema.index({ sub_category: 1 });
 CatalogueSchema.index({ status: 1 });
+CatalogueSchema.pre<ICatalogue>("save", async function (next) {
+  // Only generate if sku_id is not already set OR if it's being auto-generated
+  if (!this.sku_id || this.isNew) {
+    try {
+      // Fetch category with proper population
+      const category = await mongoose.model("Category").findById(this.category);
+      const productName = this.product_name;
 
+      if (!category) {
+        throw new Error("Category not found");
+      }
+
+      // Get category code (first 3 letters, uppercase)
+      let categoryCode = category.category_name.slice(0, 3).toUpperCase();
+      // Handle categories with less than 3 characters
+      if (categoryCode.length < 3) {
+        categoryCode = categoryCode.padEnd(3, "X");
+      }
+
+      // Get product code (first 3 letters, uppercase, remove spaces)
+      let productCode = productName.replace(/\s/g, "").slice(0, 3).toUpperCase();
+      if (productCode.length < 3) {
+        productCode = productCode.padEnd(3, "X");
+      }
+
+      // Generate sequential number instead of random for better consistency
+      const prefix = `SKU${categoryCode}${productCode}`;
+
+      // Find the last SKU with the same prefix
+      const lastSku = await mongoose
+        .model("Catalogue")
+        .findOne({ sku_id: { $regex: `^${prefix}` } })
+        .sort({ createdAt: -1 });
+
+      let sequenceNum = 1;
+      if (lastSku && lastSku.sku_id) {
+        const lastNum = parseInt(lastSku.sku_id.slice(-3));
+        sequenceNum = lastNum + 1;
+      }
+
+      // Ensure sequence number is 3 digits
+      const sequenceStr = sequenceNum.toString().padStart(3, "0");
+      this.sku_id = `${prefix}${sequenceStr}`;
+
+      next();
+    } catch (error) {
+      next(error as Error);
+    }
+  } else {
+    next();
+  }
+});
 export const CatalogueModel = mongoose.model<ICatalogue>("Catalogue", CatalogueSchema);

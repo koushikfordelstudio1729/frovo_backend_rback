@@ -91,10 +91,6 @@ const ENTITY_SPECIFIC_DOCUMENTS: Record<string, string[]> = {
   ],
 };
 
-// ============================================
-// VALIDATION ERROR CLASS
-// ============================================
-
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);

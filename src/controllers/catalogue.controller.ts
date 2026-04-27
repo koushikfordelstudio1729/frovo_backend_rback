@@ -74,6 +74,56 @@ export class CatalogueController extends BaseController {
           mime_type: img.mime_type || "application/octet-stream",
           uploaded_at: new Date(),
         }));
+      } else if (Array.isArray(req.files) && req.files.length > 0) {
+        // Upload new images
+        const files = req.files as Express.Multer.File[];
+
+        if (!files || files.length === 0) {
+          res.status(400).json({
+            success: false,
+            message: "No images uploaded",
+          });
+          return;
+        }
+
+        // Validate max images
+        const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || "10");
+        if (files.length > maxImages) {
+          res.status(400).json({
+            success: false,
+            message: `Maximum ${maxImages} images allowed. Uploaded ${files.length}.`,
+          });
+          return;
+        }
+
+        // Validate file types
+        const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+        const validFiles = files.filter(file => allowedMimeTypes.includes(file.mimetype));
+
+        if (validFiles.length !== files.length) {
+          res.status(400).json({
+            success: false,
+            message: "Only JPEG, PNG, and WebP images are allowed",
+          });
+          return;
+        }
+
+        // Upload to Cloudinary
+        const uploadedImages = await imageUploadService.uploadMultipleFiles(
+          validFiles,
+          process.env.CATALOGUE_IMAGE_FOLDER || "frovo/catalogue_images",
+          "product"
+        );
+
+        // Create image metadata objects (uploadMultipleFiles already returns IProductImageData)
+        productImages = uploadedImages.map((img: any) => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size,
+          mime_type: img.mime_type,
+          uploaded_at: img.uploaded_at || new Date(),
+        }));
       } else if (req.body.images) {
         productImages = Array.isArray(req.body.images)
           ? req.body.images
@@ -1180,6 +1230,77 @@ export class CategoryController extends BaseController {
         logger.info(`Saved ${categoryImagesData.length} category images (presigned upload)`);
       }
 
+      let files: Express.Multer.File[] = [];
+
+      if (req.files) {
+        if (Array.isArray(req.files) && req.files.length > 0) {
+          files = req.files as Express.Multer.File[];
+        } else if (typeof req.files === "object") {
+          const possibleFieldNames = ["category_images", "category_image"];
+          for (const fieldName of possibleFieldNames) {
+            if (
+              req.files[fieldName] &&
+              Array.isArray(req.files[fieldName]) &&
+              req.files[fieldName].length > 0
+            ) {
+              files = req.files[fieldName];
+              break;
+            }
+          }
+        }
+      }
+
+      if (categoryImagesData.length === 0 && files.length > 0) {
+        const maxImages = parseInt(process.env.MAX_CATEGORY_IMAGES || "10");
+        if (files.length > maxImages) {
+          res.status(400).json({
+            success: false,
+            message: `Maximum ${maxImages} images allowed. Uploaded ${files.length}.`,
+          });
+          return;
+        }
+
+        // Validate file types
+        const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+        const validFiles = files.filter(file => allowedMimeTypes.includes(file.mimetype));
+
+        if (validFiles.length !== files.length) {
+          res.status(400).json({
+            success: false,
+            message: "Only JPEG, PNG, and WebP images are allowed",
+          });
+          return;
+        }
+
+        // Upload to Cloudinary
+        const uploadedImages = await imageUploadService.uploadMultipleFiles(
+          validFiles,
+          process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images",
+          "category"
+        );
+
+        // Create image metadata objects
+        categoryImagesData = uploadedImages.map((img: any) => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size,
+          mime_type: img.mime_type,
+          uploaded_at: img.uploaded_at || new Date(),
+        }));
+
+        logger.info(`Uploaded ${categoryImagesData.length} files from form-data`);
+      }
+
+      // Check if we have at least one image
+      if (categoryImagesData.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "At least one category image is required. Please upload an image.",
+        });
+        return;
+      }
+
       const categoryData: CreateCategoryDTO = {
         category_name: req.body.category_name,
         description: req.body.description,
@@ -1330,34 +1451,141 @@ export class CategoryController extends BaseController {
       const { id } = req.params;
       const user = CategoryController.getLoggedInUser(req);
 
+      // Log incoming data for debugging
+      logger.info("Update Request body:", req.body);
+      logger.info("Update Request files:", req.files);
+
       // Handle image deletions
       const imagesToDelete: string[] = req.body.images_to_delete
         ? JSON.parse(req.body.images_to_delete)
         : [];
 
-      // Accept pre-uploaded image metadata (presigned URL flow)
-      const newImages: any[] = req.body.new_images ? JSON.parse(req.body.new_images) : [];
+      // Initialize array for new images
+      let newCategoryImages: any[] = [];
 
-      if (newImages.length > 0) {
-        const newCategoryImages = newImages.map(img => ({
+      // METHOD 1: Accept pre-uploaded image metadata from JSON (presigned URL flow)
+      if (req.body.new_images && req.body.new_images !== "undefined") {
+        try {
+          const newImages: any[] = JSON.parse(req.body.new_images);
+          if (Array.isArray(newImages) && newImages.length > 0) {
+            newCategoryImages = newImages.map(img => ({
+              image_name: img.image_name,
+              file_url: img.file_url,
+              cloudinary_public_id: img.cloudinary_public_id,
+              file_size: img.file_size || 0,
+              mime_type: img.mime_type || "application/octet-stream",
+              uploaded_at: new Date(),
+            }));
+            logger.info(
+              `Received ${newCategoryImages.length} new category images (presigned JSON upload)`
+            );
+          }
+        } catch (parseError) {
+          logger.error("Error parsing new_images:", parseError);
+        }
+      }
+
+      // METHOD 2: Handle direct file uploads from Postman form-data
+      let uploadedFiles: Express.Multer.File[] = [];
+
+      if (req.files) {
+        // If req.files is an array (single field with multiple files)
+        if (Array.isArray(req.files) && req.files.length > 0) {
+          uploadedFiles = req.files as Express.Multer.File[];
+          logger.info(`Found ${uploadedFiles.length} files in req.files array`);
+        }
+        // If req.files is an object (multiple fields)
+        else if (typeof req.files === "object") {
+          // Check for common field names used in file uploads
+          const possibleFieldNames = [
+            "category_images",
+            "category_image",
+            "images",
+            "documents",
+            "file",
+          ];
+          for (const fieldName of possibleFieldNames) {
+            if (
+              req.files[fieldName] &&
+              Array.isArray(req.files[fieldName]) &&
+              req.files[fieldName].length > 0
+            ) {
+              uploadedFiles = req.files[fieldName];
+              logger.info(`Found ${uploadedFiles.length} files in field: ${fieldName}`);
+              break;
+            }
+          }
+        }
+      }
+
+      // Process uploaded files if any (from Postman form-data)
+      if (uploadedFiles.length > 0) {
+        // Validate max images (check against total after additions/deletions)
+        const maxImages = parseInt(process.env.MAX_CATEGORY_IMAGES || "10");
+        const currentCategory = await categoryService.getCategoryById(id);
+        const currentImageCount = (currentCategory as any)?.category_image?.length || 0;
+        const totalImagesAfterUpdate =
+          currentImageCount + uploadedFiles.length - imagesToDelete.length;
+
+        if (totalImagesAfterUpdate > maxImages) {
+          res.status(400).json({
+            success: false,
+            message: `Maximum ${maxImages} images allowed. Current: ${currentImageCount}, Adding: ${uploadedFiles.length}, Deleting: ${imagesToDelete.length}, Result would be: ${totalImagesAfterUpdate}`,
+          });
+          return;
+        }
+
+        // Validate file types
+        const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+        const validFiles = uploadedFiles.filter(file => allowedMimeTypes.includes(file.mimetype));
+
+        if (validFiles.length !== uploadedFiles.length) {
+          res.status(400).json({
+            success: false,
+            message: "Only JPEG, PNG, and WebP images are allowed",
+          });
+          return;
+        }
+
+        // Upload to Cloudinary
+        const uploadedImages = await imageUploadService.uploadMultipleFiles(
+          validFiles,
+          process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images",
+          "category"
+        );
+
+        // Create image metadata objects from uploaded files
+        const fileUploadImages = uploadedImages.map((img: any) => ({
           image_name: img.image_name,
           file_url: img.file_url,
           cloudinary_public_id: img.cloudinary_public_id,
-          file_size: img.file_size || 0,
-          mime_type: img.mime_type || "application/octet-stream",
-          uploaded_at: new Date(),
+          file_size: img.file_size,
+          mime_type: img.mime_type,
+          uploaded_at: img.uploaded_at || new Date(),
         }));
 
-        if (req.body.replace_images === "true") {
-          req.body.category_image = newCategoryImages;
-        } else {
-          const currentCategory = await categoryService.getCategoryById(id);
-          if (currentCategory) {
-            let currentImages = (currentCategory as any).category_image || [];
-            if (imagesToDelete.length > 0) {
-              const toRemove = currentImages.filter((img: any) =>
-                imagesToDelete.includes(String(img._id))
-              );
+        // Merge with any JSON-provided images
+        newCategoryImages = [...newCategoryImages, ...fileUploadImages];
+        logger.info(
+          `Uploaded ${fileUploadImages.length} files from form-data. Total new images: ${newCategoryImages.length}`
+        );
+      }
+
+      // Process images (handle deletions and additions)
+      if (newCategoryImages.length > 0 || imagesToDelete.length > 0) {
+        const currentCategory = await categoryService.getCategoryById(id);
+
+        if (currentCategory) {
+          let currentImages = (currentCategory as any).category_image || [];
+
+          // Handle deletions first
+          if (imagesToDelete.length > 0) {
+            const toRemove = currentImages.filter((img: any) =>
+              imagesToDelete.includes(String(img._id))
+            );
+
+            // Delete from Cloudinary
+            if (toRemove.length > 0) {
               await Promise.all(
                 toRemove.map((img: any) =>
                   imageUploadService
@@ -1367,42 +1595,58 @@ export class CategoryController extends BaseController {
                     )
                 )
               );
-              currentImages = currentImages.filter(
-                (img: any) => !imagesToDelete.includes(String(img._id))
+            }
+
+            // Remove from current images array
+            currentImages = currentImages.filter(
+              (img: any) => !imagesToDelete.includes(String(img._id))
+            );
+
+            logger.info(`Deleted ${toRemove.length} category images`);
+          }
+
+          // Handle additions
+          if (newCategoryImages.length > 0) {
+            // Check if replace_images flag is set to true
+            if (req.body.replace_images === "true") {
+              // Replace all images - delete old ones from Cloudinary
+              if (currentImages.length > 0) {
+                await Promise.all(
+                  currentImages.map((img: any) =>
+                    imageUploadService
+                      .deleteFromCloudinary(img.cloudinary_public_id)
+                      .catch((e: any) =>
+                        logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
+                      )
+                  )
+                );
+              }
+              req.body.category_image = newCategoryImages;
+              logger.info(`Replaced all images with ${newCategoryImages.length} new images`);
+            } else {
+              // Append new images to existing ones
+              req.body.category_image = [...currentImages, ...newCategoryImages];
+              logger.info(
+                `Added ${newCategoryImages.length} new images to existing ${currentImages.length} images`
               );
             }
-            req.body.category_image = [...currentImages, ...newCategoryImages];
+          } else if (imagesToDelete.length > 0) {
+            // Only deletions, no additions
+            req.body.category_image = currentImages;
           }
-        }
-
-        logger.info(`Saved ${newCategoryImages.length} new category images (presigned upload)`);
-      } else if (imagesToDelete.length > 0) {
-        // No new images, just deleting existing ones
-        const currentCategory = await categoryService.getCategoryById(id);
-        if (currentCategory) {
-          const currentImages = (currentCategory as any).category_image || [];
-          const toRemove = currentImages.filter((img: any) =>
-            imagesToDelete.includes(String(img._id))
-          );
-          await Promise.all(
-            toRemove.map((img: any) =>
-              imageUploadService
-                .deleteFromCloudinary(img.cloudinary_public_id)
-                .catch((e: any) =>
-                  logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, e)
-                )
-            )
-          );
-          req.body.category_image = currentImages.filter(
-            (img: any) => !imagesToDelete.includes(String(img._id))
-          );
-          logger.info(`Deleted ${toRemove.length} category images`);
         }
       }
 
+      // Remove temporary fields from update data to avoid schema validation errors
       const updateData: UpdateCategoryDTO = { ...req.body };
+      delete (updateData as any).new_images;
+      delete (updateData as any).images_to_delete;
+      delete (updateData as any).replace_images;
+
+      // Perform the update
       const updatedCategory = await categoryService.updateCategory(id, updateData);
 
+      // Get related data for response
       const subCategoryService = createSubCategoryService(req);
       const subCategories = await subCategoryService.getSubCategoriesByCategory(id);
       const productCount = await categoryService.getProductCountByCategory(id);
@@ -1436,6 +1680,8 @@ export class CategoryController extends BaseController {
           updatedBy: user.email,
           userRole: user.roles[0]?.key || "unknown",
           timestamp: new Date().toISOString(),
+          imagesAdded: newCategoryImages.length,
+          imagesDeleted: imagesToDelete.length,
         },
       });
     } catch (error: any) {
@@ -1588,7 +1834,6 @@ export class CategoryController extends BaseController {
       });
     }
   }
-
   async uploadCategoryImage(req: Request, res: Response): Promise<void> {
     try {
       const files = req.files as Express.Multer.File[];
@@ -1601,7 +1846,21 @@ export class CategoryController extends BaseController {
         return;
       }
 
+      // Get category ID from params or query
+      const categoryId = req.params.id || req.query.id;
+
+      if (!categoryId) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Category ID is required. Please provide it in the URL: /categories/:id/upload-image or ?id=category_id",
+        });
+        return;
+      }
+
       const folder = process.env.CATEGORY_IMAGE_FOLDER || "frovo/category_images";
+
+      // Upload new image to S3
       const { url, publicId } = await imageUploadService.uploadToCloudinary(
         files[0].buffer,
         files[0].originalname,
@@ -1610,16 +1869,174 @@ export class CategoryController extends BaseController {
 
       const imageData = imageUploadService.createCategoryDocumentMetadata(files[0], url, publicId);
 
+      // Get the existing category
+      const categoryService = createCategoryService(req);
+      const existingCategory = await categoryService.getCategoryById(categoryId as string);
+
+      if (!existingCategory) {
+        res.status(404).json({
+          success: false,
+          message: "Category not found",
+        });
+        return;
+      }
+
+      let oldImagePublicId: string | null = null;
+      let updatedImages = [];
+
+      const replaceAll = req.body.replace_all === "true" || req.query.replace_all === "true";
+      const existingImages = (existingCategory as any).category_image || [];
+
+      if (replaceAll) {
+        // Delete all existing images
+        if (existingImages.length > 0) {
+          await Promise.all(
+            existingImages.map(async (img: any) => {
+              try {
+                await imageUploadService.deleteFromCloudinary(img.cloudinary_public_id);
+                logger.info(`Deleted old image: ${img.cloudinary_public_id}`);
+              } catch (err) {
+                logger.error(`Failed to delete image ${img.cloudinary_public_id}:`, err);
+              }
+            })
+          );
+          oldImagePublicId = "multiple_images";
+        }
+        // Replace with only the new image
+        updatedImages = [imageData];
+      } else {
+        // Append the new image to existing ones
+        updatedImages = [...existingImages, imageData];
+        oldImagePublicId = null; // No deletion, just adding
+      }
+
+      // Update the category with the new images array
+      const updatedCategory = await categoryService.updateCategory(categoryId as string, {
+        category_image: updatedImages,
+      });
+
+      logger.info(
+        `Updated category ${categoryId} with new image. Total images: ${updatedImages.length}`
+      );
+
       res.status(200).json({
         success: true,
-        message: "Category image uploaded successfully",
+        message: replaceAll
+          ? "Category image replaced successfully"
+          : "Category image added successfully",
         data: imageData,
+        meta: {
+          categoryId: categoryId,
+          action: replaceAll ? "replaced" : "added",
+          oldImagesDeleted: replaceAll ? existingImages.length : 0,
+          totalImagesInCategory: updatedImages.length,
+          newImagePublicId: publicId,
+        },
       });
     } catch (error: any) {
       logger.error("Error uploading category image:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Failed to upload category image",
+      });
+    }
+  }
+  async deleteCategoryImage(req: Request, res: Response): Promise<void> {
+    try {
+      const { id: categoryId, imageId } = req.params;
+
+      if (!categoryId) {
+        res.status(400).json({
+          success: false,
+          message: "Category ID is required",
+        });
+        return;
+      }
+
+      if (!imageId) {
+        res.status(400).json({
+          success: false,
+          message: "Image ID is required",
+        });
+        return;
+      }
+
+      const categoryService = createCategoryService(req);
+      const user = CategoryController.getLoggedInUser(req);
+
+      // Get the existing category
+      const existingCategory = await categoryService.getCategoryById(categoryId);
+
+      if (!existingCategory) {
+        res.status(404).json({
+          success: false,
+          message: "Category not found",
+        });
+        return;
+      }
+
+      const existingImages = (existingCategory as any).category_image || [];
+
+      // Find the image to delete
+      const imageToDelete = existingImages.find((img: any) => String(img._id) === imageId);
+
+      if (!imageToDelete) {
+        res.status(404).json({
+          success: false,
+          message: "Image not found in this category",
+        });
+        return;
+      }
+
+      // Delete the image from Cloudinary/S3
+      try {
+        await imageUploadService.deleteFromCloudinary(imageToDelete.cloudinary_public_id);
+        logger.info(`Deleted image from storage: ${imageToDelete.cloudinary_public_id}`);
+      } catch (deleteError) {
+        logger.error(
+          `Failed to delete image from storage: ${imageToDelete.cloudinary_public_id}`,
+          deleteError
+        );
+        // Continue with removing from database even if storage deletion fails
+      }
+
+      // Remove the image from the category's images array
+      const updatedImages = existingImages.filter((img: any) => String(img._id) !== imageId);
+
+      // Update the category with the remaining images
+      const updatedCategory = await categoryService.updateCategory(categoryId, {
+        category_image: updatedImages,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Category image deleted successfully",
+        data: {
+          categoryId: categoryId,
+          deletedImageId: imageId,
+          deletedImageName: imageToDelete.image_name,
+          deletedImageUrl: imageToDelete.file_url,
+          remainingImagesCount: updatedImages.length,
+        },
+        meta: {
+          deletedBy: user.email,
+          userRole: user.roles[0]?.key || "unknown",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error deleting category image:", error);
+
+      let statusCode = 500;
+      if (error.message.includes("not found")) {
+        statusCode = 404;
+      } else if (error.message.includes("Invalid")) {
+        statusCode = 400;
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        message: error.message || "Failed to delete category image",
       });
     }
   }
@@ -2133,6 +2550,57 @@ export class SubCategoryController extends BaseController {
           uploaded_at: new Date(),
         }));
         logger.info(`Saved ${subCategoryImagesData.length} sub-category images (presigned upload)`);
+      } else if (Array.isArray(req.files) && req.files.length > 0) {
+        // Upload new images
+        const files = req.files as Express.Multer.File[];
+
+        if (!files || files.length === 0) {
+          res.status(400).json({
+            success: false,
+            message: "No images uploaded",
+          });
+          return;
+        }
+
+        // Validate max images
+        const maxImages = parseInt(process.env.MAX_PRODUCT_IMAGES || "10");
+        if (files.length > maxImages) {
+          res.status(400).json({
+            success: false,
+            message: `Maximum ${maxImages} images allowed. Uploaded ${files.length}.`,
+          });
+          return;
+        }
+
+        // Validate file types
+        const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+        const validFiles = files.filter(file => allowedMimeTypes.includes(file.mimetype));
+
+        if (validFiles.length !== files.length) {
+          res.status(400).json({
+            success: false,
+            message: "Only JPEG, PNG, and WebP images are allowed",
+          });
+          return;
+        }
+
+        // Upload to Cloudinary
+        const uploadedImages = await imageUploadService.uploadMultipleFiles(
+          validFiles,
+          process.env.CATALOGUE_IMAGE_FOLDER || "frovo/sub_category_images",
+          "subcategory"
+        );
+
+        // Map uploaded images into subCategoryImagesData
+        subCategoryImagesData = uploadedImages.map((img: any) => ({
+          image_name: img.image_name,
+          file_url: img.file_url,
+          cloudinary_public_id: img.cloudinary_public_id,
+          file_size: img.file_size,
+          mime_type: img.mime_type,
+          uploaded_at: img.uploaded_at || new Date(),
+        }));
+        logger.info(`Uploaded ${subCategoryImagesData.length} sub-category files from form-data`);
       }
 
       const subCategoryData: CreateSubCategoryDTO = {
