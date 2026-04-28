@@ -1,9 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-// ============================================
-// IMAGE / DOCUMENT INTERFACES (no duplicates)
-// ============================================
-
 export interface ICancelledChequeImage {
   image_name: string;
   file_url: string;
@@ -116,10 +112,14 @@ export interface ITrademarkCertificateImage {
   mime_type: string;
   uploaded_at: Date;
 }
-
-// ============================================
-// REUSABLE DOCUMENT SUB-SCHEMA FACTORY
-// ============================================
+export interface IFSSAIBrandImage {
+  image_name: string;
+  file_url: string;
+  cloudinary_public_id: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: Date;
+}
 
 const documentImageSchema = () =>
   new Schema(
@@ -133,10 +133,6 @@ const documentImageSchema = () =>
     },
     { _id: true }
   );
-
-// ============================================
-// COMPANY CREATE INTERFACE & SCHEMA
-// ============================================
 
 export interface ICompanyCreate extends Document {
   company_id: string;
@@ -266,8 +262,10 @@ export interface IBrandCreate extends Document {
   bank_account_of_brand: string;
   ifsc_code: string;
   payment_terms: string;
+  fssai_brand_number?: string;
   // Brand's own banking document
   upload_cancelled_cheque_image?: ICancelledChequeImage;
+  fssai_brand_image?: IFSSAIBrandImage;
   // Status & contract
   brand_status_cycle: string;
   brand_status: "active" | "inactive";
@@ -326,8 +324,10 @@ const brandCreateSchema = new Schema<IBrandCreate>(
     bank_account_of_brand: { type: String, required: true, trim: true },
     ifsc_code: { type: String, required: true, uppercase: true, trim: true },
     payment_terms: { type: String, required: true, trim: true },
+    fssai_brand_number: { type: String, trim: true, required: false },
     // Brand's own banking document
     upload_cancelled_cheque_image: documentImageSchema(),
+    fssai_brand_image: documentImageSchema(),
     // Status & contract
     brand_status_cycle: { type: String, required: true, trim: true },
     brand_status: { type: String, enum: ["active", "inactive"], default: "active", required: true },

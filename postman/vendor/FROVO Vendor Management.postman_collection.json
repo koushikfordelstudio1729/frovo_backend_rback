@@ -702,12 +702,12 @@
               "formdata": [
                 {
                   "key": "registration_type",
-                  "value": "cin",
+                  "value": "msme",
                   "type": "text"
                 },
                 {
                   "key": "cin_or_msme_number",
-                  "value": "U12345MH2023PTC123450",
+                  "value": "U23746MH2023PTC123452",
                   "type": "text"
                 },
                 {
@@ -717,37 +717,37 @@
                 },
                 {
                   "key": "brand_billing_name",
-                  "value": "Jatin Ice Cream",
+                  "value": "Sankalp  Cream",
                   "type": "text"
                 },
                 {
                   "key": "brand_name",
-                  "value": "Frovo",
+                  "value": "Sankalp",
                   "type": "text"
                 },
                 {
                   "key": "brand_email",
-                  "value": "branda@jatin.com",
+                  "value": "branda@Sankalp.com",
                   "type": "text"
                 },
                 {
                   "key": "brand_category",
-                  "value": "Chocolate Cream",
+                  "value": "Chocolate Sankalp Cream",
                   "type": "text"
                 },
                 {
                   "key": "brand_type",
-                  "value": "Premium",
+                  "value": "Premium Sankalp",
                   "type": "text"
                 },
                 {
                   "key": "contact_name",
-                  "value": "John Doe",
+                  "value": "JohnDoe Sankalp",
                   "type": "text"
                 },
                 {
                   "key": "contact_phone",
-                  "value": "9876543212",
+                  "value": "9876553223",
                   "type": "text"
                 },
                 {
@@ -762,43 +762,13 @@
                 },
                 {
                   "key": "ifsc_code",
-                  "value": "HDFC0001235",
+                  "value": "ADFC1001239",
                   "type": "text"
                 },
                 {
                   "key": "payment_terms",
                   "value": "Net 30",
                   "type": "text"
-                },
-                {
-                  "key": "gst_details",
-                  "value": "22AAAAA0000A1Z6",
-                  "type": "text",
-                  "disabled": true
-                },
-                {
-                  "key": "PAN_number",
-                  "value": "ABCDE1234F",
-                  "type": "text",
-                  "disabled": true
-                },
-                {
-                  "key": "FSSAI_number",
-                  "value": "12345678901235",
-                  "type": "text",
-                  "disabled": true
-                },
-                {
-                  "key": "TDS_rate",
-                  "value": "2",
-                  "type": "text",
-                  "disabled": true
-                },
-                {
-                  "key": "billing_cycle",
-                  "value": "monthly",
-                  "type": "text",
-                  "disabled": true
                 },
                 {
                   "key": "brand_status_cycle",
@@ -847,95 +817,16 @@
                   "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba"
                 },
                 {
-                  "key": "gst_certificate_image",
-                  "type": "file",
-                  "description": "Required for ALL entity types",
-                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852",
-                  "disabled": true
+                  "key": "fssai_brand_number",
+                  "value": "12345QWERTA",
+                  "type": "text",
+                  "uuid": "e17c954b-3d9f-4422-a689-89622c4cb009"
                 },
                 {
-                  "key": "PAN_image",
+                  "key": "fssai_brand_image",
                   "type": "file",
-                  "description": "Required for ALL entity types",
-                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852",
-                  "disabled": true
-                },
-                {
-                  "key": "FSSAI_image",
-                  "type": "file",
-                  "description": "Required for ALL entity types",
-                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547",
-                  "disabled": true
-                },
-                {
-                  "key": "certificate_of_incorporation_image",
-                  "type": "file",
-                  "description": "Required for: pvt, opc, llp, public",
-                  "src": "postman-cloud:///1f100645-8ce9-4820-baa9-5c2bad958dba",
-                  "disabled": true
-                },
-                {
-                  "key": "MSME_or_Udyam_certificate_image",
-                  "type": "file",
-                  "description": "Required for: pvt, opc, llp, proprietorship, partnership",
-                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852",
-                  "disabled": true
-                },
-                {
-                  "key": "MOA_image",
-                  "type": "file",
-                  "description": "Required for: pvt, opc, public",
-                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547",
-                  "disabled": true
-                },
-                {
-                  "key": "AOA_image",
-                  "type": "file",
-                  "description": "Required for: pvt, opc, public",
-                  "src": "postman-cloud:///1f100661-4f4f-4ca0-80be-98ab9f934344",
-                  "disabled": true
-                },
-                {
-                  "key": "Trademark_certificate_image",
-                  "type": "file",
-                  "description": "Required for: pvt",
-                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852",
-                  "disabled": true
-                },
-                {
-                  "key": "Authorized_Signatory_image",
-                  "type": "file",
-                  "description": "Required for: pvt",
-                  "src": "postman-cloud:///1f100661-4d8e-4920-aa31-41d8e5c5d547",
-                  "disabled": true
-                },
-                {
-                  "key": "LLP_agreement_image",
-                  "type": "file",
-                  "description": "Required for: llp",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "Shop_and_Establishment_certificate_image",
-                  "type": "file",
-                  "description": "Required for: proprietorship",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "Registered_Partnership_deed_image",
-                  "type": "file",
-                  "description": "Required for: partnership",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "Board_resolution_image",
-                  "type": "file",
-                  "description": "Required for: public",
-                  "value": "",
-                  "disabled": true
+                  "uuid": "531fce25-24b4-4ac0-a690-41bac2068e95",
+                  "src": "postman-cloud:///1f100661-532c-48f0-bb4f-cfc3f5c8a852"
                 }
               ]
             },

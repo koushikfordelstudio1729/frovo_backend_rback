@@ -33,6 +33,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const DOCUMENT_TYPE_MAPPING: Record<string, string> = {
   upload_cancelled_cheque_image: "cancelled_cheque",
+  fssai_brand_image: "fssai_brand_certificate",
   gst_certificate_image: "gst_certificate",
   PAN_image: "pan_card",
   FSSAI_image: "fssai_certificate",
@@ -58,7 +59,10 @@ export const COMPANY_COMPLIANCE_DOCUMENT_FIELDS = [
 ] as const;
 
 // ── Brand-level document always required on Brand create ──
-const BRAND_COMMON_DOCUMENT_FIELDS = ["upload_cancelled_cheque_image"] as const;
+const BRAND_COMMON_DOCUMENT_FIELDS = [
+  "upload_cancelled_cheque_image",
+  "fssai_brand_image",
+] as const;
 
 // ── Legal-entity-specific documents required on BOTH company and brand create ──
 const ENTITY_SPECIFIC_DOCUMENTS: Record<string, string[]> = {
@@ -200,7 +204,18 @@ export function getRequiredDocumentsForLegalEntity(legalEntity: string): string[
   return [...BRAND_COMMON_DOCUMENT_FIELDS, ...(ENTITY_SPECIFIC_DOCUMENTS[legalEntity] || [])];
 }
 
-export function getRequiredDocumentForCancelledCheque(): string[] {
+// For basic brand creation (only mandatory docs)
+export function getRequiredBrandDocuments(): string[] {
+  return ["upload_cancelled_cheque_image"];
+}
+
+// For brands that need FSSAI (food-related brands)
+export function getRequiredBrandDocumentsWithFSSAI(): string[] {
+  return ["upload_cancelled_cheque_image", "fssai_brand_image"];
+}
+
+// Keep original for backward compatibility
+export function getRequiredDocumentForCancelledChequeAndFssaiBrand(): string[] {
   return [...BRAND_COMMON_DOCUMENT_FIELDS];
 }
 /**

@@ -14,6 +14,7 @@ import {
   IShopAndEstablishmentCertificateImage,
   IRegisteredPartnershipDeedImage,
   IBoardResolutionImage,
+  IFSSAIBrandImage,
 } from "../models/Vendor.model";
 
 import { logger } from "../utils/logger.util";
@@ -31,6 +32,7 @@ export interface IImageMetadata {
 
 export type DocumentType =
   | "cancelled_cheque"
+  | "fssai_brand_certificate"
   | "gst_certificate"
   | "pan_card"
   | "fssai_certificate"
@@ -62,6 +64,7 @@ export class ImageUploadService {
 
     const defaultFolders: Record<DocumentType, string> = {
       cancelled_cheque: "frovo/cancelled_cheque_images",
+      fssai_brand_certificate: "frovo/fssai_brand_certificates",
       gst_certificate: "frovo/gst_certificates",
       pan_card: "frovo/pan_cards",
       fssai_certificate: "frovo/fssai_certificates",
@@ -141,6 +144,15 @@ export class ImageUploadService {
     const uploadFolder = this.getFolderPath("cancelled_cheque", folder);
     const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
     return this.createDocumentMetadata<ICancelledChequeImage>(file, result);
+  }
+
+  async uploadFssaiBrandCertificateImage(
+    file: Express.Multer.File,
+    folder?: string
+  ): Promise<IFSSAIBrandImage> {
+    const uploadFolder = this.getFolderPath("fssai_brand_certificate", folder);
+    const result = await this.uploadToCloudinary(file.buffer, file.originalname, uploadFolder);
+    return this.createDocumentMetadata<IFSSAIBrandImage>(file, result);
   }
 
   async uploadGSTCertificateImage(
@@ -266,6 +278,8 @@ export class ImageUploadService {
     switch (documentType) {
       case "cancelled_cheque":
         return this.uploadCancelledChequeImage(file, folder);
+      case "fssai_brand_certificate":
+        return this.uploadFssaiBrandCertificateImage(file, folder);
       case "gst_certificate":
         return this.uploadGSTCertificateImage(file, folder);
       case "pan_card":
@@ -357,6 +371,7 @@ export class ImageUploadService {
   private getBrandFieldName(documentType: DocumentType): string {
     const fieldNameMap: Record<DocumentType, string> = {
       cancelled_cheque: "upload_cancelled_cheque_image",
+      fssai_brand_certificate: "fssai_brand_image",
       gst_certificate: "gst_certificate_image",
       pan_card: "PAN_image",
       fssai_certificate: "FSSAI_image",
@@ -401,6 +416,7 @@ export class ImageUploadService {
 
     const documentFields = [
       "upload_cancelled_cheque_image",
+      "fssai_brand_image",
       "gst_certificate_image",
       "PAN_image",
       "FSSAI_image",

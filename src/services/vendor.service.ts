@@ -26,8 +26,7 @@ import { AuditTrail } from "../models/AuditTrail.model";
 import PDFDocument from "pdfkit";
 import {
   validateMongoId,
-  getRequiredDocumentsForLegalEntity,
-  getRequiredDocumentForCancelledCheque,
+  getRequiredDocumentForCancelledChequeAndFssaiBrand,
   getRequiredCompanyDocumentsForLegalEntity,
   escapeCSVCell,
   buildCSV,
@@ -196,8 +195,10 @@ export interface IBrandCreateData {
   bank_account_of_brand: string;
   ifsc_code: string;
   payment_terms: string;
+  fssai_brand_number: string;
   // Brand-specific banking document
   upload_cancelled_cheque_image?: any;
+  fssai_brand_image?: any;
   // Status & contract
   brand_status_cycle: string;
   brand_status?: "active" | "inactive";
@@ -1577,7 +1578,10 @@ export class BrandService {
       }
 
       // Validate required files (brand scope: cancelled cheque + entity-specific docs)
-      const requiredFields = getRequiredDocumentForCancelledCheque();
+      const requiredFields = brandData.fssai_brand_number
+        ? getRequiredDocumentForCancelledChequeAndFssaiBrand() // Both required
+        : ["upload_cancelled_cheque_image"]; // Only cancelled cheque required
+
       for (const field of requiredFields) {
         const docData = (brandData as any)[field];
         if (!docData?.file_url || !docData?.cloudinary_public_id) {
@@ -1971,6 +1975,7 @@ export class BrandService {
           "Address",
           "Bank Account",
           "IFSC Code",
+          "FSSAI Brand Number",
           "Payment Terms",
           "Brand Status Cycle",
           "Verification Status",
@@ -2018,6 +2023,7 @@ export class BrandService {
             d.bank_account_of_brand || "",
             d.ifsc_code || "",
             d.payment_terms || "",
+            d.fssai_brand_number || "",
             d.brand_status_cycle || "",
             d.verification_status || "",
             d.risk_notes || "",

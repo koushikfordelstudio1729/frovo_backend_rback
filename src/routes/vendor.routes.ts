@@ -119,6 +119,7 @@ router.post(
   upload.fields([
     // Common mandatory documents
     { name: "upload_cancelled_cheque_image", maxCount: 1 },
+    { name: "fssai_brand_image", maxCount: 1 },
   ]),
   VendorController.createBrand
 );

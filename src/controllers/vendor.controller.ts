@@ -16,8 +16,7 @@ import {
   handleControllerError,
   setExportHeaders,
   requireRole,
-  getRequiredDocumentsForLegalEntity,
-  getRequiredDocumentForCancelledCheque,
+  getRequiredDocumentForCancelledChequeAndFssaiBrand,
   getRequiredCompanyDocumentsForLegalEntity,
   normalizeBody,
   ValidationError,
@@ -887,6 +886,7 @@ export class VendorController {
         bank_account_of_brand,
         ifsc_code,
         payment_terms,
+        fssai_brand_number,
         brand_status_cycle,
         contract_start_date,
         contract_end_date,
@@ -902,7 +902,6 @@ export class VendorController {
       validateEnumValue(payment_methods, VALID_PAYMENT_METHODS, "payment_methods");
       validateEmail(brand_email);
 
-      // ── Validate dates ────────────────────────────────────────────────────
       const parsedContractStartDate = parseDate(contract_start_date, "contract_start_date");
       const parsedContractEndDate = parseDate(contract_end_date, "contract_end_date");
       const parsedContractRenewalDate = parseDate(contract_renewal_date, "contract_renewal_date");
@@ -914,7 +913,6 @@ export class VendorController {
         throw new ValidationError("Contract renewal date must be on or after contract end date");
       }
 
-      // ── Resolve and validate company ──────────────────────────────────────
       let company;
       if (mongoose.Types.ObjectId.isValid(company_id) && company_id.length === 24) {
         company = await CompanyCreate.findById(company_id);
@@ -940,7 +938,7 @@ export class VendorController {
 
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const uploadedFiles = Object.keys(files);
-      const requiredDocuments = getRequiredDocumentForCancelledCheque();
+      const requiredDocuments = getRequiredDocumentForCancelledChequeAndFssaiBrand();
       const missingDocuments = requiredDocuments.filter(
         doc => !uploadedFiles.includes(doc) || !files[doc]?.[0]
       );
@@ -985,6 +983,7 @@ export class VendorController {
         bank_account_of_brand,
         ifsc_code: ifsc_code.toUpperCase(),
         payment_terms,
+        fssai_brand_number: fssai_brand_number || "",
         brand_status_cycle,
         brand_status: "active",
         verification_status: "pending",
@@ -1179,7 +1178,7 @@ export class VendorController {
         );
       }
 
-      const BRAND_ALLOWED_DOCUMENT_FIELD = "upload_cancelled_cheque_image";
+      const BRAND_ALLOWED_DOCUMENT_FIELD = ["upload_cancelled_cheque_image", "fssai_brand_image"];
 
       if (req.files) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -1187,7 +1186,7 @@ export class VendorController {
 
         // Check for unauthorized document uploads - only cancelled cheque is allowed
         const unauthorizedDocuments = uploadedFileNames.filter(
-          fieldName => fieldName !== BRAND_ALLOWED_DOCUMENT_FIELD
+          fieldName => !BRAND_ALLOWED_DOCUMENT_FIELD.includes(fieldName)
         );
 
         if (unauthorizedDocuments.length > 0) {
@@ -1199,36 +1198,37 @@ export class VendorController {
         }
 
         // Process only the cancelled cheque image
-        if (files[BRAND_ALLOWED_DOCUMENT_FIELD]?.[0]) {
-          const imageUploadService = new ImageUploadService();
-          const folderPath =
-            `${currentCompany.registered_company_name}/${updateData.brand_name || currentBrand.brand_name}`.replace(
-              /[^a-zA-Z0-9]/g,
-              "_"
-            );
+        const imageUploadService = new ImageUploadService();
+        const folderPath =
+          `${currentCompany.registered_company_name}/${updateData.brand_name || currentBrand.brand_name}`.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
 
-          const documentType = DOCUMENT_TYPE_MAPPING[BRAND_ALLOWED_DOCUMENT_FIELD];
+        for (const fieldName of BRAND_ALLOWED_DOCUMENT_FIELD) {
+          if (!files[fieldName]?.[0]) continue;
 
-          if (documentType) {
-            try {
-              const oldDocument = currentBrand.upload_cancelled_cheque_image;
-              if (oldDocument?.cloudinary_public_id) {
-                try {
-                  await imageUploadService.deleteFromCloudinary(oldDocument.cloudinary_public_id);
-                  logger.info(`Deleted old cancelled cheque for brand ${currentBrand.brand_id}`);
-                } catch (deleteError) {
-                  logger.warn(`Failed to delete old cancelled cheque:`, deleteError);
-                }
+          const documentType = DOCUMENT_TYPE_MAPPING[fieldName];
+          if (!documentType) continue;
+
+          try {
+            const oldDocument = (currentBrand as any)[fieldName];
+            if (oldDocument?.cloudinary_public_id) {
+              try {
+                await imageUploadService.deleteFromCloudinary(oldDocument.cloudinary_public_id);
+                logger.info(`Deleted old ${fieldName} for brand ${currentBrand.brand_id}`);
+              } catch (deleteError) {
+                logger.warn(`Failed to delete old ${fieldName}:`, deleteError);
               }
-              updateData[BRAND_ALLOWED_DOCUMENT_FIELD] = await imageUploadService.uploadDocument(
-                files[BRAND_ALLOWED_DOCUMENT_FIELD][0],
-                documentType as DocumentType,
-                folderPath
-              );
-            } catch (uploadError: any) {
-              logger.error(`Failed to upload cancelled cheque:`, uploadError);
-              throw new Error(`Failed to upload cancelled cheque: ${uploadError.message}`);
             }
+            updateData[fieldName] = await imageUploadService.uploadDocument(
+              files[fieldName][0],
+              documentType as DocumentType,
+              folderPath
+            );
+          } catch (uploadError: any) {
+            logger.error(`Failed to upload ${fieldName}:`, uploadError);
+            throw new Error(`Failed to upload ${fieldName}: ${uploadError.message}`);
           }
         }
       }
